@@ -17,6 +17,7 @@ import {
     Phone,
     PhoneOff,
     Plus,
+    Presentation,
     Download,
     Eraser,
     FileText,
@@ -31,7 +32,6 @@ import {
     Video,
     X,
     Users,
-    Video as VideoCamara,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -108,6 +108,15 @@ import {
     type CanalDeEquipo,
     type VistaDelEquipo,
 } from "@/lib/canales-de-equipo";
+import {
+    COLOR_DEL_MANDO,
+    GLIFO_DEL_MANDO,
+    ROTULO_DEL_MANDO,
+    elAvisoDelMando,
+    esUnaLlamada,
+    losMandosDelCanal,
+    type GlifoDelMando,
+} from "@/lib/mandos-del-canal";
 import {
     CABECERA_DEL_PANEL,
     CONTROL_DE_ICONO,
@@ -1981,6 +1990,23 @@ function RotuloDeLaLista() {
 }
 
 /**
+ * De la llave del glifo al icono que se pinta.
+ *
+ * El mapa vive AQUÍ y no en `lib/mandos-del-canal.ts` para que ese módulo siga
+ * siendo puro y probable sin navegador: allí se decide que los glifos son
+ * distintos, aquí qué dibujo lleva cada uno.
+ *
+ * `Presentation` —una pantalla— para la reunión, no una cámara: la cámara es
+ * la videollamada de al lado, y una sala con enlace es el sitio donde se enseña
+ * algo. Dos mandos con el mismo dibujo es el fallo del que viene todo esto.
+ */
+const ICONO_DEL_MANDO: Record<GlifoDelMando, typeof Phone> = {
+    telefono: Phone,
+    camara: Video,
+    pantalla: Presentation,
+};
+
+/**
  * La SEGUNDA fila de la cabecera con el CHAT delante: volver a la lista, el
  * canal abierto y sus mandos —llamar (solo en un directo), la reunión y el
  * «⋯»—, en cajas de 28 px como los controles de la cabecera de Chats.
@@ -2023,75 +2049,50 @@ function FilaDelCanal({
             <span data-nombre-del-canal className="min-w-0 flex-1 truncate text-sm font-medium">
                 {canal.nombre}
             </span>
-            {/* Llamar: SOLO en un directo.
+            {/* Los mandos del canal: llamar de voz, videollamada y la reunión,
+              * los tres de UN clic y con su propio glifo.
               *
-              * Un canal de varias personas no tiene «el otro», y una
-              * llamada de uno a uno no sabria a quien sonarle. La puerta de
-              * verdad esta en la accion —comprueba que sea un directo y que
-              * quien llama pertenezca—; esto es la fachada. */}
-            {canal.tipo === "directo" && (
-                // Un MENÚ y no dos botones: voz o video. Es el mismo
-                // reparto que el menú de llamar de Chats. Una de voz
-                // arranca en voz y se puede subir a video a mitad —si el
-                // otro acepta—; una videollamada arranca ya en video.
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label={`Llamar a ${canal.nombre}`}
-                            title={`Llamar a ${canal.nombre}`}
-                            data-boton="llamar-en-el-directo"
-                            className={cn(control, "hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40")}
-                        >
-                            <Phone className={GLIFO_DE_CONTROL} />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        {(["voz", "video"] as const).map((modo) => (
-                            <DropdownMenuItem
-                                key={modo}
-                                data-llamar={modo}
-                                onSelect={() =>
-                                    window.dispatchEvent(
-                                        new CustomEvent("llamada:salir", {
-                                            detail: {
-                                                canalId: canal.id,
-                                                conQuien: canal.nombre,
-                                                modo,
-                                            },
-                                        }),
-                                    )
-                                }
-                            >
-                                {modo === "video" ? (
-                                    <Video className="mr-2 h-4 w-4" />
-                                ) : (
-                                    <Phone className="mr-2 h-4 w-4" />
-                                )}
-                                {modo === "video" ? "Videollamada" : "Llamada de voz"}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )}
-            {/* La reunión, en CUALQUIER canal y no solo en un directo.
+              * Eran un menú (teléfono → voz o video) más un botón de cámara
+              * que en realidad abría la REUNIÓN, y las dos cámaras eran el
+              * mismo icono de lucide: la fila decía «un teléfono que despliega
+              * una cámara, y una cámara al lado». Quién sale en qué canal y con
+              * qué glifo lo decide `lib/mandos-del-canal.ts`, que es donde el
+              * banco comprueba que no se repita ninguno.
               *
-              * Es la diferencia con la llamada de al lado: una llamada de
-              * uno a uno necesita «el otro» —por eso solo sale en un
-              * directo—, y una reunión es un sitio al que se entra, así que
-              * un canal de área es justo donde tiene sentido. La puerta de
-              * verdad está en la acción: comprueba que se PERTENECE al
-              * canal, no que se pueda leer. */}
-            <button
-                type="button"
-                onClick={() => setReunion(true)}
-                aria-label={`Abrir una reunión en ${canal.nombre}`}
-                title="Reunión de video"
-                data-boton="reunion-del-canal"
-                className={cn(control, "hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-sky-950/40")}
-            >
-                <VideoCamara className={GLIFO_DE_CONTROL} />
-            </button>
+              * Ojo al cambiar de sitio: la cámara pasó a ser la VIDEOLLAMADA,
+              * así que quien tenía la costumbre de «cámara = reunión» ahora la
+              * encuentra en el glifo de pantalla, a su derecha. */}
+            {losMandosDelCanal(canal.tipo).map((mando) => {
+                const Glifo = ICONO_DEL_MANDO[GLIFO_DEL_MANDO[mando]];
+                return (
+                    <button
+                        key={mando}
+                        type="button"
+                        onClick={() =>
+                            esUnaLlamada(mando)
+                                ? // El oyente del layout es quien sostiene la
+                                  // ventana, así que la llamada aguanta al
+                                  // cambiar de canal o de pantalla.
+                                  window.dispatchEvent(
+                                      new CustomEvent("llamada:salir", {
+                                          detail: {
+                                              canalId: canal.id,
+                                              conQuien: canal.nombre,
+                                              modo: mando,
+                                          },
+                                      }),
+                                  )
+                                : setReunion(true)
+                        }
+                        aria-label={elAvisoDelMando(mando, canal.nombre)}
+                        title={ROTULO_DEL_MANDO[mando]}
+                        data-mando={mando}
+                        className={cn(control, COLOR_DEL_MANDO[mando])}
+                    >
+                        <Glifo className={GLIFO_DE_CONTROL} />
+                    </button>
+                );
+            })}
             <AbrirReunion
                 canalId={canal.id}
                 nombreDelCanal={canal.nombre}

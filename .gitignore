@@ -51,6 +51,9 @@ lib/__tests__/.compilado/
 # Y el de los bancos que van contra Postgres: se emiten aqui dentro para que
 # `@prisma/client` resuelva desde el repo.
 .banco/
+# El «antes» que los bancos sacan de git con `git show`: su `trap` lo borra al
+# salir, pero una vuelta interrumpida lo deja, y eso no pertenece al historial.
+.banco-antes-*/
 
 # El segmentador de fondo: lo copia `npm run prebuild` desde node_modules.
 # Son 6 MB de wasm que no tienen por que vivir en el historial de git.

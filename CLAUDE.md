@@ -3874,6 +3874,135 @@ npm run build && grep -oF "top:var(--alto-de-la-barra)" .next/static/css/*.css |
 Cero significa que esa clase no existe en producción. Es la misma familia que la
 regla de `removeConsole`: el código llega, lo que no está es lo compilado.
 
+## Chat de equipo: en una fila de mandos, dos cosas distintas NO llevan el mismo glifo
+
+«El icono de teléfono abre un menú con dos opciones, "Llamada de voz" y
+"Videollamada", cuando al lado ya está el icono de cámara que hace lo mismo.»
+
+La mitad del reporte es cierta y la otra es peor de lo que parece. La cabecera
+de un canal abierto llevaba, en este orden:
+
+| | qué era | glifo |
+| --- | --- | --- |
+| teléfono | un **menú** con «Llamada de voz» y «Videollamada» | `Phone` |
+| cámara | la **REUNIÓN** —una sala con enlace público, hasta cuatro, sin timbrarle a nadie— | **`Video as VideoCamara`** |
+| «⋯» | limpiar el historial, solo el súper administrador | `MoreHorizontal` |
+
+Así que la cámara **no hacía lo mismo**: hacía otra cosa entera. Y nada en la
+fila lo decía, porque la opción «Videollamada» del menú se pintaba con `Video`
+y el botón de la reunión con `Video as VideoCamara` — **el MISMO icono de
+lucide, con un alias que escondía la coincidencia al leer el código**. Desde
+fuera la cabecera decía «un teléfono que despliega una cámara, y una cámara al
+lado»: indistinguibles, y un clic de más para algo de todos los días.
+
+> **En una fila de mandos, dos cosas distintas no pueden llevar el mismo
+> glifo.** El menú se va —el teléfono llama de voz y la cámara hace la
+> videollamada, las dos de un solo clic— y la reunión pasa a **`Presentation`**,
+> una pantalla. Dejarla con la cámara sería el mismo fallo con otro nombre.
+
+Quién sale en qué canal, con qué glifo, con qué rótulo y de qué color lo decide
+**`lib/mandos-del-canal.ts`**, que es puro. El banco comprueba la regla como
+**invariante y no caso a caso**: si mañana entra un cuarto mando con un glifo
+que ya está, se pone en rojo.
+
+Siete cosas que hay que mantener:
+
+1. **El nombre de un mando de llamada ES su modo** (`voz` / `video`, los de
+   `lib/modo-de-la-llamada.ts`), no una lista paralela: lo que se despacha al
+   oyente es ese mismo valor. Con dos vocabularios, uno diría `video` y el otro
+   `videollamada`, y `comoModo` —que cae en voz ante lo que no reconoce, y ahí
+   hace bien— arrancaría la videollamada sin cámara y sin decir por qué.
+2. **Llamar, SOLO en un directo; la reunión, en CUALQUIER canal.** Un canal de
+   varias personas no tiene «el otro» y una llamada de uno a uno no sabría a
+   quién sonarle; una reunión es un sitio al que se entra, así que un canal de
+   área es justo donde tiene sentido. Esto es la fachada: la puerta sigue en las
+   acciones.
+3. **La reunión NO se mete en el «⋯».** Era la otra salida y es peor: ese menú
+   solo se pinta para el súper administrador (`puedoLimpiar`), así que en un
+   canal de área —donde la reunión es el único mando— el resto del equipo se
+   quedaría sin ninguna forma de abrirla. Y el encargo era quitar un clic, no
+   moverlo.
+4. **Las dos llamadas comparten color y la reunión no.** Son dos formas de lo
+   mismo; la reunión es otra cosa. Es lo que hace que la fila se lea de un
+   vistazo sin abrir nada.
+5. **Los colores son clases LITERALES y viven en `lib/`.** Tailwind solo genera
+   lo que ve escrito: un color compuesto en tiempo de ejecución no existiría en
+   el CSS y el botón saldría sin color **con el build en verde** (la familia de
+   `removeConsole`). Y `tailwind.config.ts` tiene que seguir mirando `./lib/**`
+   — se comprueba buscando la **declaración** en el build, no la clase en el
+   código:
+
+   ```
+   npm run build && grep -c "hover\\:bg-emerald-50" .next/static/css/*.css
+   ```
+6. **`Video` sigue siendo el glifo de Reuniones en SU pantalla**, donde no hay
+   ninguna llamada con la que confundirlo. Lo que cambia es el de esta fila.
+7. **Y la cámara cambió de significado**, que se dice en vez de disimularlo:
+   quien tenía la costumbre de «cámara = reunión» ahora encuentra la reunión en
+   el glifo de pantalla, a su derecha. Ese es el precio de que la fila se lea, y
+   no es destructivo: una videollamada de más se cuelga.
+
+El mapa de la llave al icono (`ICONO_DEL_MANDO`) vive en la cabecera y no en el
+módulo, para que el módulo siga siendo puro: **allí se decide que los glifos son
+distintos, en la cabecera qué dibujo lleva cada uno.**
+
+### El banco: la regla aparte, y la cabecera de VERDAD en Chromium
+
+`scripts/banco-mandos-del-canal.sh`, dos mitades, porque el cambio vive en dos
+capas. La segunda monta el **`HiloDelEquipo` de verdad** dentro de un panel de
+22 rem y no una maqueta de su cabecera, y es la única que puede contestar tres
+cosas:
+
+- **que los tres dibujos se vean distintos**, comparando el `svg.innerHTML` de
+  cada botón — una maqueta daría por buenos los glifos que el propio banco
+  escribiera, que es justo el fallo;
+- **que un clic despache la llamada correcta y no abra NINGÚN menú**
+  (`[role="menu"]` a cero en el documento);
+- **que los tres midan lo que el resto de los controles de la fila**, medido
+  contra el botón de volver y no contra un número escrito a mano.
+
+Medido: los tres mandos a **28×28 con glifo de 14**, los mismos que volver, con
+4 px entre ellos y el último pegado al filo derecho de la fila a 1440, 1280,
+1024 y 390. En un canal de área sale **solo la reunión**.
+
+Y lo que cuesta, medido en el caso MÁS ancho —los tres mandos, el «⋯» del súper
+administrador y un nombre que no cabe— porque ese es el que un mando de más
+podía romper y el que no se ve probando con un nombre corto:
+
+| | el nombre se queda con |
+| --- | --- |
+| antes (dos mandos) | 191 px |
+| ahora (tres) | **159 px** |
+
+Los 32 px son el botón de más y su hueco. El nombre sigue recortándose con «…»
+—entero en el DOM y en su globo— y **nada desborda** en ninguna de las cuatro
+anchuras. Es el precio de que la fila se lea sin abrir nada.
+
+`MODO=roto` monta el `HiloDelEquipo` de `ANTES_REF` —pinchado a un commit, nunca
+`origin/main`, que pasa a ser el «ahora» en cuanto esto se fusione— y **afirma
+el fallo**: el menú con sus dos opciones, y la cámara de «Videollamada» y la de
+la reunión con el **mismo SVG**. Comprobado además lo único que dice que un
+banco mira: con la cabecera de antes puesta, el modo bueno se pone en rojo por
+tres sitios del barrido y por los cinco casos del navegador.
+
+Dos cosas del propio arnés que costaron su vuelta:
+
+1. **El hilo arrastra `next/link`**, que lee `process.env.__NEXT_*`. En un
+   navegador suelto no hay nada que lo ponga, así que el módulo revienta al
+   cargarse, `window.listo` no llega nunca y el banco se cae con **un plazo
+   agotado, que no se parece en nada a su causa**. La página del arnés pone un
+   `process.env` vacío, como la del banco del tablero de Embudos.
+2. **Un fingido con la llave equivocada se lee como un fallo de la pantalla.**
+   `lasSalasDelCanalAction` devuelve `salas`, no `data`: con `data` el diálogo
+   de la reunión reventaba en su `salas.length` y el banco decía «no se abrió el
+   diálogo» sobre un mando que funcionaba perfectamente.
+3. **Un caso que recorre «los mandos que haya» pasa en verde con CERO mandos.**
+   Dos de los once medían dentro de un bucle sin exigir antes cuántos había, así
+   que con la cabecera de antes —donde `[data-mando]` no existe— pasaban sin
+   haber medido nada. Lo cazó justamente quitarle el arreglo al modo bueno, que
+   es la comprobación que dice si un banco mira: ahora los **once** se ponen en
+   rojo.
+
 ## Chat de equipo: CANALES y DIRECTOS, no un hilo único
 
 Un hilo único por cuenta no aguanta un equipo de verdad: ventas lee lo de
