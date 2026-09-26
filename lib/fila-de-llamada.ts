@@ -9,6 +9,11 @@
  *
  * Pura (sin base) para que el banco la ejerza.
  */
+import {
+  laMarcaDeLaLlamada,
+  type MotivoDeLaLlamada,
+} from '@/lib/transcripcion-de-la-llamada';
+
 export type CallDirection = 'incoming' | 'outgoing';
 
 export interface CallRow {
@@ -29,6 +34,18 @@ export interface CallRow {
   summary: string | null;
   astraSid: string | null;
   astraCallId: string | null;
+  /**
+   * Por qué esta llamada se quedó sin transcripción, si es que se quedó.
+   *
+   * Sin esto la tarjeta solo podía deducir «hay grabación y no hay texto» y
+   * pintaba **«Procesando…» para siempre**, también cuando el proceso ya había
+   * abandonado hacía media hora. Un estado que no se puede distinguir de otro
+   * no se puede enseñar: por eso el motivo viaja hasta aquí.
+   */
+  transcripcionMotivo: MotivoDeLaLlamada | null;
+  /** Los números del aviso de créditos, que van con él o no dice nada útil. */
+  transcripcionHacenFalta: number | null;
+  transcripcionQuedan: number | null;
   ts: number; // epoch ms
   /**
    * La cuenta bajo la que esta guardada la llamada.
@@ -70,6 +87,7 @@ export function elCallRowDesdeLaFila(r: FilaCrudaDeLlamada): CallRow {
     : (r.fromMe ? 'outgoing' : 'incoming');
   const phone = (r.remoteJid || '').split('@')[0].split(':')[0];
   const fuente = callRaw.dispositionSource;
+  const marca = laMarcaDeLaLlamada(callRaw.transcripcion);
   return {
     id: String(r.id),
     direction,
@@ -86,6 +104,9 @@ export function elCallRowDesdeLaFila(r: FilaCrudaDeLlamada): CallRow {
     summary: texto(callRaw.summary),
     astraSid: texto(callRaw.astraSid),
     astraCallId: texto(callRaw.astraCallId),
+    transcripcionMotivo: marca?.motivo ?? null,
+    transcripcionHacenFalta: marca?.hacenFalta ?? null,
+    transcripcionQuedan: marca?.quedan ?? null,
     ts: new Date(r.messageTimestamp).getTime(),
     cuentaId: r.userId,
     instanceName: r.instanceName ?? null,

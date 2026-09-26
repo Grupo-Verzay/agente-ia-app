@@ -36,7 +36,23 @@ export {
     porQueNoSeTranscribio,
     TOPE_DE_BYTES_DE_AUDIO,
     TOPE_DE_TROZOS,
+    // Lo que hace que un abandono deje de ser mudo: el motivo que se guarda en
+    // la fila, y lo que la tarjeta enseña con él.
+    elMotivoDeLaGrabacion,
+    laMarcaDeLaLlamada,
+    loQueSeEnsenaDeLaLlamada,
+    valeLaPenaSeguirEsperando,
 } from "@/lib/transcripcion-de-la-llamada";
+
+// La regla de si se puede volver a pulsar es la MISMA que la de una nota de
+// voz: el banco la ejerce por su nombre para que no puedan separarse.
+export { sePuedeReintentar, porQueNoSeTranscribio as porQueNoSalioLaNota } from "@/lib/transcripcion-de-voz";
+
+// El botón de la tarjeta, con su puerta de verdad.
+export { reintentarLaTranscripcionAction } from "@/actions/calls-recording-actions";
+
+// El barrido de abajo: que no se baje el WAV ocho veces por un motivo firme.
+export { queLeFaltaALaLlamada } from "@/lib/rescate-de-llamadas";
 
 // El corte del WAV: lo que hace que una llamada de mas de 6 min 49 s deje de
 // ser «demasiado grande» y pase a transcribirse por partes.
