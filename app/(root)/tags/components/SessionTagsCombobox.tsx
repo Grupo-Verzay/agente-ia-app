@@ -10,8 +10,11 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import {
+    CHULITO_AL_FINAL,
     FILA_DEL_MENU,
+    FILA_PUESTA,
     GRUPO_SIN_SANGRIA,
+    MARCA_DE_LA_FILA,
     NOMBRE_EN_LA_FILA,
     ROTULO_EN_EL_GRUPO,
 } from "@/lib/filas-de-los-menus";
@@ -217,20 +220,43 @@ export function SessionTagsCombobox({
                                         className={cn(
                                             "flex items-center justify-between gap-2 text-xs",
                                             panel && FILA_DEL_MENU,
+                                            // El gris suave, el mismo con el que el
+                                            // menu de Etapas marca la suya. Va
+                                            // DESPUES del `hover`, que es ese mismo
+                                            // gris: apuntar a una puesta no le
+                                            // cambia nada.
+                                            panel && active && FILA_PUESTA,
                                         )}
                                     >
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <Check
-                                                className={cn(
-                                                    "h-3 w-3",
-                                                    active ? "opacity-100" : "opacity-0",
-                                                )}
-                                            />
+                                            {/* La marca de color abre la fila, y es
+                                                lo PRIMERO que se ve: el chulito
+                                                invisible que iba aqui reservaba su
+                                                hueco igual (`opacity-0` no libera
+                                                sitio) y metia 24 px de sangria que
+                                                el menu de Etapas no tiene. Fuera de
+                                                Chats —el CRM, /sessions— la fila se
+                                                queda EXACTAMENTE como estaba. */}
+                                            {panel ? (
+                                                <span
+                                                    className={MARCA_DE_LA_FILA}
+                                                    style={tag.color ? { backgroundColor: tag.color } : undefined}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <Check
+                                                        className={cn(
+                                                            "h-3 w-3",
+                                                            active ? "opacity-100" : "opacity-0",
+                                                        )}
+                                                    />
 
-                                            <TagIcon
-                                                className="h-3 w-3 shrink-0"
-                                                style={tag.color ? { color: tag.color } : undefined}
-                                            />
+                                                    <TagIcon
+                                                        className="h-3 w-3 shrink-0"
+                                                        style={tag.color ? { color: tag.color } : undefined}
+                                                    />
+                                                </>
+                                            )}
 
                                             <span
                                                 className={panel ? NOMBRE_EN_LA_FILA : "truncate"}
@@ -240,12 +266,34 @@ export function SessionTagsCombobox({
                                             </span>
                                         </div>
 
-                                        <Badge
-                                            variant="outline"
-                                            className="shrink-0 px-1.5 py-0.5 text-[10px] leading-none"
-                                        >
-                                            {count}
-                                        </Badge>
+                                        {panel ? (
+                                            <div className="flex shrink-0 items-center gap-1.5">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="shrink-0 px-1.5 py-0.5 text-[10px] leading-none"
+                                                >
+                                                    {count}
+                                                </Badge>
+                                                {/* Al FINAL, donde un hueco reservado
+                                                    no mueve nada de la izquierda: con
+                                                    varias etiquetas puestas a la vez
+                                                    es lo que deja recorrer la lista y
+                                                    ver cuales. */}
+                                                <Check
+                                                    className={cn(
+                                                        CHULITO_AL_FINAL,
+                                                        active ? "opacity-100" : "opacity-0",
+                                                    )}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <Badge
+                                                variant="outline"
+                                                className="shrink-0 px-1.5 py-0.5 text-[10px] leading-none"
+                                            >
+                                                {count}
+                                            </Badge>
+                                        )}
                                     </CommandItem>
                                 );
                             })}
