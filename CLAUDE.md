@@ -17275,6 +17275,36 @@ exclusión con el hook real y los menús pintados por Radix, en dos modos; el
 roto construye con el código de `ANTES_REF` y afirma las tres capturas— y
 `scripts/banco-paneles-en-chats.sh` sobre la página servida.
 
+## El menú lateral se comprime solo al entrar a CUALQUIER sección
+
+Antes solo Chats lo hacía (al abrir una conversación). Ahora es una regla de la
+plataforma: entrar a Correo, Panel, Leads, Herramientas, CRM o cualquier otra
+sección deja el menú en su franja de iconos, y se vuelve a abrir con un clic.
+
+> **La regla es `debeComprimirse` (`lib/menu-al-navegar.ts`, pura) y la aplica
+> UNA pieza, `ComprimirMenuAlNavegar`, montada una vez DENTRO del
+> `SidebarProvider` del layout.** Un colapsador por pantalla es la pantalla que
+> se olvida de montarlo; por eso el viejo `ChatSidebarCollapser` —que además no
+> lo montaba nadie— se fue.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se comprime al CAMBIAR de ruta, y el efecto depende SOLO de la ruta.** El
+   estado del menú se lee por referencia: con `open` en las dependencias, abrir
+   el menú a mano lo volvería a cerrar al instante.
+2. **La portada (`/`) no es una sección**: no se toca.
+3. **En un teléfono no se toca**: allí el menú es una hoja que ya se cierra sola
+   al pulsar. `isMobile` nace en falso y lo corrige un efecto del proveedor que
+   corre DESPUÉS del de la pieza, así que en el primer pintado se pregunta a la
+   pantalla con `matchMedia`.
+4. **Chats conserva lo suyo**: abrir una conversación o la ficha de contacto
+   sigue comprimiéndolo aunque se haya abierto a mano, y lo devuelve al cerrar.
+
+Lo prueba `scripts/banco-menu-al-navegar.sh`: la regla y un barrido del layout,
+y el `SidebarProvider` de verdad en Chromium (1440/1280/1024 y 390).
+`MODO=roto` corre la regla de antes y el proveedor sin la pieza, y afirma que
+entrar a Correo dejaba el menú abierto.
+
 ## Chats: el panel de la derecha es la TERCERA columna, no una hoja sobre la ventana
 
 Con un panel abierto —contacto, contexto del lead, recordatorio, nueva tarea,
