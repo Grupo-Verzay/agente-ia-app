@@ -7,6 +7,9 @@ import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
 import { fetchChannelChats } from "@/actions/channel-chat-actions";
 import type { FetchChatsResult } from "@/actions/chat-actions";
+import { losSentimientosDeLasLineas } from "@/lib/sentimiento-db";
+import { barrerElSentimientoDeLaBandeja } from "@/lib/sentimiento-runner.server";
+import type { SentimientoDeLaConversacion } from "@/lib/sentimiento";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -80,6 +83,12 @@ export type RespuestaDeLaLista = {
     empezoEnMs?: number;
     acaboEnMs?: number;
   }>;
+  /**
+   * El sentimiento de las conversaciones NO neutras de estas lineas, bajo cada
+   * una de sus identidades (`linea::jid`). Pinta el aro del avatar y la franja
+   * de alerta de la conversacion abierta. Neutro no viaja: es lo de siempre.
+   */
+  sentimientos?: Record<string, SentimientoDeLaConversacion>;
 };
 
 export async function POST(request: Request) {
@@ -147,14 +156,29 @@ export async function POST(request: Request) {
    *   0, 0, 0, 0            -> arrancan juntas. El cuello es CPU, no la cola.
    *   0, 556, 1112, 1668    -> van en serie. Buscar que las encadena.
    */
-  const lineas = await Promise.all(
-    pedidas.map(async (instanceName) => {
-      const empezoEnMs = Date.now() - arrancoLaPeticion;
-      const resultado = await unaLinea(instanceName, cuentas, user.id);
-      const acaboEnMs = Date.now() - arrancoLaPeticion;
-      return { instanceName, resultado, empezoEnMs, acaboEnMs };
+  // El sentimiento se lee A LA VEZ que las lineas (es una consulta corta a una
+  // tabla pequena), y acotado por `cuentas`: una linea de otra cuenta no trae
+  // nada aunque se pida por su nombre. Un fallo aqui no puede tumbar la lista.
+  const [lineas, sentimientos] = await Promise.all([
+    Promise.all(
+      pedidas.map(async (instanceName) => {
+        const empezoEnMs = Date.now() - arrancoLaPeticion;
+        const resultado = await unaLinea(instanceName, cuentas, user.id);
+        const acaboEnMs = Date.now() - arrancoLaPeticion;
+        return { instanceName, resultado, empezoEnMs, acaboEnMs };
+      }),
+    ),
+    losSentimientosDeLasLineas(cuentas, pedidas).catch((error) => {
+      console.warn("[sentimiento] no se pudo leer el sentimiento de la bandeja", (error as Error)?.message);
+      return {} as Record<string, SentimientoDeLaConversacion>;
     }),
-  );
+  ]);
+
+  // Y se analiza lo que entro, DE FONDO: la lista no espera a la IA. El
+  // resultado viaja en la vuelta siguiente. Ver `lib/sentimiento-runner.server.ts`.
+  void barrerElSentimientoDeLaBandeja(cuentas, pedidas)?.catch((error) => {
+    console.warn("[sentimiento] el barrido de la bandeja fallo", (error as Error)?.message);
+  });
 
   console.info("[chats] las lineas de una vuelta de la lista", {
     trasElAcceso,
@@ -172,7 +196,7 @@ export async function POST(request: Request) {
 
   // Comprimida: ver `lib/responder-json.ts`. Esta respuesta llego a pesar
   // 753 kB en crudo y sale cada 20 segundos por pestaña.
-  return responderJson(request, { lineas } satisfies RespuestaDeLaLista);
+  return responderJson(request, { lineas, sentimientos } satisfies RespuestaDeLaLista);
 }
 
 /** Una sola vez por arranque del contenedor: pesar cuesta otro `stringify`. */

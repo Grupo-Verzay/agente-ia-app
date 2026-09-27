@@ -18480,6 +18480,48 @@ por esa función.** Lo prueba `scripts/banco-seguimientos-de-la-cuenta.sh` en lo
 dos repositorios, contra Postgres y en dos modos: el roto corre el borrado viejo
 y afirma que cruzaba de cuenta.
 
+## Chats: el SENTIMIENTO del cliente se analiza en la App, de fondo, con la IA de la cuenta
+
+Cada mensaje entrante se clasifica en **positivo, neutro o negativo**. Tiñe el
+aro que YA tiene el avatar en la lista (verde pastel, rojo suave; neutro es el
+de siempre), saca una franja delgada «El cliente parece molesto» encima de la
+barra de escribir, y alimenta el reporte **Sentimiento** de CRM › Analíticas
+(caídas a negativo por día y por asesor).
+
+**Por qué en la App y no en el backend**: los webhooks los recibe el backend,
+que es otro repositorio. La App tiene `chat_messages` y un reloj que ya corre —la
+lista de Chats, cada 20 s por pestaña—, así que cada vuelta de
+`/api/chats/lista` lanza **de fondo** (`void`) el análisis de lo que entró en
+esas líneas (`lib/sentimiento-runner.server.ts`), y el resultado viaja en la
+vuelta siguiente (`sentimientos`, `linea::jid` bajo las TRES identidades). Un
+barrido diario en `/api/cron/billing` recoge lo que entró sin nadie mirando.
+
+Seis cosas que hay que mantener:
+
+1. **Se analiza el último mensaje ENTRANTE**, no el último a secas: con la IA
+   activa el último es su respuesta, y mirándolo no se analizaría nada.
+2. **Con la IA de la cuenta dueña de la línea** (`laIaDeLaCuenta`, la misma
+   consulta que `resolveUserAiClient` sin la puerta de sesión: la cuenta sale de
+   la fila, nunca del navegador). **No descuenta créditos**, como la sugerencia
+   de respuesta; si algún día se cobra, va por la regla de siempre.
+3. **Dos a la vez no pagan dos**: `reclamarElAnalisis` es un `ON CONFLICT DO
+   UPDATE … WHERE`; el reclamo caduca a los 2 min si quien lo tomó murió.
+4. **Lo que no se entiende NO es neutro**: una respuesta rara, o una cuenta sin
+   IA, conserva lo que había. Inventar un neutro borraría un negativo y la
+   franja se iría sin que el cliente mejorara.
+5. **La franja se cierra POR CAÍDA** (`negativoDesde` en la llave, en
+   `sessionStorage`): cerrada sigue cerrada mientras siga negativo, se va sola al
+   mejorar, y una caída nueva vuelve a salir.
+6. **Una caída se cuenta una vez por conversación y día**
+   (`sentimiento_caidas`), con el asesor de su ficha en ese momento; el reporte
+   pasa por `lasCuentasQueConsultaElCrm`, la puerta del CRM.
+
+Dos tablas de la App (`sentimiento_de_conversacion`, `sentimiento_caidas`), con
+`ddl()` y sin clave foránea: ni una columna en `Session` ni en `chat_messages`.
+Lo prueba `scripts/banco-sentimiento.sh`: reglas, barrido, el análisis contra
+Postgres con la IA fingida y la franja en Chromium; `MODO=roto` lee `ANTES_REF`
+y afirma que no había nada de esto.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
