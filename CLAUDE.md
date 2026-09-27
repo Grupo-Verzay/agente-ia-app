@@ -21470,6 +21470,55 @@ y las acciones de verdad contra Postgres con la red a Evolution fingida.
 `MODO=roto` corre el `resolveSession` de `ANTES_REF` con la encuesta encendida y
 afirma que resolver no preguntaba nada.
 
+## El menú lateral: el numerito de pendientes va por la RUTA, esté donde esté el apartado
+
+Al agrupar pantallas dentro de módulos (Bandeja, Contactos, Integraciones,
+Herramientas, Automatizaciones…) se perdió el numerito rojo: el menú solo lo
+pintaba en dos apartados SUELTOS, con la ruta escrita a mano
+(`route === '/chats'`, `route === '/tareas'`). Dentro de un desplegable nadie
+lo pintaba.
+
+> **El número va por la RUTA del apartado, no por su nombre ni por el módulo
+> donde esté.** Lo decide `lib/pendientes-del-menu.ts` (puro) y lo pinta el
+> menú en sus TRES sitios —el apartado suelto (`ContadorSuelto`), el
+> desplegable abierto y el menú flotante de la barra plegada
+> (`ContadorDelMenu`)— con una sola forma (`CLASE_DEL_CONTADOR`).
+
+| apartado | ruta | qué cuenta | de dónde sale |
+| --- | --- | --- | --- |
+| Chats | `/chats` | sin leer | `useChatsQueEsperan` (la pastilla «Sin leer») |
+| Correos | `/correo` | sin leer en la entrada | `correosSinLeerAction`, el contador del proveedor |
+| Agenda | `/schedule` | citas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
+| Multiagenda | `/bookings` | reservas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
+| Mis tareas | `/tareas` | pendientes de hoy o vencidas | `useTaskStore` |
+| Recordatorios | `/reminders` | el grupo «Pendientes» de su pantalla | `pendientesDelMenuAction` |
+
+**Ningún otro apartado lleva número**, y Llamadas tampoco: es un registro. Un
+número que no se atiende enseña a ignorar los que sí.
+
+Cinco cosas que hay que mantener:
+
+1. **Chats y Mis tareas no se vuelven a pedir**: ya los tiene el navegador, y
+   una segunda fuente diría un día otra cosa.
+2. **Agenda es la regla de la campanita** (`esCitaPendiente`: PENDIENTE y sin
+   pasar) y **Recordatorios la de su pantalla** (`elGrupoDelRecordatorio`, que
+   `MainReminders` importa de ahí): el número del menú es el que se ve al
+   entrar. Y viaja el desfase horario del navegador: sin él, un recordatorio
+   de mañana por la noche caería en otro grupo en el servidor.
+3. **Correos suma el contador de cada buzón SOLO si se saben todos**
+   (`losNumerosDeLasBandejas`, la regla del selector de bandejas): con uno que
+   no contesta, sin número; nunca una suma más baja. Va en su propia acción y
+   a otro ritmo (2 min): un buzón lento no retiene los demás.
+4. **Solo se cuenta lo que está en el menú** (`lasClavesDelMenu`): quien no
+   tiene Correo no le pregunta nada a Gmail. Un reloj montado una vez, que no
+   pregunta con la pestaña de fondo.
+5. **Cero y «no se sabe» no se pintan**, y por encima de 99 dice «99+».
+
+Lo prueban `scripts/banco-pendientes-del-menu.sh` —la regla, un barrido del
+menú y la acción contra Postgres; `MODO=roto` lee el menú de `59f08b4` y
+afirma que dentro de un desplegable no había número— y el caso de sin leer de
+`scripts/banco-correo.sh`, con los tres proveedores fingidos.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

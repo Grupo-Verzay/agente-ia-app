@@ -26,32 +26,14 @@ import {
 import { ReminderGroupAutomationsPanel } from '@/app/(root)/crm/rules/components/ReminderGroupAutomationsPanel';
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { elGrupoDelRecordatorio, type GrupoDelRecordatorio } from '@/lib/pendientes-del-menu';
 
-const parseReminderTime = (time: string | null) => {
-  if (!time) return null;
-  const direct = new Date(time);
-  if (!Number.isNaN(direct.getTime())) return direct.getTime();
-
-  const match = time.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const [, day, month, year, hours, minutes] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes)).getTime();
-};
-
-type ReminderGroup = 'pending' | 'today' | 'tomorrow' | 'recurring' | 'sent' | 'expired';
-
-const getReminderGroup = (reminder: Reminders, now: number, tomorrow: number, dayAfterTomorrow: number): ReminderGroup => {
-  if (reminder.repeatType && reminder.repeatType !== 'NONE') return 'recurring';
-
-  // Ya enviado → evidencia de "Enviado" (no "Vencido"), sin importar su hora.
-  if (reminder.sentAt) return 'sent';
-
-  const timestamp = parseReminderTime(reminder.time);
-  if (timestamp === null || timestamp >= dayAfterTomorrow) return 'pending';
-  if (timestamp < now) return 'expired';
-  if (timestamp < tomorrow) return 'today';
-  return 'tomorrow';
-};
+// La regla de los grupos vive en `lib/pendientes-del-menu`: el numerito de
+// «Recordatorios» en el menú lateral sale de la MISMA función, así que dice lo
+// mismo que la pastilla «Pendientes» de esta pantalla.
+type ReminderGroup = GrupoDelRecordatorio;
+const getReminderGroup = (reminder: Reminders, now: number, tomorrow: number, dayAfterTomorrow: number): ReminderGroup =>
+  elGrupoDelRecordatorio(reminder, now, tomorrow, dayAfterTomorrow);
 
 export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliverySummaries, leads, workflows, instancia, isScheduleView, isSchedule }: MainReminderInterface) => {
   const { openDialog, selectedReminderId, setCampaignPage } = useReminderDialogStore();
