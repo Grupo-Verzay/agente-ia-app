@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 
 /**
  * # `collab_notifications` es de la PERSONA por sus dos columnas
@@ -73,11 +74,22 @@ async function getTeamMemberIds(ownerId: string): Promise<Set<string>> {
 
 /* ─────────────── PARTICIPANTES ─────────────── */
 
+/*
+ * Los tres —ver, agregar y quitar— preguntaban solo «¿hay sesión?». Con otra
+ * cuenta y otro `sessionId` se veía quién lleva una conversación ajena y se
+ * añadía o quitaba gente de ella. Ahora los tres pasan por
+ * `laCuentaDeLaConversacion` (`lib/dueno-del-dato.server.ts`): el dueño sale
+ * de la FILA y se pregunta con la puerta de siempre.
+ */
+
 export async function getSessionParticipantsAction(
   sessionId: number,
 ): Promise<{ success: boolean; data: ParticipantInfo[]; message?: string }> {
   try {
     await requireUser();
+    if (!(await laCuentaDeLaConversacion(sessionId))) {
+      return { success: false, data: [], message: "No autorizado." };
+    }
     const rows = await (db as any).sessionParticipant.findMany({
       where: { sessionId },
       orderBy: { createdAt: "asc" },
@@ -117,11 +129,9 @@ export async function addSessionParticipantAction(
     const ownerId = (user as any).ownerId ?? user.id;
     const yo = laPersonaQueActua(user).id;
 
-    const session = await db.session.findUnique({
-      where: { id: sessionId },
-      select: { remoteJid: true },
-    });
-    if (!session) return { success: false, message: "Conversación no encontrada." };
+    const alcanzada = await laCuentaDeLaConversacion(sessionId);
+    if (!alcanzada) return { success: false, message: "Conversación no encontrada." };
+    const session = alcanzada.sesion;
 
     const team = await getTeamMemberIds(ownerId);
     if (!team.has(userId)) {
@@ -169,6 +179,9 @@ export async function removeSessionParticipantAction(
 ): Promise<{ success: boolean; message: string }> {
   try {
     await requireUser();
+    if (!(await laCuentaDeLaConversacion(sessionId))) {
+      return { success: false, message: "Conversación no encontrada." };
+    }
     await (db as any).sessionParticipant.deleteMany({ where: { sessionId, userId } });
     return { success: true, message: "Participante removido." };
   } catch (error) {

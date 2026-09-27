@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laCuentaDelEntrenamiento } from "@/lib/dueno-del-dato.server";
 import { revalidatePath } from "next/cache";
 import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTemplates";
 
@@ -75,6 +76,15 @@ export async function applyTemplateToPrompt(input: {
 
     const template = AGENT_TEMPLATES.find((t) => t.id === templateId);
     if (!template) return { ok: false, error: "Plantilla no encontrada" };
+
+    // Aplicar una plantilla REESCRIBE el entrenamiento, y no preguntaba de quién
+    // era: con el id del prompt de otra cuenta se le cambiaba el agente entero.
+    // El dueño sale de la FILA (`lib/dueno-del-dato.server.ts`), y los flujos
+    // que la plantilla crea van a esa MISMA cuenta —la del entrenamiento—, que
+    // en el caso normal es la de quien pulsa.
+    const alcanzado = await laCuentaDelEntrenamiento(promptId);
+    if (!alcanzado) return { ok: false, error: "Prompt no encontrado" };
+    const cuenta = alcanzado.cuenta;
 
     const prompt = await db.agentPrompt.findUnique({
       where: { id: promptId },
@@ -159,19 +169,19 @@ export async function applyTemplateToPrompt(input: {
 
     if (flowNames && planConfig) {
       const maxOrderResult = await db.workflow.aggregate({
-        where: { userId: user.id },
+        where: { userId: cuenta },
         _max: { order: true },
       });
       let nextOrder = (maxOrderResult._max.order ?? 0) + 1;
 
       for (const name of flowNames) {
         const exists = await db.workflow.findUnique({
-          where: { name_userId: { name, userId: user.id } },
+          where: { name_userId: { name, userId: cuenta } },
         });
         if (!exists) {
           await db.workflow.create({
             data: {
-              userId: user.id,
+              userId: cuenta,
               name,
               status: "DRAFT",
               definition: "workflow",

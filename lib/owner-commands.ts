@@ -6,10 +6,10 @@ import {
   resolveWhatsAppDispatcherLine,
   sendViaWhatsAppDispatcher,
 } from "@/actions/whatsapp-dispatcher";
-import {
-  addTagsToSessionAction,
-  updateSessionLeadStatus,
-} from "@/actions/session-action";
+import { updateSessionLeadStatus } from "@/actions/session-action";
+// Sin puerta a propósito: el modo dueño entra por `/api/owner/*` con su clave y
+// no tiene sesión. La acción `addTagsToSessionAction` sí la pide.
+import { anadirEtiquetasALaSesion } from "@/lib/leads-sin-puerta.server";
 
 /**
  * Lógica de negocio del "Modo Dueño por WhatsApp".
@@ -693,7 +693,7 @@ export async function tagOwnerContact(params: {
 
   const tagId = await resolveOrCreateTag(ownerId, tagName);
 
-  const res = await addTagsToSessionAction({ userId: ownerId, sessionId: session.id, tagIds: [tagId] });
+  const res = await anadirEtiquetasALaSesion({ userId: ownerId, sessionId: session.id, tagIds: [tagId] });
   if (!res.success) {
     return { ok: false, status: 502, message: res.message ?? "No se pudo aplicar la etiqueta." };
   }

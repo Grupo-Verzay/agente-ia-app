@@ -34,11 +34,12 @@ import {
 import { assertUserCanUseApp, assertCanAccessTargetUser } from './billing/helpers/app-access-guard';
 import { autoSyncContactIfEnabled } from './google-sheets-actions';
 import { currentUser } from '@/lib/auth';
+import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { anadirEtiquetasALaSesion, registrarLaSesion } from '@/lib/leads-sin-puerta.server';
 import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
 import {
   buildWhatsAppJidCandidates,
-  pickObservedAlternateRemoteJid,
 } from '@/lib/whatsapp-jid';
 import { laVe } from '@/lib/personales';
 import { lasDuenasDeEtiquetas, quienVeLoPersonal } from '@/lib/personales-db';
@@ -920,99 +921,21 @@ export async function cleanupJunkSessions(
   }
 }
 
+/**
+ * Crear (o poner al día) un lead desde la plataforma.
+ *
+ * **No preguntaba de quién era la cuenta**: con la sesión de cualquiera y otro
+ * `userId` se creaban leads en una cuenta ajena. Ahora pasa por la puerta de
+ * siempre y el cuerpo vive en `lib/leads-sin-puerta.server.ts`, que es por
+ * donde entran los dos llamadores sin sesión (la reserva pública y el modo
+ * dueño). La página pública de reservas ya no llama aquí: su lead lo crea
+ * `createAppointment`.
+ */
 export async function registerSession(input: z.infer<typeof registerSessionSchema>): Promise<SessionResponse<PrismaSession>> {
-  const validation = registerSessionSchema.safeParse(input);
-
-  if (!validation.success) {
-    const issues = validation.error.issues.map(issue => issue.message).join(", ");
-    return {
-      success: false,
-      message: `Datos inválidos: ${issues}`,
-    };
-  }
-
-  const { userId, remoteJid, remoteJidAlt, senderPn, pushName, instanceId } = validation.data;
-
-  try {
-    const trimmedRemoteJid = remoteJid.trim();
-    const trimmedInstanceId = instanceId.trim();
-    const observedAliases = [
-      trimmedRemoteJid,
-      remoteJidAlt?.trim(),
-      senderPn?.trim(),
-    ];
-    const candidates = buildRemoteJidCandidates(trimmedRemoteJid, observedAliases);
-    const preferredRemoteJid = resolvePreferredRemoteJid(observedAliases);
-
-    const existingSession = await db.session.findFirst({
-      where: {
-        userId,
-        instanceId: trimmedInstanceId,
-        OR: [
-          { remoteJid: { in: candidates } },
-          { remoteJidAlt: { in: candidates } },
-        ],
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    if (existingSession) {
-      const remoteJidAlt = pickObservedAlternateRemoteJid(preferredRemoteJid, [
-        ...observedAliases,
-        existingSession.remoteJid,
-        existingSession.remoteJidAlt,
-      ]);
-
-      // Solo actualizar pushName desde WhatsApp si la sesión aún no tiene nombre guardado.
-      // Si el usuario editó el nombre manualmente, no sobreescribir.
-      const resolvedPushName = existingSession.pushName?.trim()
-        ? existingSession.pushName
-        : (pushName ?? null);
-
-      const updated = await db.session.update({
-        where: { id: existingSession.id },
-        data: {
-          pushName: resolvedPushName,
-          remoteJid: preferredRemoteJid,
-          remoteJidAlt,
-          updatedAt: new Date(),
-        },
-      });
-
-      return {
-        success: true,
-        message: "Sesión actualizada correctamente.",
-        data: updated,
-      };
-    }
-
-    const created = await db.session.create({
-      data: {
-        userId,
-        remoteJid: preferredRemoteJid,
-        remoteJidAlt: pickObservedAlternateRemoteJid(preferredRemoteJid, observedAliases),
-        pushName,
-        instanceId: trimmedInstanceId,
-        status: true,
-      },
-    });
-
-    // Auto-sync a Google Sheets (opt-in): contacto nuevo.
-    await autoSyncContactIfEnabled(created.userId, created.remoteJid);
-
-    return {
-      success: true,
-      message: "Sesión creada correctamente.",
-      data: created,
-    };
-  } catch (error) {
-    console.error("[REGISTER_SESSION]", error);
-    return {
-      success: false,
-      message: "Error al registrar la sesión.",
-    };
-  }
-};
+  const cuenta = await laCuentaDeLaAccion(input?.userId);
+  if (!cuenta) return { success: false, message: "No autorizado." };
+  return registrarLaSesion({ ...input, userId: cuenta });
+}
 
 /**
 * Obtiene una única sesión por su remoteJid asociado a un userId.
@@ -1170,79 +1093,17 @@ export async function getSessionByRemoteJid(
 }
 
 // Action: agregar uno o varios tags a una Session (sin borrar los actuales)
+//
+// Confiaba en el `userId` que llegaba: comparaba la sesión y las etiquetas con
+// él, pero nadie preguntaba si quien llama alcanza esa cuenta. Pasa por la
+// puerta de siempre; el cuerpo vive en `lib/leads-sin-puerta.server.ts`, que es
+// lo que usa el modo dueño por WhatsApp (sin sesión).
 export async function addTagsToSessionAction(
   input: z.infer<typeof addTagsToSessionSchema>,
 ): Promise<ActionResponse<null>> {
-  try {
-    const { userId, sessionId, tagIds } = addTagsToSessionSchema.parse(input);
-
-    // 1) Validar que la sesión exista y sea del usuario
-    const session = await db.session.findUnique({
-      where: { id: sessionId },
-    });
-
-    if (!session || session.userId !== userId) {
-      return {
-        success: false,
-        message: "Sesión no encontrada o no pertenece a este usuario.",
-      };
-    }
-
-    // 2) Validar que TODOS los tags existan y pertenezcan al mismo user
-    const tags = await db.tag.findMany({
-      where: {
-        id: { in: tagIds },
-      },
-    });
-
-    if (tags.length !== tagIds.length) {
-      return {
-        success: false,
-        message: "Uno o más tags no existen.",
-      };
-    }
-
-    const allBelongToUser = tags.every((t) => t.userId === userId);
-    if (!allBelongToUser) {
-      return {
-        success: false,
-        message: "Uno o más tags no pertenecen a este usuario.",
-      };
-    }
-
-    // Tags previos (para disparar automatizaciones solo de los nuevos)
-    const prevTags = await db.sessionTag.findMany({
-      where: { sessionId },
-      select: { tagId: true },
-    });
-    const prevTagSet = new Set(prevTags.map((p: { tagId: number }) => p.tagId));
-
-    // 3) Crear relaciones en SessionTag (sin duplicados)
-    await db.sessionTag.createMany({
-      data: tagIds.map((tagId) => ({
-        sessionId,
-        tagId,
-      })),
-      skipDuplicates: true,
-    });
-
-    // Disparar automatizaciones de cada tag recién agregado
-    for (const tagId of tagIds) {
-      if (!prevTagSet.has(tagId)) void triggerTagAutomations(sessionId, tagId);
-    }
-
-    return {
-      success: true,
-      message: "Tags agregados a la sesión correctamente.",
-      data: null,
-    };
-  } catch (error) {
-    console.error("addTagsToSessionAction error:", error);
-    return {
-      success: false,
-      message: "Error agregando tags a la sesión.",
-    };
-  }
+  const cuenta = await laCuentaDeLaAccion(input?.userId);
+  if (!cuenta) return { success: false, message: "No autorizado." };
+  return anadirEtiquetasALaSesion({ ...input, userId: cuenta });
 }
 
 export async function getSessionsByUserIdToCRM(
@@ -1472,19 +1333,3 @@ async function triggerStageAutomations(sessionId: number, newStage: string): Pro
     body: JSON.stringify({ sessionId, newStage }),
   });
 }
-
-async function triggerTagAutomations(sessionId: number, tagId: number): Promise<void> {
-  const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
-  if (!backendUrl) return;
-  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
-  try {
-    await fetch(`${backendUrl}/tag-automations/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
-      body: JSON.stringify({ sessionId, tagId }),
-    });
-  } catch (error) {
-    console.error('[triggerTagAutomations]', error);
-  }
-}
-
