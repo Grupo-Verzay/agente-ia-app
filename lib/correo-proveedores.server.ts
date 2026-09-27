@@ -65,6 +65,18 @@ export class ErrorDeCorreo extends Error {
     }
 }
 
+/**
+ * El total de un buzón tiene que ser un número de verdad. Lo que no lo sea
+ * —un campo que el proveedor no mandó— es un fallo, NO un cero: un «0» junto a
+ * una bandeja llena se lee como que está vacía. La acción lo convierte en «sin
+ * número».
+ */
+export function comoTotal(valor: unknown): number {
+    const n = typeof valor === "string" ? Number(valor) : valor;
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 0) throw new ErrorDeCorreo("El proveedor no dijo cuántos correos hay.");
+    return n;
+}
+
 export interface Pagina {
     correos: ResumenDeCorreo[];
     /** Para pedir la página siguiente; `null` si no hay más. */
@@ -332,6 +344,13 @@ export function lasPartesDeGmail(raiz: ParteGmail): { html: string | null; texto
 }
 
 const gmail = {
+    /** Cuántos correos hay en la bandeja de entrada: el `messagesTotal` de la etiqueta `INBOX`. */
+    async total(buzon: Buzon): Promise<number> {
+        const token = await elTokenVigente(buzon, "gmail");
+        const l = await pedir<{ messagesTotal?: number }>(`${GMAIL}/labels/INBOX`, token);
+        return comoTotal(l.messagesTotal);
+    },
+
     async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
         const token = await elTokenVigente(buzon, "gmail");
         const q = new URLSearchParams({ labelIds: "INBOX", maxResults: String(TAMANO_DE_PAGINA) });
@@ -488,6 +507,13 @@ const comoTexto = (p: Persona | undefined) =>
     p?.emailAddress ? (p.emailAddress.name ? `${p.emailAddress.name} <${p.emailAddress.address}>` : p.emailAddress.address ?? "") : "";
 
 const outlook = {
+    /** Cuántos correos hay en la bandeja de entrada: el `totalItemCount` de `inbox`. */
+    async total(buzon: Buzon): Promise<number> {
+        const token = await elTokenVigente(buzon, "outlook");
+        const f = await pedir<{ totalItemCount?: number }>(`${GRAPH}/mailFolders/inbox?$select=totalItemCount`, token);
+        return comoTotal(f.totalItemCount);
+    },
+
     async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
         const token = await elTokenVigente(buzon, "outlook");
         const salto = Math.max(0, Number.parseInt(cursor ?? "0", 10) || 0);
@@ -704,6 +730,11 @@ function direccionesDe(valor: any): string {
 }
 
 const imap = {
+    /** Cuántos correos hay en `INBOX`: el `STATUS … (MESSAGES)` del servidor. */
+    async total(buzon: Buzon): Promise<number> {
+        return conImap(buzon, async (cliente) => comoTotal((await cliente.status("INBOX", { messages: true }))?.messages));
+    },
+
     async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
         return conImap(buzon, async (cliente) => {
             const uids: number[] = ((await cliente.search({ all: true }, { uid: true })) || []).sort((a: number, b: number) => b - a);

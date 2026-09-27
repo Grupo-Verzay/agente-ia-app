@@ -52,7 +52,6 @@ import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
 import { MARCA_DE_LA_CABECERA_DE_LA_COLUMNA, MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
     BANDEJA_UNIFICADA,
     CAMPOS_DE_BUSQUEDA,
@@ -72,13 +71,13 @@ import {
     laLlaveDelCorreo,
     laPalabraDelBuzon,
     losNumerosDelFiltro,
+    losNumerosDeLasBandejas,
     pasaElFiltroDeLeido,
     type CorreoDeLaBandeja,
     type FiltroDeLeido,
     type LoCargadoDeUnBuzon,
     laAdvertenciaDeEliminar,
     sinElCorreo,
-    NOMBRE_DEL_PROVEEDOR,
     type ProveedorConBoton,
 } from "@/lib/correo";
 import type { BuzonVisible } from "@/lib/correo-db";
@@ -93,6 +92,8 @@ import {
     eliminarCorreoAction,
     marcarNoLeidoAction,
     misBuzonesAction,
+    totalesDeLosBuzonesAction,
+    type TotalDeUnBuzon,
 } from "@/actions/correo-actions";
 import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
 import { LecturaDelCorreo } from "./LecturaDelCorreo";
@@ -311,7 +312,6 @@ function Bandeja({
     alDesconectar: (buzonId: string) => Promise<void>;
 }) {
     const unificada = vista === BANDEJA_UNIFICADA;
-    const enElTelefono = useIsMobile();
     // Los buzones que se miran: todos en la unificada, uno en la de un buzón.
     // Las dos vistas son LA MISMA pantalla con otra lista dentro: la misma
     // fila, el mismo filtro, la misma lectura y la misma confirmación.
@@ -340,6 +340,27 @@ function Bandeja({
     const [abiertoSinLeer, setAbiertoSinLeer] = useState(false);
     const [aEliminar, setAEliminar] = useState<CorreoDeLaBandeja | null>(null);
     const vuelta = useRef(0);
+
+    // El total de CADA buzón, para el número del selector de bandejas (el
+    // mismo sitio donde Chats pinta el de cada canal). Sale del PROVEEDOR, no
+    // del largo de lo cargado; `null` mientras no llega, y un buzón que no
+    // contesta va sin número. Solo se pide cuando hay selector (varios buzones).
+    const [totales, setTotales] = useState<TotalDeUnBuzon[] | null>(null);
+    const idsDeLosBuzones = buzones.map((b) => b.id).join("|");
+    const traerTotales = useCallback(async () => {
+        if (buzones.length < 2) return;
+        try {
+            const r = await totalesDeLosBuzonesAction();
+            if (r.success) setTotales(r.totales);
+            else console.warn("[correo] no se pudieron contar las bandejas", r.message);
+        } catch (error) {
+            console.warn("[correo] no se pudieron contar las bandejas", error);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idsDeLosBuzones]);
+    useEffect(() => {
+        void traerTotales();
+    }, [traerTotales]);
 
     const ponerAviso = useCallback((buzonId: string, aviso: AvisoDelBuzon | null) => {
         setAvisos((antes) => {
@@ -417,6 +438,10 @@ function Bandeja({
                 return;
             }
             toast.success(exito(r));
+            // Salió de la bandeja de entrada del proveedor: su número baja uno.
+            setTotales((t) =>
+                t?.map((x) => (x.buzonId === c.buzonId && x.total !== null ? { ...x, total: Math.max(0, x.total - 1) } : x)) ?? t,
+            );
         } catch {
             devolver();
             toast.error(sinRed);
@@ -616,26 +641,28 @@ function Bandeja({
     // parecidas: los mismos componentes, que viven en `components/shared/`.
     //
     // El selector va delante del buscador, como en Chats. Las pastillas, en
-    // computador, en el carril de la barra; en el teléfono ese carril se queda
-    // en unos 46 px —el buscador, actualizar y el «⋯» se comen el resto—, así
-    // que bajan a una segunda fila, como el marcador de Llamadas. Se pintan
-    // UNA vez, en un sitio o en otro: dos copias serían dos filtros.
+    // SU fila debajo —como en Chats, donde la fila de pastillas va bajo la del
+    // buscador—, en todas las anchuras. Se pintan UNA vez: dos copias serían
+    // dos filtros.
     const numeros = losNumerosDelFiltro(correos, hayMas);
+    const deLasBandejas = losNumerosDeLasBandejas(buzones, totales);
     const selector =
         buzones.length > 1 ? (
             <SelectorDeCanal
                 titulo="Bandejas"
                 ariaLabel="Buzón"
-                // Sin número en ninguna fila: el proveedor no dice cuántos
-                // correos hay, y un largo de lo cargado no es un total.
-                todos={{ etiqueta: "Todas" }}
-                opciones={buzones.map((b) => ({ valor: b.id, etiqueta: b.direccion, detalle: NOMBRE_DEL_PROVEEDOR[b.proveedor] }))}
+                // El número de cada bandeja, como el de cada canal en Chats:
+                // el total de su bandeja de entrada según el PROVEEDOR. Sin
+                // segunda línea con el proveedor: la dirección ya lo dice por
+                // su dominio.
+                todos={{ etiqueta: "Todas", cuenta: deLasBandejas.todas }}
+                opciones={buzones.map((b) => ({ valor: b.id, etiqueta: b.direccion, cuenta: deLasBandejas.porBuzon[b.id] }))}
                 valor={unificada ? null : vista}
                 alCambiar={(v) => alElegir(v ?? BANDEJA_UNIFICADA)}
             />
         ) : buzonDeLaVista ? (
             <span className="max-w-[10rem] shrink truncate text-sm text-muted-foreground" title={buzonDeLaVista.direccion}>
-                {buzonDeLaVista.direccion} · {NOMBRE_DEL_PROVEEDOR[buzonDeLaVista.proveedor]}
+                {buzonDeLaVista.direccion}
             </span>
         ) : null;
     const pastillas = (
@@ -716,14 +743,16 @@ function Bandeja({
                     </div>
                     </div>
                 }
-                filtros={enElTelefono ? undefined : pastillas}
                 secundarias={
                     <Button
                         variant="outline"
                         size="icon"
                         aria-label="Actualizar"
                         title="Actualizar"
-                        onClick={() => void traer(false, {})}
+                        onClick={() => {
+                            void traer(false, {});
+                            void traerTotales();
+                        }}
                         disabled={cargando}
                     >
                         <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
@@ -749,11 +778,11 @@ function Bandeja({
                 }
             />
 
-            {enElTelefono ? (
-                <div data-fila-de-filtros className="-mt-1 flex shrink-0 items-center gap-2 overflow-x-auto">
-                    {pastillas}
-                </div>
-            ) : null}
+            {/* Las pastillas en SU fila, debajo del buscador, como en Chats: en
+                todas las anchuras, no solo en el teléfono. Se pintan UNA vez. */}
+            <div data-fila-de-filtros className="-mt-1 flex shrink-0 items-center gap-2 overflow-x-auto">
+                {pastillas}
+            </div>
             </div>
 
             {avisosVisibles.map(({ buzon: b, aviso }) => (
@@ -828,7 +857,7 @@ function Bandeja({
                                                 {unificada && suBuzon ? (
                                                     <InsigniaDeLinea
                                                         clave={suBuzon.direccion}
-                                                        nombre={`${suBuzon.direccion} · ${NOMBRE_DEL_PROVEEDOR[suBuzon.proveedor]}`}
+                                                        nombre={suBuzon.direccion}
                                                         palabra={laPalabraDelBuzon(suBuzon.direccion, direcciones)}
                                                     />
                                                 ) : null}

@@ -45,6 +45,20 @@ export async function misBuzonesAction() {
         anclados: w.__anclado ? [ANCLADO_VIEJO] : [],
     };
 }
+/**
+ * El total de cada bandeja según el proveedor. Con `window.__totalFalla` el de
+ * dominio propio no contesta: esa fila y «Todas» van sin número.
+ */
+export async function totalesDeLosBuzonesAction() {
+    apuntar("totales");
+    return {
+        success: true,
+        totales: [
+            { buzonId: "bz1", total: 1234 },
+            { buzonId: "bz2", total: w.__totalFalla ? null : 87 },
+        ],
+    };
+}
 export async function bandejaUnificadaAction(cursores?: Record<string, string>) {
     apuntar("unificada", { cursores: cursores ?? null });
     const conBuzon = (id: string, lista: any[]) => lista.map((c) => ({ ...c, buzonId: id }));

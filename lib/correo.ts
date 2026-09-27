@@ -420,6 +420,29 @@ export function losNumerosDelFiltro(
     return { todos: numero(correos.length), sinLeer: numero(sinLeer), leidos: numero(correos.length - sinLeer) };
 }
 
+/**
+ * Los números del selector de bandejas: el total de cada buzón, como el de
+ * cada canal en Chats, y el de «Todas».
+ *
+ * - Un buzón sin total conocido va SIN número —«no se sabe»—, nunca con un 0.
+ * - «Todas» es la SUMA solo si se sabe el de todos: una suma con un buzón
+ *   dentro que no contestó sería un número más bajo que el de verdad, dicho
+ *   con toda la seguridad de un número. Con uno que falta, sin número.
+ */
+export function losNumerosDeLasBandejas(
+    buzones: { id: string }[],
+    totales: { buzonId: string; total: number | null }[] | null,
+): { todas: number | undefined; porBuzon: Record<string, number | undefined> } {
+    const porBuzon: Record<string, number | undefined> = {};
+    for (const b of buzones) {
+        const t = totales?.find((x) => x.buzonId === b.id)?.total;
+        porBuzon[b.id] = typeof t === "number" && Number.isInteger(t) && t >= 0 ? t : undefined;
+    }
+    const valores = buzones.map((b) => porBuzon[b.id]);
+    const todas = valores.length > 0 && valores.every((v) => v !== undefined) ? valores.reduce<number>((a, v) => a + (v as number), 0) : undefined;
+    return { todas, porBuzon };
+}
+
 /** Qué dice la confirmación de eliminar, según adónde va el correo en cada proveedor. */
 export function laAdvertenciaDeEliminar(proveedor: ProveedorDeCorreo): string {
     if (proveedor === "gmail") return "Se mueve a la papelera de Gmail. Desde ahí se puede recuperar durante 30 días.";
