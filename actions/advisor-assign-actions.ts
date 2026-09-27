@@ -9,6 +9,7 @@ import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
 import { esGenteQueAlcanzo, laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
+import { encolarLaEncuestaDeSatisfaccion } from "@/lib/encuesta-de-satisfaccion.server";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import {
@@ -534,6 +535,12 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   await marcarSesionResuelta(sessionId);
   await quitarSelloDeEscaladoPorSesion(sessionId);
   await logAssignment(sessionId, assignedAdvisorId, laPersona(user).id, "resolved");
+
+  // La encuesta de satisfacción, si la cuenta la tiene encendida. Va AQUÍ
+  // porque esta es la única puerta de «resolver» —botón, fila, lote y macro—,
+  // y en cola: no hace esperar a quien resuelve ni manda cuarenta a la vez por
+  // la misma línea. El asesor es el que tenía la conversación AL resolverla.
+  encolarLaEncuestaDeSatisfaccion(sessionId, assignedAdvisorId);
 
   return { success: true, message: "Conversación resuelta." };
 }
