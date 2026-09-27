@@ -5,9 +5,17 @@ import { resolveUserAiClient } from '@/lib/cliente-de-ia.server';
 import { createAiClient } from '@/app/(root)/ai-chat/helpers/createAiClient';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { resolveInstanceOwner } from '@/lib/chat-persistence';
+import { antesDeUsarLaIa, cobrarElUsoDeIa } from '@/lib/cobro-de-ia.server';
 
 type SuggestedReplyRequest = {
   userId: string;
+  /**
+   * La línea de la conversación. De ella sale la cuenta DUEÑA, que es la que
+   * paga la sugerencia (ver `lib/cobro-de-ia.ts`): desde la cuenta madre, la
+   * sugerencia en una conversación de Ventas la paga Ventas.
+   */
+  instanceName?: string | null;
   messages: EvolutionMessage[];
   contactName?: string | null;
 };
@@ -31,8 +39,18 @@ export async function generateSuggestedReplyAction(
     // Sin guarda, el `userId` del navegador elegía **la llave de OpenAI de otra
     // cuenta**: o sea gastar su consumo, y hacerlo sobre la conversación que se
     // le mandara. Es el H02 de siempre, con el id dentro de un objeto.
-    const cuenta = await laCuentaDeLaAccion(req.userId);
+    //
+    // Y la cuenta es la DUEÑA de la conversación —la de su línea—, no la de
+    // quien mira: esa es la que usa su IA y la que paga. Pasa por la misma
+    // puerta (`assertCanAccessTargetUser`): hacia abajo, nunca hacia arriba.
+    const duena = req.instanceName ? await resolveInstanceOwner(req.instanceName) : null;
+    const cuenta = await laCuentaDeLaAccion(duena?.userId ?? req.userId);
     if (!cuenta) return { success: false, message: 'No autorizado.' };
+
+    // Todo uso de IA descuenta créditos de la cuenta dueña: sin créditos no se
+    // pide nada, y se dice por qué.
+    const permiso = await antesDeUsarLaIa(cuenta);
+    if (!permiso.ok) return { success: false, message: permiso.aviso };
 
     const resolved = await resolveUserAiClient(cuenta);
     if (!resolved.success || !resolved.data) {
@@ -61,18 +79,23 @@ Tu tarea es sugerir UNA sola respuesta corta (máximo 3 oraciones) que el asesor
 - NO uses asteriscos, markdown ni emojis excesivos.
 - NO expliques lo que vas a hacer, simplemente escribe el texto de la respuesta lista para enviar.`;
 
+    const pedido = `Aquí está la conversación reciente:\n\n${historyLines}\n\nSugiere una respuesta para el asesor:`;
     const ai = createAiClient(provider);
     const result = await ai.complete({
       apiKey,
       model,
       system,
-      messages: [
-        {
-          role: 'user',
-          content: `Aquí está la conversación reciente:\n\n${historyLines}\n\nSugiere una respuesta para el asesor:`,
-        },
-      ],
+      messages: [{ role: 'user', content: pedido }],
     });
+
+    // La IA contestó: se cobra, entregue texto o no. DESPUÉS de tener la
+    // respuesta, nunca antes.
+    await cobrarElUsoDeIa(
+      cuenta,
+      permiso.saldo,
+      { tokens: result.tokens, entrada: system + pedido, salida: result.content },
+      'sugerencia de chats',
+    );
 
     const reply = (result.content || '').trim();
     if (!reply) return { success: false, message: 'empty_reply' };

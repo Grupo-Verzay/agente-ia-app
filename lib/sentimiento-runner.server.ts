@@ -17,43 +17,48 @@ import {
     soltarElReclamo,
     type Pendiente,
 } from "@/lib/sentimiento-db";
+import { antesDeUsarLaIa, cobrarElUsoDeIa } from "@/lib/cobro-de-ia.server";
+import { losTokensDelUso } from "@/lib/cobro-de-ia";
 
 /**
  * Quien analiza el sentimiento de los mensajes entrantes de Chats.
  *
- * # Por qué corre en la App y cuándo
+ * # Cuándo: SOLO al abrir Chats
  *
- * Los webhooks de WhatsApp los recibe el backend, no la App. Lo que la App sí
- * tiene es `chat_messages` —donde el webhook deja cada mensaje con todas sus
- * identidades— y un reloj que ya corre: la lista de Chats se pide cada 20 s por
- * cada pestaña abierta. De ahí sale el barrido: cada vuelta de la lista lanza,
- * DE FONDO y sin hacerla esperar, el análisis de los mensajes del cliente que
- * todavía no se leyeron en esas líneas. El resultado viaja en la vuelta
- * siguiente. Y un barrido diario (`/api/cron/billing`) recoge lo que entró sin
- * nadie mirando, para que el reporte del CRM no dependa de que alguien tuviera
- * Chats abierto.
+ * Nada corre de fondo con un reloj ni en un barrido diario. El análisis se
+ * dispara cuando alguien ABRE la pantalla de Chats (la página del servidor lo
+ * lanza con `void`, sin hacerla esperar) y en ese momento cubre TODAS las
+ * conversaciones pendientes de las cuentas de esa bandeja: las que tienen un
+ * mensaje del cliente posterior a su último análisis. Lo ya analizado sin
+ * mensajes nuevos no se vuelve a pagar y conserva su color. **Si nadie abre
+ * Chats, no se analiza nada y no se consume nada.**
  *
- * # Con la IA de la cuenta
+ * Antes lo lanzaba cada vuelta de la lista (cada 20 s por pestaña abierta) y un
+ * barrido diario del cron recogía lo demás, sin descontar ni un crédito: eso era
+ * consumo de IA que pagaba la plataforma.
  *
- * La misma que procesa sus conversaciones: su proveedor y su modelo por
- * defecto (`laIaDeLaCuenta`). La cuenta sale de la FILA del mensaje —el dueño
- * de la línea—, nunca del navegador.
+ * # Con la IA de la cuenta, y lo PAGA la cuenta dueña de la conversación
+ *
+ * La misma IA que procesa sus conversaciones (`laIaDeLaCuenta`), y cada
+ * análisis descuenta sus tokens de la cuenta DUEÑA de la línea (`p.userId`),
+ * nunca de quien abrió Chats ni de otra cuenta de la familia. Es la regla de
+ * `lib/cobro-de-ia.ts`, la misma de la sugerencia de respuesta. Una cuenta sin
+ * créditos no se analiza (sus conversaciones siguen pendientes para cuando
+ * recargue), y se dice.
  *
  * # Lo que no puede pasar
  *
- * - **Hacer esperar a la lista.** Se lanza con `void` y con su `catch`.
+ * - **Hacer esperar a la pantalla.** Se lanza con `void` y con su `catch`.
  * - **Analizar dos veces lo mismo.** Con dos réplicas y varias pestañas el mismo
  *   mensaje puede pedirse a la vez; lo decide la base (`reclamarElAnalisis`).
  * - **Ser mudo.** Un fallo de la IA se dice y el reclamo se suelta para que la
- *   vuelta siguiente lo reintente.
+ *   apertura siguiente lo reintente.
  */
 
-/** Ventana del barrido de la lista: lo que entró en la última media hora. */
-export const MINUTOS_DE_LA_LISTA = 30;
-/** Cuántas conversaciones como mucho por vuelta de la lista. */
-export const TOPE_DE_LA_LISTA = 25;
-/** Una vuelta por las mismas cuentas y líneas, como mucho cada tanto. */
-export const ESPERA_ENTRE_VUELTAS_MS = 8_000;
+/** Cuántas conversaciones se piden por página; se siguen pidiendo hasta vaciar lo pendiente. */
+export const POR_PAGINA = 100;
+/** Red de seguridad: páginas como mucho por apertura (100 × 200 = 20.000 conversaciones). */
+export const PAGINAS_MAXIMAS = 200;
 /** Obreros que tiran de la cola a la vez (una cola, no lotes: ver CLAUDE.md). */
 export const OBREROS = 3;
 /** Lo que se espera a la IA antes de soltar el reclamo y seguir. */
@@ -66,13 +71,24 @@ export type ResultadoDelBarrido = {
     analizados: number;
     cayeron: number;
     sinIa: number;
+    /** Conversaciones que no se analizaron porque su cuenta dueña no tiene créditos. */
+    sinCreditos: number;
     fallidos: number;
+    /** Tokens descontados, sumando todas las cuentas dueñas. */
+    tokens: number;
+    /** Las cuentas que se quedaron sin analizar por créditos. */
+    cuentasSinCreditos: string[];
 };
 
+/**
+ * Lo que devuelve la IA: el sentimiento y los tokens que costó. Admite también
+ * el sentimiento suelto (los analizadores fingidos del banco); entonces los
+ * tokens se estiman por el largo del texto, como manda `losTokensDelUso`.
+ */
 type Analizador = (args: {
     cuenta: string;
     texto: string;
-}) => Promise<Sentimiento | null>;
+}) => Promise<{ sentimiento: Sentimiento | null; tokens?: number } | Sentimiento | null>;
 
 const iaRecordada = new Map<string, { hasta: number; resultado: Promise<ResultadoDelClienteDeIa> }>();
 
@@ -98,7 +114,14 @@ export const analizarConLaIa: Analizador = async ({ cuenta, texto }) => {
         system: INSTRUCCION_DEL_SENTIMIENTO,
         messages: [{ role: "user", content: texto }],
     });
-    return leerElSentimiento(r.content);
+    return {
+        sentimiento: leerElSentimiento(r.content),
+        tokens: losTokensDelUso({
+            tokens: r.tokens,
+            entrada: INSTRUCCION_DEL_SENTIMIENTO + texto,
+            salida: r.content,
+        }),
+    };
 };
 
 export class SinIa extends Error {}
@@ -113,36 +136,63 @@ function conPlazo<T>(p: Promise<T>, ms: number): Promise<T> {
     ]).finally(() => clearTimeout(t));
 }
 
-/** Analiza UNA conversación pendiente. Nunca lanza. */
+/** Analiza UNA conversación pendiente y la cobra a su cuenta dueña. Nunca lanza. */
 export async function analizarUnaConversacion(
     p: Pendiente,
     analizar: Analizador = analizarConLaIa,
-): Promise<"analizado" | "cayo" | "ocupado" | "sin_ia" | "fallido"> {
+): Promise<{
+    resultado: "analizado" | "cayo" | "ocupado" | "sin_ia" | "sin_creditos" | "fallido";
+    tokens: number;
+}> {
     let reclamado = false;
     try {
+        // Antes de reclamar nada: si la cuenta dueña no puede pagar, la
+        // conversación se queda pendiente para cuando recargue.
+        const permiso = await antesDeUsarLaIa(p.userId);
+        if (!permiso.ok) return { resultado: "sin_creditos", tokens: 0 };
+
         const antes = await reclamarElAnalisis(p);
-        if (!antes) return "ocupado";
+        if (!antes) return { resultado: "ocupado", tokens: 0 };
         reclamado = true;
         const mensajes = await losMensajesDeContexto(p, MENSAJES_DE_CONTEXTO);
         const texto = elTextoParaAnalizar(mensajes);
 
         let ahora: Sentimiento | null;
+        let tokens = 0;
         if (!texto) {
             // Sin texto del cliente (un audio sin transcribir, una imagen) no
-            // hay nada que juzgar: se da por leído y se conserva lo que había.
+            // hay nada que juzgar: se da por leído, se conserva lo que había y
+            // no se le pregunta nada a la IA, así que no se cobra nada.
             ahora = antes.sentimiento ?? "neutro";
         } else {
+            let respuesta: Awaited<ReturnType<Analizador>>;
             try {
-                ahora = await conPlazo(analizar({ cuenta: p.userId, texto }), PLAZO_DE_LA_IA_MS);
+                respuesta = await conPlazo(analizar({ cuenta: p.userId, texto }), PLAZO_DE_LA_IA_MS);
             } catch (error) {
                 if (error instanceof SinIa) {
                     // Una cuenta sin IA configurada: no se reintenta en bucle.
-                    // Se da por leído conservando lo que había.
+                    // Se da por leído conservando lo que había. Sin IA no hubo uso.
                     await guardarElAnalisis(p, antes, antes.sentimiento ?? "neutro");
-                    return "sin_ia";
+                    return { resultado: "sin_ia", tokens: 0 };
                 }
                 throw error;
             }
+            const leido =
+                respuesta === null || typeof respuesta === "string"
+                    ? { sentimiento: respuesta, tokens: undefined }
+                    : respuesta;
+            ahora = leido.sentimiento;
+            // La IA contestó (entendible o no): ese uso se cobra a la cuenta dueña.
+            tokens = await cobrarElUsoDeIa(
+                p.userId,
+                permiso.saldo,
+                {
+                    tokens: leido.tokens,
+                    entrada: INSTRUCCION_DEL_SENTIMIENTO + texto,
+                    salida: ahora ?? "",
+                },
+                "sentimiento",
+            );
         }
         if (!ahora) {
             // La IA contestó algo que no se entiende: NO se inventa un neutro
@@ -153,47 +203,70 @@ export async function analizarUnaConversacion(
             ahora = antes.sentimiento ?? "neutro";
         }
         const { cayo } = await guardarElAnalisis(p, antes, ahora);
-        return cayo ? "cayo" : "analizado";
+        return { resultado: cayo ? "cayo" : "analizado", tokens };
     } catch (error) {
         console.warn("[sentimiento] no se pudo analizar un mensaje; se reintentará", {
             linea: p.instanceName,
             motivo: (error as Error)?.message,
         });
-        if (reclamado) await soltarElReclamo(p).catch(() => {});
-        return "fallido";
+        if (reclamado) await soltarElReclamo(p).catch((e) => {
+            console.warn("[sentimiento] no se pudo soltar el reclamo", (e as Error)?.message);
+        });
+        return { resultado: "fallido", tokens: 0 };
     }
+}
+
+function llaveDelPendiente(p: Pendiente): string {
+    return `${p.userId}|${p.instanceName}|${p.remoteJid}`;
+}
+
+function resultadoVacio(): ResultadoDelBarrido {
+    return { pendientes: 0, analizados: 0, cayeron: 0, sinIa: 0, sinCreditos: 0, fallidos: 0, tokens: 0, cuentasSinCreditos: [] };
 }
 
 /** Una cola común con N obreros: el que se queda pillado no retiene a los demás. */
 async function vaciarLaCola(
     pendientes: Pendiente[],
     analizar: Analizador,
-): Promise<ResultadoDelBarrido> {
-    const r: ResultadoDelBarrido = { pendientes: pendientes.length, analizados: 0, cayeron: 0, sinIa: 0, fallidos: 0 };
+    r: ResultadoDelBarrido,
+    sinCreditos: Set<string>,
+    yaFallaron: Set<string>,
+): Promise<number> {
+    r.pendientes += pendientes.length;
+    let hechos = 0;
     let siguiente = 0;
     const obrero = async () => {
         while (siguiente < pendientes.length) {
             const p = pendientes[siguiente++];
-            const res = await analizarUnaConversacion(p, analizar);
-            if (res === "analizado") r.analizados++;
-            else if (res === "cayo") { r.analizados++; r.cayeron++; }
-            else if (res === "sin_ia") r.sinIa++;
-            else if (res === "fallido") r.fallidos++;
+            if (sinCreditos.has(p.userId)) { r.sinCreditos++; continue; }
+            const { resultado, tokens } = await analizarUnaConversacion(p, analizar);
+            r.tokens += tokens;
+            if (resultado === "analizado") { r.analizados++; hechos++; }
+            else if (resultado === "cayo") { r.analizados++; r.cayeron++; hechos++; }
+            else if (resultado === "sin_ia") { r.sinIa++; hechos++; }
+            else if (resultado === "sin_creditos") { r.sinCreditos++; sinCreditos.add(p.userId); }
+            else if (resultado === "fallido") { r.fallidos++; yaFallaron.add(llaveDelPendiente(p)); }
         }
     };
     await Promise.all(Array.from({ length: Math.min(OBREROS, pendientes.length) }, obrero));
-    return r;
+    return hechos;
 }
 
 const enCurso = new Map<string, Promise<ResultadoDelBarrido>>();
-const ultimaVuelta = new Map<string, number>();
 
 /**
- * El barrido que lanza la lista de Chats. Uno a la vez por cuentas+líneas y
- * por proceso, y no más de uno cada `ESPERA_ENTRE_VUELTAS_MS`: con varias
- * pestañas abiertas sobre la misma bandeja, la segunda no repite el trabajo.
+ * El análisis que lanza la pantalla de Chats al abrirse: TODO lo pendiente de
+ * esas cuentas y líneas, página a página hasta que no quede nada.
+ *
+ * - Uno a la vez por cuentas+líneas y por proceso: abrir Chats en dos pestañas
+ *   no repite el trabajo, la segunda se suma al que ya corre.
+ * - Una cuenta que se queda sin créditos sale de las páginas siguientes: sus
+ *   conversaciones siguen pendientes y se analizan cuando recargue y alguien
+ *   vuelva a abrir Chats. Sin eso, la misma página volvería a salir en bucle.
+ * - Y se para si una página entera no avanza (todo falló u otro lo tenía
+ *   reclamado): la próxima apertura lo reintenta.
  */
-export function barrerElSentimientoDeLaBandeja(
+export function analizarElSentimientoAlAbrirChats(
     cuentas: readonly string[],
     lineas: readonly string[],
     analizar: Analizador = analizarConLaIa,
@@ -202,42 +275,50 @@ export function barrerElSentimientoDeLaBandeja(
     const llave = `${[...cuentas].sort().join(",")}|${[...lineas].sort().join(",")}`;
     const ya = enCurso.get(llave);
     if (ya) return ya;
-    const ahora = Date.now();
-    if (ahora - (ultimaVuelta.get(llave) ?? 0) < ESPERA_ENTRE_VUELTAS_MS) return null;
-    ultimaVuelta.set(llave, ahora);
     const vuelta = (async () => {
-        const pendientes = await losPendientes({
-            cuentas,
-            lineas,
-            minutos: MINUTOS_DE_LA_LISTA,
-            tope: TOPE_DE_LA_LISTA,
-        });
-        return vaciarLaCola(pendientes, analizar);
+        const r = resultadoVacio();
+        const sinCreditos = new Set<string>();
+        // Lo que ya falló en esta apertura no se vuelve a pedir en la página
+        // siguiente: se reintenta en la próxima apertura, no en bucle.
+        const yaFallaron = new Set<string>();
+        for (let pagina = 0; pagina < PAGINAS_MAXIMAS; pagina++) {
+            const quedan = cuentas.filter((c) => !sinCreditos.has(c));
+            if (!quedan.length) break;
+            const pagina_ = await losPendientes({ cuentas: quedan, lineas, tope: POR_PAGINA });
+            const pendientes = pagina_.filter((p) => !yaFallaron.has(llaveDelPendiente(p)));
+            if (!pendientes.length) break;
+            const antesFallidos = r.fallidos;
+            const hechos = await vaciarLaCola(pendientes, analizar, r, sinCreditos, yaFallaron);
+            // Una página que no avanzó (todo falló u otro lo tenía reclamado) y
+            // en la que no cayó ninguna cuenta por créditos: se para aquí.
+            const soloCreditos = pendientes.every((p) => sinCreditos.has(p.userId));
+            if (hechos === 0 && !soloCreditos && r.fallidos === antesFallidos) break;
+        }
+        r.cuentasSinCreditos = [...sinCreditos];
+        if (r.pendientes) {
+            console.info("[sentimiento] análisis al abrir Chats", {
+                cuentas: cuentas.length,
+                pendientes: r.pendientes,
+                analizados: r.analizados,
+                cayeron: r.cayeron,
+                sinCreditos: r.sinCreditos,
+                fallidos: r.fallidos,
+                tokens: r.tokens,
+            });
+        }
+        if (sinCreditos.size) {
+            console.warn("[sentimiento] cuentas sin créditos: sus conversaciones quedan pendientes", {
+                cuentas: [...sinCreditos],
+            });
+        }
+        return r;
     })().finally(() => enCurso.delete(llave));
     enCurso.set(llave, vuelta);
     return vuelta;
-}
-
-/**
- * El barrido diario de toda la plataforma: recoge lo que entró sin nadie con
- * Chats abierto, para que el reporte del CRM cuente también esas caídas. Con
- * tope, y a su propio ritmo.
- */
-export async function barrerElSentimientoDeLaPlataforma(
-    opciones: { horas?: number; tope?: number } = {},
-    analizar: Analizador = analizarConLaIa,
-): Promise<ResultadoDelBarrido> {
-    const pendientes = await losPendientes({
-        cuentas: null,
-        minutos: (opciones.horas ?? 26) * 60,
-        tope: opciones.tope ?? 200,
-    });
-    return vaciarLaCola(pendientes, analizar);
 }
 
 /** Para el banco: olvida lo recordado entre pruebas. */
 export function olvidarLoRecordado(): void {
     iaRecordada.clear();
     enCurso.clear();
-    ultimaVuelta.clear();
 }

@@ -38,13 +38,14 @@ export interface ChatGateway {
 
 export type AiInputMessage = { role: "user" | "assistant"; content: string };
 
+/** `tokens` son los que dijo el proveedor, para descontarlos de la cuenta dueña (ver `lib/cobro-de-ia.ts`). */
 export interface AiClient {
     complete(args: {
         apiKey: string;
         model: string;
         system: string;
         messages: AiInputMessage[];
-    }): Promise<{ content: string }>;
+    }): Promise<{ content: string; tokens?: number }>;
 }
 
 export type ChatRole = "user" | "assistant" | "system";

@@ -129,49 +129,57 @@ export type Pendiente = {
 /**
  * Las conversaciones cuyo ÚLTIMO mensaje del cliente todavía no se analizó.
  *
- * Se mira el último mensaje ENTRANTE (`fromMe = false`) y no el último a secas:
- * con la IA activa el último es casi siempre su respuesta, unos segundos
- * después, y mirando ese no se analizaría nunca nada.
+ * **Sin ventana de tiempo**: se analiza al ABRIR Chats y tiene que cubrir TODO
+ * lo pendiente de esas cuentas y líneas, no la última media hora. Lo que ya se
+ * analizó y no tiene mensajes nuevos del cliente no sale (conserva su color).
  *
- * Acotado por fecha (`minutos`) para que la consulta pueda pararse: los índices
- * de `chat_messages` empiezan por `userId`, y sin cuenta (el barrido diario)
- * entra por el BRIN de `messageTimestamp`. Grupos, estados y difusiones fuera:
- * ahí no hay UN cliente cuyo ánimo juzgar.
+ * Se parte de `chat_conversations` —una fila por conversación, la misma que
+ * pinta la bandeja— y no de `chat_messages`: recorrer la tabla de mensajes de
+ * una cuenta entera para quedarse con el último de cada conversación es leer
+ * cientos de miles de filas en cada apertura. Con la conversación delante se
+ * descartan de entrada las que no se movieron desde su análisis
+ * (`lastMessageTimestamp <= mensajeEn`), y del resto se pide el último
+ * mensaje ENTRANTE por su índice exacto
+ * (`chat_messages_user_instance_jid_ts_idx`), con un `LATERAL ... LIMIT 1`.
+ *
+ * Se mira el último mensaje ENTRANTE (`fromMe = false`) y no el último a secas:
+ * con la IA activa el último es casi siempre su respuesta, y mirando ese no se
+ * analizaría nunca nada. Grupos, estados y difusiones fuera: ahí no hay UN
+ * cliente cuyo ánimo juzgar.
  */
 export async function losPendientes(opciones: {
-    cuentas: readonly string[] | null;
+    cuentas: readonly string[];
     lineas?: readonly string[] | null;
-    minutos: number;
     tope: number;
 }): Promise<Pendiente[]> {
-    const minutos = Math.max(1, Math.min(60 * 48, Math.floor(opciones.minutos)));
     const tope = Math.max(1, Math.min(500, Math.floor(opciones.tope)));
-    if (opciones.cuentas && !opciones.cuentas.length) return [];
-    const porCuenta = opciones.cuentas
-        ? Prisma.sql`AND m."userId" = ANY(${[...opciones.cuentas]}::text[])`
-        : Prisma.empty;
+    if (!opciones.cuentas.length) return [];
     const porLinea = opciones.lineas?.length
-        ? Prisma.sql`AND m."instanceName" = ANY(${[...opciones.lineas]}::text[])`
+        ? Prisma.sql`AND c."instanceName" = ANY(${[...opciones.lineas]}::text[])`
         : Prisma.empty;
     return conLasTablas(() => db.$queryRaw<Pendiente[]>`
-        WITH ultimos AS (
-            SELECT DISTINCT ON (m."userId", m."instanceName", m."remoteJid")
-                m."userId", m."instanceName", m."remoteJid", m."remoteJidAlt", m."senderPn",
-                m."messageId", m."messageTimestamp"
-            FROM "chat_messages" m
-            WHERE m."fromMe" = false
-              AND m."messageTimestamp" > NOW() - make_interval(mins => ${minutos}::int)
-              AND m."remoteJid" NOT LIKE '%@g.us'
-              AND m."remoteJid" NOT LIKE '%@broadcast'
-              AND m."remoteJid" NOT LIKE '%@newsletter'
-              ${porCuenta}
-              ${porLinea}
-            ORDER BY m."userId", m."instanceName", m."remoteJid", m."messageTimestamp" DESC
-        )
-        SELECT u.* FROM ultimos u
+        SELECT c."userId", c."instanceName", c."remoteJid", u."remoteJidAlt", u."senderPn",
+               u."messageId", u."messageTimestamp"
+        FROM "chat_conversations" c
         LEFT JOIN "sentimiento_de_conversacion" s
-          ON s."userId" = u."userId" AND s."instanceName" = u."instanceName" AND s."remoteJid" = u."remoteJid"
-        WHERE s."mensajeId" IS DISTINCT FROM u."messageId"
+          ON s."userId" = c."userId" AND s."instanceName" = c."instanceName" AND s."remoteJid" = c."remoteJid"
+        CROSS JOIN LATERAL (
+            SELECT m."remoteJidAlt", m."senderPn", m."messageId", m."messageTimestamp"
+            FROM "chat_messages" m
+            WHERE m."userId" = c."userId"
+              AND m."instanceName" = c."instanceName"
+              AND m."remoteJid" = c."remoteJid"
+              AND m."fromMe" = false
+            ORDER BY m."messageTimestamp" DESC
+            LIMIT 1
+        ) u
+        WHERE c."userId" = ANY(${[...opciones.cuentas]}::text[])
+          ${porLinea}
+          AND c."remoteJid" NOT LIKE '%@g.us'
+          AND c."remoteJid" NOT LIKE '%@broadcast'
+          AND c."remoteJid" NOT LIKE '%@newsletter'
+          AND (s."mensajeEn" IS NULL OR c."lastMessageTimestamp" IS NULL OR c."lastMessageTimestamp" > s."mensajeEn")
+          AND s."mensajeId" IS DISTINCT FROM u."messageId"
           AND (s."mensajeEn" IS NULL OR s."mensajeEn" <= u."messageTimestamp")
           AND (
             s."analizandoId" IS NULL

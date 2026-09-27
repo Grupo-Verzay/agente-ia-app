@@ -7,8 +7,7 @@
 export { ponerAQuienMira } from "./auth-de-documentos";
 export {
     analizarUnaConversacion,
-    barrerElSentimientoDeLaBandeja,
-    barrerElSentimientoDeLaPlataforma,
+    analizarElSentimientoAlAbrirChats,
     analizarConLaIa,
     olvidarLoRecordado,
 } from "@/lib/sentimiento-runner.server";

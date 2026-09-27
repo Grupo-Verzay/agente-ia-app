@@ -18571,7 +18571,7 @@ Python y un barrido, y las acciones y el runner contra Postgres. `MODO=roto`
 afirma la lectura por una sola identidad (la conversación sale a medias) y la
 selección ingenua (grupos y conversaciones vivas pagadas).
 
-## Chats: el SENTIMIENTO del cliente se analiza en la App, de fondo, con la IA de la cuenta
+## Chats: el SENTIMIENTO del cliente se analiza al ABRIR Chats, y lo paga la cuenta dueña
 
 Cada mensaje entrante se clasifica en **positivo, neutro o negativo**. Tiñe el
 aro que YA tiene el avatar en la lista (verde pastel, rojo suave; neutro es el
@@ -18579,13 +18579,28 @@ de siempre), saca una franja delgada «El cliente parece molesto» encima de la
 barra de escribir, y alimenta el reporte **Sentimiento** de CRM › Analíticas
 (caídas a negativo por día y por asesor).
 
-**Por qué en la App y no en el backend**: los webhooks los recibe el backend,
-que es otro repositorio. La App tiene `chat_messages` y un reloj que ya corre —la
-lista de Chats, cada 20 s por pestaña—, así que cada vuelta de
-`/api/chats/lista` lanza **de fondo** (`void`) el análisis de lo que entró en
-esas líneas (`lib/sentimiento-runner.server.ts`), y el resultado viaja en la
-vuelta siguiente (`sentimientos`, `linea::jid` bajo las TRES identidades). Un
-barrido diario en `/api/cron/billing` recoge lo que entró sin nadie mirando.
+**Cuándo: solo al abrir Chats.** Los webhooks los recibe el backend, que es
+otro repositorio, así que la App analiza lo que ya está en `chat_messages`. Y lo
+hace **únicamente cuando alguien abre la pantalla de Chats**: la página del
+servidor lanza de fondo (`void`) `analizarElSentimientoAlAbrirChats` sobre las
+cuentas y líneas de esa bandeja, y cubre **TODO lo pendiente** —página a página,
+sin ventana de tiempo—: las conversaciones con un mensaje del cliente posterior
+a su último análisis. Lo ya analizado sin mensajes nuevos no se reanaliza y
+conserva su color. El resultado viaja en la vuelta siguiente de la lista
+(`sentimientos`, `linea::jid` bajo las TRES identidades), que solo LEE.
+
+**Ni reloj ni repaso diario, a propósito.** Antes lo lanzaba cada vuelta de
+`/api/chats/lista` (cada 20 s por pestaña) y un barrido diario en
+`/api/cron/billing`, sin descontar un crédito: consumo de IA que pagaba la
+plataforma. **Si nadie abre Chats, no se analiza nada ni se consume nada.**
+
+Los pendientes se buscan desde `chat_conversations` (una fila por conversación)
+con un `LATERAL … LIMIT 1` al último mensaje entrante por su índice exacto: sin
+ventana de tiempo, recorrer `chat_messages` de una cuenta entera en cada
+apertura sería leer cientos de miles de filas. Una cuenta que se queda sin
+créditos sale de las páginas siguientes (sus conversaciones siguen pendientes
+para cuando recargue), y lo que falla en una apertura no se repite en bucle: se
+reintenta en la próxima.
 
 Seis cosas que hay que mantener:
 
@@ -18593,8 +18608,9 @@ Seis cosas que hay que mantener:
    activa el último es su respuesta, y mirándolo no se analizaría nada.
 2. **Con la IA de la cuenta dueña de la línea** (`laIaDeLaCuenta`, la misma
    consulta que `resolveUserAiClient` sin la puerta de sesión: la cuenta sale de
-   la fila, nunca del navegador). **No descuenta créditos**, como la sugerencia
-   de respuesta; si algún día se cobra, va por la regla de siempre.
+   la fila, nunca del navegador). **Cada análisis descuenta sus tokens de ESA
+   cuenta** —no de quien abrió Chats—, y sin créditos no se llama a la IA. Es la
+   regla de *Todo uso de IA lo paga la cuenta dueña*.
 3. **Dos a la vez no pagan dos**: `reclamarElAnalisis` es un `ON CONFLICT DO
    UPDATE … WHERE`; el reclamo caduca a los 2 min si quien lo tomó murió.
 4. **Lo que no se entiende NO es neutro**: una respuesta rara, o una cuenta sin
@@ -18611,7 +18627,48 @@ Dos tablas de la App (`sentimiento_de_conversacion`, `sentimiento_caidas`), con
 `ddl()` y sin clave foránea: ni una columna en `Session` ni en `chat_messages`.
 Lo prueba `scripts/banco-sentimiento.sh`: reglas, barrido, el análisis contra
 Postgres con la IA fingida y la franja en Chromium; `MODO=roto` lee `ANTES_REF`
-y afirma que no había nada de esto.
+y afirma que no había nada de esto. Y `scripts/banco-cobro-de-ia.sh` prueba el
+cuándo y el cobro (ver la sección siguiente).
+
+## Todo uso de IA lo paga la cuenta DUEÑA de lo que se analiza
+
+**La regla, sin excepción**: todo uso de IA en la plataforma descuenta créditos
+de la cuenta dueña de esa conversación (o de ese correo), **nunca de otra cuenta
+ni lo asume la plataforma**. La dueña de una conversación es la de su LÍNEA: la
+madre que mira una conversación de Ventas no paga lo de Ventas.
+
+Lo decide `lib/cobro-de-ia.ts` (puro) y lo aplica `lib/cobro-de-ia.server.ts`,
+con las MISMAS funciones de saldo y descuento que las transcripciones
+(`elSaldoDeLaCuenta`, `descontarLaTranscripcion`):
+
+1. **Antes**: `antesDeUsarLaIa(cuenta)`. Sin créditos o sin bolsa no se llama a
+   la IA y se dice por qué, nombrando la cuenta. Una cuenta que paga su propia
+   IA es `ilimitado`: no se le descuenta, pero tampoco la paga la plataforma —la
+   paga ella con su llave—.
+2. **Después**: `cobrarElUsoDeIa(...)`, con los tokens que dijo el proveedor
+   (`AiClient.complete` los devuelve ahora); sin ellos se estiman por el largo,
+   y **nunca cero**. Se cobra aunque la respuesta no se entienda: la IA se usó.
+
+La usan el **sentimiento**, la **sugerencia de respuesta de Chats** (que ahora
+recibe la línea: `instanceName` → dueña, con `laCuentaDeLaAccion`, hacia abajo y
+nunca hacia arriba) y la **de Correo** (la cuenta del buzón). Transcripciones,
+calidad y llamadas ya cobraban por su camino. **Si se añade otro uso de IA, va
+por estas dos funciones.**
+
+**Y quedan usos que todavía NO cobran**, contados con un barrido el 2026-09-27
+para que no se den por revisados: el copiloto (`ai-chat-actions`), el asistente
+del editor de prompts (`ai-prompt-chat-actions`, `ai-inject-section-action`), el
+resumen al cerrar una conversación (`conversation-intelligence-actions`), la
+puntuación del lead (`lead-score-action`), el informe semanal
+(`weekly-report-runner`), el aprendizaje de ventas (`sales-learning`) y las
+imágenes con IA (`ai-image-actions`, que va con la llave de Google de la
+cuenta). Cada uno pasa por `antesDeUsarLaIa` / `cobrarElUsoDeIa` cuando se toque.
+
+Lo prueba `scripts/banco-cobro-de-ia.sh`, contra Postgres con el cliente de IA
+fingido: 130 pendientes (más de una página, la mitad de hace horas) se analizan
+todos al abrir y los paga la hija aunque abra la madre; sin nadie abriendo no se
+consume nada; reabrir no repaga; sin créditos no se llama a la IA. `MODO=roto`
+lee `ANTES_REF` y afirma que la lista y el cron analizaban sin cobrar.
 
 # Pendientes
 
