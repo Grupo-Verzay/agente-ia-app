@@ -3,6 +3,8 @@ import type { MediaType } from './attachment-menu';
 /* ─── Outgoing payload types ─── */
 export type OutgoingTextPayload = {
   kind: 'text';
+  /** Un reenvío: sale tal cual, sin firma del asesor (ver `lib/reenviar-mensaje`). */
+  reenviado?: boolean;
   text: string;
   delay?: number;
   linkPreview?: boolean;
@@ -13,6 +15,8 @@ export type OutgoingTextPayload = {
 
 export type OutgoingMediaPayload = {
   kind: 'media';
+  /** Un reenvío: sale tal cual, sin firma del asesor (ver `lib/reenviar-mensaje`). */
+  reenviado?: boolean;
   mediatype: MediaType;
   /** Base64 puro (audio) o Data URL (adjuntos) */
   mediaUrl: string;

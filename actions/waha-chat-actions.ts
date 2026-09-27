@@ -215,11 +215,15 @@ export async function sendWahaTextAction(
     // Estaba escrita solo dentro del envio de Evolution -que ni siquiera
     // arranca sin sus credenciales-, asi que en una linea de Waha el
     // interruptor se veia encendido y el mensaje salia sin firma.
-    const text = await anteponerFirmaDelAsesor({
-      ownerUserId: linea.userId,
-      remoteJid,
-      texto: escrito,
-    });
+    // Un REENVÍO sale tal cual, sin firma: la misma regla que en Evolution
+    // (ver `lib/reenviar-mensaje`).
+    const text = payload.reenviado === true
+      ? escrito
+      : await anteponerFirmaDelAsesor({
+          ownerUserId: linea.userId,
+          remoteJid,
+          texto: escrito,
+        });
 
     const envio = await sendWahaText({ session: instanceName, chatId, text, replyTo });
     if (!envio.ok) return { success: false, message: envio.message, remoteJid };

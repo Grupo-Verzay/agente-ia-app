@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Check, CheckCheck, CircleAlert, Clock, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, Clock, Forward, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer, anchoDelAdjunto } from './MediaRenderer';
 import { SafeImage } from '@/components/custom/SafeImage';
@@ -120,6 +120,8 @@ interface MessageBubbleProps {
   adPreview?: UIBubble['adPreview'];
   onReply?: () => void;
   onCopy?: () => void;
+  /** Reenviar a otras conversaciones. Quien pinta la burbuja solo lo pasa si el mensaje se puede reenviar. */
+  onForward?: () => void;
   onReact?: (emoji: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -152,6 +154,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   adPreview,
   onReply,
   onCopy,
+  onForward,
   onReact,
   onEdit,
   onDelete,
@@ -427,10 +430,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     </button>
   );
 
+  // Reenviar va AL LADO de Responder y con su misma forma: los dos son lo que
+  // se hace con un mensaje sin abrir ningún menú. En un táctil, donde no hay
+  // cursor que pasar, la misma acción está dentro del «⋯».
+  const forwardBtn = onForward && (
+    <button
+      onClick={onForward}
+      type="button"
+      title="Reenviar"
+      aria-label="Reenviar"
+      data-reenviar-mensaje=""
+      className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+    >
+      <Forward className="w-3.5 h-3.5" />
+    </button>
+  );
+
   const contextMenu = onCopy && onReact && (
     <MessageContextMenu
       isUserMessage={isUserMessage}
       onCopy={onCopy}
+      onForward={onForward}
       onReact={onReact}
       onEdit={onEdit}
       onDelete={onDelete}
@@ -448,6 +468,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       )}
       {isUserMessage && replyBtn}
+      {isUserMessage && forwardBtn}
       {isUserMessage && contextMenu}
       <div className={cn('px-2 pt-2 pb-1.5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
         {autorLinea}
@@ -580,6 +601,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
       </div>
       {!isUserMessage && replyBtn}
+      {!isUserMessage && forwardBtn}
       {!isUserMessage && contextMenu}
     </div>
   );

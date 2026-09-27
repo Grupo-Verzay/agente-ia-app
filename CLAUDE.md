@@ -8321,6 +8321,42 @@ ninguna tecla del selector**: ese manda con las flechas, Enter, Tab y Escape, y
 ninguna de ellas es b, i ni x. Todo lo demás pasa de largo tal cual llegó, que
 es la misma regla con la que estos atajos entraron en Chats.
 
+## Chats: reenviar un mensaje es el MISMO envío, a otra conversación
+
+Cada mensaje (texto, foto, vídeo, documento o nota de voz) lleva **Reenviar**:
+al pasar el ratón, justo después de Responder y con su misma forma, en las dos
+caras de la burbuja; y en el «⋯» del mensaje, que es por donde se llega en un
+táctil. Abre un `PanelLateral` (`PANEL_DE_REENVIAR`, como «Enviar al equipo»)
+con las conversaciones de la bandeja, buscador (nombre sin acentos, número por
+dígitos) y hasta **5** a la vez (`TOPE_DE_DESTINOS`, el de WhatsApp).
+
+> **Reenviar NO es un camino de envío nuevo.** Cada destino sale por el
+> `sendText` del juego de acciones de SU línea —el de la barra de escribir—, así
+> que pasa por la misma puerta, pausa la IA igual y se guarda igual. Qué se
+> reenvía lo decide `lib/reenviar-mensaje.ts` (pura); lo envía `reenviarA` en
+> `chats-client`, en serie.
+
+Cuatro cosas que hay que mantener:
+
+1. **Nunca por la línea de la conversación de origen**: el destino es otra
+   conversación y sale por la suya. Un destino sin juego de su línea no se
+   ofrece.
+2. **«Tal cual» es sin firma y sin cita** (`reenviado: true`): los dos envíos
+   que firman —Evolution y Waha— se la saltan. La cita apuntaría a un id de
+   otra conversación.
+3. **La dirección de WhatsApp va cifrada** (`mmg.whatsapp.net`, `.enc`) y no se
+   manda: el archivo se le pide a la línea de ORIGEN (`mediaDeUnMensajeAction`)
+   y sale en base64, como un adjunto. Sin archivo que sirva no se envía y se
+   dice.
+4. **Lo que no es un mensaje no se ofrece**: llamadas, reacciones, stickers,
+   notas internas y lo que el cliente borró (`sePuedeReenviar`). Y el resumen
+   nombra lo que no salió; con fallos el panel se queda abierto.
+
+Lo prueba `scripts/banco-reenviar-mensaje.sh`: la regla y un barrido sin
+navegador, y la burbuja y el panel reales en Chromium a 1440/1024/390.
+`MODO=roto` lee y monta la burbuja de `ANTES_REF` y afirma que no había forma
+de reenviar.
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano
