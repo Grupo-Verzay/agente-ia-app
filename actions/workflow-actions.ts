@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 import { olvidarRepeticiones } from "@/lib/repeticiones-de-flujo-db";
 
 import { auth } from "@/auth";
@@ -10,6 +10,20 @@ import { redirect } from "next/navigation";
 import { deleteAllNodes, deleteFileNode } from "./workflow-node-action";
 import { currentUser } from "@/lib/auth";
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+import { laCuentaDelFlujo } from "@/lib/dueno-del-dato.server";
+
+/*
+ * # Un flujo se toca por su DUEÑO, y el dueño sale de la fila
+ *
+ * Las acciones que reciben el id de un flujo pasan por `laCuentaDelFlujo`
+ * (`lib/dueno-del-dato.server.ts`), la misma puerta que los pasos de
+ * `workflow-node-action.ts`. Antes unas comprobaban `userId: user.id`, otras
+ * nada (`updateWorkflow` dejaba cambiar cualquier columna de un flujo ajeno,
+ * `userId` incluido), y **borrar un flujo entero vaciaba sus archivos y sus
+ * pasos ANTES de comprobar de quién era**: la comprobación estaba en el último
+ * paso, cuando ya no quedaba nada que proteger.
+ */
+const NO_ES_TUYO = { success: false as const, message: "Flujo no encontrado." };
 
 interface GetWorkFlowResponse {
     success: boolean;
@@ -24,6 +38,7 @@ interface RROperationResponse {
 };
 
 export async function getWorkflowNameById(workflowId: string) {
+    if (!(await laCuentaDelFlujo(workflowId))) return null;
     const wf = await db.workflow.findUnique({
         where: { id: workflowId },
         select: { name: true },
@@ -38,11 +53,15 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
     }
 
     try {
+        // El `userId` llega del navegador (los paneles de Reglas lo mandan): se
+        // comprueba antes de listar, como su hermana `getWorkFlowByUserIds`.
+        const cuenta = await laCuentaDeLaAccion(userId);
+        if (!cuenta) return { success: false, error: "No autorizado.", message: "No autorizado." };
         const workflows = await db.workflow.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: [{ triggerOnNewSession: "desc" }, { order: "asc" }, { createdAt: "asc" }],
         }).catch(() => db.workflow.findMany({
-            where: { userId },
+            where: { userId: cuenta },
             orderBy: [{ createdAt: "asc" }],
         }));
 
@@ -172,6 +191,8 @@ export async function updateWorkflowOrder(workflowId: string, order: number): Pr
             return { success: false, message: "Identificador no proporcionado." };
         }
 
+        if (!(await laCuentaDelFlujo(workflowId))) return NO_ES_TUYO;
+
         await db.workflow.update({
             where: { id: workflowId },
             data: { order },
@@ -194,11 +215,13 @@ export const deleteWorkflow = async (id: string) => {
     try {
         const user = await currentUser();
         if (!user) return { success: false, message: 'Usuario no autenticado.' };
+        const alcanzado = await laCuentaDelFlujo(id);
+        if (!alcanzado) return NO_ES_TUYO;
 
         const deleted = await db.workflow.delete({
             where: {
                 id,
-                userId: user.id,
+                userId: alcanzado.flujo.userId,
             },
         });
 
@@ -220,6 +243,12 @@ export const deleteWorkflow = async (id: string) => {
 
 export const deleteEntireWorkflow = async (userId: string, workflowId: string) => {
     try {
+        // #0. De quién es, ANTES de tocar nada. Antes esta comprobación estaba
+        // dentro del último paso (`deleteWorkflow`), así que con el id de un
+        // flujo ajeno se le borraban los archivos y todos los pasos y solo
+        // entonces salía «no es tuyo», con el flujo ya vacío.
+        if (!(await laCuentaDelFlujo(workflowId))) return { ...NO_ES_TUYO, stage: "auth" };
+
         // #1. Se obtienen todos los nodos
         const nodes = await db.workflowNode.findMany({ where: { workflowId } });
 
@@ -292,8 +321,11 @@ export const toggleFunnelStep = async (workflowId: string, active: boolean): Pro
         const user = await currentUser();
         if (!user) return { success: false, message: "Usuario no autenticado." };
 
+        const alcanzado = await laCuentaDelFlujo(workflowId);
+        if (!alcanzado) return NO_ES_TUYO;
+
         await db.workflow.update({
-            where: { id: workflowId, userId: user.id },
+            where: { id: workflowId, userId: alcanzado.flujo.userId },
             data: { isFunnelStep: active },
         });
 
@@ -309,13 +341,19 @@ export const setWelcomeWorkflow = async (workflowId: string): Promise<RROperatio
         const user = await currentUser();
         if (!user) return { success: false, message: "Usuario no autenticado." };
 
+        // El flujo tiene que ser de una cuenta que se alcanza, y la bienvenida
+        // que se apaga es la de ESA cuenta —la del flujo—, no la de quien pulsa.
+        const alcanzado = await laCuentaDelFlujo(workflowId);
+        if (!alcanzado) return NO_ES_TUYO;
+        const dueno = alcanzado.flujo.userId;
+
         await db.$transaction([
             db.workflow.updateMany({
-                where: { userId: user.id, triggerOnNewSession: true },
+                where: { userId: dueno, triggerOnNewSession: true },
                 data: { triggerOnNewSession: false },
             }),
             db.workflow.update({
-                where: { id: workflowId },
+                where: { id: workflowId, userId: dueno },
                 data: { triggerOnNewSession: true },
             }),
         ]);
@@ -332,8 +370,11 @@ export const unsetWelcomeWorkflow = async (workflowId: string): Promise<RROperat
         const user = await currentUser();
         if (!user) return { success: false, message: "Usuario no autenticado." };
 
+        const alcanzado = await laCuentaDelFlujo(workflowId);
+        if (!alcanzado) return NO_ES_TUYO;
+
         await db.workflow.update({
-            where: { id: workflowId, userId: user.id },
+            where: { id: workflowId, userId: alcanzado.flujo.userId },
             data: { triggerOnNewSession: false },
         });
 
@@ -350,9 +391,17 @@ export const updateWorkflow = async (id: string, data: Partial<Workflow>): Promi
             return { success: false, message: "Identificador no proporcionado." };
         };
 
+        if (!(await laCuentaDelFlujo(id))) return NO_ES_TUYO;
+
+        // Lo que llega es un `Partial<Workflow>` del navegador: sin quitar la
+        // identidad, se podía mover un flujo a otra cuenta cambiando su `userId`.
+        const { id: _id, userId: _userId, createdAt: _createdAt, ...cambios } =
+            (data ?? {}) as Partial<Workflow>;
+        void _id; void _userId; void _createdAt;
+
         await db.workflow.update({
             where: { id },
-            data,
+            data: cambios,
         });
 
         return {

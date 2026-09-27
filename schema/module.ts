@@ -19,6 +19,7 @@ import {
     //NUEVOS PARA TU MENÚ
     HomeIcon,                       // Inicio
     InboxIcon,                      // Bandeja de entrada
+    EnvelopeIcon,                   // Correo
     CurrencyDollarIcon,            // Finanzas o precios
     CreditCardIcon,                // Pagos
     ShoppingCartIcon,              // Compras / Ecommerce
@@ -54,6 +55,7 @@ export const iconMap = {
 
     HomeIcon,
     InboxIcon,
+    EnvelopeIcon,
     CurrencyDollarIcon,
     CreditCardIcon,
     ShoppingCartIcon,

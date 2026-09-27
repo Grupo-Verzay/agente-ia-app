@@ -1,4 +1,4 @@
-﻿"use server"
+"use server"
 import { buildLinearExecutionOrder } from "@/app/(root)/workflow/[workflowId]/helpers/buildLinearExecutionOrder";
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
@@ -14,6 +14,29 @@ import {
 import { WorkflowNode } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { checkWorkflowFeatureAllowed } from "@/actions/workflow-feature-access-actions";
+import { laCuentaDelFlujo, laCuentaDelNodo } from "@/lib/dueno-del-dato.server";
+
+/*
+ * # Todo paso de un flujo se toca por su DUEÑO, y el dueño sale de la fila
+ *
+ * Aquí había de todo: unas acciones comprobaban con
+ * `workflow: { userId: user.ownerId ?? user.id }`, otras con
+ * `userId: user.id`, y más de la mitad **no comprobaban nada** —editar el
+ * mensaje de un paso, reordenarlo, cambiarle el archivo o el retraso, leer
+ * los pasos de un flujo, borrar uno o **vaciar el flujo entero**—. Con la
+ * sesión de cualquier cuenta y el id de un paso ajeno se reescribía lo que le
+ * dice su agente a sus clientes.
+ *
+ * Ahora todas pasan por la MISMA puerta, que es la de las 129 acciones de la
+ * casa: `laCuentaDelNodo` / `laCuentaDelFlujo` (`lib/dueno-del-dato.server.ts`)
+ * leen el dueño del flujo y lo preguntan con `assertCanAccessTargetUser`. Es un
+ * alcance igual o más amplio que el `ownerId ?? id` de antes —el asesor sigue
+ * llegando a los flujos de su dueño— y ya no depende de qué variante escribió
+ * cada acción. «No existe» y «no es tuyo» se contestan igual.
+ */
+const NO_ES_TUYO_EL_PASO = { success: false as const, message: "No se encontró el nodo." };
+const NO_ES_TUYO_EL_FLUJO = { success: false as const, message: "Workflow no encontrado." };
+
 
 export async function createNode(form: createNodeflowSchemaType) {
   const user = await currentUser();
@@ -29,6 +52,8 @@ export async function createNode(form: createNodeflowSchemaType) {
     success: false,
     message: "Datos del formulario inválidos."
   };
+
+  if (!(await laCuentaDelFlujo(data.workflowId))) return NO_ES_TUYO_EL_FLUJO;
 
   // Candado por plan: la pieza debe estar habilitada para el plan del usuario.
   const featErr = await checkWorkflowFeatureAllowed(data.tipo, user);
@@ -91,6 +116,8 @@ export async function updateNode(nodeId: string, newMessage?: string) {
       };
     }
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
+
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
       data: { message: newMessage ?? '' }, // Guarda string vacío si es null/undefined
@@ -118,6 +145,8 @@ export async function updateNodeOrder(nodeId: string, order: number) {
         message: 'Parámetro "nodeId" requerido.',
       };
     }
+
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
 
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
@@ -147,6 +176,8 @@ export async function updateUrlNode(nodeId: string, url: string) {
       }
     }
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
+
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
       data: { url },
@@ -175,6 +206,8 @@ export async function updateDelayNode(nodeId: string, delay: string) {
       }
     }
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
+
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
       data: { delay },
@@ -202,6 +235,8 @@ export async function updateInactivityNode(nodeId: string, inactividad: boolean)
         message: 'Parámetros inválidos.'
       }
     };
+
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
 
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
@@ -237,6 +272,7 @@ export async function updateNodeConfig(nodeId: string, config: Record<string, un
 
     const user = await currentUser();
     if (!user) return { success: false, message: 'Usuario no autenticado.' };
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
 
     const updatedNode = await db.workflowNode.update({
       where: { id: nodeId },
@@ -271,13 +307,11 @@ export async function updateNodeAiEnabled(nodeId: string, aiEnabled: boolean) {
       return { success: false, message: 'No autorizado.' };
     }
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
     // Mismo guardian que el resto: el id llega en el cuerpo, asi que sin esto
     // se podia encender o apagar la IA de un flujo ajeno.
     const { count } = await db.workflowNode.updateMany({
-      where: {
-        id: nodeId,
-        workflow: { userId: user.ownerId ?? user.id },
-      },
+      where: { id: nodeId },
       data: { aiEnabled },
     });
 
@@ -321,13 +355,11 @@ export async function updateNodeNotifyPhones(nodeId: string, notifyPhones: strin
 
     const limpio = notifyPhones.trim().slice(0, 500);
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
     // Que el nodo sea de un flujo del usuario. Sin esto bastaria con mandar el
     // id de un nodo ajeno para cambiar a quien avisa el flujo de otra cuenta.
     const { count } = await db.workflowNode.updateMany({
-      where: {
-        id: nodeId,
-        workflow: { userId: user.ownerId ?? user.id },
-      },
+      where: { id: nodeId },
       data: { notifyPhones: limpio || null },
     });
 
@@ -373,12 +405,10 @@ export async function updateNodeNotifyText(
     const titulo = notifyTitle.trim().slice(0, 80);
     const cuerpo = message.trim().slice(0, 900);
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
     // Mismo guardian que el resto: que el nodo sea de un flujo del usuario.
     const { count } = await db.workflowNode.updateMany({
-      where: {
-        id: nodeId,
-        workflow: { userId: user.ownerId ?? user.id },
-      },
+      where: { id: nodeId },
       data: {
         notifyTitle: titulo || null,
         // `message` no admite null en el esquema: vacio es la cadena vacia, y
@@ -422,12 +452,10 @@ export async function updateNodeMenuOptions(nodeId: string, menuOptions: string)
 
     const opciones = parseMenuOptions(menuOptions);
 
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
     // Mismo guardian que el resto: que el nodo sea de un flujo del usuario.
     const { count } = await db.workflowNode.updateMany({
-      where: {
-        id: nodeId,
-        workflow: { userId: user.ownerId ?? user.id },
-      },
+      where: { id: nodeId },
       data: { menuOptions: opciones.length ? opciones.join('\n') : null },
     });
 
@@ -453,6 +481,12 @@ export async function deleteNode(nodeId: string, workflowId: string) {
         success: false,
         message: "ID del nodo no proporcionado.",
       }
+    }
+
+    // El paso tiene que ser de un flujo que se alcanza, y del flujo que dice.
+    const alcanzado = await laCuentaDelNodo(nodeId)
+    if (!alcanzado || (workflowId && alcanzado.nodo.workflowId !== workflowId)) {
+      return NO_ES_TUYO_EL_PASO
     }
 
     const deletedNode = await db.workflowNode.delete({
@@ -483,6 +517,10 @@ export async function deleteAllNodes(workflowId: string) {
       }
     }
 
+    // Vaciar un flujo es lo más caro de este fichero y no preguntaba nada:
+    // con el id de un flujo ajeno se le borraban todos los pasos.
+    if (!(await laCuentaDelFlujo(workflowId))) return NO_ES_TUYO_EL_FLUJO
+
     const deletedNode = await db.workflowNode.deleteMany({
       where: { workflowId },
     })
@@ -508,6 +546,15 @@ export async function deleteFileNode(minIoUrl: string, nodeId: string) {
         success: false,
         message: "Faltan parámetros necesarios.",
       }
+    }
+
+    // Antes de tocar el bucket: el paso tiene que ser tuyo, y el archivo el
+    // SUYO. Sin esto se borraba cualquier objeto del bucket nombrándolo.
+    const alcanzado = await laCuentaDelNodo(nodeId)
+    if (!alcanzado) return NO_ES_TUYO_EL_PASO
+    const suyo = await db.workflowNode.findUnique({ where: { id: nodeId }, select: { url: true } })
+    if (!suyo?.url || suyo.url !== minIoUrl) {
+      return { success: false, message: "Ese archivo no es de este nodo." }
     }
 
     const url = new URL(minIoUrl)
@@ -545,6 +592,10 @@ export async function deleteWorkflowFiles(userId: string, workflowId: string) {
     success: false,
     message: 'Falta S3_BUCKET_NAME en variables de entorno.'
   }
+  // El prefijo del bucket lo decide la cuenta DUEÑA del flujo, no el `userId`
+  // que llegue: con otro id se listaban y borraban archivos de otra cuenta.
+  const alcanzado = await laCuentaDelFlujo(workflowId);
+  if (!alcanzado || alcanzado.cuenta !== userId) return NO_ES_TUYO_EL_FLUJO;
   const basePrefix = `verzay-media/${userId}`;
 
   try {
@@ -583,6 +634,9 @@ export async function deleteWorkflowFiles(userId: string, workflowId: string) {
 }
 
 export async function getNodeforUser(workflowId: string) {
+  // Leer los pasos de un flujo ajeno es leer lo que su agente le dice a sus
+  // clientes. Sin dueño alcanzable, la lista vacía, como un flujo sin pasos.
+  if (!(await laCuentaDelFlujo(workflowId))) return [];
   return db.workflowNode.findMany({
     where: {
       workflowId,
@@ -648,11 +702,7 @@ export async function createWorkflowEdge(params: {
   }
 
   // ownership
-  const wf = await db.workflow.findFirst({
-    where: { id: workflowId, userId: user.id },
-    select: { id: true },
-  });
-  if (!wf) return { success: false, message: "Workflow no encontrado." };
+  if (!(await laCuentaDelFlujo(workflowId))) return NO_ES_TUYO_EL_FLUJO;
 
   // nodos válidos
   const nodes = await db.workflowNode.findMany({
@@ -678,11 +728,7 @@ export async function deleteWorkflowEdge(params: {
   const { workflowId, edgeId } = params;
 
   //  validar ownership del workflow
-  const wf = await db.workflow.findFirst({
-    where: { id: workflowId, userId: user.id },
-    select: { id: true },
-  });
-  if (!wf) return { success: false, message: 'Workflow no encontrado.' };
+  if (!(await laCuentaDelFlujo(workflowId))) return NO_ES_TUYO_EL_FLUJO;
 
   // borrar solo si el edge pertenece al workflow
   await db.workflowEdge.deleteMany({
@@ -696,11 +742,7 @@ export async function getWorkflowEdges(workflowId: string) {
   const user = await currentUser();
   if (!user) return { success: false, message: 'Usuario no autenticado.' };
 
-  const wf = await db.workflow.findFirst({
-    where: { id: workflowId, userId: user.id },
-    select: { id: true },
-  });
-  if (!wf) return { success: false, message: "Workflow no encontrado." };
+  if (!(await laCuentaDelFlujo(workflowId))) return NO_ES_TUYO_EL_FLUJO;
 
   const edges = await db.workflowEdge.findMany({
     where: { workflowId },
@@ -723,12 +765,9 @@ export async function updateWorkflowNodePosition(input: UpdateNodePositionInput)
 
   const { nodeId, posX, posY } = input;
 
-  const node = await db.workflowNode.findFirst({
-    where: {
-      id: nodeId,
-    },
-    select: { id: true },
-  });
+  // El nodo se buscaba solo por su id: con uno ajeno se movía un paso de otra
+  // cuenta. Ahora «no está» también es «no es tuyo».
+  const node = await laCuentaDelNodo(nodeId);
 
   if (!node) return {
     success: false,
@@ -746,6 +785,8 @@ export async function updateWorkflowNodePosition(input: UpdateNodePositionInput)
 export async function createNodeFromCanvas(form: createNodeflowSchemaType & { posX: number; posY: number }) {
   const user = await currentUser();
   if (!user) return { success: false, message: 'Usuario no autenticado.' };
+
+  if (!(await laCuentaDelFlujo(form.workflowId))) return NO_ES_TUYO_EL_FLUJO;
 
   // Candado por plan: la pieza debe estar habilitada para el plan del usuario.
   const featErr = await checkWorkflowFeatureAllowed(form.tipo, user);
@@ -855,14 +896,12 @@ export async function updateIntentionNodeConfig(params: {
     data.intentionMaxAttempts = n;
   }
 
+  if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
   // Que el nodo sea de un flujo del usuario. Sin esto bastaba con mandar el id
   // de un nodo ajeno para reescribir el mensaje y el prompt del flujo de otra
   // cuenta: el id va en el cuerpo de la accion y el nodo se buscaba solo por el.
   const { count } = await db.workflowNode.updateMany({
-    where: {
-      id: nodeId,
-      workflow: { userId: user.ownerId ?? user.id },
-    },
+    where: { id: nodeId },
     data,
   });
 
@@ -911,6 +950,8 @@ export async function updateFollowUpNodeConfig(params: {
 
     data.followUpMaxAttempts = maxAttempts;
   }
+
+  if (!(await laCuentaDelNodo(params.nodeId))) return NO_ES_TUYO_EL_PASO;
 
   const updated = await db.workflowNode.update({
     where: { id: params.nodeId },

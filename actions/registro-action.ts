@@ -524,6 +524,10 @@ export async function updateRegistro(input: {
 
 export async function getRegistrosBySessionId(sessionId: number): Promise<ActionResult<import("@prisma/client").Registro[]>> {
     try {
+        // Era la única de este fichero que no preguntaba de quién era el lead:
+        // con otro `sessionId` se leían los pedidos, reclamos y pagos de una
+        // conversación ajena. Pasa por la misma puerta que sus hermanas.
+        await ensureAuthorizedSessionById(sessionId);
         const registros = await db.registro.findMany({
             where: { sessionId },
             orderBy: { createdAt: "desc" },

@@ -1345,6 +1345,105 @@ Cinco cosas que hay que mantener:
    sitios, y con la nueva pasa. Sin el modo roto no se sabe si se arregló la
    causa o algo parecido.
 
+### Y lo que llega es el id de la COSA: el dueño sale de la fila
+
+`lib/cuenta-de-la-accion.ts` cerró las acciones que reciben un `userId`.
+Quedaban las que reciben el id de una **cosa** y no preguntaban de quién era, y
+eran muchas: las notas internas y los participantes de una conversación,
+asignar o **tomar** un chat ajeno (y a quién se le asigna), el historial de
+asignación, los registros de un lead, crear y etiquetar leads, el entrenamiento
+maestro (`SystemMessage`), el editor del agente —guardar cada sección, publicar,
+listar y **restaurar** versiones, aplicar una plantilla— y los pasos de un flujo
+—editar, reordenar, leer, mover, borrar—. Y lo peor de todos: **borrar un flujo
+entero borraba sus archivos y sus pasos ANTES de comprobar de quién era**; la
+comprobación estaba en el último paso, con el flujo ya vacío.
+
+> **El dueño sale de la FILA y se pregunta con la puerta de siempre.**
+> `lib/dueno-del-dato.server.ts`: `laCuentaDeLaConversacion`,
+> `laCuentaDelFlujo`, `laCuentaDelNodo`, `laCuentaDelEntrenamiento` y
+> `esGenteQueAlcanzo` (para el asesor al que se asigna o transfiere). Las cinco
+> acaban en `laCuentaDeLaAccion` → `assertCanAccessTargetUser`, así que dicen
+> exactamente lo mismo que las 129 acciones de la casa: ni una sexta regla.
+
+Cinco cosas que hay que mantener:
+
+1. **Una puerta por familia, no una por acción.** Los pasos de un flujo tenían
+   tres variantes (`ownerId ?? id`, `user.id` y nada); ahora todas pasan por
+   `laCuentaDelNodo`/`laCuentaDelFlujo`, que es igual o más amplio que lo de
+   antes (el asesor sigue llegando a los flujos de su dueño).
+2. **La puerta va ANTES de tocar nada**, y eso incluye el bucket:
+   `deleteFileNode` comprueba el paso —y que el archivo sea el SUYO— antes de
+   `removeObject`; `deleteEntireWorkflow` antes de sus archivos y sus pasos.
+3. **«No existe» y «no es tuyo» se contestan igual**, con la forma que cada
+   acción ya devolvía cuando no encontraba la fila.
+4. **Lo que se llama sin sesión no pasa por la acción: se muda a `lib/*.server.ts`.**
+   El editor del agente vive en `lib/entrenamiento-del-agente.server.ts` (lo usa
+   el modo dueño por WhatsApp); crear y etiquetar un lead, en
+   `lib/leads-sin-puerta.server.ts` (lo usan la reserva pública, por dentro de
+   `createAppointment`, y el modo dueño). **La página pública de reservas ya no
+   llama a `registerSession`**: su lead lo crea `createAppointment`. Una
+   pantalla nunca importa de esos dos ficheros.
+5. **Un `Partial<Fila>` del navegador no toca la identidad**: `updateWorkflow`
+   quita `id`, `userId` y `createdAt` antes de escribir, o se movía un flujo a
+   otra cuenta cambiando su `userId`.
+
+Lo prueba `scripts/banco-dueno-del-dato.sh`: un barrido de que cada acción de
+esos nueve ficheros pasa por una puerta (o dice por qué no), y las acciones de
+verdad contra Postgres con tres cuentas —la dueña, su hija y una ajena—. En
+`MODO=roto` las mismas pruebas corren contra un commit pinchado y **afirman la
+fuga**: la ajena lee las notas, toma el chat, reescribe el entrenamiento y deja
+el flujo sin un solo paso.
+
+## La configuración de la PLATAFORMA es de la casa, y lo dice UNA puerta
+
+Precios y créditos de los planes, su ficha de venta, las cuentas bancarias y
+métodos de pago, y los resellers —su lista, sus licencias, su perfil y qué
+clientes cuelgan de cada uno—. Nada de eso es de una cuenta: lo que se toca ahí
+lo ven y lo pagan todos los clientes.
+
+Las pantallas del panel lo preguntaban y **las acciones de detrás no**:
+`upsertSubscriptionPlan`, `savePaymentMethodConfig`, `upsertPlanDetail`,
+`getAllPaymentMethodConfigs` y `getResellersWithPools` contestaban a cualquiera
+con sesión, así que un cliente cambiaba el precio de un plan o el número de
+cuenta al que pagan todos, y leía la lista de resellers con nombres, correos y
+licencias. Y las que sí preguntaban lo hacían cada una a su manera (`user.role`,
+`rolQueManda` o nada).
+
+> **Quién manda en la casa lo dice `mandaEnLaCasaDeVerdad`
+> (`lib/mando-de-la-casa.ts`)**: la cuenta por la que se actúa es `admin` o
+> `super_admin`, o es el súper administrador de verdad. Es la MISMA fórmula que
+> Analítica (`puedeVerLaAnaliticaDeLaCasa` delega ahí). Las acciones entran por
+> `quienMandaEnLaCasa` (`lib/puerta-de-la-casa.ts`), que avisa al rechazar, y
+> las páginas preguntan con la misma función. **Si se añade otra acción de
+> configuración de la plataforma, va por ahí.**
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que se queda abierto lo es a propósito y lo dice**: los planes y
+   métodos de pago ACTIVOS (la landing y /planes), la ficha de venta, y la marca
+   pública de un reseller. La lista está en el barrido del banco, con su motivo.
+2. **El precio MAYORISTA no viaja fuera de la casa.** `leerLosPlanes`
+   (`lib/planes-de-suscripcion.server.ts`, sin endpoint) lo quita salvo para la
+   casa; la landing pública de un reseller lee de ahí y no de la acción.
+3. **Al navegador de Resellers llega la ficha corta** (`CAMPOS_DE_LA_FICHA`:
+   id, nombre, correo, empresa). Iba la fila entera de `User`, con la contraseña
+   cifrada y las claves, en la lista de resellers y en la de clientes.
+4. **Un cliente cuelga de UN reseller o de ninguno**, por los dos caminos
+   (`reseller` y `demoResellerId`): lo decide `puedeAsignarseAlReseller`
+   (`lib/asignacion-de-reseller.ts`), dentro de una transacción con candado por
+   cliente para que dos pestañas no lo asignen a dos a la vez. «Sin asignar»
+   sale de la misma regla: ni equipo de otra cuenta, ni eliminados.
+5. **El selector de clientes de Datos externos toma el alcance de la SESIÓN**,
+   nunca del filtro que llega (`lib/selector-de-clientes.ts`): la casa, las
+   cuentas cliente de la plataforma; un reseller, su cartera; nadie más, nada.
+   Sin filtro devolvía todos los usuarios de la plataforma.
+
+Lo prueba `scripts/banco-configuracion-de-la-casa.sh`: lo puro y un barrido de
+que cada acción de la casa pasa por la puerta, y las acciones de verdad contra
+Postgres con un cliente, un agente, un reseller y un súper admin dentro de un
+cliente por «Ingresar». `MODO=roto` empaqueta las mismas pruebas contra
+`ANTES_REF` y afirma los fallos.
+
 ## Las notas son de la PERSONA, no de la cuenta
 
 Un administrador comparte unas notas con su equipo. Todo bien en `/notas`. Pero
@@ -17968,6 +18067,91 @@ código, y las acciones de verdad contra Postgres con `currentUser()` real.
 Y una que no se arregla con código: **había una clave escrita a mano** en
 `app/schedule/helpers/testAPISendMessages.ts`. El fichero se fue, pero sigue en
 el historial de git: esa clave hay que **rotarla** en el servidor.
+
+## Correo: un canal APARTE de Chats, y de UNA persona
+
+`/correo` lee la bandeja de entrada, abre un correo con sus adjuntos y lo
+responde, por **Gmail**, **Outlook** o un **correo de dominio propio**
+(IMAP + SMTP). Nada más en esta versión: ni carpetas, ni borradores, ni
+enviar uno nuevo.
+
+**Lo que había, y conviene saberlo antes de decir «como Calendario»:** Google
+Calendario y Hojas de cálculo **no** se conectan con un botón: usan una
+**cuenta de servicio** (`GOOGLE_SERVICE_ACCOUNT_JSON`) con la que el cliente
+comparte su calendario u hoja. Para leer el correo de alguien eso no existe,
+así que el botón de autorización (OAuth) se escribió de cero y **necesita dos
+parejas de llaves nuevas en el stack**:
+
+| variable | para |
+| --- | --- |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | «Conectar Gmail» |
+| `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | «Conectar Outlook» |
+
+La dirección de vuelta que hay que registrar en Google Cloud y en Azure es
+`https://<dominio>/api/correo/oauth/gmail` y `…/oauth/outlook`. **Sin las
+llaves el botón sale apagado y dice por qué** (`hayLlavesDe`); el dominio
+propio funciona sin nada.
+
+Cinco reglas que hay que mantener:
+
+1. **El correo NO pasa por el camino de Chats.** No se guarda ni un mensaje:
+   la tabla `correo_cuentas` guarda la CONEXIÓN y los correos se leen del
+   proveedor al abrir. Así es imposible que un correo cree una ficha de lead,
+   entre en el reparto automático o salga en la bandeja de otro. El barrido del
+   banco falla si un fichero de Correo nombra `persistChatMessage`,
+   `chat_messages`, `Session`, el reparto o las acciones de Chats, y la mitad de
+   Postgres cuenta las filas de esas tablas antes y después.
+2. **Es de la PERSONA que lo conectó, y de nadie más** —ni el dueño de la
+   cuenta, ni un administrador, ni el súper administrador—. Toda consulta de
+   `correo_cuentas` lleva `"personaId" = ${personaId}` en el `WHERE` (lo exige
+   el barrido), la persona sale de la sesión (`laPersonaQueActua`) y ninguna
+   acción acepta un `userId`. Con el id del buzón de otro se contesta lo mismo
+   que con uno inventado. Dentro de otra cuenta con «Ingresar» se ve el PROPIO.
+3. **Las credenciales van selladas** (AES-256-GCM, `lib/correo-cifrado.server.ts`)
+   con una llave derivada de `AUTH_SECRET`: sin variable nueva. Si
+   `AUTH_SECRET` cambia, los buzones piden volver a conectar.
+4. **Leer no cambia nada en el buzón.** Gmail va con `gmail.readonly` +
+   `gmail.send`; para que los tres digan lo mismo, Outlook no marca como leído e
+   IMAP abre la bandeja en solo lectura.
+5. **El HTML de un correo se pinta en un `iframe` con `sandbox` sin
+   `allow-scripts`, y con su CSP dentro** (`elDocumentoDelCorreo`): dos
+   cerrojos. Y a quién va una respuesta lo decide el SERVIDOR leyendo el
+   original (`Reply-To` o el remitente): el navegador manda el texto y el id.
+
+**En el menú**: la ruta entra en el desplegable de «Editar módulo», justo
+detrás de `/chats`, con el icono `EnvelopeIcon`, y **no se monta en ningún
+módulo**: se asigna a mano, como `/cobros`. La conexión vive en la propia
+pantalla y no en Conexiones: aquella es de las líneas de la CUENTA y el correo
+es de una persona.
+
+Lo prueba `scripts/banco-correo.sh`: reglas y barrido, las acciones y las rutas
+contra Postgres con Gmail y Outlook fingidos en el `fetch` e IMAP/SMTP en el
+socket, y la pantalla en Chromium. `MODO=roto` afirma el diseño ingenuo: un
+buzón buscado por su id a secas se lo entrega a cualquiera.
+
+## Borrar los seguimientos de un número es borrarlos en SU cuenta
+
+Marcar un lead como Descartado —desde la pantalla o con la herramienta
+«Marcar_Descartado» del agente— y la frase de despedida del asesor borran los
+seguimientos pendientes del número. Los tres lo hacían con el `remoteJid` a
+secas, y un seguimiento **no tiene `userId`**: cuelga de su línea
+(`instancia`). El mismo número está en muchas cuentas, así que la acción de una
+se llevaba los seguimientos de todas las demás de la plataforma, sin error.
+
+> **Se borran los de ese número en las líneas de la cuenta donde ocurrió la
+> acción** (`instancia IN` su `instanceName` y su `instanceId`). Sin líneas no
+> se borra nada: nunca un `where` sin `instancia`. La regla es
+> `lib/seguimientos-de-la-cuenta.ts` aquí y
+> `src/modules/seguimientos/seguimientos-de-la-cuenta.ts` en el backend, y
+> tienen que decir lo mismo.
+
+La cuenta es la dueña de la conversación: `session.userId` al descartar, la
+dueña de la línea (`effectiveOwnerId`) en la despedida y el `userId` del agente
+en la herramienta. Lo que ya filtraba cada camino (la herramienta conserva los
+recordatorios y las citas) no cambia. **Si se añade otro borrado por número, va
+por esa función.** Lo prueba `scripts/banco-seguimientos-de-la-cuenta.sh` en los
+dos repositorios, contra Postgres y en dos modos: el roto corre el borrado viejo
+y afirma que cruzaba de cuenta.
 
 # Pendientes
 

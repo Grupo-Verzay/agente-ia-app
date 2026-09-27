@@ -43,7 +43,10 @@ const nextConfig = {
     // produccion corra el paquete de verdad y no una copia reescrita por
     // webpack, que es una clase de fallo que solo se veria al intentar empujar
     // un aviso -o sea, en el sitio donde nadie esta mirando-.
-    serverComponentsExternalPackages: ["sharp", "web-push"],
+    // `imapflow`, `nodemailer` y `mailparser` (Correo) hablan con servidores
+    // de correo por socket y llevan `require` dinamicos dentro: igual que
+    // `web-push`, en produccion corre el paquete de verdad.
+    serverComponentsExternalPackages: ["sharp", "web-push", "imapflow", "nodemailer", "mailparser"],
   },
   images: {
     remotePatterns: [

@@ -10,6 +10,7 @@ import { currentUser } from "@/lib/auth";
 import { anteponerFirmaDelAsesor } from "@/lib/firma-del-asesor";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
+import { borrarSeguimientosDelNumeroEnLaCuenta } from "@/lib/seguimientos-de-la-cuenta.server";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { pausarIaPorIntervencionHumana } from "@/lib/human-takeover";
 import { esNodoDeAutomatizacion, ejecutarNodoDeAutomatizacion } from "@/lib/workflow-automation-nodes";
@@ -1747,7 +1748,8 @@ export async function sendManualChatPayloadAction(
           where: { userId: effectiveOwnerId, remoteJid, status: { in: ["PENDING", "PROCESSING"] } },
           data: { status: "CANCELLED", cancelledAt: new Date() },
         }),
-        db.seguimiento.deleteMany({ where: { remoteJid } }),
+        // Los de ESTA cuenta, no los del número en toda la plataforma.
+        borrarSeguimientosDelNumeroEnLaCuenta(effectiveOwnerId, remoteJid),
       ]);
     }
   }

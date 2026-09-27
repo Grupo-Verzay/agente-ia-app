@@ -21,6 +21,8 @@ import {
   puedeGestionarAlCliente,
 } from '@/lib/gestion-de-clientes';
 import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad';
+import { mandaEnLaCasaDeVerdad } from '@/lib/mando-de-la-casa';
+import { queAlcanzaElSelector } from '@/lib/selector-de-clientes';
 import { apuntarUnaVezAlDia } from '@/lib/apuntar-actividad';
 import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { estadoDeLaSesionDeLaLinea, proveedorDeLaFila } from '@/lib/sesion-de-la-linea';
@@ -492,27 +494,48 @@ export interface ClientSelectorItem {
 }
 
 export async function getClientsForSelector(
-  filter?: FilterOptions,
+  filtroPedido?: FilterOptions,
 ): Promise<ClientResponse<ClientSelectorItem[]>> {
   try {
-    await ensureAdminOrResellerUser();
-
-    let userIds: string[] | undefined;
-
-    if (filter?.resellerId) {
-      const assignments = await db.reseller.findMany({
-        where: { resellerid: filter.resellerId },
-        select: { userId: true },
+    const me = await ensureAdminOrResellerUser();
+    const cuenta = await cuentaQueManda(me);
+    // El alcance sale de la SESIÓN (`lib/selector-de-clientes.ts`). El filtro que
+    // llega se ignora: si pide otro reseller que el propio, se dice.
+    const alcance = queAlcanzaElSelector({
+      esDeLaCasa: await mandaEnLaCasaDeVerdad(me),
+      rolDeLaCuenta: cuenta.role,
+    });
+    if (filtroPedido?.resellerId && filtroPedido.resellerId !== cuenta.id) {
+      console.warn('[datos-externos] el selector pidió la cartera de otro reseller; se ignora', {
+        persona: me.id,
+        pedido: filtroPedido.resellerId,
       });
-      userIds = assignments.map((a) => a.userId).filter(Boolean) as string[];
+    }
+    if (alcance === 'nada') return { success: false, message: 'No autorizado.' };
 
-      if (!userIds.length) {
-        return { success: true, message: 'No hay usuarios asignados.', data: [] };
-      }
+    let where: Prisma.UserWhereInput;
+    if (alcance === 'plataforma') {
+      const prohibidas = await cuentasQueNoSeEnsenan();
+      where = {
+        ownerId: null,
+        deletedAt: null,
+        ...(prohibidas.length ? { id: { notIn: prohibidas } } : {}),
+      };
+    } else {
+      const [assignments, propios] = await Promise.all([
+        db.reseller.findMany({ where: { resellerid: cuenta.id, userId: { not: null } }, select: { userId: true } }),
+        db.user.findMany({ where: { demoResellerId: cuenta.id }, select: { id: true } }),
+      ]);
+      const ids = Array.from(new Set([
+        ...(assignments.map((a) => a.userId).filter(Boolean) as string[]),
+        ...propios.map((u) => u.id),
+      ]));
+      if (!ids.length) return { success: true, message: 'No hay usuarios asignados.', data: [] };
+      where = { id: { in: ids }, ownerId: null, deletedAt: null };
     }
 
     const users = await db.user.findMany({
-      where: userIds ? { id: { in: userIds } } : undefined,
+      where,
       select: { id: true, name: true, email: true, company: true },
       orderBy: { name: 'asc' },
     });
@@ -525,6 +548,11 @@ export async function getClientsForSelector(
 
     return { success: true, message: 'Clientes cargados.', data };
   } catch (error) {
+    // Un «No autorizado» no es un fallo de la consulta: se dice como tal.
+    if (error instanceof Error && error.message === 'No autorizado.') {
+      console.warn('[datos-externos] selector de clientes rechazado');
+      return { success: false, message: 'No autorizado.' };
+    }
     console.error('Error obteniendo clientes para selector:', error);
     return { success: false, message: 'Error al obtener clientes.' };
   }

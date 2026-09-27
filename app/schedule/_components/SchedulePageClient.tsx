@@ -174,21 +174,11 @@ export const SchedulePageClient = ({ user, countries, prefillName = '', prefillP
         setLoading(true);
 
         try {
-            const sessionRes = await registerSession({
-                userId: user.id,
-                remoteJid,
-                pushName: normalizedClientName,
-                instanceId: instanceName,
-            });
-
-            if (!sessionRes.success || !sessionRes.data?.id) {
-                toast.error(sessionRes.message || "No se pudo sincronizar la sesión.");
-                return false;
-            }
-
+            // El lead lo crea `createAppointment` por dentro. Esta página es
+            // pública —quien reserva no tiene cuenta— y `registerSession` ya
+            // pide sesión: llamarla desde aquí devolvería «No autorizado».
             const res = await createAppointment({
                 userId: user.id,
-                sessionId: sessionRes.data.id,
                 pushName: normalizedClientName,
                 phone: remoteJid,
                 instanceName,

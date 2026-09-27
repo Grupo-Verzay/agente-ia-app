@@ -5,6 +5,11 @@ import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { currentUser } from "@/lib/auth";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
+import { comoEnteroNoNegativo, comoNumeroNoNegativo } from "@/lib/numeros-de-la-configuracion";
+import { leerLosPlanes } from "@/lib/planes-de-suscripcion.server";
+import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 import { etiquetasDePlanesParaMarca } from "@/lib/plan-pricing";
 import { PLAN_LEVEL_LABELS } from "@/types/plans";
 
@@ -32,44 +37,38 @@ export type SubscriptionPlanItem = {
   name: string | null;
 };
 
+/**
+ * Todos los planes, activos e inactivos. La leen dos pantallas: Planes y
+ * Resellers (la casa) y «Mis planes» (un reseller, que parte de las plantillas
+ * de la plataforma). Nadie más.
+ *
+ * Solo la casa recibe el precio MAYORISTA: es lo que la plataforma le cobra a un
+ * reseller, no un precio de venta.
+ */
 export async function getAllSubscriptionPlans() {
   try {
-    const plans = await db.subscriptionPlan.findMany({
-      orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
-    });
-    return {
-      success: true,
-      data: plans.map((p) => ({
-        ...p,
-        priceUSD: Number(p.priceUSD),
-        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
-        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
-        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
-        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
-      })) as SubscriptionPlanItem[],
-    };
+    const me = await currentUser();
+    const esDeLaCasa = await mandaEnLaCasaDeVerdad(me);
+    const esReseller = !esDeLaCasa && !!me && (await cuentaQueManda(me)).role === "reseller";
+    if (!esDeLaCasa && !esReseller) {
+      console.warn("[planes] lectura de todos los planes rechazada", { persona: me?.id ?? null });
+      return { success: false, data: [] as SubscriptionPlanItem[] };
+    }
+    return { success: true, data: await leerLosPlanes(undefined, { conMayorista: esDeLaCasa }) };
   } catch (e) {
     console.error("[getAllSubscriptionPlans] Error:", e);
     return { success: false, data: [] as SubscriptionPlanItem[] };
   }
 }
 
+// Las dos de abajo las abren páginas PÚBLICAS (la landing y la de resellers) y
+// /planes: son el precio de venta y tienen que poder leerse sin permiso. Lo que
+// no viaja es el mayorista.
 export async function getActiveSubscriptionPlans() {
   try {
-    const plans = await db.subscriptionPlan.findMany({
-      where: { isActive: true, isResellerPlan: false },
-      orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
-    });
     return {
       success: true,
-      data: plans.map((p) => ({
-        ...p,
-        priceUSD: Number(p.priceUSD),
-        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
-        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
-        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
-        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
-      })) as SubscriptionPlanItem[],
+      data: await leerLosPlanes({ isActive: true, isResellerPlan: false }, { conMayorista: false }),
     };
   } catch {
     return { success: false, data: [] as SubscriptionPlanItem[] };
@@ -78,20 +77,9 @@ export async function getActiveSubscriptionPlans() {
 
 export async function getActiveResellerAccessPlans() {
   try {
-    const plans = await db.subscriptionPlan.findMany({
-      where: { isActive: true, isResellerPlan: true },
-      orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
-    });
     return {
       success: true,
-      data: plans.map((p) => ({
-        ...p,
-        priceUSD: Number(p.priceUSD),
-        priceCop: p.priceCop != null ? Number(p.priceCop) : null,
-        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
-        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
-        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
-      })) as SubscriptionPlanItem[],
+      data: await leerLosPlanes({ isActive: true, isResellerPlan: true }, { conMayorista: false }),
     };
   } catch {
     return { success: false, data: [] as SubscriptionPlanItem[] };
@@ -120,14 +108,23 @@ export async function upsertSubscriptionPlan(data: {
   name?: string | null;
 }) {
   try {
+    // El precio y los créditos de un plan los ve y los paga TODA la plataforma:
+    // lo cambia la casa y nadie más (`lib/mando-de-la-casa.ts`).
+    if (!(await quienMandaEnLaCasa("upsertSubscriptionPlan"))) {
+      return { success: false, message: "No autorizado" };
+    }
+    const priceUSD = comoNumeroNoNegativo(data.priceUSD);
+    const credits = comoEnteroNoNegativo(data.credits);
+    if (priceUSD === null) return { success: false, message: "El precio no es válido" };
+    if (credits === null) return { success: false, message: "Los créditos no son válidos" };
     const isResellerPlan = data.isResellerPlan ?? false;
     const payload = {
-      priceUSD: data.priceUSD,
-      priceCop: data.priceCop ?? null,
-      priceWholesale: data.priceWholesale ?? null,
-      priceQuarterly: data.priceQuarterly ?? null,
-      priceYearly: data.priceYearly ?? null,
-      credits: data.credits,
+      priceUSD,
+      priceCop: comoNumeroNoNegativo(data.priceCop),
+      priceWholesale: comoNumeroNoNegativo(data.priceWholesale),
+      priceQuarterly: comoNumeroNoNegativo(data.priceQuarterly),
+      priceYearly: comoNumeroNoNegativo(data.priceYearly),
+      credits,
       features: data.features,
       description: data.description ?? null,
       isPopular: data.isPopular ?? false,
@@ -158,6 +155,7 @@ export async function upsertSubscriptionPlan(data: {
 
 export async function toggleSubscriptionPlanActive(id: string, isActive: boolean) {
   try {
+    if (!(await quienMandaEnLaCasa("toggleSubscriptionPlanActive"))) return { success: false };
     await db.subscriptionPlan.update({ where: { id }, data: { isActive } });
     revalidatePath("/planes");
     return { success: true };

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { User } from "@prisma/client"
+import type { FichaDeCuenta } from "@/lib/asignacion-de-reseller"
 import { Loader2, Plus, Trash2, Users, UserCheck, UserMinus, UsersRound } from "lucide-react"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import {
@@ -31,11 +31,13 @@ import { PastillasDeMetricas } from "@/components/shared/PastillasDeMetricas"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
-  resellers: User[]
+  // La ficha corta y nada más: la fila entera de `User` —con la contraseña
+  // cifrada y las claves— llegaba al navegador para pintar un nombre.
+  resellers: FichaDeCuenta[]
   defaultResellerId: string
 }
 
-type Client = User
+type Client = FichaDeCuenta
 
 export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
   const router = useRouter()
@@ -61,8 +63,8 @@ export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
 
   const getClients = async (resellerId: string) => {
     const data = await getClientsByReseller(resellerId)
-    setAssignedClients(data.assignedClients.filter((c): c is User => c !== null))
-    setUnassignedClients(data.unassignedClients.filter((c): c is User => c !== null))
+    setAssignedClients(data.assignedClients)
+    setUnassignedClients(data.unassignedClients)
   }
 
   const fetchLicenses = useCallback(async () => {
@@ -84,8 +86,11 @@ export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
 
   const assignClient = async (client: Client) => {
     try {
-      await assignClientToReseller(client.id, selectedReseller)
-      toast.success("Cliente asignado")
+      // El servidor dice por qué no, con sus palabras: un cliente que ya es
+      // de otro reseller no se puede asignar a este, y eso no es un «error».
+      const res = await assignClientToReseller(client.id, selectedReseller)
+      if (!res.success) { toast.error(res.message); return }
+      toast.success(res.message)
       setRefreshTrigger(prev => prev + 1)
       router.refresh()
     } catch { toast.error("Error al asignar el cliente.") }
@@ -93,8 +98,9 @@ export const MainReseller = ({ resellers, defaultResellerId }: Props) => {
 
   const removeClient = async (client: Client) => {
     try {
-      await removeClientFromReseller(client.id, selectedReseller)
-      toast.success("Cliente eliminado del revendedor.")
+      const res = await removeClientFromReseller(client.id, selectedReseller)
+      if (!res.success) { toast.error(res.message); return }
+      toast.success(res.message)
       setRefreshTrigger(prev => prev + 1)
       router.refresh()
     } catch { toast.error("Error al eliminar el cliente.") }

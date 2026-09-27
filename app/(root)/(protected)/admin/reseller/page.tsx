@@ -3,8 +3,9 @@
 import { currentUser } from "@/lib/auth"
 import { MainReseller } from "./_components"
 import { db } from "@/lib/db"
-import { isAdminLike } from "@/lib/rbac"
 import AccessDenied from "@/app/AccessDenied"
+import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa"
+import { CAMPOS_DE_LA_FICHA } from "@/lib/asignacion-de-reseller"
 
 interface Props {
     searchParams: { [key: string]: string | undefined }
@@ -13,14 +14,19 @@ interface Props {
 const ResellerPage = async ({ searchParams }: Props) => {
     const user = await currentUser()
 
-    // Verificación de permisos
-    if (!user || !isAdminLike(user.role)) {
+    // La MISMA puerta que las acciones de la pantalla (`lib/mando-de-la-casa.ts`):
+    // con dos, la pantalla abre y sus acciones dicen «No autorizado».
+    if (!(await mandaEnLaCasaDeVerdad(user))) {
         return <AccessDenied />;
     }
 
     // Obtener revendedores
+    // Solo la ficha corta: la fila entera —contraseña cifrada, claves, token—
+    // viajaba al navegador para pintar un nombre en un desplegable.
     const resellers = await db.user.findMany({
         where: { role: "reseller" },
+        select: CAMPOS_DE_LA_FICHA,
+        orderBy: { name: "asc" },
     })
 
     // Si no hay revendedores, evita errores en el componente

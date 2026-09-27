@@ -7,7 +7,7 @@ import {
   patchTrainingSection,
   publishPrompt,
   restoreRevision,
-} from "@/actions/system-prompt-actions";
+} from "@/lib/entrenamiento-del-agente.server";
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import type { OwnerActionResult } from "@/lib/owner-commands";
 
