@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { renovarLosCreditos } from "@/lib/renovar-creditos";
-import { vuelveLaCuenta } from "@/lib/ciclo-pagado";
+import { devolverElAcceso } from "@/lib/devolver-el-acceso.server";
 import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
 import {
     getBillingUserRecord,
@@ -88,12 +88,10 @@ export async function darElCicloPorPagado(
         },
     });
 
-    // La cuenta vuelve a estar habilitada si la había cortado la suspensión:
-    // el trabajo diario la deshabilita al suspender, y ninguno de los caminos
-    // de pago la volvía a habilitar — «Pagado / Activo» con el muñequito rojo.
-    if (vuelveLaCuenta(existente?.accessStatus ?? null)) {
-        await db.user.update({ where: { id: userId }, data: { status: true } });
-    }
+    // La cuenta vuelve a estar habilitada, por el motivo que fuera. Sin esto
+    // queda «Pagado / Activo» con `status` en falso: invisible en Instancias,
+    // fuera de «Activos» y fuera del cobro diario.
+    await devolverElAcceso(userId);
 
     await db.session.updateMany({
         where: { userId },

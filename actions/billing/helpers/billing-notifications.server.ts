@@ -18,6 +18,7 @@ import { buildBillingMessage, buildBillingMessageForRecord, resolverMedioDePago 
 import { enlaceDePagoDelPlan } from "@/lib/plan-payment-link";
 import { EVENTOS_DEL_WEBHOOK } from "@/lib/robot-de-la-linea";
 import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
+import { devolverElAcceso } from "@/lib/devolver-el-acceso.server";
 import { fmtDateDDMMYYYY, fmtPriceLine } from "./billing-helpers";
 import {
     evaluateBillingLifecycle,
@@ -530,7 +531,7 @@ async function cascadeResellerAccessToClients(resellerId: string, activate: bool
             select: { userId: true },
         });
         for (const c of clients) {
-            await db.user.update({ where: { id: c.userId }, data: { status: true } });
+            await devolverElAcceso(c.userId);
             await db.userBilling.updateMany({
                 where: { userId: c.userId },
                 data: { accessStatus: "ACTIVE", suspendedAt: null, suspendedReason: null },
@@ -594,11 +595,13 @@ export async function syncUserBillingLifecycle(args: {
         ...billingUserRecordArgs,
     });
 
-    // Sincronizar user.status con el estado de acceso de billing
-    await db.user.update({
-        where: { id: updated.userId },
-        data: { status: updated.accessStatus !== "SUSPENDED" },
-    });
+    // Sincronizar user.status con el estado de acceso de billing. Al volver
+    // pasa por `devolverElAcceso`, que no resucita una cuenta eliminada.
+    if (updated.accessStatus === "SUSPENDED") {
+        await db.user.update({ where: { id: updated.userId }, data: { status: false } });
+    } else {
+        await devolverElAcceso(updated.userId);
+    }
 
     const resolvedDispatcher = args.dispatcher ?? (await loadBillingDispatcherConfig());
     // El webhook va SIEMPRE encendido; lo que decide si el agente contesta es la

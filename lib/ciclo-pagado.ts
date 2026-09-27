@@ -28,7 +28,8 @@
  * 2. **Los créditos se reponen** (`lib/renovar-creditos.ts`), respetando el
  *    total pactado a mano de un plan `personalizado`.
  * 3. **El acceso vuelve**: pagado, activo, sin marca de suspensión y la cuenta
- *    habilitada si la había cortado la suspensión.
+ *    habilitada **por el motivo que fuera** (salvo eliminada), para que vuelva
+ *    a Instancias, a «Activos» y al cobro diario.
  *
  * Es puro a propósito: entra lo que hay y sale lo que toca, así que se prueba
  * sin levantar nada. Quien escribe es `lib/ciclo-pagado.server.ts`.
@@ -100,15 +101,51 @@ export function elPlanQueQueda<P extends string>(actual: P | null | undefined, d
 }
 
 /**
- * ¿Hay que volver a habilitar la cuenta?
+ * ¿Hay que volver a habilitar la cuenta al confirmarse un pago?
  *
- * Solo si la había cortado la suspensión: es lo mismo que hace el trabajo
- * diario al reactivar (`syncUserBillingLifecycle`). Una cuenta que un
- * administrador deshabilitó a mano estando al día no se habilita por pagar.
+ * **Siempre, salvo que la cuenta esté eliminada** (`deletedAt`). Da igual por
+ * qué quedó deshabilitada —la suspensión por impago, la cascada de un reseller,
+ * el interruptor de Instancias—: si alguien confirma que pagó, vuelve.
+ *
+ * Antes solo volvía si el acceso venía de `SUSPENDED`. Una cuenta deshabilitada
+ * por otro camino se quedaba «Pagado / Activo» con `User.status` en falso, y
+ * eso la dejaba **invisible en Instancias** (que solo lista las habilitadas),
+ * fuera de «Activos» en Clientes y **fuera del cobro diario**, que también
+ * filtra por `status`: su siguiente cobro no salía nunca, sin ningún error.
+ *
+ * Una eliminada no: `deleteUser` la marca y pagar no la resucita.
  */
-export function vuelveLaCuenta(accesoAnterior: string | null | undefined): boolean {
-  return accesoAnterior === "SUSPENDED";
+export function vuelveLaCuenta(cuenta: { deletedAt?: Date | string | null } | null | undefined): boolean {
+  if (!cuenta) return false;
+  return !cuenta.deletedAt;
 }
+
+/**
+ * ¿Sale esta cuenta en Instancias?
+ *
+ * Instancias es la pantalla donde se cobra. Una cuenta que quedó suspendida
+ * por impago es JUSTO la que hay que cobrar, así que **se ve** —con su
+ * «Suspendido»— aunque su `User.status` esté en falso; si desapareciera, no
+ * habría desde dónde marcarla pagada. Lo que no sale es lo eliminado y lo
+ * deshabilitado a mano con el servicio al día.
+ *
+ * Es la MISMA regla que el `where` de `getClientsWithBilling`
+ * (`DONDE_SE_VE_EN_INSTANCIAS`): el banco las encadena.
+ */
+export function seVeEnInstancias(cuenta: {
+  status?: boolean | null;
+  deletedAt?: Date | string | null;
+  accessStatus?: string | null;
+}): boolean {
+  if (cuenta.deletedAt) return false;
+  return cuenta.status === true || cuenta.accessStatus === "SUSPENDED";
+}
+
+/** El `where` de Prisma que dice lo mismo que `seVeEnInstancias`. */
+export const DONDE_SE_VE_EN_INSTANCIAS = {
+  deletedAt: null,
+  OR: [{ status: true }, { billing: { is: { accessStatus: "SUSPENDED" as const } } }],
+};
 
 /**
  * Las suscripciones que todavía esperan algo: el pago, o que alguien mire el

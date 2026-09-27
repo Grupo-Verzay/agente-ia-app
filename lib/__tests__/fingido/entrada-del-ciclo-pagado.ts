@@ -18,3 +18,9 @@ export { POST as avisoDeWompi } from "@/app/api/payment/wompi/route";
 export { syncUserBillingLifecycle } from "@/actions/billing/helpers/billing-notifications.server";
 
 export { db } from "@/lib/db";
+
+// Lo que decide si la cuenta se VE y si vuelve a COBRARSE: la lista de
+// Instancias, «Activar», y la consulta del cobro diario.
+export { getClientsWithBilling } from "@/actions/billing/billing-page-actions";
+export { activateUserService } from "@/actions/billing/billing-actions";
+export { dondeEntraEnElCobro } from "@/lib/candidatos-del-cobro";

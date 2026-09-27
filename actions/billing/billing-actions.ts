@@ -15,6 +15,7 @@ import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-
 
 import { syncUserBillingLifecycle } from "./helpers/billing-notifications.server";
 import { avisarDelCambioDeCobro, darElCicloPorPagado } from "@/lib/ciclo-pagado.server";
+import { devolverElAcceso } from "@/lib/devolver-el-acceso.server";
 import { elSiguienteVencimiento, esUnaRenovacion } from "@/lib/ciclo-pagado";
 import { renovarLosCreditos } from "@/lib/renovar-creditos";
 import { SERVER_TIME_ZONE } from "@/lib/utils";
@@ -306,6 +307,14 @@ export async function setUserBillingDueDate(
             }
         }
 
+        // Mover la fecha adelante es anotar un pago: si el acceso quedó activo,
+        // la cuenta vuelve, igual que por «Marcar pagado». Sin esto una cuenta
+        // deshabilitada con el servicio al día no cambiaba de estado, así que
+        // el trabajo diario ni la tocaba y seguía invisible en Instancias.
+        if (renueva && (syncResult.billing ?? billing).accessStatus === "ACTIVE") {
+            await devolverElAcceso(scopedUserId);
+        }
+
         const creditos = renueva ? " Créditos repuestos." : "";
 
         if (parsed && syncResult.stateChanged) {
@@ -495,6 +504,9 @@ export async function activateUserService(
         });
 
         await syncSessionClientStatus(scopedUserId, true);
+        // «Activar» también devuelve la cuenta: dejaba el acceso en ACTIVE con
+        // `status` en falso, o sea invisible en Instancias y fuera del cobro.
+        await devolverElAcceso(scopedUserId);
         const sideEffects = await runManualStatusSideEffects({
             userId: scopedUserId,
             previousBillingStatus: existing?.billingStatus ?? null,

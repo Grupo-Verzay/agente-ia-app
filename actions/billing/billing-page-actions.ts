@@ -7,6 +7,7 @@ import { ResponseFormat } from "@/types/billing";
 import { clientesDelAsesor } from "@/lib/clientes-del-asesor";
 import { cuentaQueManda } from "@/lib/cuenta-que-manda";
 import { serializeUserBilling } from "./helpers/billing-helpers";
+import { DONDE_SE_VE_EN_INSTANCIAS } from "@/lib/ciclo-pagado";
 
 export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
   try {
@@ -58,7 +59,12 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
     const users = await db.user.findMany({
       orderBy: { createdAt: "desc" },
       where: {
-        status: true,
+        // Habilitadas, y las SUSPENDIDAS por impago aunque estén
+        // deshabilitadas: esta es la pantalla donde se cobra, y una suspendida
+        // es justo la que hay que cobrar. Sin esto desaparecía al suspenderse y
+        // no había desde dónde marcarla pagada. Lo eliminado no sale. La regla
+        // es `seVeEnInstancias` (lib/ciclo-pagado.ts).
+        ...DONDE_SE_VE_EN_INSTANCIAS,
         ownerId: null,
         // Las de prueba SÍ se listan. Se excluían porque no tenían fecha ni
         // servicio y salían como "Empresa Demo — Sin fecha", ensuciando los
