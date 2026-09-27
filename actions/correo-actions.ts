@@ -184,6 +184,48 @@ export async function bandejaUnificadaAction(cursores?: unknown): Promise<Result
     }
 }
 
+/** El total de un buzón, o por qué no llegó (entonces la fila va sin número). */
+export type TotalDeUnBuzon = { buzonId: string; total: number | null };
+
+/**
+ * Cuántos correos hay en la bandeja de entrada de CADA buzón de la persona: el
+ * número que el selector de bandejas pinta junto a cada una, como el de cada
+ * canal en Chats.
+ *
+ * Es un `COUNT` del PROVEEDOR —la etiqueta `INBOX` de Gmail, la carpeta `inbox`
+ * de Outlook, el `STATUS` de IMAP—, nunca el largo de lo cargado: la bandeja
+ * trae de a 25, y un «25» junto a un buzón de 3.000 correos mentiría.
+ *
+ * - La lista sale de `losBuzonesDe(persona)`: ningún id llega del navegador.
+ * - `Promise.allSettled`: un buzón que no contesta se queda SIN número
+ *   (`total: null`), no en cero, y no le quita el suyo a los demás.
+ * - Un buzón que pide volver a conectar ni se pregunta.
+ */
+export async function totalesDeLosBuzonesAction(): Promise<Resultado<{ totales: TotalDeUnBuzon[] }>> {
+    try {
+        const persona = await laPersona();
+        if (!persona) return { success: false, message: "No autorizado." };
+        const mios = await losBuzonesDe(persona.id);
+        const resultados = await Promise.allSettled(
+            mios.map(async (visible): Promise<TotalDeUnBuzon> => {
+                if (visible.estado === "reconectar") return { buzonId: visible.id, total: null };
+                const buzon = await elBuzonDe(persona.id, visible.id);
+                if (!buzon) return { buzonId: visible.id, total: null };
+                return { buzonId: visible.id, total: await elProveedorDe(buzon).total(buzon) };
+            }),
+        );
+        const totales = resultados.map((r, i): TotalDeUnBuzon => {
+            if (r.status === "fulfilled") return r.value;
+            // No es mudo: un número que falta sin decirlo se lee como un contador roto.
+            fallo(r.reason, `no se pudo contar la bandeja de ${mios[i].direccion}`);
+            return { buzonId: mios[i].id, total: null };
+        });
+        return { success: true, totales };
+    } catch (error) {
+        return fallo(error, "no se pudieron contar las bandejas");
+    }
+}
+
 /**
  * Abrir un correo: traerlo Y marcarlo como leído en el buzón — igual en los
  * tres proveedores. Son dos pasos y el segundo NO puede tumbar el primero: si

@@ -18358,13 +18358,21 @@ Cuatro cosas que hay que mantener:
    `MARCA_DE_LA_CABECERA_DE_LA_COLUMNA` en la barra: el panel sale colgado del
    botón, justo debajo de la barra y con el ancho común de los filtros.
 2. **El selector va delante del buscador**, como en Chats; las pastillas, en
-   el carril de la barra (y en el teléfono, en su segunda fila).
+   **su propia fila debajo**, en TODAS las anchuras —como la fila de pastillas
+   de Chats bajo la del buscador—, arrancando en el mismo filo. Estuvieron en
+   el carril de la barra en computador y abajo solo en el teléfono: la misma
+   pantalla con dos formas.
 3. **Los números de las pastillas son de lo CARGADO** (`losNumerosDelFiltro`):
-   el proveedor no dice cuántos correos hay, así que con páginas por traer
-   llevan un «+» —«al menos»—. En cero no hay insignia, como en Chats. Y las
-   filas del selector **no llevan número**: un largo de lo cargado no es un
-   total.
-4. **Llamadas conserva su `GrupoDeOpciones`**: esto solo toca Correo y Chats.
+   con páginas por traer llevan un «+» —«al menos»—. En cero no hay insignia,
+   como en Chats. **Las filas del selector SÍ llevan número, y es otro**: el
+   total de la bandeja de entrada según el PROVEEDOR (`totalesDeLosBuzonesAction`:
+   `labels/INBOX` en Gmail, `mailFolders/inbox` en Outlook, `STATUS` en IMAP),
+   nunca el largo de lo cargado. Un buzón que no contesta va SIN número —nunca
+   un 0—, y «Todas» es la suma solo si se saben todos (`losNumerosDeLasBandejas`).
+   Archivar o eliminar le resta uno al momento.
+4. **Ninguna fila ni rótulo dice el proveedor** («Gmail», «Outlook»): la
+   dirección ya lo dice por su dominio. Una sola línea por bandeja.
+5. **Llamadas conserva su `GrupoDeOpciones`**: esto solo toca Correo y Chats.
 
 Lo prueba `scripts/banco-correo.sh`: el barrido y los números sin navegador, y
 en Chromium la pantalla de Correo con la cabecera REAL de Chats pintada al

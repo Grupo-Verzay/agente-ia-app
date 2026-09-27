@@ -25,6 +25,10 @@ export class ImapFlow {
         g.__imap.aperturas.push({ ruta, readOnly: Boolean(opciones?.readOnly) });
         return { path: ruta, exists: g.__imap.mensajes.length };
     }
+    async status(ruta: string, pedido: any) {
+        (g.__imap.estados ??= []).push({ ruta, pedido });
+        return { path: ruta, messages: g.__imap.mensajes.length };
+    }
     async search() {
         return g.__imap.mensajes.map((m: any) => m.uid);
     }
