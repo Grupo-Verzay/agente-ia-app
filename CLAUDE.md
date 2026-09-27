@@ -17977,6 +17977,30 @@ contra Postgres con Gmail y Outlook fingidos en el `fetch` e IMAP/SMTP en el
 socket, y la pantalla en Chromium. `MODO=roto` afirma el diseño ingenuo: un
 buzón buscado por su id a secas se lo entrega a cualquiera.
 
+## Borrar los seguimientos de un número es borrarlos en SU cuenta
+
+Marcar un lead como Descartado —desde la pantalla o con la herramienta
+«Marcar_Descartado» del agente— y la frase de despedida del asesor borran los
+seguimientos pendientes del número. Los tres lo hacían con el `remoteJid` a
+secas, y un seguimiento **no tiene `userId`**: cuelga de su línea
+(`instancia`). El mismo número está en muchas cuentas, así que la acción de una
+se llevaba los seguimientos de todas las demás de la plataforma, sin error.
+
+> **Se borran los de ese número en las líneas de la cuenta donde ocurrió la
+> acción** (`instancia IN` su `instanceName` y su `instanceId`). Sin líneas no
+> se borra nada: nunca un `where` sin `instancia`. La regla es
+> `lib/seguimientos-de-la-cuenta.ts` aquí y
+> `src/modules/seguimientos/seguimientos-de-la-cuenta.ts` en el backend, y
+> tienen que decir lo mismo.
+
+La cuenta es la dueña de la conversación: `session.userId` al descartar, la
+dueña de la línea (`effectiveOwnerId`) en la despedida y el `userId` del agente
+en la herramienta. Lo que ya filtraba cada camino (la herramienta conserva los
+recordatorios y las citas) no cambia. **Si se añade otro borrado por número, va
+por esa función.** Lo prueba `scripts/banco-seguimientos-de-la-cuenta.sh` en los
+dos repositorios, contra Postgres y en dos modos: el roto corre el borrado viejo
+y afirma que cruzaba de cuenta.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
