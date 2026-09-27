@@ -9,9 +9,11 @@ import { colorDeLaLinea, palabraCortaDeLaLinea } from '@/lib/insignia-de-linea';
  *
  * Es la marca de la lista de Chats, sacada de `ChatContactItem` para que CRM ›
  * Llamadas la pinte igual y no una parecida. El color sale de `clave` —el
- * nombre crudo de la línea, el mismo que usa Chats— y la palabra de `nombre`.
+ * nombre crudo de la línea, el mismo que usa Chats— y la palabra de `nombre`,
+ * salvo que se pase `palabra`: Correo marca con ella de qué BUZÓN llegó un
+ * correo, y la palabra corta de una dirección no es la de una línea.
  */
-export function InsigniaDeLinea({ clave, nombre }: { clave: string; nombre: string }) {
+export function InsigniaDeLinea({ clave, nombre, palabra }: { clave: string; nombre: string; palabra?: string }) {
     return (
         <TooltipProvider>
             <Tooltip>
@@ -21,7 +23,7 @@ export function InsigniaDeLinea({ clave, nombre }: { clave: string; nombre: stri
                         className="flex max-w-[86px] shrink-0 items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default"
                     >
                         <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${colorDeLaLinea(clave)}`} />
-                        <span className="truncate">{palabraCortaDeLaLinea(nombre)}</span>
+                        <span className="truncate">{palabra ?? palabraCortaDeLaLinea(nombre)}</span>
                     </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={6} className="z-[9999]">

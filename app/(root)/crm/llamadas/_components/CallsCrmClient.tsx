@@ -74,6 +74,7 @@ import { laInsigniaDeLaFila } from '@/lib/agenda-de-la-familia';
 import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
 import { CallDetailDialog } from './CallDetailDialog';
+import { GrupoDeOpciones } from '@/components/shared/GrupoDeOpciones';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
 
 const DIRECTION_OPTIONS: { label: string; value: 'all' | 'outgoing' | 'incoming' }[] = [
@@ -486,27 +487,13 @@ export function CallsCrmClient({
               sobre este grupo. Un dato que solo se mira de reojo no necesita
               una cifra en la barra, pero tampoco desaparece sin decirlo.
             */}
-            <div
-              data-grupo="direccion"
+            <GrupoDeOpciones
+              grupo="direccion"
               title={`${kpis?.total ?? 0} llamadas · duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)} · promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)} · ${kpis?.answered ?? 0} contestadas`}
-              className="flex shrink-0 rounded-lg border border-border p-0.5"
-            >
-              {DIRECTION_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setDirection(o.value)}
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                    direction === o.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+              opciones={DIRECTION_OPTIONS}
+              valor={direction}
+              alCambiar={setDirection}
+            />
           </>
         }
         secundarias={
