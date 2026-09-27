@@ -18289,6 +18289,55 @@ Cinco cosas que hay que mantener:
 Lo prueba `scripts/banco-correo.sh` en sus tres mitades; `MODO=roto` lee los
 ficheros de `ANTES_REF` (dc71d09) y afirma que no se marcaba ni se eliminaba.
 
+### La bandeja UNIFICADA: todos los buzones en una lista, y cada correo dice de cuál llegó
+
+Con varios correos conectados había que cambiar de buzón en buzón con el
+desplegable. Ahora el desplegable abre con **«Todas las bandejas»**, y es lo que
+se ve por defecto en cuanto la persona tiene más de uno (con uno solo no se
+ofrece: sería el mismo buzón dos veces). Lo recordado vive en `correo:vista`
+—llave nueva a propósito: con la vieja, quien ya tenía varios correos se habría
+quedado en su último buzón suelto sin descubrir la unificada—.
+
+> **Es LA MISMA pantalla con otra lista dentro**: la misma fila, el mismo
+> filtro, la misma lectura, la misma confirmación de eliminar y la misma barra
+> de responder. Lo único propio de la unificada es la marca de buzón en cada
+> fila, que es la de Chats (`InsigniaDeLinea`, con `palabra` =
+> `laPalabraDelBuzon`: lo de antes de la arroba, o el dominio si dos buzones
+> comparten esa parte). Con un buzón a la vista no se pinta: sería repetir su
+> nombre en cada fila.
+
+Cinco cosas que hay que mantener:
+
+1. **Un correo se identifica por su LLAVE, con el buzón delante**
+   (`laLlaveDelCorreo`). Un UID de IMAP es un número pequeño y dos buzones
+   tienen los dos el «7»: por el id a secas, abrir uno marcaba el otro. Abrir,
+   responder, bajar un adjunto y eliminar van **al buzón DEL correo**, no al que
+   se esté mirando.
+2. **`bandejaUnificadaAction` pide todos a la vez con `Promise.allSettled`** y
+   dice de cada buzón si llegó o por qué no: uno que pide volver a conectar no
+   vacía la bandeja de los demás, y el aviso nombra la dirección. La lista de
+   buzones sale de `losBuzonesDe(persona)`, **nunca del navegador**: un cursor
+   para un buzón ajeno se ignora.
+3. **Lo cargado se guarda POR BUZÓN y la lista se mezcla con
+   `laBandejaUnificada`**, que tiene un HORIZONTE: lo más viejo que todavía
+   podría quedar por debajo de lo que otro buzón no ha traído espera oculto. Sin
+   eso, «Cargar más» metería correos de anteayer por ENCIMA de los de hace un
+   mes que ya se veían, y la lista cambiaría de orden debajo del dedo. Cargar
+   más pide solo la página siguiente de los buzones que la tienen.
+4. **El filtro es «Todos · Sin leer · Leídos»**, el mismo grupo de botones que
+   CRM › Llamadas (`components/shared/GrupoDeOpciones.tsx`, que usan los dos), y
+   vale igual en la unificada y en un buzón. Filtra lo cargado, como el
+   buscador; «Sin leer» lleva su número.
+5. **Nada de esto toca Chats ni guarda correos**: sigue siendo leer del
+   proveedor al abrir.
+
+Lo prueba `scripts/banco-correo.sh`: la mezcla, la llave y el filtro sin red;
+`bandejaUnificadaAction` contra Postgres (otra persona no lee ni pidiendo por
+id, un buzón revocado no tumba a los otros); y la pantalla en Chromium con dos
+buzones que comparten un id de correo. `MODO=roto` lee la pantalla de un commit
+pinchado (`ANTES_DE_LA_UNIFICADA`) y afirma que no había unificada, ni marca,
+ni filtro de leídos.
+
 ## Borrar los seguimientos de un número es borrarlos en SU cuenta
 
 Marcar un lead como Descartado —desde la pantalla o con la herramienta

@@ -245,29 +245,149 @@ export interface CorreoCompleto {
 export const TAMANO_DE_PAGINA = 25;
 
 /**
+ * Un correo de la bandeja con el buzón del que llegó. Con la bandeja unificada
+ * la lista mezcla varios buzones, y **el id de un correo solo es único dentro
+ * de SU buzón**: un UID de IMAP es un número pequeño y dos buzones pueden
+ * tener los dos el «7». Por eso todo lo que busca un correo en la lista lo
+ * busca por su llave (`laLlaveDelCorreo`), que lleva el buzón delante.
+ */
+export interface CorreoDeLaBandeja extends ResumenDeCorreo {
+    buzonId: string;
+}
+
+/** Sin buzón (una lista de un solo buzón, o un resumen suelto) la llave es el id. */
+export function laLlaveDelCorreo(c: { id: string; buzonId?: string | null }): string {
+    return c.buzonId ? `${c.buzonId}::${c.id}` : c.id;
+}
+
+/**
  * Cómo queda la lista al ABRIR un correo: sin el punto de «sin leer». Se pinta
  * al momento, antes de que el proveedor conteste, y si contesta que no se pudo
  * se deshace con `conSinLeer` — la misma regla que al eliminar un chat.
+ *
+ * `llave` es `laLlaveDelCorreo`: con buzón delante en la bandeja unificada,
+ * el id a secas en una lista de un solo buzón.
  */
-export function conLeido(correos: ResumenDeCorreo[], id: string, sinLeer = false): ResumenDeCorreo[] {
-    return correos.map((c) => (c.id === id && c.sinLeer !== sinLeer ? { ...c, sinLeer } : c));
+export function conLeido<T extends ResumenDeCorreo & { buzonId?: string }>(correos: T[], llave: string, sinLeer = false): T[] {
+    return correos.map((c) => (laLlaveDelCorreo(c) === llave && c.sinLeer !== sinLeer ? { ...c, sinLeer } : c));
 }
 
 /** La lista sin un correo, y dónde estaba: para devolverlo a SU sitio si el proveedor dice que no. */
-export function sinElCorreo(
-    correos: ResumenDeCorreo[],
-    id: string,
-): { lista: ResumenDeCorreo[]; quitado: ResumenDeCorreo | null; posicion: number } {
-    const posicion = correos.findIndex((c) => c.id === id);
+export function sinElCorreo<T extends ResumenDeCorreo & { buzonId?: string }>(
+    correos: T[],
+    llave: string,
+): { lista: T[]; quitado: T | null; posicion: number } {
+    const posicion = correos.findIndex((c) => laLlaveDelCorreo(c) === llave);
     if (posicion < 0) return { lista: correos, quitado: null, posicion: -1 };
     return { lista: [...correos.slice(0, posicion), ...correos.slice(posicion + 1)], quitado: correos[posicion], posicion };
 }
 
 /** Devolver un correo a la posición de la que se quitó (acotada, por si la lista cambió mientras). */
-export function devolverElCorreo(correos: ResumenDeCorreo[], correo: ResumenDeCorreo, posicion: number): ResumenDeCorreo[] {
-    if (correos.some((c) => c.id === correo.id)) return correos;
+export function devolverElCorreo<T extends ResumenDeCorreo & { buzonId?: string }>(correos: T[], correo: T, posicion: number): T[] {
+    const llave = laLlaveDelCorreo(correo);
+    if (correos.some((c) => laLlaveDelCorreo(c) === llave)) return correos;
     const i = Math.max(0, Math.min(posicion, correos.length));
     return [...correos.slice(0, i), correo, ...correos.slice(i)];
+}
+
+/* ── La bandeja unificada ─────────────────────────────────────────────────── */
+
+/** El valor de «Todas las bandejas» en el selector. No puede ser el id de un buzón (esos son uuid). */
+export const BANDEJA_UNIFICADA = "todas";
+
+/** Lo cargado de un buzón: sus correos, y el cursor de la página siguiente (`null`: no hay más). */
+export interface LoCargadoDeUnBuzon {
+    correos: CorreoDeLaBandeja[];
+    siguiente: string | null;
+}
+
+function laHora(c: { fecha: string | null }): number {
+    const t = c.fecha ? Date.parse(c.fecha) : Number.NaN;
+    return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * La bandeja de varios buzones en UNA lista, la más reciente arriba.
+ *
+ * Lo delicado es la página siguiente. Cada buzón trae su primera página, y un
+ * buzón con poco correo puede traer en ella correos de hace un mes mientras
+ * otro, con mucho, solo ha llegado a ayer. Enseñándolo todo, la lista pintaría
+ * lo de hace un mes **y al pulsar «Cargar más» metería correos de anteayer por
+ * ENCIMA de ellos**: la lista cambiaría de orden debajo del dedo, y lo que se
+ * estaba mirando se iría de sitio.
+ *
+ * Así que hay un HORIZONTE: el máximo, entre los buzones que todavía tienen
+ * página siguiente, de la hora de su correo más viejo cargado. Por
+ * debajo de esa hora todavía puede entrar algo de ese buzón, así que lo de
+ * debajo se guarda (`ocultos`) y sale al cargar más. Por encima, la lista ya
+ * es definitiva: cargar más solo añade por abajo.
+ *
+ * Un buzón sin página siguiente no pone horizonte (ya no le falta nada), y uno
+ * que la tiene pero no trajo ningún correo tampoco (no hay hora que poner).
+ * Un correo sin fecha va al final y cuenta como el más viejo.
+ */
+export function laBandejaUnificada(porBuzon: Record<string, LoCargadoDeUnBuzon>): {
+    visibles: CorreoDeLaBandeja[];
+    ocultos: number;
+    hayMas: boolean;
+} {
+    const todos: CorreoDeLaBandeja[] = [];
+    let horizonte = Number.NEGATIVE_INFINITY;
+    let hayMas = false;
+    for (const cargado of Object.values(porBuzon)) {
+        todos.push(...cargado.correos);
+        if (cargado.siguiente) {
+            hayMas = true;
+            if (cargado.correos.length) {
+                const masViejo = Math.min(...cargado.correos.map(laHora));
+                if (masViejo > horizonte) horizonte = masViejo;
+            }
+        }
+    }
+    // `sort` es estable: a igual hora se conserva el orden en que llegaron.
+    const ordenados = todos.map((c, i) => ({ c, i })).sort((a, b) => laHora(b.c) - laHora(a.c) || a.i - b.i).map((x) => x.c);
+    const visibles = ordenados.filter((c) => laHora(c) >= horizonte);
+    return { visibles, ocultos: ordenados.length - visibles.length, hayMas };
+}
+
+/**
+ * La palabra corta con que se dice de qué buzón llegó un correo: la parte de
+ * antes de la arroba («ana@verzay.com» → «ana»). Si otro buzón conectado tiene
+ * la misma —ana@gmail.com y ana@verzay.com—, la palabra sola no los distingue y
+ * se usa el dominio sin su terminación («gmail», «verzay»). Y si ni así, la
+ * dirección entera: la marca existe para distinguir, y dos iguales no lo hacen.
+ */
+export function laPalabraDelBuzon(direccion: string, todas: string[]): string {
+    const [local = "", dominio = ""] = (direccion ?? "").toLowerCase().split("@");
+    const locales = todas.map((d) => (d ?? "").toLowerCase().split("@")[0]);
+    if (locales.filter((l) => l === local).length <= 1) return local || direccion;
+    const nombreDelDominio = (d: string) => (d.split("@")[1] ?? "").split(".")[0];
+    const miDominio = dominio.split(".")[0];
+    const mismosLocales = todas.map((d) => (d ?? "").toLowerCase()).filter((d) => d.split("@")[0] === local);
+    const conMiDominio = mismosLocales.filter((d) => nombreDelDominio(d) === miDominio);
+    return miDominio && conMiDominio.length <= 1 ? miDominio : direccion;
+}
+
+/* ── El filtro de leído ───────────────────────────────────────────────────── */
+
+export const FILTROS_DE_LEIDO = ["todos", "sinLeer", "leidos"] as const;
+export type FiltroDeLeido = (typeof FILTROS_DE_LEIDO)[number];
+
+export const NOMBRE_DEL_FILTRO: Record<FiltroDeLeido, string> = {
+    todos: "Todos",
+    sinLeer: "Sin leer",
+    leidos: "Leídos",
+};
+
+/** Lo que no se reconozca es «todos»: un filtro raro no puede dejar la bandeja vacía. */
+export function comoFiltroDeLeido(valor: unknown): FiltroDeLeido {
+    return typeof valor === "string" && (FILTROS_DE_LEIDO as readonly string[]).includes(valor) ? (valor as FiltroDeLeido) : "todos";
+}
+
+export function pasaElFiltroDeLeido(c: { sinLeer: boolean }, filtro: FiltroDeLeido): boolean {
+    if (filtro === "sinLeer") return c.sinLeer;
+    if (filtro === "leidos") return !c.sinLeer;
+    return true;
 }
 
 /** Qué dice la confirmación de eliminar, según adónde va el correo en cada proveedor. */

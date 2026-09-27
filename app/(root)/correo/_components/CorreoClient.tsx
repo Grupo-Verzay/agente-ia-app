@@ -42,11 +42,24 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
+import { GrupoDeOpciones } from "@/components/shared/GrupoDeOpciones";
+import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 import { useAltoDeLaCaja } from "@/components/shared/BarraDeEscribir";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
+    BANDEJA_UNIFICADA,
+    FILTROS_DE_LEIDO,
+    NOMBRE_DEL_FILTRO,
     conLeido,
     devolverElCorreo,
+    laBandejaUnificada,
+    laLlaveDelCorreo,
+    laPalabraDelBuzon,
+    pasaElFiltroDeLeido,
+    type CorreoDeLaBandeja,
+    type FiltroDeLeido,
+    type LoCargadoDeUnBuzon,
     elDocumentoDelCorreo,
     elTamanoLegible,
     laAdvertenciaDeEliminar,
@@ -54,7 +67,6 @@ import {
     NOMBRE_DEL_PROVEEDOR,
     type CorreoCompleto,
     type ProveedorConBoton,
-    type ResumenDeCorreo,
 } from "@/lib/correo";
 import type { BuzonVisible } from "@/lib/correo-db";
 import {
@@ -66,6 +78,7 @@ import {
 } from "@/lib/barra-de-escribir";
 import {
     bandejaAction,
+    bandejaUnificadaAction,
     desconectarCorreoAction,
     eliminarCorreoAction,
     leerCorreoAction,
@@ -74,21 +87,40 @@ import {
 } from "@/actions/correo-actions";
 import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
 
-/** El último buzón abierto, en ESTE navegador. Cada acceso va en su `try`. */
-const LLAVE_DEL_ULTIMO = "correo:ultimo-buzon";
-function leerUltimo(): string | null {
+/**
+ * Lo último que se miró en ESTE navegador: el id de un buzón o
+ * `BANDEJA_UNIFICADA`. Llave nueva a propósito (la vieja guardaba solo un
+ * buzón): con ella, quien ya tenía varios correos conectados abre la bandeja
+ * unificada la primera vez en vez de quedarse en el último buzón suelto.
+ * Cada acceso va en su `try`.
+ */
+const LLAVE_DE_LA_VISTA = "correo:vista";
+function leerVista(): string | null {
     try {
-        return window.localStorage.getItem(LLAVE_DEL_ULTIMO);
+        return window.localStorage.getItem(LLAVE_DE_LA_VISTA);
     } catch {
         return null;
     }
 }
-function guardarUltimo(id: string) {
+function guardarVista(id: string) {
     try {
-        window.localStorage.setItem(LLAVE_DEL_ULTIMO, id);
+        window.localStorage.setItem(LLAVE_DE_LA_VISTA, id);
     } catch {
-        /* ventana privada: se abre el primero, y ya. */
+        /* ventana privada: se abre la de por defecto, y ya. */
     }
+}
+
+/**
+ * Qué se abre: lo pedido si existe; si no, lo recordado; y si no, con varios
+ * buzones la bandeja UNIFICADA —que es para lo que existe— y con uno, ese.
+ * Con un solo buzón la unificada no se ofrece: sería el mismo buzón dos veces.
+ */
+function laVistaDeEntrada(buzones: BuzonVisible[], quiero: string | null): string | null {
+    if (!buzones.length) return null;
+    const hayVarios = buzones.length > 1;
+    if (quiero === BANDEJA_UNIFICADA) return hayVarios ? BANDEJA_UNIFICADA : buzones[0].id;
+    if (quiero && buzones.some((b) => b.id === quiero)) return quiero;
+    return hayVarios ? BANDEJA_UNIFICADA : buzones[0].id;
 }
 
 function laFechaCorta(iso: string | null): string {
@@ -104,7 +136,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
     const [cargando, setCargando] = useState(true);
     const [buzones, setBuzones] = useState<BuzonVisible[]>([]);
     const [conBoton, setConBoton] = useState<Record<ProveedorConBoton, boolean>>({ gmail: false, outlook: false });
-    const [buzonId, setBuzonId] = useState<string | null>(null);
+    const [vista, setVista] = useState<string | null>(null);
     const [conectarAbierto, setConectarAbierto] = useState(false);
     const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
 
@@ -132,12 +164,11 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
             setFalloDeCarga(null);
             setBuzones(r.buzones);
             setConBoton(r.conBoton);
-            const quiero = preferido ?? leerUltimo();
-            const elegido = r.buzones.find((b) => b.id === quiero) ?? r.buzones[0] ?? null;
-            setBuzonId(elegido?.id ?? null);
+            const elegida = laVistaDeEntrada(r.buzones, preferido ?? leerVista());
+            setVista(elegida);
             // Con otro buzón ya conectado, el aviso sale en el diálogo de
             // «Conectar otro correo», que es donde están los mismos botones.
-            if (elegido && error) setConectarAbierto(true);
+            if (elegida && error) setConectarAbierto(true);
         } catch {
             setFalloDeCarga("No se pudo cargar el correo. Revisa la conexión.");
         } finally {
@@ -149,7 +180,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
         void cargarBuzones();
     }, [cargarBuzones]);
 
-    const buzon = buzones.find((b) => b.id === buzonId) ?? null;
+    const hayVista = vista !== null && (vista === BANDEJA_UNIFICADA || buzones.some((b) => b.id === vista));
 
     if (cargando) {
         return (
@@ -163,7 +194,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
         return <div className="p-6 text-sm text-destructive">{falloDeCarga}</div>;
     }
 
-    if (!buzon) {
+    if (!hayVista) {
         return (
             <div data-correo-vacio className="flex h-full flex-col items-center justify-center gap-4 p-6">
                 <div className="text-center">
@@ -176,7 +207,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
                     alCerrarAviso={() => setAviso(null)}
                     alConectar={(b) => {
                         setAviso(null);
-                        guardarUltimo(b.id);
+                        guardarVista(b.id);
                         void cargarBuzones(b.id);
                     }}
                 />
@@ -187,22 +218,22 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
     return (
         <>
             <Bandeja
-                key={buzon.id}
-                buzon={buzon}
+                key={vista!}
+                vista={vista!}
                 buzones={buzones}
                 alElegir={(id) => {
-                    guardarUltimo(id);
-                    setBuzonId(id);
+                    guardarVista(id);
+                    setVista(id);
                 }}
                 alConectarOtro={() => setConectarAbierto(true)}
-                alDesconectar={async () => {
-                    const r = await desconectarCorreoAction(buzon.id);
+                alDesconectar={async (id) => {
+                    const r = await desconectarCorreoAction(id);
                     if (!r.success) {
                         toast.error(r.message);
                         return;
                     }
                     toast.success("Correo desconectado.");
-                    await cargarBuzones(null);
+                    await cargarBuzones(vista === id ? null : vista);
                 }}
             />
             <Dialog open={conectarAbierto} onOpenChange={setConectarAbierto}>
@@ -218,7 +249,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
                         alConectar={(b) => {
                             setAviso(null);
                             setConectarAbierto(false);
-                            guardarUltimo(b.id);
+                            guardarVista(b.id);
                             void cargarBuzones(b.id);
                         }}
                     />
@@ -228,68 +259,107 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
     );
 }
 
+type AvisoDelBuzon = { texto: string; reconectar: boolean };
+
 function Bandeja({
-    buzon,
+    vista,
     buzones,
     alElegir,
     alConectarOtro,
     alDesconectar,
 }: {
-    buzon: BuzonVisible;
+    /** El id de un buzón, o `BANDEJA_UNIFICADA`. */
+    vista: string;
     buzones: BuzonVisible[];
     alElegir: (id: string) => void;
     alConectarOtro: () => void;
-    alDesconectar: () => Promise<void>;
+    alDesconectar: (buzonId: string) => Promise<void>;
 }) {
-    const [correos, setCorreos] = useState<ResumenDeCorreo[]>([]);
-    const [siguiente, setSiguiente] = useState<string | null>(null);
+    const unificada = vista === BANDEJA_UNIFICADA;
+    const enElTelefono = useIsMobile();
+    // Los buzones que se miran: todos en la unificada, uno en la de un buzón.
+    // Las dos vistas son LA MISMA pantalla con otra lista dentro: la misma
+    // fila, el mismo filtro, la misma lectura y la misma confirmación.
+    const deLaVista = useMemo(() => (unificada ? buzones : buzones.filter((b) => b.id === vista)), [unificada, buzones, vista]);
+    const porId = useMemo(() => new Map(buzones.map((b) => [b.id, b])), [buzones]);
+    const direcciones = useMemo(() => buzones.map((b) => b.direccion), [buzones]);
+
+    // Lo cargado, POR BUZÓN: la lista que se ve sale de mezclarlo
+    // (`laBandejaUnificada`), y con eso cargar más no desordena lo que hay.
+    const [porBuzon, setPorBuzon] = useState<Record<string, LoCargadoDeUnBuzon>>({});
     const [cargando, setCargando] = useState(true);
     const [masCargando, setMasCargando] = useState(false);
-    const [aviso, setAviso] = useState<{ texto: string; reconectar: boolean } | null>(
-        buzon.estado === "reconectar" ? { texto: buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true } : null,
+    const [avisos, setAvisos] = useState<Record<string, AvisoDelBuzon>>(() =>
+        Object.fromEntries(
+            deLaVista
+                .filter((b) => b.estado === "reconectar")
+                .map((b) => [b.id, { texto: b.ultimoError || "Vuelve a conectar este correo.", reconectar: true }]),
+        ),
     );
     const [busqueda, setBusqueda] = useState("");
-    const [soloSinLeer, setSoloSinLeer] = useState(false);
-    const [abierto, setAbierto] = useState<string | null>(null);
+    const [filtro, setFiltro] = useState<FiltroDeLeido>("todos");
+    const [abierto, setAbierto] = useState<{ llave: string; buzonId: string; id: string } | null>(null);
     // Si estaba sin leer AL ABRIRLO: se pinta leído al momento, y la acción
     // solo pide marcar cuando hace falta.
     const [abiertoSinLeer, setAbiertoSinLeer] = useState(false);
-    const [aEliminar, setAEliminar] = useState<ResumenDeCorreo | null>(null);
+    const [aEliminar, setAEliminar] = useState<CorreoDeLaBandeja | null>(null);
     const vuelta = useRef(0);
 
-    function abrir(c: ResumenDeCorreo) {
+    const ponerAviso = useCallback((buzonId: string, aviso: AvisoDelBuzon | null) => {
+        setAvisos((antes) => {
+            if (!aviso) {
+                if (!(buzonId in antes)) return antes;
+                const { [buzonId]: _quitado, ...resto } = antes;
+                return resto;
+            }
+            return { ...antes, [buzonId]: aviso };
+        });
+    }, []);
+
+    /** Cambiar la lista de UN buzón: la fila vive en el cubo de su buzón. */
+    const cambiarEn = useCallback((buzonId: string, cambio: (correos: CorreoDeLaBandeja[]) => CorreoDeLaBandeja[]) => {
+        setPorBuzon((antes) => {
+            const cargado = antes[buzonId] ?? { correos: [], siguiente: null };
+            return { ...antes, [buzonId]: { ...cargado, correos: cambio(cargado.correos) } };
+        });
+    }, []);
+
+    function abrir(c: CorreoDeLaBandeja) {
+        const llave = laLlaveDelCorreo(c);
         setAbiertoSinLeer(c.sinLeer);
-        setAbierto(c.id);
+        setAbierto({ llave, buzonId: c.buzonId, id: c.id });
         // Se pinta leído YA; si el proveedor dice que no, `alMarcar` lo devuelve.
-        if (c.sinLeer) setCorreos((antes) => conLeido(antes, c.id));
+        if (c.sinLeer) cambiarEn(c.buzonId, (l) => conLeido(l, llave));
     }
 
     const alMarcar = useCallback(
-        (id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => {
+        (buzonId: string, id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => {
             if (r.leido) return;
-            setCorreos((antes) => conLeido(antes, id, true));
-            if (r.motivo) setAviso({ texto: r.motivo, reconectar: r.reconectar });
+            cambiarEn(buzonId, (l) => conLeido(l, laLlaveDelCorreo({ id, buzonId }), true));
+            if (r.motivo) ponerAviso(buzonId, { texto: r.motivo, reconectar: r.reconectar });
         },
-        [],
+        [cambiarEn, ponerAviso],
     );
 
     /**
      * Eliminar: la fila se quita y la lectura se cierra ANTES de preguntar al
      * proveedor —como al eliminar un chat—, y si dice que no, el correo vuelve
-     * a SU sitio con su motivo. Un solo camino para la fila y para la lectura.
+     * a SU sitio con su motivo. Un solo camino para la fila y para la lectura,
+     * y siempre en el buzón DEL correo, no en el que se esté mirando.
      */
-    async function eliminar(c: ResumenDeCorreo) {
-        const quitado = sinElCorreo(correos, c.id);
-        setCorreos(quitado.lista);
-        if (abierto === c.id) setAbierto(null);
+    async function eliminar(c: CorreoDeLaBandeja) {
+        const llave = laLlaveDelCorreo(c);
+        const quitado = sinElCorreo(porBuzon[c.buzonId]?.correos ?? [], llave);
+        cambiarEn(c.buzonId, (l) => sinElCorreo(l, llave).lista);
+        if (abierto?.llave === llave) setAbierto(null);
         const devolver = () =>
-            setCorreos((antes) => devolverElCorreo(antes, quitado.quitado ?? c, Math.max(0, quitado.posicion)));
+            cambiarEn(c.buzonId, (l) => devolverElCorreo(l, quitado.quitado ?? c, Math.max(0, quitado.posicion)));
         try {
-            const r = await eliminarCorreoAction(buzon.id, c.id);
+            const r = await eliminarCorreoAction(c.buzonId, c.id);
             if (!r.success) {
                 devolver();
                 toast.error(r.message);
-                if (r.reconectar) setAviso({ texto: r.message, reconectar: true });
+                if (r.reconectar) ponerAviso(c.buzonId, { texto: r.message, reconectar: true });
                 return;
             }
             toast.success(r.aLaPapelera ? "Correo movido a la papelera." : "Correo eliminado (tu servidor no tiene papelera).");
@@ -299,24 +369,71 @@ function Bandeja({
         }
     }
 
+    /**
+     * Traer: la primera página (`mas: false`) o la siguiente de cada buzón que
+     * la tenga. En la de un buzón va por `bandejaAction`; en la unificada, por
+     * `bandejaUnificadaAction`, que pide todos a la vez y dice de cada uno si
+     * llegó o por qué no — un buzón que falla no deja vacía la bandeja.
+     */
     const traer = useCallback(
-        async (cursor: string | null) => {
+        async (mas: boolean, cargadoAhora: Record<string, LoCargadoDeUnBuzon>) => {
             const esta = ++vuelta.current;
-            if (cursor) setMasCargando(true);
+            if (mas) setMasCargando(true);
             else setCargando(true);
+            const aplicar = (buzonId: string, correos: CorreoDeLaBandeja[], siguiente: string | null) =>
+                setPorBuzon((antes) => {
+                    const previos = mas ? antes[buzonId]?.correos ?? [] : [];
+                    const vistos = new Set(previos.map(laLlaveDelCorreo));
+                    return {
+                        ...antes,
+                        [buzonId]: { correos: [...previos, ...correos.filter((c) => !vistos.has(laLlaveDelCorreo(c)))], siguiente },
+                    };
+                });
             try {
-                const r = await bandejaAction(buzon.id, cursor);
-                // Una respuesta vieja no pinta encima de la de ahora.
-                if (esta !== vuelta.current) return;
-                if (!r.success) {
-                    setAviso({ texto: r.message, reconectar: Boolean(r.reconectar) });
+                if (!unificada) {
+                    const id = deLaVista[0]?.id;
+                    if (!id) return;
+                    const cursor = mas ? cargadoAhora[id]?.siguiente ?? null : null;
+                    const r = await bandejaAction(id, cursor);
+                    // Una respuesta vieja no pinta encima de la de ahora.
+                    if (esta !== vuelta.current) return;
+                    if (!r.success) {
+                        ponerAviso(id, { texto: r.message, reconectar: Boolean(r.reconectar) });
+                        return;
+                    }
+                    ponerAviso(id, null);
+                    aplicar(id, r.correos.map((c) => ({ ...c, buzonId: id })), r.siguiente);
                     return;
                 }
-                setAviso(null);
-                setCorreos((antes) => (cursor ? [...antes, ...r.correos.filter((c) => !antes.some((a) => a.id === c.id))] : r.correos));
-                setSiguiente(r.siguiente);
+                const cursores = mas
+                    ? Object.fromEntries(
+                          Object.entries(cargadoAhora)
+                              .filter(([, c]) => c.siguiente)
+                              .map(([id, c]) => [id, c.siguiente as string]),
+                      )
+                    : undefined;
+                const r = await bandejaUnificadaAction(cursores);
+                if (esta !== vuelta.current) return;
+                if (!r.success) {
+                    for (const b of deLaVista) ponerAviso(b.id, { texto: r.message, reconectar: Boolean(r.reconectar) });
+                    return;
+                }
+                for (const b of r.porBuzon) {
+                    if (b.ok) {
+                        ponerAviso(b.buzonId, null);
+                        aplicar(b.buzonId, b.correos, b.siguiente);
+                    } else {
+                        ponerAviso(b.buzonId, { texto: b.message, reconectar: b.reconectar });
+                        // Sin página siguiente: un buzón que falló no puede
+                        // dejar la lista esperándolo en el horizonte.
+                        if (!mas) aplicar(b.buzonId, [], null);
+                        else setPorBuzon((antes) => ({ ...antes, [b.buzonId]: { ...(antes[b.buzonId] ?? { correos: [] }), siguiente: null } }));
+                    }
+                }
             } catch {
-                if (esta === vuelta.current) setAviso({ texto: "No se pudo leer la bandeja. Revisa la conexión.", reconectar: false });
+                if (esta === vuelta.current) {
+                    for (const b of deLaVista) ponerAviso(b.id, { texto: "No se pudo leer la bandeja. Revisa la conexión.", reconectar: false });
+                }
             } finally {
                 if (esta === vuelta.current) {
                     setCargando(false);
@@ -324,25 +441,68 @@ function Bandeja({
                 }
             }
         },
-        [buzon.id],
+        [unificada, deLaVista, ponerAviso],
     );
 
     useEffect(() => {
-        void traer(null);
-    }, [traer]);
+        void traer(false, {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vista]);
 
+    const { visibles: correos, hayMas } = useMemo(() => laBandejaUnificada(porBuzon), [porBuzon]);
     const visibles = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
         return correos.filter(
             (c) =>
-                (!soloSinLeer || c.sinLeer) &&
+                pasaElFiltroDeLeido(c, filtro) &&
                 (!q || `${c.de} ${c.deDireccion} ${c.asunto} ${c.fragmento}`.toLowerCase().includes(q)),
         );
-    }, [correos, busqueda, soloSinLeer]);
+    }, [correos, busqueda, filtro]);
     const sinLeer = correos.filter((c) => c.sinLeer).length;
+    const buzonDeLaVista = unificada ? null : deLaVista[0] ?? null;
+    const avisosVisibles = deLaVista.filter((b) => avisos[b.id]).map((b) => ({ buzon: b, aviso: avisos[b.id] }));
+    const buzonAEliminar = aEliminar ? porId.get(aEliminar.buzonId) ?? null : null;
+
+    // El buzón y el filtro. En computador van en el carril de la barra; en el
+    // teléfono ese carril se queda en unos 46 px —el buscador, actualizar y el
+    // «⋯» se comen el resto— y las flechas taparían el filtro entero, así que
+    // bajan a una segunda fila que se desplaza, como el marcador de Llamadas.
+    // Se pintan UNA vez, en un sitio o en otro: dos copias serían dos selectores.
+    const mandos = (
+        <>
+            {buzones.length > 1 ? (
+                <select
+                    aria-label="Buzón"
+                    value={vista}
+                    onChange={(e) => alElegir(e.target.value)}
+                    className="h-9 min-w-0 max-w-[10rem] shrink truncate rounded-md border md:max-w-[16rem] border-input bg-background px-2 text-sm"
+                >
+                    <option value={BANDEJA_UNIFICADA}>Todas las bandejas ({buzones.length})</option>
+                    {buzones.map((b) => (
+                        <option key={b.id} value={b.id}>
+                            {b.direccion} · {NOMBRE_DEL_PROVEEDOR[b.proveedor]}
+                        </option>
+                    ))}
+                </select>
+            ) : buzonDeLaVista ? (
+                <span className="truncate text-sm text-muted-foreground" title={buzonDeLaVista.direccion}>
+                    {buzonDeLaVista.direccion} · {NOMBRE_DEL_PROVEEDOR[buzonDeLaVista.proveedor]}
+                </span>
+            ) : null}
+            <GrupoDeOpciones
+                grupo="leido"
+                opciones={FILTROS_DE_LEIDO.map((f) => ({
+                    value: f,
+                    label: f === "sinLeer" && sinLeer ? `${NOMBRE_DEL_FILTRO[f]} (${sinLeer})` : NOMBRE_DEL_FILTRO[f],
+                }))}
+                valor={filtro}
+                alCambiar={setFiltro}
+            />
+        </>
+    );
 
     return (
-        <div data-correo className="flex h-full min-h-0 flex-col gap-2">
+        <div data-correo data-vista={unificada ? "unificada" : "buzon"} className="flex h-full min-h-0 flex-col gap-2">
             <BarraDeAcciones
                 buscador={
                     <div className="relative w-56 sm:w-72">
@@ -356,38 +516,16 @@ function Bandeja({
                         />
                     </div>
                 }
-                filtros={
-                    <>
-                        {buzones.length > 1 ? (
-                            <select
-                                aria-label="Buzón"
-                                value={buzon.id}
-                                onChange={(e) => alElegir(e.target.value)}
-                                className="h-9 max-w-[16rem] truncate rounded-md border border-input bg-background px-2 text-sm"
-                            >
-                                {buzones.map((b) => (
-                                    <option key={b.id} value={b.id}>
-                                        {b.direccion} · {NOMBRE_DEL_PROVEEDOR[b.proveedor]}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
-                            <span className="truncate text-sm text-muted-foreground" title={buzon.direccion}>
-                                {buzon.direccion} · {NOMBRE_DEL_PROVEEDOR[buzon.proveedor]}
-                            </span>
-                        )}
-                        <Button
-                            size="sm"
-                            variant={soloSinLeer ? "default" : "outline"}
-                            className="h-8 rounded-full"
-                            onClick={() => setSoloSinLeer((v) => !v)}
-                        >
-                            Sin leer {sinLeer ? `(${sinLeer})` : ""}
-                        </Button>
-                    </>
-                }
+                filtros={enElTelefono ? undefined : mandos}
                 secundarias={
-                    <Button variant="outline" size="icon" aria-label="Actualizar" title="Actualizar" onClick={() => void traer(null)} disabled={cargando}>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Actualizar"
+                        title="Actualizar"
+                        onClick={() => void traer(false, {})}
+                        disabled={cargando}
+                    >
                         <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
                     </Button>
                 }
@@ -401,20 +539,32 @@ function Bandeja({
                         <DropdownMenuContent align="end">
                             <DropdownMenuItem onSelect={alConectarOtro}>Conectar otro correo</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onSelect={() => void alDesconectar()}>
-                                Desconectar {buzon.direccion}
-                            </DropdownMenuItem>
+                            {deLaVista.map((b) => (
+                                <DropdownMenuItem key={b.id} className="text-destructive" onSelect={() => void alDesconectar(b.id)}>
+                                    Desconectar {b.direccion}
+                                </DropdownMenuItem>
+                            ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 }
             />
 
-            {aviso ? (
-                <div data-aviso-correo className={AVISO_DEL_CORREO}>
+            {enElTelefono ? (
+                <div data-fila-de-filtros className="-mt-1 flex shrink-0 items-center gap-2 overflow-x-auto">
+                    {mandos}
+                </div>
+            ) : null}
+
+            {avisosVisibles.map(({ buzon: b, aviso }) => (
+                <div key={b.id} data-aviso-correo={b.id} className={AVISO_DEL_CORREO}>
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="flex-1">{aviso.texto}</div>
-                    {aviso.reconectar && buzon.proveedor !== "imap" ? (
-                        <Button size="sm" variant="outline" onClick={() => (window.location.href = `/api/correo/conectar/${buzon.proveedor}`)}>
+                    <div className="flex-1">
+                        {/* En la unificada hay varios buzones: el aviso dice de cuál es. */}
+                        {unificada ? <span className="font-medium">{b.direccion}: </span> : null}
+                        {aviso.texto}
+                    </div>
+                    {aviso.reconectar && b.proveedor !== "imap" ? (
+                        <Button size="sm" variant="outline" onClick={() => (window.location.href = `/api/correo/conectar/${b.proveedor}`)}>
                             Volver a conectar
                         </Button>
                     ) : aviso.reconectar ? (
@@ -423,7 +573,7 @@ function Bandeja({
                         </Button>
                     ) : null}
                 </div>
-            ) : null}
+            ))}
 
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                 <div
@@ -443,49 +593,63 @@ function Bandeja({
                                 {correos.length ? "Ningún correo coincide." : "La bandeja está vacía."}
                             </p>
                         ) : (
-                            visibles.map((c) => (
-                                // La fila es un grupo: abrir y eliminar son dos
-                                // botones HERMANOS (un botón no va dentro de otro).
-                                <div key={c.id} data-correo-fila={c.id} className="group relative border-b border-border">
-                                    <button
-                                        type="button"
-                                        onClick={() => abrir(c)}
-                                        className={cn(
-                                            "flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-muted",
-                                            abierto === c.id && "bg-muted",
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {c.sinLeer ? <span data-sin-leer className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Sin leer" /> : null}
-                                            <span className={cn("min-w-0 flex-1 truncate text-sm", c.sinLeer && "font-semibold")} title={c.deDireccion}>
-                                                {c.de || c.deDireccion || "(sin remitente)"}
+                            visibles.map((c) => {
+                                const llave = laLlaveDelCorreo(c);
+                                const suBuzon = porId.get(c.buzonId);
+                                return (
+                                    // La fila es un grupo: abrir y eliminar son dos
+                                    // botones HERMANOS (un botón no va dentro de otro).
+                                    <div key={llave} data-correo-fila={c.id} data-buzon={c.buzonId} className="group relative border-b border-border">
+                                        <button
+                                            type="button"
+                                            onClick={() => abrir(c)}
+                                            className={cn(
+                                                "flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-muted",
+                                                abierto?.llave === llave && "bg-muted",
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {c.sinLeer ? <span data-sin-leer className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Sin leer" /> : null}
+                                                <span className={cn("min-w-0 flex-1 truncate text-sm", c.sinLeer && "font-semibold")} title={c.deDireccion}>
+                                                    {c.de || c.deDireccion || "(sin remitente)"}
+                                                </span>
+                                                {/* De qué buzón llegó: la MISMA marca con que Chats dice
+                                                    de qué línea es una fila. Solo en la unificada: con un
+                                                    buzón a la vista sería repetir su nombre en cada fila. */}
+                                                {unificada && suBuzon ? (
+                                                    <InsigniaDeLinea
+                                                        clave={suBuzon.direccion}
+                                                        nombre={`${suBuzon.direccion} · ${NOMBRE_DEL_PROVEEDOR[suBuzon.proveedor]}`}
+                                                        palabra={laPalabraDelBuzon(suBuzon.direccion, direcciones)}
+                                                    />
+                                                ) : null}
+                                                {c.conAdjuntos ? <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Con adjuntos" /> : null}
+                                                <span className="shrink-0 text-xs text-muted-foreground">{laFechaCorta(c.fecha)}</span>
+                                            </div>
+                                            <span className={cn("truncate text-sm", c.sinLeer ? "text-foreground" : "text-muted-foreground")}>
+                                                {c.asunto || "(sin asunto)"}
                                             </span>
-                                            {c.conAdjuntos ? <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Con adjuntos" /> : null}
-                                            <span className="shrink-0 text-xs text-muted-foreground">{laFechaCorta(c.fecha)}</span>
-                                        </div>
-                                        <span className={cn("truncate text-sm", c.sinLeer ? "text-foreground" : "text-muted-foreground")}>
-                                            {c.asunto || "(sin asunto)"}
-                                        </span>
-                                        {c.fragmento ? <span className="truncate text-xs text-muted-foreground">{c.fragmento}</span> : null}
-                                    </button>
-                                    {/* Sale al pasar el ratón o con el foco; en un teléfono se elimina desde la lectura. */}
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="Eliminar correo"
-                                        title="Eliminar"
-                                        onClick={() => setAEliminar(c)}
-                                        className="absolute right-2 top-1.5 h-7 w-7 bg-muted opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            ))
+                                            {c.fragmento ? <span className="truncate text-xs text-muted-foreground">{c.fragmento}</span> : null}
+                                        </button>
+                                        {/* Sale al pasar el ratón o con el foco; en un teléfono se elimina desde la lectura. */}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label="Eliminar correo"
+                                            title="Eliminar"
+                                            onClick={() => setAEliminar(c)}
+                                            className="absolute right-2 top-1.5 h-7 w-7 bg-muted opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                );
+                            })
                         )}
-                        {siguiente && !cargando ? (
+                        {hayMas && !cargando ? (
                             <div className="p-3">
-                                <Button variant="outline" className="w-full" disabled={masCargando} onClick={() => void traer(siguiente)}>
+                                <Button variant="outline" className="w-full" disabled={masCargando} onClick={() => void traer(true, porBuzon)}>
                                     {masCargando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                     Cargar más
                                 </Button>
@@ -496,14 +660,14 @@ function Bandeja({
                 <div className={cn("min-h-0 min-w-0 flex-1", !abierto && "hidden md:flex")}>
                     {abierto ? (
                         <Lectura
-                            key={abierto}
-                            buzonId={buzon.id}
-                            correoId={abierto}
+                            key={abierto.llave}
+                            buzonId={abierto.buzonId}
+                            correoId={abierto.id}
                             estabaSinLeer={abiertoSinLeer}
                             alVolver={() => setAbierto(null)}
-                            alMarcar={alMarcar}
+                            alMarcar={(id, r) => alMarcar(abierto.buzonId, id, r)}
                             alEliminar={() => {
-                                const c = correos.find((x) => x.id === abierto);
+                                const c = correos.find((x) => laLlaveDelCorreo(x) === abierto.llave);
                                 if (c) setAEliminar(c);
                             }}
                         />
@@ -521,7 +685,7 @@ function Bandeja({
                         <AlertDialogTitle>¿Eliminar este correo?</AlertDialogTitle>
                         <AlertDialogDescription>
                             {aEliminar?.asunto ? `«${aEliminar.asunto}». ` : ""}
-                            {laAdvertenciaDeEliminar(buzon.proveedor)}
+                            {buzonAEliminar ? laAdvertenciaDeEliminar(buzonAEliminar.proveedor) : null}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

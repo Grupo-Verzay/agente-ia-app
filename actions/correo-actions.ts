@@ -7,6 +7,7 @@ import {
     comoTextoDeLaRespuesta,
     hayLlavesDe,
     type CorreoCompleto,
+    type CorreoDeLaBandeja,
     type ProveedorConBoton,
 } from "@/lib/correo";
 import { elBuzonDe, guardarElBuzon, losBuzonesDe, quitarElBuzon, type BuzonVisible } from "@/lib/correo-db";
@@ -92,6 +93,66 @@ export async function bandejaAction(buzonId: unknown, cursor: unknown): Promise<
         return { success: true, ...pagina };
     } catch (error) {
         return fallo(error, "no se pudo leer la bandeja");
+    }
+}
+
+/** Lo que devuelve la bandeja unificada por cada buzón: su página, o por qué no llegó. */
+export type LoDeUnBuzon =
+    | { buzonId: string; ok: true; correos: CorreoDeLaBandeja[]; siguiente: string | null }
+    | { buzonId: string; ok: false; message: string; reconectar: boolean };
+
+/**
+ * La bandeja UNIFICADA: la página de cada buzón de la persona, de una vez.
+ *
+ * - Sin `cursores` es la primera página de TODOS sus buzones. Con `cursores`
+ *   (`{ buzonId: cursor }`) es «cargar más»: solo se piden los nombrados, y un
+ *   id que no sea de un buzón SUYO se ignora — la lista sale de
+ *   `losBuzonesDe(persona)`, no del navegador.
+ * - `Promise.allSettled`, nunca `Promise.all`: un buzón que pide volver a
+ *   conectar o cuyo proveedor no contesta no puede dejar vacía la bandeja de
+ *   los demás. Cada casilla dice DE QUIÉN es y, si falló, por qué.
+ * - Cada correo sale con su `buzonId`: la pantalla lo necesita para abrirlo,
+ *   responderlo y eliminarlo en SU buzón, y para pintar de cuál llegó.
+ */
+export async function bandejaUnificadaAction(cursores?: unknown): Promise<Resultado<{ porBuzon: LoDeUnBuzon[] }>> {
+    try {
+        const persona = await laPersona();
+        if (!persona) return { success: false, message: "No autorizado." };
+        const mios = await losBuzonesDe(persona.id);
+        const pedidos =
+            cursores && typeof cursores === "object"
+                ? mios.filter((b) => {
+                      const c = (cursores as Record<string, unknown>)[b.id];
+                      return typeof c === "string" && c.length > 0;
+                  })
+                : mios;
+        const cursorDe = (id: string): string | null =>
+            cursores && typeof cursores === "object" ? ((cursores as Record<string, string>)[id] ?? null) : null;
+
+        const resultados = await Promise.allSettled(
+            pedidos.map(async (visible): Promise<LoDeUnBuzon> => {
+                if (visible.estado === "reconectar") {
+                    return { buzonId: visible.id, ok: false, message: visible.ultimoError || "Vuelve a conectar este correo.", reconectar: true };
+                }
+                const buzon = await elBuzonDe(persona.id, visible.id);
+                if (!buzon) return { buzonId: visible.id, ok: false, message: "Ese correo no está conectado.", reconectar: false };
+                const pagina = await elProveedorDe(buzon).bandeja(buzon, cursorDe(visible.id));
+                return {
+                    buzonId: visible.id,
+                    ok: true,
+                    correos: pagina.correos.map((c) => ({ ...c, buzonId: visible.id })),
+                    siguiente: pagina.siguiente,
+                };
+            }),
+        );
+        const porBuzon = resultados.map((r, i): LoDeUnBuzon => {
+            if (r.status === "fulfilled") return r.value;
+            const f = fallo(r.reason, `no se pudo leer la bandeja de ${pedidos[i].direccion}`);
+            return { buzonId: pedidos[i].id, ok: false, message: f.message, reconectar: Boolean(f.reconectar) };
+        });
+        return { success: true, porBuzon };
+    } catch (error) {
+        return fallo(error, "no se pudo leer la bandeja unificada");
     }
 }
 
