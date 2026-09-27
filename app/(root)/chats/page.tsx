@@ -234,7 +234,9 @@ async function conLaLineaDeLaMencion(
     const fila = await db.session.findUnique({ where: { id: sesion }, select: { instanceId: true } });
     const linea = fila?.instanceId
       ? await db.instancia.findFirst({
-          where: { instanceId: fila.instanceId },
+          // `Session.instanceId` guarda unas veces el id de la línea y otras su
+          // NOMBRE (así lo escribe la bandeja al crear la ficha): las dos.
+          where: { OR: [{ instanceId: fila.instanceId }, { instanceName: fila.instanceId }] },
           select: { instanceName: true },
         })
       : null;

@@ -53,7 +53,10 @@ const db = new PrismaClient();
     create: { email: "ana@banco.test", name: "Ana Agente", password: await bcrypt.hash("banco1234", 10),
               role: "user", status: true, ownerId: jefe.id, advisorRole: "agente", canTakeUnassigned: false },
   });
-  await db.session.updateMany({ where: { userId: jefe.id }, data: { assignedAdvisorId: sofia.id } });
+  // La ficha con el NOMBRE de la línea en `instanceId`, que es como la escribe
+  // la bandeja: con el id, abrir la conversación crea una segunda ficha y la
+  // nota cae en otra conversación que la que mira el banco.
+  await db.session.updateMany({ where: { userId: jefe.id }, data: { assignedAdvisorId: sofia.id, instanceId: "BANCO_VENTAS" } });
   await db.$disconnect();
 })();
 '
@@ -62,9 +65,11 @@ const db = new PrismaClient();
 # serviría otro build y recordaría columnas que `db push` acaba de quitar.
 # (`[n]ext`: sin los corchetes, pkill se encuentra a sí mismo y se mata.)
 pkill -f "[n]ext start -p $APP" 2>/dev/null || true
+# `next start` se renombra a `next-server`: se libera también por el puerto.
+fuser -k "$APP/tcp" 2>/dev/null || true
 sleep 1
 setsid npx next start -p "$APP" >/tmp/banco-mencion-next.log 2>&1 </dev/null &
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APP/login" && break; sleep 1; done
-trap 'pkill -f "[n]ext start -p $APP" 2>/dev/null || true' EXIT
+trap 'fuser -k "$APP/tcp" 2>/dev/null || true' EXIT
 
 node scripts/probar-mencion-en-chats.mjs

@@ -98,10 +98,14 @@ try {
     );
     await caja.press("Enter");
     let filas = [];
-    for (let i = 0; i < 40 && !filas.length; i += 1) {
+    // La primera acción de un servidor recién arrancado tarda: se espera
+    // hasta 30 s, no 10.
+    const t0 = Date.now();
+    for (let i = 0; i < 120 && !filas.length; i += 1) {
         await delJefe.waitForTimeout(250);
         filas = await db.$queryRawUnsafe(`SELECT "personaId" FROM "acceso_por_mencion" WHERE "sessionId" = $1`, sesion.id).catch(() => []);
     }
+    console.log(`     (la nota tardó ${Date.now() - t0} ms)`);
     exigir(filas.length === 1 && filas[0].personaId === ana.id, "la nota le dio acceso a Ana");
     const nota = await db.internalNote.findFirst({ where: { sessionId: sesion.id } });
     exigir(Boolean(nota) && nota.mentionedUserIds.includes(ana.id), "quedó una NOTA interna, no un mensaje al cliente");
