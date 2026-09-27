@@ -490,6 +490,22 @@ const nuevoId = () => globalThis.crypto.randomUUID();
  * documento compartido de uno en uno. Se devuelven aparte a propósito: ese
  * espacio NO se alcanza —solo su documento—, y dárselo a `accesoAlDocumento`
  * como si se alcanzara abriría de par en par los demás documentos de dentro.
+ *
+ * ## Y una carpeta compartida entra como filas de ESPACIO, ya convertidas
+ *
+ * `permisos` no sale igual que entró: si hay algún `objetoTipo: "carpeta"`
+ * entre las filas de quien pregunta, aquí mismo se fabrica una fila SINTÉTICA
+ * de `objetoTipo: "espacio"` por cada espacio que esa carpeta agrupa —hoy—,
+ * y se añade a la lista. `accesoAlEspacio` no distingue una fila de verdad de
+ * una fabricada: recibe exactamente lo que recibiría si cada espacio se
+ * hubiera compartido de uno en uno, presente y futuro, sin que nadie tenga que
+ * saber que las carpetas existen.
+ *
+ * Solo cuenta la carpeta en la que **SU DUEÑA** archivó el espacio
+ * (`sinteticasDeCarpeta`): una cuenta puede archivar en su propia carpeta un
+ * espacio que solo tiene RECIBIDO —es su barra lateral, y está permitido—, y
+ * esa fila no puede propagar nada, o compartir esa carpeta re-compartiría lo
+ * ajeno con solo mover un icono.
  */
 export async function losEspaciosCandidatos(input: {
     cuenta: string;
@@ -527,16 +543,108 @@ export async function losEspaciosCandidatos(input: {
             : [];
         const porDocumento = espaciosDeEsosDocumentos.map((f) => f.espacioId);
 
+        const deCarpetas = permisos
+            .filter((p) => p.objetoTipo === "carpeta")
+            .map((p) => p.objetoId);
+
+        // Los espacios que una carpeta compartida PODRÍA alcanzar. De sobra a
+        // propósito: todavía no se sabe de quién es cada espacio, y esa es la
+        // comprobación que de verdad decide —más abajo, en
+        // `sinteticasDeCarpeta`—. Sobrar aquí no concede nada: solo hace que
+        // el candidato entre a la consulta de `doc_espacios` de abajo.
+        const espaciosDeEsasCarpetas = deCarpetas.length
+            ? await db.$queryRaw<{ espacioId: string }[]>`
+                SELECT DISTINCT "espacioId" FROM "doc_espacio_en_carpeta"
+                WHERE "carpetaId" = ANY(${deCarpetas}::text[])
+            `
+            : [];
+        const porCarpeta = espaciosDeEsasCarpetas.map((f) => f.espacioId);
+
         const espacios = await db.$queryRaw<Espacio[]>`
             SELECT * FROM "doc_espacios"
             WHERE "borradoEn" IS NULL
               AND ("cuentaId" = ${input.cuenta}
                 OR "id" = ANY(${deFuera}::text[])
-                OR "id" = ANY(${porDocumento}::text[]))
+                OR "id" = ANY(${porDocumento}::text[])
+                OR "id" = ANY(${porCarpeta}::text[]))
             ORDER BY "orden" ASC, "nombre" ASC
         `;
 
-        return { espacios, permisos, porDocumento };
+        const sinteticas = deCarpetas.length ? await sinteticasDeCarpeta(espacios, permisos) : [];
+
+        return { espacios, permisos: [...permisos, ...sinteticas], porDocumento };
+    });
+}
+
+/**
+ * Fabrica las filas de ESPACIO que le tocan a alguien por una carpeta
+ * compartida —solo la que archivó SU DUEÑA—.
+ *
+ * Aparte y no en línea porque la usan las dos puntas: aquí, en bloque para
+ * todo un árbol, y `losPermisosDelEspacioConSuCarpeta` la repite de uno en
+ * uno para abrir un solo espacio o documento. Con la regla escrita dos veces
+ * el día que se afine una la otra se queda atrás.
+ */
+async function sinteticasDeCarpeta(
+    espacios: Pick<Espacio, "id" | "cuentaId">[],
+    permisos: FilaDePermiso[],
+): Promise<FilaDePermiso[]> {
+    if (espacios.length === 0) return [];
+
+    const membresias = await db.$queryRaw<
+        Array<{ espacioId: string; cuentaId: string; carpetaId: string }>
+    >`
+        SELECT "espacioId", "cuentaId", "carpetaId" FROM "doc_espacio_en_carpeta"
+        WHERE "espacioId" = ANY(${espacios.map((e) => e.id)}::text[])
+    `;
+    const cuentaDelEspacio = new Map(espacios.map((e) => [e.id, e.cuentaId]));
+    const permisosDeCarpetas = permisos.filter((p) => p.objetoTipo === "carpeta");
+    if (permisosDeCarpetas.length === 0) return [];
+
+    const sinteticas: FilaDePermiso[] = [];
+    for (const fila of membresias) {
+        // Solo la fila de SU DUEÑA propaga: la de un receptor que archivó un
+        // espacio recibido en su propia carpeta es su barra lateral, no un
+        // permiso.
+        if (fila.cuentaId !== cuentaDelEspacio.get(fila.espacioId)) continue;
+        for (const permiso of permisosDeCarpetas) {
+            if (permiso.objetoId !== fila.carpetaId) continue;
+            sinteticas.push({ ...permiso, objetoTipo: "espacio", objetoId: fila.espacioId });
+        }
+    }
+    return sinteticas;
+}
+
+/**
+ * Las filas de permiso de UN espacio, con las de su carpeta ya convertidas.
+ *
+ * Es la versión de uno en uno de `sinteticasDeCarpeta`: `accesoAlEspacio`
+ * recibe exactamente lo que recibiría si el espacio se hubiera compartido
+ * suelto, y no necesita saber que las carpetas existen. La usan
+ * `accesoAEsteEspacio` y `accesoAEsteDocumento`.
+ */
+export async function losPermisosDelEspacioConSuCarpeta(
+    espacio: Pick<Espacio, "id" | "cuentaId">,
+): Promise<FilaDePermiso[]> {
+    return conLasTablas(async () => {
+        const [delEspacio, fila] = await Promise.all([
+            losPermisosDe({ objetoTipo: "espacio", objetoId: espacio.id }),
+            db.$queryRaw<Array<{ carpetaId: string }>>`
+                SELECT "carpetaId" FROM "doc_espacio_en_carpeta"
+                WHERE "espacioId" = ${espacio.id} AND "cuentaId" = ${espacio.cuentaId}
+                LIMIT 1
+            `,
+        ]);
+        const carpetaId = fila[0]?.carpetaId ?? null;
+        if (!carpetaId) return delEspacio;
+
+        const delaCarpeta = await losPermisosDe({ objetoTipo: "carpeta", objetoId: carpetaId });
+        const sinteticas: FilaDePermiso[] = delaCarpeta.map((p) => ({
+            ...p,
+            objetoTipo: "espacio",
+            objetoId: espacio.id,
+        }));
+        return [...delEspacio, ...sinteticas];
     });
 }
 
@@ -886,7 +994,7 @@ export async function elDocumento(id: string): Promise<Documento | null> {
 
 /** Los permisos que hay sobre unos objetos concretos. Para pintar el diálogo. */
 export async function losPermisosDe(input: {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
 }): Promise<FilaDePermiso[]> {
     return conLasTablas(async () => {
@@ -899,7 +1007,7 @@ export async function losPermisosDe(input: {
 }
 
 export async function ponerPermiso(input: {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
     sujetoTipo: SujetoDePermiso;
     sujetoId: string;
@@ -916,7 +1024,7 @@ export async function ponerPermiso(input: {
 }
 
 export async function quitarPermiso(input: {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
     sujetoTipo: SujetoDePermiso;
     sujetoId: string;
@@ -983,7 +1091,7 @@ export async function archivarDocumento(id: string, archivado: boolean): Promise
  *    relacionaría las dos cosas.
  */
 export async function reemplazarLasCuentas(input: {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
     destinos: Array<{ cuentaId: string; permiso: Permiso }>;
 }): Promise<void> {

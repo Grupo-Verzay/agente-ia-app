@@ -40,6 +40,25 @@
  *
  * Lo que no cambia es la otra mitad: **participa, no manda**. Un agente lee;
  * crear, borrar y repartir siguen siendo de quien gestiona la cuenta.
+ *
+ * ## Compartir una CARPETA: se convierte en filas de espacio, no en una regla nueva
+ *
+ * Una carpeta agrupa espacios de la propia cuenta (`doc_carpetas` +
+ * `doc_espacio_en_carpeta`, ver `lib/carpetas-de-documentacion.ts`). Compartirla
+ * tiene que dar acceso a todo lo que agrupa —presente y futuro— exactamente
+ * como si cada uno de esos espacios se hubiera compartido de uno en uno.
+ *
+ * Por eso **esta función no cambia**: quien resuelve las filas contra la base
+ * (`lib/documentacion-db.ts`) convierte cada permiso de `objetoTipo: "carpeta"`
+ * en una fila SINTÉTICA de `objetoTipo: "espacio"` para cada espacio que esa
+ * carpeta agrupa hoy. `accesoAlEspacio` recibe esas filas mezcladas con las de
+ * verdad y no tiene que saber que las carpetas existen — es la misma regla de
+ * siempre, «el espacio decide, el documento solo añade», con un tercer piso que
+ * solo alimenta al primero.
+ *
+ * Lo único que sí es nuevo aquí es `accesoALaCarpeta`: la carpeta MISMA —no lo
+ * que agrupa— nunca se recibe, así que decidir quién puede repartirla es una
+ * pregunta aparte y más simple.
  */
 
 import { canManageWorkspace } from "@/lib/workspace-roles";
@@ -54,6 +73,21 @@ export function comoPermiso(valor: unknown): Permiso | null {
     if (typeof valor !== "string") return null;
     const v = valor.trim().toLowerCase() as Permiso;
     return (PERMISOS as readonly string[]).includes(v) ? v : null;
+}
+
+export const OBJETOS_DE_PERMISO = ["espacio", "documento", "carpeta"] as const;
+export type ObjetoDePermiso = (typeof OBJETOS_DE_PERMISO)[number];
+
+/**
+ * Lo que llega del navegador NO decide qué se reparte a secas: se estrecha
+ * aquí, con `"espacio"` de respaldo —el que ya tenían las seis acciones
+ * copiado a mano, ternario a ternario— para no cambiarle el comportamiento a
+ * ninguna petición vieja que nunca mandó `objetoTipo`.
+ */
+export function comoObjetoTipoDePermiso(valor: unknown): ObjetoDePermiso {
+    if (valor === "documento") return "documento";
+    if (valor === "carpeta") return "carpeta";
+    return "espacio";
 }
 
 export const SUJETOS = ["persona", "cuenta"] as const;
@@ -113,11 +147,17 @@ export type DocumentoParaDecidir = {
 };
 
 export type FilaDePermiso = {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: ObjetoDePermiso;
     objetoId: string;
     sujetoTipo: SujetoDePermiso;
     sujetoId: string;
     permiso: Permiso;
+};
+
+/** Una carpeta, para decidir quién puede repartirla. */
+export type CarpetaParaDecidir = {
+    id: string;
+    cuentaId: string;
 };
 
 export type Acceso = {
@@ -319,6 +359,57 @@ export function puedeMandarEnElEspacio(
 export function puedeMandarEnElArbol(user: QuienMira): boolean {
     if (!user?.id) return false;
     return user.advisorRole !== "agente";
+}
+
+/* ─────────────────────────────── La carpeta ─────────────────────────────── */
+
+/**
+ * Quién puede REPARTIR una carpeta —decidir con quién se comparte.
+ *
+ * Es más estrecho que `puedeMandarEnElArbol`, a propósito. Aquella deja
+ * organizar el árbol —crear, renombrar, mover, borrar carpetas— a cualquiera
+ * que no sea un `agente`, porque es la barra lateral de cada persona: un
+ * miembro del equipo sin rol especial la usa a diario. Compartir es otra cosa:
+ * abre TODO lo que la carpeta agrupe —presente y futuro— a fuera de la cuenta,
+ * y eso es lo mismo que ya exige `accesoAlEspacio` para repartir un espacio
+ * suelto: solo quien administra la cuenta (`canManageWorkspace`), nunca un
+ * agente ni un miembro sin rol.
+ *
+ * Y **nunca sobre la carpeta de otra cuenta**: `doc_carpetas` no se recibe —lo
+ * que se recibe son sus espacios, vía `accesoAlEspacio` con las filas
+ * sintéticas de más abajo—, así que si la fila no es de esta cuenta no hay
+ * nada que repartir. El superadministrador de verdad la puede VER —por si
+ * algún día hace falta depurar algo— pero tampoco la GESTIONA si no es la
+ * suya: es el mismo reparto que ya tiene `accesoAlEspacio` en su rama de
+ * superadmin (`puedeGestionar: propio`).
+ */
+export function accesoALaCarpeta(
+    user: QuienMira,
+    carpeta: CarpetaParaDecidir,
+): Acceso | null {
+    if (!user?.id || !carpeta?.id) return null;
+
+    const cuenta = laCuentaDeQuienMira(user);
+    const propio = carpeta.cuentaId === cuenta;
+
+    if (esSuperAdminDeVerdad(user)) {
+        return {
+            cuentaId: carpeta.cuentaId,
+            recibido: !propio,
+            puedeEditar: true,
+            puedeGestionar: propio,
+        };
+    }
+
+    if (!propio) return null;
+
+    const manda = canManageWorkspace(user);
+    return {
+        cuentaId: carpeta.cuentaId,
+        recibido: false,
+        puedeEditar: manda,
+        puedeGestionar: manda,
+    };
 }
 
 /* ────────────────────────────── El documento ────────────────────────────── */

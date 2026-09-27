@@ -35,7 +35,7 @@ export function CompartirConCuentas({
 }: {
     abierto: boolean;
     setAbierto: (abierto: boolean) => void;
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
     nombre: string;
     alGuardar: () => void;

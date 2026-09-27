@@ -5,12 +5,14 @@ import { useDroppable } from "@dnd-kit/core";
 import {
     ArrowDown,
     ArrowUp,
+    Building2,
     ChevronRight,
     Ellipsis,
     Folder,
     FolderOpen,
     Pencil,
     Trash2,
+    Users,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { BorrarCarpetaDialog, CarpetaDialog } from "./Dialogos";
+import { PermisosDelObjeto } from "./PermisosDelObjeto";
+import { CompartirConCuentas } from "./CompartirConCuentas";
 import type { Carpeta } from "@/lib/carpetas-de-documentacion";
 
 /**
@@ -55,12 +59,28 @@ import type { Carpeta } from "@/lib/carpetas-de-documentacion";
  * Igual que en `EspacioDelArbol`, y por el mismo motivo: el conjunto entero se
  * guarda bajo UNA llave de `localStorage`, así que con el estado dentro de cada
  * carpeta varias escribiendo esa llave a la vez se pisarían.
+ *
+ * # Compartir la carpeta ENTERA: no es una regla nueva
+ *
+ * «Compartir con el equipo» y «Compartir con otra cuenta» son los MISMOS dos
+ * diálogos que ya usa `EspacioDelArbol`, con `objetoTipo="carpeta"`. Lo que
+ * decide quién ve qué al abrirla —que sus espacios y documentos, presentes y
+ * futuros, se vean como si cada uno se hubiera compartido a mano— vive en
+ * `documentacion-permisos.ts` y `documentacion-db.ts`, no aquí: esto es solo
+ * la fachada, igual que con un espacio.
+ *
+ * `puedeCompartir` es aparte de `puedeMandar` porque son dos preguntas
+ * distintas: mandar en el árbol —colocarlo, renombrarlo, borrarlo— lo puede
+ * cualquiera que no sea un `agente`; repartir permisos es más estrecho
+ * (`canManageWorkspace`), la misma puerta con la que ya se decide compartir un
+ * espacio.
  */
 export function CarpetaDelArbol({
     carpeta,
     cuantosEspacios,
     plegado,
     puedeMandar,
+    puedeCompartir,
     esLaPrimera,
     esLaUltima,
     alAlternar,
@@ -73,6 +93,7 @@ export function CarpetaDelArbol({
     cuantosEspacios: number;
     plegado: boolean;
     puedeMandar: boolean;
+    puedeCompartir: boolean;
     esLaPrimera: boolean;
     esLaUltima: boolean;
     alAlternar: () => void;
@@ -83,6 +104,8 @@ export function CarpetaDelArbol({
 }) {
     const [renombrando, setRenombrando] = useState(false);
     const [borrando, setBorrando] = useState(false);
+    const [compartiendoConElEquipo, setCompartiendoConElEquipo] = useState(false);
+    const [compartiendoConCuentas, setCompartiendoConCuentas] = useState(false);
 
     // La carpeta ENTERA es el sitio donde se suelta, no solo su cabecera: con
     // una carpeta plegada la cabecera es lo único que hay, y con una desplegada
@@ -141,7 +164,7 @@ export function CarpetaDelArbol({
                     )}
                 </button>
 
-                {puedeMandar && (
+                {(puedeMandar || puedeCompartir) && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -155,29 +178,49 @@ export function CarpetaDelArbol({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            {!esLaPrimera && (
+                            {puedeCompartir && (
+                                <>
+                                    <DropdownMenuItem
+                                        onSelect={() => setCompartiendoConElEquipo(true)}
+                                    >
+                                        <Users className="size-4" />
+                                        Compartir con el equipo
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={() => setCompartiendoConCuentas(true)}
+                                    >
+                                        <Building2 className="size-4" />
+                                        Compartir con otra cuenta
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                            {puedeMandar && !esLaPrimera && (
                                 <DropdownMenuItem onSelect={alSubir}>
                                     <ArrowUp className="size-4" />
                                     Subir
                                 </DropdownMenuItem>
                             )}
-                            {!esLaUltima && (
+                            {puedeMandar && !esLaUltima && (
                                 <DropdownMenuItem onSelect={alBajar}>
                                     <ArrowDown className="size-4" />
                                     Bajar
                                 </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onSelect={() => setRenombrando(true)}>
-                                <Pencil className="size-4" />
-                                Renombrar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onSelect={() => setBorrando(true)}
-                                className="text-destructive focus:text-destructive"
-                            >
-                                <Trash2 className="size-4" />
-                                Eliminar carpeta
-                            </DropdownMenuItem>
+                            {puedeMandar && (
+                                <>
+                                    <DropdownMenuItem onSelect={() => setRenombrando(true)}>
+                                        <Pencil className="size-4" />
+                                        Renombrar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={() => setBorrando(true)}
+                                        className="text-destructive focus:text-destructive"
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Eliminar carpeta
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
@@ -200,6 +243,25 @@ export function CarpetaDelArbol({
                 abierto={borrando}
                 onAbiertoChange={setBorrando}
                 alBorrar={alRefrescar}
+            />
+            {compartiendoConElEquipo && (
+                <PermisosDelObjeto
+                    objetoTipo="carpeta"
+                    objetoId={carpeta.id}
+                    nombre={carpeta.nombre}
+                    alCerrar={() => {
+                        setCompartiendoConElEquipo(false);
+                        void alRefrescar();
+                    }}
+                />
+            )}
+            <CompartirConCuentas
+                abierto={compartiendoConCuentas}
+                setAbierto={setCompartiendoConCuentas}
+                objetoTipo="carpeta"
+                objetoId={carpeta.id}
+                nombre={carpeta.nombre}
+                alGuardar={alRefrescar}
             />
 
             {!plegado && (

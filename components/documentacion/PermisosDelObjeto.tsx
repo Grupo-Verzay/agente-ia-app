@@ -74,7 +74,7 @@ export function PermisosDelObjeto({
     alCerrar,
     alCambiarRestringido,
 }: {
-    objetoTipo: "espacio" | "documento";
+    objetoTipo: "espacio" | "documento" | "carpeta";
     objetoId: string;
     nombre: string;
     restringido?: boolean;
