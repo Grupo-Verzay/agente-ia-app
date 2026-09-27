@@ -57,6 +57,12 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/ai-image" },
     { route: "/products" },
     { route: "/chats" },
+    // Correo: un canal APARTE de Chats y de una sola persona —quien conecta su
+    // Gmail, su Outlook o su correo de dominio propio—. Va justo detras de
+    // Chats porque es lo mismo que se hace ahi (leer y contestar) por otro
+    // canal. No se monta en ningun modulo: se asigna a mano, como `/cobros`, y
+    // la puerta esta en cada accion (`actions/correo-actions.ts`).
+    { route: "/correo" },
     { route: "/sessions" },
     { route: "/flow" },
     { route: "/workflow" },
