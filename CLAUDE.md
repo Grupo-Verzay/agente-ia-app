@@ -12380,6 +12380,35 @@ activar) sale ahora por la línea que toca a ESE cliente
 (`loadBillingDispatcherForUser`): a un cliente de reseller, por la de su
 reseller y nunca por la de Verzay, que es la regla que la pasarela ya cumplía.
 
+### Y al pagar la cuenta VUELVE, sin importar por qué quedó inactiva
+
+El pago solo volvía a habilitar la cuenta (`User.status`) si su acceso venía de
+`SUSPENDED`. Una cuenta deshabilitada por otro camino —el interruptor de
+Instancias, la cascada de un reseller, un «Activar» que solo tocaba el acceso—
+quedaba «Pagado / Activo» con `status` en falso, y eso es **invisible en
+Instancias**, **fuera de «Activos»** y **fuera del cobro diario**, que también
+pide `status: true` (`dondeEntraEnElCobro`, `lib/candidatos-del-cobro.ts`): su
+próximo cobro no salía nunca, sin ningún error.
+
+> **La única escritura que devuelve la cuenta es `devolverElAcceso`**
+> (`lib/devolver-el-acceso.server.ts`): habilitada siempre, **salvo
+> eliminada** (`deletedAt`; pagar no la resucita). La usan
+> `darElCicloPorPagado` (Marcar pagado, Aprobar, Wompi), «Activar», «Editar
+> pagos» cuando la fecha avanza, el trabajo diario al reactivar y la cascada
+> del reseller. **Si se añade otro camino que reactive, va por ahí.**
+
+Esto deshace media frase de arriba —«una cuenta que un administrador
+deshabilitó a mano estando al día no se habilita por pagar»—: ahora sí, porque
+así se pidió. Y la otra mitad: **Instancias enseña también las SUSPENDIDAS por
+impago** (`seVeEnInstancias` / `DONDE_SE_VE_EN_INSTANCIAS`,
+`lib/ciclo-pagado.ts`): es la pantalla donde se cobra, y al suspenderse
+desaparecían justo las que había que cobrar. Lo eliminado sigue sin salir.
+
+Lo prueba `lib/__tests__/acceso-al-pagar-db.test.mjs` (en el mismo banco), con
+su propio «antes» pinchado (`ANTES_ACCESO_REF`): los cinco caminos dejan la
+cuenta habilitada, visible y dentro del próximo cobro, y una eliminada no
+vuelve.
+
 Lo prueba `scripts/banco-ciclo-pagado.sh`: la regla sin base, y las cuatro
 puertas de verdad contra Postgres —las acciones y la ruta de Wompi con un
 evento firmado—, incluido el trabajo diario del día siguiente. `MODO=roto`

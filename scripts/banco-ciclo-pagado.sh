@@ -17,6 +17,9 @@ cd /home/user/agente-ia-app
 
 # El commit anterior a este cambio (merge del #975).
 ANTES_REF="${ANTES_REF:-d0c374d}"
+# El commit anterior a «al pagar, la cuenta vuelve sin importar el motivo»
+# (merge del #976). Lo afirma `acceso-al-pagar-db.test.mjs`.
+ANTES_ACCESO_REF="${ANTES_ACCESO_REF:-f4cfef1}"
 
 export PATH="/usr/lib/postgresql/16/bin:/opt/node22/bin:$PATH"
 PGDIR=/tmp/pgciclopagado
@@ -68,12 +71,34 @@ mkdir -p "$ANTES/lib/__tests__/fingido"
 cp lib/__tests__/fingido/auth-de-documentos.ts lib/__tests__/fingido/entrada-del-ciclo-pagado.ts \
    lib/__tests__/fingido/next-cache.ts lib/__tests__/fingido/react-con-cache.ts \
    "$ANTES/lib/__tests__/fingido/"
+# La entrada exporta también la consulta del cobro diario, que en ese árbol
+# vivía en línea con el mismo filtro: se copia tal cual.
+cp lib/candidatos-del-cobro.ts "$ANTES/lib/"
 empaquetar "$ANTES" "$SALIDA/ciclo-pagado-antes"
 git worktree remove --force "$ANTES"
 
+# El segundo «antes». `lib/candidatos-del-cobro.ts` no existía ahí: el cobro
+# diario tenía ESE MISMO filtro escrito en línea, así que se copia tal cual.
+ANTES=$PWD/lib/__tests__/.antes/acceso-al-pagar
+git worktree remove --force "$ANTES" 2>/dev/null || rm -rf "$ANTES"
+git worktree add --detach "$ANTES" "$ANTES_ACCESO_REF" >/dev/null 2>&1
+ln -s "$PWD/node_modules" "$ANTES/node_modules"
+mkdir -p "$ANTES/lib/__tests__/fingido"
+cp lib/__tests__/fingido/auth-de-documentos.ts lib/__tests__/fingido/entrada-del-ciclo-pagado.ts \
+   lib/__tests__/fingido/next-cache.ts lib/__tests__/fingido/react-con-cache.ts \
+   "$ANTES/lib/__tests__/fingido/"
+cp lib/candidatos-del-cobro.ts "$ANTES/lib/"
+empaquetar "$ANTES" "$SALIDA/acceso-al-pagar-antes"
+git worktree remove --force "$ANTES"
+
 node --test --test-concurrency=1 lib/__tests__/ciclo-pagado.test.mjs \
-            lib/__tests__/ciclo-pagado-db.test.mjs "$@"
+            lib/__tests__/ciclo-pagado-db.test.mjs \
+            lib/__tests__/acceso-al-pagar-db.test.mjs "$@"
 
 echo
 echo "── con el código de ANTES ($ANTES_REF): tiene que afirmar los fallos ──"
 MODO=roto node --test --test-concurrency=1 lib/__tests__/ciclo-pagado-db.test.mjs
+
+echo
+echo "── con el código de ANTES ($ANTES_ACCESO_REF): la cuenta pagada se quedaba invisible ──"
+MODO=roto node --test --test-concurrency=1 lib/__tests__/acceso-al-pagar-db.test.mjs

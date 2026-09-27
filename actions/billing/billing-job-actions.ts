@@ -22,7 +22,8 @@ import { SERVER_TIME_ZONE } from "@/lib/utils";
 import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
-import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
+import { dondeEntraEnElCobro } from "@/lib/candidatos-del-cobro";
+import { ResponseFormat, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
 // El borrado de la cuenta a los 30 dias es el UNICO sitio donde la linea se
 // borra de verdad: ahi la fila de `User` se va. La suspension por impago ya no
 // borra nada (ver `lib/robot-por-facturacion.ts`).
@@ -224,20 +225,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         }
 
         const candidates = await db.userBilling.findMany({
-            where: {
-                user: {
-                    status: true,
-                    // El cron de plataforma NO gestiona clientes de resellers:
-                    // su ciclo de cobro lo maneja el reseller.
-                    demoResellerId: null,
-                },
-                dueDate: {
-                    not: null,
-                    lte: endOfDay(
-                        new Date(now.getTime() + SOON_DAYS_BILLING * 24 * 60 * 60 * 1000)
-                    ),
-                },
-            },
+            where: dondeEntraEnElCobro(now),
             select: {
                 id: true,
                 userId: true,
