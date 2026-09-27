@@ -17916,6 +17916,67 @@ Tres cosas del arnés de navegador que costaron su vuelta:
    hosts de Google que la salida de este equipo deniega.
 
 
+## Correo: un canal APARTE de Chats, y de UNA persona
+
+`/correo` lee la bandeja de entrada, abre un correo con sus adjuntos y lo
+responde, por **Gmail**, **Outlook** o un **correo de dominio propio**
+(IMAP + SMTP). Nada más en esta versión: ni carpetas, ni borradores, ni
+enviar uno nuevo.
+
+**Lo que había, y conviene saberlo antes de decir «como Calendario»:** Google
+Calendario y Hojas de cálculo **no** se conectan con un botón: usan una
+**cuenta de servicio** (`GOOGLE_SERVICE_ACCOUNT_JSON`) con la que el cliente
+comparte su calendario u hoja. Para leer el correo de alguien eso no existe,
+así que el botón de autorización (OAuth) se escribió de cero y **necesita dos
+parejas de llaves nuevas en el stack**:
+
+| variable | para |
+| --- | --- |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | «Conectar Gmail» |
+| `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | «Conectar Outlook» |
+
+La dirección de vuelta que hay que registrar en Google Cloud y en Azure es
+`https://<dominio>/api/correo/oauth/gmail` y `…/oauth/outlook`. **Sin las
+llaves el botón sale apagado y dice por qué** (`hayLlavesDe`); el dominio
+propio funciona sin nada.
+
+Cinco reglas que hay que mantener:
+
+1. **El correo NO pasa por el camino de Chats.** No se guarda ni un mensaje:
+   la tabla `correo_cuentas` guarda la CONEXIÓN y los correos se leen del
+   proveedor al abrir. Así es imposible que un correo cree una ficha de lead,
+   entre en el reparto automático o salga en la bandeja de otro. El barrido del
+   banco falla si un fichero de Correo nombra `persistChatMessage`,
+   `chat_messages`, `Session`, el reparto o las acciones de Chats, y la mitad de
+   Postgres cuenta las filas de esas tablas antes y después.
+2. **Es de la PERSONA que lo conectó, y de nadie más** —ni el dueño de la
+   cuenta, ni un administrador, ni el súper administrador—. Toda consulta de
+   `correo_cuentas` lleva `"personaId" = ${personaId}` en el `WHERE` (lo exige
+   el barrido), la persona sale de la sesión (`laPersonaQueActua`) y ninguna
+   acción acepta un `userId`. Con el id del buzón de otro se contesta lo mismo
+   que con uno inventado. Dentro de otra cuenta con «Ingresar» se ve el PROPIO.
+3. **Las credenciales van selladas** (AES-256-GCM, `lib/correo-cifrado.server.ts`)
+   con una llave derivada de `AUTH_SECRET`: sin variable nueva. Si
+   `AUTH_SECRET` cambia, los buzones piden volver a conectar.
+4. **Leer no cambia nada en el buzón.** Gmail va con `gmail.readonly` +
+   `gmail.send`; para que los tres digan lo mismo, Outlook no marca como leído e
+   IMAP abre la bandeja en solo lectura.
+5. **El HTML de un correo se pinta en un `iframe` con `sandbox` sin
+   `allow-scripts`, y con su CSP dentro** (`elDocumentoDelCorreo`): dos
+   cerrojos. Y a quién va una respuesta lo decide el SERVIDOR leyendo el
+   original (`Reply-To` o el remitente): el navegador manda el texto y el id.
+
+**En el menú**: la ruta entra en el desplegable de «Editar módulo», justo
+detrás de `/chats`, con el icono `EnvelopeIcon`, y **no se monta en ningún
+módulo**: se asigna a mano, como `/cobros`. La conexión vive en la propia
+pantalla y no en Conexiones: aquella es de las líneas de la CUENTA y el correo
+es de una persona.
+
+Lo prueba `scripts/banco-correo.sh`: reglas y barrido, las acciones y las rutas
+contra Postgres con Gmail y Outlook fingidos en el `fetch` e IMAP/SMTP en el
+socket, y la pantalla en Chromium. `MODO=roto` afirma el diseño ingenuo: un
+buzón buscado por su id a secas se lo entrega a cualquiera.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
