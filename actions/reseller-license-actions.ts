@@ -4,8 +4,23 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
-import { isAdminLike, isReseller } from "@/lib/rbac";
-import { cuentaQueManda, rolQueManda } from "@/lib/cuenta-que-manda";
+import { isReseller } from "@/lib/rbac";
+import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
+import { comoEnteroNoNegativo } from "@/lib/numeros-de-la-configuracion";
+import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
+
+/**
+ * ¿Es esta cuenta un reseller? Las acciones de la casa reciben su id del
+ * navegador: sin mirarlo, un pool de licencias o un límite de demos se colgaba
+ * de cualquier cuenta —un cliente, la propia casa— y ya no salía en ninguna
+ * pantalla desde la que quitarlo.
+ */
+async function esUnReseller(id: string): Promise<boolean> {
+  if (!id) return false;
+  const fila = await db.user.findFirst({ where: { id, role: "reseller" }, select: { id: true } });
+  return !!fila;
+}
 import { getEnrichedClients } from "@/actions/userClientDataActions";
 import type { ClientInterface } from "@/lib/types";
 
@@ -35,6 +50,12 @@ export type ResellerWithPools = {
 
 export async function getResellersWithPools() {
   try {
+    // La lista de resellers de la plataforma —con sus nombres, correos y
+    // licencias— es de la casa. No preguntaba NADA: cualquiera con sesión la
+    // leía entera.
+    if (!(await quienMandaEnLaCasa("getResellersWithPools"))) {
+      return { success: false, data: [] as ResellerWithPools[] };
+    }
     const resellers = await db.user.findMany({
       where: { role: "reseller" },
       select: {
@@ -107,13 +128,16 @@ export async function assignLicenses(
   totalLicenses: number
 ) {
   try {
-    const user = await currentUser();
-    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
+    if (!(await quienMandaEnLaCasa("assignLicenses"))) return { success: false, message: "Sin permisos" };
+    if (!(await esUnReseller(resellerUserId))) return { success: false, message: "Esa cuenta no es un reseller." };
+
+    const total = comoEnteroNoNegativo(totalLicenses);
+    if (total === null) return { success: false, message: "El total de licencias no es válido" };
 
     await db.resellerLicensePool.upsert({
       where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
-      create: { resellerUserId, subscriptionPlanId, totalLicenses, usedLicenses: 0 },
-      update: { totalLicenses },
+      create: { resellerUserId, subscriptionPlanId, totalLicenses: total, usedLicenses: 0 },
+      update: { totalLicenses: total },
     });
 
     revalidatePath("/admin/reseller");
@@ -134,8 +158,8 @@ export async function migrateLegacyClientsToPool(
   subscriptionPlanId: string,
 ) {
   try {
-    const user = await currentUser();
-    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
+    if (!(await quienMandaEnLaCasa("migrateLegacyClientsToPool"))) return { success: false, message: "Sin permisos" };
+    if (!(await esUnReseller(resellerUserId))) return { success: false, message: "Esa cuenta no es un reseller." };
 
     const pool = await db.resellerLicensePool.findUnique({
       where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
@@ -149,6 +173,19 @@ export async function migrateLegacyClientsToPool(
     const legacyUserIds = legacy.map((l) => l.userId).filter(Boolean) as string[];
     if (legacyUserIds.length === 0) {
       return { success: false, message: "No hay clientes del método antiguo para migrar." };
+    }
+
+    // Un cliente cuelga de UN reseller. Si alguno de estos ya es de otro por el
+    // camino nuevo (`demoResellerId`), migrarlo lo movería de reseller sin que
+    // nadie lo pidiera: se para y se dice.
+    const deOtro = await db.user.count({
+      where: { id: { in: legacyUserIds }, demoResellerId: { not: resellerUserId } },
+    });
+    if (deOtro > 0) {
+      return {
+        success: false,
+        message: `${deOtro} de estos cliente(s) ya pertenece(n) a otro reseller. Quítalos de uno de los dos primero.`,
+      };
     }
 
     const used = await db.user.count({
@@ -195,8 +232,7 @@ export async function migrateLegacyClientsToPool(
 
 export async function deleteLicensePool(poolId: string) {
   try {
-    const user = await currentUser();
-    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
+    if (!(await quienMandaEnLaCasa("deleteLicensePool"))) return { success: false, message: "Sin permisos" };
 
     await db.resellerLicensePool.delete({ where: { id: poolId } });
 
@@ -212,12 +248,15 @@ export async function deleteLicensePool(poolId: string) {
 
 export async function updateDemoLimit(resellerUserId: string, demoLimit: number) {
   try {
-    const user = await currentUser();
-    if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "Sin permisos" };
+    if (!(await quienMandaEnLaCasa("updateDemoLimit"))) return { success: false, message: "Sin permisos" };
+    if (!(await esUnReseller(resellerUserId))) return { success: false, message: "Esa cuenta no es un reseller." };
+
+    const limite = comoEnteroNoNegativo(demoLimit);
+    if (limite === null) return { success: false, message: "El límite de demos no es válido" };
 
     await db.reseller.updateMany({
       where: { resellerid: resellerUserId },
-      data: { demoLimit },
+      data: { demoLimit: limite },
     });
 
     revalidatePath("/admin/reseller");
@@ -487,8 +526,9 @@ export async function createClientAccount(data: {
 // incluya a los clientes creados antes de este cambio.
 export async function reconcileResellerLicenses() {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(await rolQueManda(me))) return { success: false, message: "Sin permisos", updated: 0 };
+    if (!(await quienMandaEnLaCasa("reconcileResellerLicenses"))) {
+      return { success: false, message: "Sin permisos", updated: 0 };
+    }
 
     const clients = await db.user.findMany({
       where: { isDemo: false, demoResellerId: { not: null }, resellerSubscriptionPlanId: null },
@@ -636,7 +676,9 @@ export async function getPlanChangeOptions(clientId: string) {
     // POR el reseller, asi que la comparacion es contra la CUENTA y no contra su
     // propia fila: con `me.id` se le caia el permiso sobre sus propios clientes.
     const manda = await cuentaQueManda(me);
-    const puede = isAdminLike(manda.role) || (isReseller(manda.role) && resellerUserId === manda.id);
+    // La casa, con la MISMA puerta que el resto de la configuración de la
+    // plataforma; o el reseller dueño del cliente.
+    const puede = (await mandaEnLaCasaDeVerdad(me)) || (isReseller(manda.role) && resellerUserId === manda.id);
     if (!puede) return { success: false, message: "Sin permisos sobre este cliente.", data: null };
 
     const pools = await db.resellerLicensePool.findMany({
@@ -710,7 +752,9 @@ export async function changeClientPlan(clientId: string, subscriptionPlanId: str
     // POR el reseller, asi que la comparacion es contra la CUENTA y no contra su
     // propia fila: con `me.id` se le caia el permiso sobre sus propios clientes.
     const manda = await cuentaQueManda(me);
-    const puede = isAdminLike(manda.role) || (isReseller(manda.role) && resellerUserId === manda.id);
+    // La casa, con la MISMA puerta que el resto de la configuración de la
+    // plataforma; o el reseller dueño del cliente.
+    const puede = (await mandaEnLaCasaDeVerdad(me)) || (isReseller(manda.role) && resellerUserId === manda.id);
     if (!puede) return { success: false, message: "Sin permisos sobre este cliente." };
 
     if (client.isDemo) {

@@ -1,7 +1,7 @@
 import { CreditMain } from "./_components";
 import AccessDenied from "@/app/AccessDenied";
 import { currentUser } from "@/lib/auth";
-import { isAdminLike } from "@/lib/rbac";
+import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
 
 interface Props {
   searchParams: {
@@ -12,7 +12,9 @@ interface Props {
 const CreditPage = async ({ searchParams }: Props) => {
   const user = await currentUser();
 
-  if (!user || !isAdminLike(user.role)) {
+  // Los créditos de cada plan son de la plataforma: la MISMA puerta que
+  // `getAllPlanConfigs` y `updatePlanConfigAction` (`lib/mando-de-la-casa.ts`).
+  if (!(await mandaEnLaCasaDeVerdad(user))) {
     return <AccessDenied />;
   }
 

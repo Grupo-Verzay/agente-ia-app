@@ -23,7 +23,7 @@ export default async function ExternalDataPage() {
   }
 
   const resClients = isAdminOrReseller(cuenta.role)
-    ? await getClientsForSelector(cuenta.role === 'reseller' ? { resellerId: cuenta.id } : undefined)
+    ? await getClientsForSelector() // el alcance lo pone la sesión, no un filtro
     : { data: [] };
 
   const clients = resClients?.data ?? [];

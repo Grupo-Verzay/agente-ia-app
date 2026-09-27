@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 
 export type FeatureSection = {
   title: string;
@@ -150,6 +151,11 @@ export async function upsertPlanDetail(
   data: UpsertPlanDetailInput
 ) {
   try {
+    // La ficha de venta de un plan es de la plataforma: la cambia la casa
+    // (`lib/mando-de-la-casa.ts`). Leerla sigue abierto —es la landing—.
+    if (!(await quienMandaEnLaCasa("upsertPlanDetail"))) {
+      return { success: false, message: "No autorizado" };
+    }
     const payload = {
       heroTitle: data.heroTitle ?? null,
       heroSubtitle: data.heroSubtitle ?? null,

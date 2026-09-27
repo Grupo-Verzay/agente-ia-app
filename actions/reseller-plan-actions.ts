@@ -5,7 +5,9 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { getActiveSubscriptionPlans, getAllSubscriptionPlans, type SubscriptionPlanItem } from "./subscription-plan-actions";
+import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "./subscription-plan-actions";
+import { leerLosPlanes } from "@/lib/planes-de-suscripcion.server";
+import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 
 export type ResellerPlanItem = {
   id: string;
@@ -321,10 +323,18 @@ export async function adminUpdateResellerProfile(resellerUserId: string, data: {
   businessName: string;
 }) {
   try {
-    const user = await currentUser();
-    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    // La misma puerta que el resto de la configuración de la plataforma
+    // (`lib/mando-de-la-casa.ts`), y no el rol de la persona: con ese, el
+    // administrador del equipo de la casa se quedaba fuera y un superadmin
+    // dentro de un cliente por «Ingresar» entraba.
+    if (!(await quienMandaEnLaCasa("adminUpdateResellerProfile"))) {
       return { success: false, message: "No autorizado" };
     }
+    const esReseller = await db.user.findFirst({
+      where: { id: resellerUserId, role: "reseller" },
+      select: { id: true },
+    });
+    if (!esReseller) return { success: false, message: "Esa cuenta no es un reseller." };
     const slug = data.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     if (!slug) return { success: false, message: "Slug inválido" };
 
@@ -418,7 +428,9 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
         orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
       }),
       getActiveSubscriptionPlans(),
-      getAllSubscriptionPlans(),
+      // Sin la acción: esta página es PÚBLICA, y `getAllSubscriptionPlans` ya
+      // pide ser de la casa o reseller. Las plantillas se leen sin mayorista.
+      leerLosPlanes(undefined, { conMayorista: false }).then((data) => ({ success: true, data })),
       db.user.findUnique({
         where: { id: resellerUserId },
         select: { notificationNumber: true, meetingUrl: true, faviconUrl: true },

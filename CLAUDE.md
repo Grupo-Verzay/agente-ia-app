@@ -1394,6 +1394,56 @@ verdad contra Postgres con tres cuentas —la dueña, su hija y una ajena—. En
 fuga**: la ajena lee las notas, toma el chat, reescribe el entrenamiento y deja
 el flujo sin un solo paso.
 
+## La configuración de la PLATAFORMA es de la casa, y lo dice UNA puerta
+
+Precios y créditos de los planes, su ficha de venta, las cuentas bancarias y
+métodos de pago, y los resellers —su lista, sus licencias, su perfil y qué
+clientes cuelgan de cada uno—. Nada de eso es de una cuenta: lo que se toca ahí
+lo ven y lo pagan todos los clientes.
+
+Las pantallas del panel lo preguntaban y **las acciones de detrás no**:
+`upsertSubscriptionPlan`, `savePaymentMethodConfig`, `upsertPlanDetail`,
+`getAllPaymentMethodConfigs` y `getResellersWithPools` contestaban a cualquiera
+con sesión, así que un cliente cambiaba el precio de un plan o el número de
+cuenta al que pagan todos, y leía la lista de resellers con nombres, correos y
+licencias. Y las que sí preguntaban lo hacían cada una a su manera (`user.role`,
+`rolQueManda` o nada).
+
+> **Quién manda en la casa lo dice `mandaEnLaCasaDeVerdad`
+> (`lib/mando-de-la-casa.ts`)**: la cuenta por la que se actúa es `admin` o
+> `super_admin`, o es el súper administrador de verdad. Es la MISMA fórmula que
+> Analítica (`puedeVerLaAnaliticaDeLaCasa` delega ahí). Las acciones entran por
+> `quienMandaEnLaCasa` (`lib/puerta-de-la-casa.ts`), que avisa al rechazar, y
+> las páginas preguntan con la misma función. **Si se añade otra acción de
+> configuración de la plataforma, va por ahí.**
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que se queda abierto lo es a propósito y lo dice**: los planes y
+   métodos de pago ACTIVOS (la landing y /planes), la ficha de venta, y la marca
+   pública de un reseller. La lista está en el barrido del banco, con su motivo.
+2. **El precio MAYORISTA no viaja fuera de la casa.** `leerLosPlanes`
+   (`lib/planes-de-suscripcion.server.ts`, sin endpoint) lo quita salvo para la
+   casa; la landing pública de un reseller lee de ahí y no de la acción.
+3. **Al navegador de Resellers llega la ficha corta** (`CAMPOS_DE_LA_FICHA`:
+   id, nombre, correo, empresa). Iba la fila entera de `User`, con la contraseña
+   cifrada y las claves, en la lista de resellers y en la de clientes.
+4. **Un cliente cuelga de UN reseller o de ninguno**, por los dos caminos
+   (`reseller` y `demoResellerId`): lo decide `puedeAsignarseAlReseller`
+   (`lib/asignacion-de-reseller.ts`), dentro de una transacción con candado por
+   cliente para que dos pestañas no lo asignen a dos a la vez. «Sin asignar»
+   sale de la misma regla: ni equipo de otra cuenta, ni eliminados.
+5. **El selector de clientes de Datos externos toma el alcance de la SESIÓN**,
+   nunca del filtro que llega (`lib/selector-de-clientes.ts`): la casa, las
+   cuentas cliente de la plataforma; un reseller, su cartera; nadie más, nada.
+   Sin filtro devolvía todos los usuarios de la plataforma.
+
+Lo prueba `scripts/banco-configuracion-de-la-casa.sh`: lo puro y un barrido de
+que cada acción de la casa pasa por la puerta, y las acciones de verdad contra
+Postgres con un cliente, un agente, un reseller y un súper admin dentro de un
+cliente por «Ingresar». `MODO=roto` empaqueta las mismas pruebas contra
+`ANTES_REF` y afirma los fallos.
+
 ## Las notas son de la PERSONA, no de la cuenta
 
 Un administrador comparte unas notas con su equipo. Todo bien en `/notas`. Pero
