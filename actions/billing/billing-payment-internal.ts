@@ -25,18 +25,15 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { PaymentSource } from "@prisma/client";
-import { renovarLosCreditos } from "@/lib/renovar-creditos";
 
-import {
-    getBillingUserRecord,
-    loadBillingDispatcherForUser,
-    sendBillingStateChangeMessage,
-    setUserBillingWebhookEnabled,
-} from "./helpers/billing-notifications.server";
-import { toDate } from "./helpers/billing-helpers";
-// Ver `lib/robot-por-facturacion.ts`: al vencer se apaga el agente y la sesion
-// de WhatsApp se queda viva, asi que al pagar no hay QR que reescanear.
-import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
+// Un ciclo pagado se escribe en UN sitio para los cuatro caminos por los que se
+// paga (ver `lib/ciclo-pagado.ts`). Aquí vivían `markUserAsPaidInternal` y
+// `setUserBillingDueDateInternal`, que hacían cada una la mitad; «Marcar
+// pagado» de Instancias tenía su propia copia de la primera y ninguna de la
+// segunda, y por eso no movía el vencimiento.
+import { darElCicloPorPagado, avisarDelCambioDeCobro } from "@/lib/ciclo-pagado.server";
+import { elSiguienteVencimiento } from "@/lib/ciclo-pagado";
+import { activarLaSuscripcionPagadaPorWompi } from "@/lib/suscripcion-activa.server";
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -57,140 +54,6 @@ export type ConfirmPaymentResult = {
     newDueDate?: string;
     alreadyProcessed?: boolean;
 };
-
-// ---------------------------------------------------------------------------
-// Helpers privados
-// ---------------------------------------------------------------------------
-
-async function runStatusSideEffects(args: {
-    userId: string;
-    previousBillingStatus?: string | null;
-    previousAccessStatus?: string | null;
-}) {
-    const updated = await getBillingUserRecord(args.userId);
-    if (!updated) return;
-
-    const changed =
-        updated.billingStatus !== (args.previousBillingStatus ?? null) ||
-        updated.accessStatus !== (args.previousAccessStatus ?? null);
-
-    if (!changed) return;
-
-    const dispatcher = await loadBillingDispatcherForUser(updated.userId);
-
-    // Encendido SIEMPRE: el webhook es lo que trae los avisos en vivo y lo que
-    // guarda el historial, y apagarlo al suspender dejaba la linea sin las dos
-    // cosas. Lo que calla al agente es el Robot, aqui debajo.
-    await setUserBillingWebhookEnabled({
-        userId: updated.userId,
-        enable: true,
-    });
-
-    await sendBillingStateChangeMessage({
-        billing: updated,
-        dispatcher,
-        source: "payment-confirm-internal",
-    });
-
-    const wasJustSuspended =
-        args.previousAccessStatus !== "SUSPENDED" && updated.accessStatus === "SUSPENDED";
-    if (wasJustSuspended) {
-        await apagarElRobotPorImpago(updated.userId);
-    }
-
-    const wasReactivated =
-        args.previousAccessStatus === "SUSPENDED" && updated.accessStatus === "ACTIVE";
-    if (wasReactivated) {
-        await devolverElRobotAlPagar(updated.userId);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// markUserAsPaidInternal
-// ---------------------------------------------------------------------------
-
-export async function markUserAsPaidInternal(
-    userId: string,
-    options: { runSideEffects?: boolean } = {}
-) {
-    const now = new Date();
-    const existing = await db.userBilling.findUnique({ where: { userId } });
-
-    await db.userBilling.upsert({
-        where: { userId },
-        create: {
-            userId,
-            currencyCode: "COP",
-            billingStatus: "PAID",
-            accessStatus: "ACTIVE",
-            lastPaymentAt: now,
-            graceDays: 0,
-            serviceStartAt: now,
-            serviceEndAt: null,
-        },
-        update: {
-            billingStatus: "PAID",
-            accessStatus: "ACTIVE",
-            lastPaymentAt: now,
-            suspendedAt: null,
-            suspendedReason: null,
-            serviceStartAt: existing?.serviceStartAt ?? now,
-            serviceEndAt: null,
-        },
-    });
-
-    if (options.runSideEffects !== false) {
-        await runStatusSideEffects({
-            userId,
-            previousBillingStatus: existing?.billingStatus ?? null,
-            previousAccessStatus: existing?.accessStatus ?? null,
-        });
-    }
-}
-
-// ---------------------------------------------------------------------------
-// setUserBillingDueDateInternal
-// ---------------------------------------------------------------------------
-
-export async function setUserBillingDueDateInternal(userId: string, newDueDate: Date) {
-    // Los créditos renuevan CON el plan: aquí se reponen.
-    //
-    // Antes esto movía `dueDate` y `serviceEndsAt` y dejaba `IaCredit` donde
-    // estuviera, así que en Perfil › Cuenta salían dos fechas distintas para lo
-    // mismo —«Vencimiento 27 de septiembre» y «Renovación 14 de octubre»— y
-    // cada pago ensanchaba la diferencia.
-    //
-    // Lo que se ENSEÑA ya sale de una sola fuente (`lib/fecha-de-renovacion.ts`),
-    // pero la fila se mueve igual para que no mienta a quien la lea por otro
-    // lado — y ahora, además, **se repone el consumo**: ver
-    // `renovarLosCreditos`.
-    //
-    // Va antes de la escritura de facturación y nunca revienta: **un fallo aquí
-    // no puede tumbar el cobro**, que es lo que de verdad importa de esta
-    // función.
-    await renovarLosCreditos(userId, newDueDate);
-
-    await db.userBilling.upsert({
-        where: { userId },
-        create: {
-            userId,
-            currencyCode: "COP",
-            billingStatus: "PAID",
-            accessStatus: "ACTIVE",
-            dueDate: newDueDate,
-            serviceEndsAt: newDueDate,
-            graceDays: 0,
-            lastReminderAt: null,
-            lastReminderDueDate: null,
-        },
-        update: {
-            dueDate: newDueDate,
-            serviceEndsAt: newDueDate,
-            lastReminderAt: null,
-            lastReminderDueDate: null,
-        },
-    });
-}
 
 // ---------------------------------------------------------------------------
 // createPaymentTransaction — crea el registro en FinanceTransaction
@@ -356,22 +219,29 @@ export async function confirmPaymentInternal(
         }
     }
 
-    // 3. Calcular nueva fecha de vencimiento
-    const licenseDays = billing?.licenseDays ?? 30;
-    const baseDueDate = billing?.dueDate ? new Date(billing.dueDate) : new Date();
-    const now = new Date();
-    // Si la dueDate actual ya venció, la nueva base es hoy
-    const baseForCalculation = baseDueDate > now ? baseDueDate : now;
-    const newDueDate = new Date(baseForCalculation);
-    newDueDate.setDate(newDueDate.getDate() + licenseDays);
+    // 3. Hasta cuándo queda pagado: la MISMA cuenta que «Marcar pagado».
+    const newDueDate = elSiguienteVencimiento(billing ?? {});
 
-    // 4. Marcar como pagado y extender la fecha
-    await markUserAsPaidInternal(clientUserId, { runSideEffects: false });
-    await setUserBillingDueDateInternal(clientUserId, newDueDate);
-    await runStatusSideEffects({
+    // 3.b. Si el cliente pidió un plan en /planes y eligió Wompi, esa
+    // suscripción se quedaba en «Pendiente de pago» para siempre: nadie la
+    // miraba al entrar el dinero. Se activa ANTES de escribir el ciclo, porque
+    // es de ella de donde sale el cupo de créditos que se repone.
+    if (source === "WOMPI_WEBHOOK") {
+        await activarLaSuscripcionPagadaPorWompi({
+            userId: clientUserId,
+            inicio: new Date(),
+            vence: newDueDate,
+            nota: `Wompi · ${externalReference}`,
+        });
+    }
+
+    // 4. Pagado, con el vencimiento movido y los créditos repuestos.
+    await darElCicloPorPagado(clientUserId, { vence: newDueDate });
+    await avisarDelCambioDeCobro({
         userId: clientUserId,
         previousBillingStatus: billing?.billingStatus ?? null,
         previousAccessStatus: billing?.accessStatus ?? null,
+        source: "payment-confirm-internal",
     });
 
     // 5. Registrar la transacción financiera

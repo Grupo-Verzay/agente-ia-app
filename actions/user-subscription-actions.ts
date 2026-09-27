@@ -6,6 +6,9 @@ import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
 import { rolQueManda } from "@/lib/cuenta-que-manda";
 import { revalidatePath } from "next/cache";
+import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+import { darElCicloPorPagado, avisarDelCambioDeCobro } from "@/lib/ciclo-pagado.server";
+import { activarLaSuscripcion, SUSCRIPCION_PENDIENTE } from "@/lib/suscripcion-activa.server";
 
 export type UserSubscriptionWithPlan = {
   id: string;
@@ -112,7 +115,7 @@ export async function getMyActiveSubscription() {
 }
 
 export async function getAllSubscriptionsAdmin(filters?: {
-  status?: SubscriptionStatus;
+  status?: SubscriptionStatus | SubscriptionStatus[];
   userId?: string;
 }) {
   const user = await currentUser();
@@ -121,7 +124,9 @@ export async function getAllSubscriptionsAdmin(filters?: {
   try {
     const subs = await db.userSubscription.findMany({
       where: {
-        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.status
+          ? { status: Array.isArray(filters.status) ? { in: filters.status } : filters.status }
+          : {}),
         ...(filters?.userId ? { userId: filters.userId } : {}),
       },
       include: {
@@ -153,42 +158,52 @@ export async function approveSubscription(
   const user = await currentUser();
   if (!user || !isAdminLike(await rolQueManda(user))) return { success: false, message: "No autorizado" };
 
+  const inicio = new Date(opts.startDate);
+  const vence = new Date(opts.expiresAt);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(vence.getTime())) {
+    return { success: false, message: "Las fechas no son válidas." };
+  }
+  if (vence.getTime() <= inicio.getTime()) {
+    return { success: false, message: "El vencimiento tiene que ser posterior al inicio." };
+  }
+
   try {
-    const sub = await db.userSubscription.update({
+    const actual = await db.userSubscription.findUnique({
       where: { id: subscriptionId },
-      data: {
-        status: SubscriptionStatus.ACTIVE,
-        approvedBy: user.id,
-        approvedAt: new Date(),
-        startDate: opts.startDate,
-        expiresAt: opts.expiresAt,
-        adminNotes: opts.adminNotes ?? null,
-      },
-      include: { subscriptionPlan: true },
+      select: { status: true, userId: true },
     });
-
-    // Sincronizar plan en User y créditos IaCredit
-    await db.user.update({
-      where: { id: sub.userId },
-      data: { plan: sub.subscriptionPlan.plan },
-    });
-
-    const renewalDate = new Date(opts.expiresAt);
-    const existingCredit = await db.iaCredit.findUnique({ where: { userId: sub.userId } });
-    if (existingCredit) {
-      await db.iaCredit.update({
-        where: { userId: sub.userId },
-        data: { total: sub.subscriptionPlan.credits, used: 0, renewalDate },
-      });
-    } else {
-      await db.iaCredit.create({
-        data: { userId: sub.userId, total: sub.subscriptionPlan.credits, used: 0, renewalDate },
-      });
+    if (!actual) return { success: false, message: "Suscripción no encontrada." };
+    // Solo lo que espera. Volver a aprobar una activa sería regalar otro mes
+    // de créditos con un doble clic.
+    if (!SUSCRIPCION_PENDIENTE.includes(actual.status)) {
+      return { success: false, message: "Esta suscripción ya no está pendiente." };
     }
+
+    await activarLaSuscripcion({
+      id: subscriptionId,
+      inicio,
+      vence,
+      aprobadoPor: laPersonaQueActua(user).id,
+      nota: opts.adminNotes ?? null,
+    });
+
+    // Aprobar es un ciclo pagado, igual que Wompi o «Marcar pagado»: el
+    // vencimiento pasa a la fecha aprobada, el acceso vuelve y los créditos
+    // se reponen con la regla de siempre —que respeta el total pactado de un
+    // plan personalizado—. Antes solo escribía los créditos a mano, pisando
+    // ese total, y dejaba la cuenta suspendida con su vencimiento viejo.
+    const ciclo = await darElCicloPorPagado(actual.userId, { vence, crearCreditosSiFaltan: true });
+    await avisarDelCambioDeCobro({
+      userId: actual.userId,
+      previousBillingStatus: ciclo.antes?.billingStatus ?? null,
+      previousAccessStatus: ciclo.antes?.accessStatus ?? null,
+      source: "subscription-approve",
+    });
 
     revalidatePath("/planes");
     return { success: true, message: "Suscripción activada" };
-  } catch {
+  } catch (error) {
+    console.error("[approveSubscription]", error);
     return { success: false, message: "Error al aprobar la suscripción" };
   }
 }

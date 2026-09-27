@@ -12329,6 +12329,62 @@ Tres cosas:
    créditos que no se reponen en silencio no se ven como un error, se ven como
    «la IA dejó de contestar».
 
+## Un ciclo pagado es UNA escritura, y los cuatro caminos pasan por ella
+
+Había cuatro formas de dar un ciclo por pagado y cada una hacía una parte:
+
+| camino | vencimiento | créditos | acceso |
+| --- | --- | --- | --- |
+| Wompi | lo movía | los reponía | lo reactivaba |
+| «Marcar pagado» de Instancias | **no lo movía** | **no** | lo reactivaba |
+| la fecha de «Editar pagos» | la escribía | **no** | según la fecha |
+| «Aprobar» una suscripción | **no lo tocaba** | **los pisaba** | **no** |
+
+La fila de «Marcar pagado» era la cara: el cliente quedaba «Pagado / Activo»
+con el vencimiento viejo y **al día siguiente el trabajo diario lo volvía a
+suspender**. Y la suscripción pagada por Wompi nacía en `PENDING_PAYMENT`, el
+aviso de la pasarela no la miraba, y la pantalla solo tenía botones para
+`PENDING_APPROVAL`: pendiente para siempre.
+
+> **La regla está en `lib/ciclo-pagado.ts` (puro) y la única escritura en
+> `lib/ciclo-pagado.server.ts` (`darElCicloPorPagado`)**: vencimiento, pagado,
+> activo, sin marca de suspensión, recordatorios en cero, créditos repuestos
+> (`renovarLosCreditos`) y la cuenta habilitada si la cortó la suspensión. Lo
+> que se avisa cuando cambia el estado —webhook, mensaje, Robot— es
+> `avisarDelCambioDeCobro`, una sola versión para los caminos manuales y los de
+> la pasarela. **Si se añade otro camino de pago, va por esas dos.**
+
+Seis cosas que hay que mantener:
+
+1. **«Marcar pagado» es pagar UN ciclo**, con la misma cuenta que Wompi
+   (`elSiguienteVencimiento`): desde el vencimiento si no ha pasado —pagar antes
+   no pierde días— y desde hoy si ya pasó.
+2. **«Editar pagos» repone créditos solo si la fecha AVANZA** (`esUnaRenovacion`).
+   Corregirla hacia atrás o borrarla no regala un mes de consumo.
+3. **«Aprobar» no pisa lo pactado a mano**: el plan `personalizado` se queda
+   (`elPlanQueQueda`) y con él su total; se repone el consumo. Y solo se aprueba
+   lo que está pendiente: volver a aprobar una activa regalaría otro mes.
+4. **Crear la fila de créditos es solo de «Aprobar»** (`crearSiFalta`). A un
+   pago normal no: una cuenta sin fila la deja pasar el motor sin tope, y
+   crearla le pondría un límite que nadie pidió.
+5. **Wompi activa la suscripción que esperaba su pago**
+   (`activarLaSuscripcionPagadaPorWompi`), ANTES de escribir el ciclo: el cupo
+   que se repone sale de esa suscripción. Un fallo ahí no tumba la renovación,
+   pero se dice.
+6. **Las dos pendientes se ven y se aprueban**: la pestaña por defecto es
+   «Pendientes» (`ESTADOS_PENDIENTES`), y el botón sale en las dos. Las fechas
+   del diálogo se leen a medianoche LOCAL, como «Editar pagos».
+
+Y un cambio de paso que se dice: el aviso de un cambio manual (marcar, suspender,
+activar) sale ahora por la línea que toca a ESE cliente
+(`loadBillingDispatcherForUser`): a un cliente de reseller, por la de su
+reseller y nunca por la de Verzay, que es la regla que la pasarela ya cumplía.
+
+Lo prueba `scripts/banco-ciclo-pagado.sh`: la regla sin base, y las cuatro
+puertas de verdad contra Postgres —las acciones y la ruta de Wompi con un
+evento firmado—, incluido el trabajo diario del día siguiente. `MODO=roto`
+empaqueta las mismas pruebas contra `ANTES_REF` y afirma los fallos.
+
 ## Escalar a una persona: dos puertas, un solo camino
 
 Una conversación llega a un asesor por dos sitios —una **palabra clave** escrita

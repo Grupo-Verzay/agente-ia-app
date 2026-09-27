@@ -41,7 +41,11 @@ import { cupoDelPlanDeLaCuenta } from "@/lib/cupo-del-plan";
  * Vive aquí y no dentro del fichero `'use server'` del cobro para poder
  * comprobarla contra una base de verdad sin levantar la App.
  */
-export async function renovarLosCreditos(userId: string, fecha: Date): Promise<void> {
+export async function renovarLosCreditos(
+  userId: string,
+  fecha: Date,
+  opciones: { crearSiFalta?: boolean } = {},
+): Promise<void> {
   try {
     const cupo = await cupoDelPlanDeLaCuenta(userId);
 
@@ -58,6 +62,23 @@ export async function renovarLosCreditos(userId: string, fecha: Date): Promise<v
         ...(typeof cupo?.creditos === "number" ? { total: cupo.creditos } : {}),
       },
     });
+
+    // Crear la fila es SOLO de quien activa un plan (aprobar una suscripción),
+    // que es lo que ya hacía antes. Para un pago normal no: una cuenta sin fila
+    // de créditos la deja pasar el motor sin tope, y crearle una por pagar le
+    // pondría un límite que nadie pidió.
+    if (repuestos.count === 0 && opciones.crearSiFalta && typeof cupo?.creditos === "number") {
+      await db.iaCredit.create({
+        data: { userId, total: cupo.creditos, used: 0, renewalDate: fecha },
+      });
+      console.info("[billing] creditos creados al activar el plan", {
+        userId,
+        plan: cupo.plan,
+        total: cupo.creditos,
+        deDondeSalio: cupo.deDondeSalio,
+      });
+      return;
+    }
 
     if (repuestos.count > 0) {
       console.info("[billing] creditos renovados con el pago", {
