@@ -26,6 +26,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analytics-action";
 import { getCallsCrmData } from "@/actions/calls-crm-actions";
+import { getNpsDelCrm } from "@/actions/encuesta-de-satisfaccion-actions";
+import { COLOR_DE_LA_CATEGORIA } from "@/lib/encuesta-de-satisfaccion";
 import { TagStatsCard } from "./TagStatsCard";
 import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
@@ -36,6 +38,7 @@ const ANALYTICS_SECTIONS = {
     leads:        "Leads y seguimientos",
     citas:        "Citas",
     llamadas:     "Llamadas",
+    satisfaccion: "Satisfacción (NPS)",
     sesiones:     "Sesiones",
     flujos:       "Flujos",
     etiquetas:    "Etiquetas y madurez",
@@ -181,8 +184,23 @@ export function AnalyticsView({
         return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     };
 
+    /* satisfacción (NPS). Mismo período y mismas cuentas que las llamadas:
+       las dos secciones son gemelas y tienen que contar sobre lo mismo. */
+    const { data: npsData, isLoading: npsLoading } = useSWR(
+        ["crm-analytics-nps", userId, period, llaveDeCuentas],
+        () => getNpsDelCrm({ days: callDays, cuentas })
+    );
+    const nps = npsData?.resumen;
+    const fmtNps = (v: number | null | undefined) =>
+        v === null || v === undefined ? "—" : `${v > 0 ? "+" : ""}${v}`;
+    const colorDelNps = (v: number | null | undefined) =>
+        v === null || v === undefined ? undefined
+            : v >= 50 ? COLOR_DE_LA_CATEGORIA.promotor
+            : v >= 0 ? COLOR_DE_LA_CATEGORIA.pasivo
+            : COLOR_DE_LA_CATEGORIA.detractor;
+
     const [visibleSections, setVisibleSections] = useState<Record<SectionKey, boolean>>({
-        actividad: true, rendimiento: true, leads: true, citas: true, llamadas: true, sesiones: true,
+        actividad: true, rendimiento: true, leads: true, citas: true, llamadas: true, satisfaccion: true, sesiones: true,
         flujos: true, etiquetas: true, ventas: true, productos: true, sistema: true,
     });
 
@@ -219,6 +237,11 @@ export function AnalyticsView({
             ["Follow-ups activos", stats?.crmFollowUps.active ?? 0],
             ["Follow-ups enviados", stats?.crmFollowUps.sent ?? 0],
             ["Flujos total", a.totalWorkflows],
+            ["NPS", nps?.nps ?? ""],
+            ["Encuestas respondidas", nps?.respuestas ?? 0],
+            ["Promotores", nps?.promotores ?? 0],
+            ["Pasivos", nps?.pasivos ?? 0],
+            ["Detractores", nps?.detractores ?? 0],
             ["Ventas total", a.sales.total],
             ["Ingresos totales", a.sales.totalRevenue],
         ];
@@ -733,6 +756,69 @@ export function AnalyticsView({
                                         <Bar dataKey="Entrantes" fill="#EF4444" radius={[3, 3, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
+                            )}
+                    </CardContent>
+                </Card>
+            </div>
+            </>)}
+
+            {/* --- ? SATISFACCIÓN (NPS) --- */}
+            {visibleSections.satisfaccion && (<>
+            <SectionLabel>Satisfacción (NPS)</SectionLabel>
+            <div className="grid gap-4 lg:grid-cols-2" data-seccion-nps>
+                <Card className="border-border bg-muted/10">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-muted-foreground">Resumen de la encuesta</CardTitle>
+                        <CardDescription>Respuestas del 1 al 10 al resolver una conversación.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <KpiList items={[
+                            { label: "NPS",          value: npsLoading ? "…" : fmtNps(nps?.nps), color: colorDelNps(nps?.nps) },
+                            { label: "Promotores (9-10)",  value: npsLoading ? "…" : (nps?.promotores ?? 0),  color: COLOR_DE_LA_CATEGORIA.promotor },
+                            { label: "Pasivos (7-8)",      value: npsLoading ? "…" : (nps?.pasivos ?? 0),     color: COLOR_DE_LA_CATEGORIA.pasivo },
+                            { label: "Detractores (1-6)",  value: npsLoading ? "…" : (nps?.detractores ?? 0), color: COLOR_DE_LA_CATEGORIA.detractor },
+                            { label: "Respondidas",  value: npsLoading ? "…" : (nps?.respuestas ?? 0), color: "#3B82F6" },
+                            {
+                                label: "Tasa de respuesta",
+                                value: npsLoading ? "…" : npsData?.tasaDeRespuesta == null ? "—" : `${npsData.tasaDeRespuesta}%  (${npsData.enviadas} enviadas)`,
+                                color: "#14B8A6",
+                            },
+                        ]} />
+                    </CardContent>
+                </Card>
+
+                <Card className="border-border">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base">NPS por asesor</CardTitle>
+                        <CardDescription>Según quién tenía la conversación al resolverla.</CardDescription>
+                    </CardHeader>
+                    <CardContent className={CHART_H}>
+                        {npsLoading ? <EmptyState text="Cargando..." /> : (npsData?.porAsesor.length ?? 0) === 0
+                            ? <EmptyState text="Aún no hay respuestas en el período." />
+                            : (
+                                <div className="h-full overflow-y-auto pr-1" data-nps-por-asesor>
+                                    {npsData!.porAsesor.map((fila) => (
+                                        <div
+                                            key={fila.asesorId ?? "__sin_asesor__"}
+                                            className="flex items-center justify-between gap-3 text-sm border-b border-border/40 py-2 last:border-0"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="truncate font-medium" title={fila.nombre}>{fila.nombre}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    <span style={{ color: COLOR_DE_LA_CATEGORIA.promotor }}>{fila.promotores}</span>
+                                                    {" · "}
+                                                    <span style={{ color: COLOR_DE_LA_CATEGORIA.pasivo }}>{fila.pasivos}</span>
+                                                    {" · "}
+                                                    <span style={{ color: COLOR_DE_LA_CATEGORIA.detractor }}>{fila.detractores}</span>
+                                                    {` · ${fila.respuestas} ${fila.respuestas === 1 ? "respuesta" : "respuestas"}`}
+                                                </p>
+                                            </div>
+                                            <span className="font-bold text-base shrink-0" style={{ color: colorDelNps(fila.nps) }}>
+                                                {fmtNps(fila.nps)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                     </CardContent>
                 </Card>

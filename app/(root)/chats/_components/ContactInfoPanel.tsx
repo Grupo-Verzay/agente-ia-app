@@ -5,8 +5,13 @@ import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin, Users,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
-  Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal, User,
+  Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal, User, SmilePlus,
 } from 'lucide-react';
+import {
+  getEncuestasDelContactoAction,
+  type EncuestaDelContacto,
+} from '@/actions/encuesta-de-satisfaccion-actions';
+import { COLOR_DE_LA_CATEGORIA, NOMBRE_DE_LA_CATEGORIA } from '@/lib/encuesta-de-satisfaccion';
 import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
 import {
   ContactFieldDef,
@@ -110,6 +115,71 @@ function InlineField({ icon: Icon, label, field, value, multiline, saved, onChan
         {saved && <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
       </div>
     </div>
+  );
+}
+
+/* ── Encuesta de satisfacción (NPS) del contacto ───────────────
+ * Lo que contestó a la encuesta que se manda al resolver la conversación. Pide
+ * sus datos por su cuenta al abrirse la ficha, como el resto de bloques, y NO
+ * se pinta si nunca se le mandó ninguna: una sección vacía en cada ficha de
+ * una cuenta que no usa la encuesta es ruido. La MISMA categoría y el MISMO
+ * color que el NPS de Analíticas del CRM, que salen de la misma función. */
+const ESTADO_DE_LA_ENCUESTA: Record<string, string> = {
+  pendiente: 'Enviándose…',
+  enviada: 'Esperando respuesta',
+  sin_respuesta: 'Sin respuesta',
+  fallida: 'No se pudo enviar',
+};
+
+function fechaCorta(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
+function EncuestasDelContacto({ sessionId }: { sessionId: number }) {
+  const [encuestas, setEncuestas] = useState<EncuestaDelContacto[]>([]);
+
+  useEffect(() => {
+    let vigente = true;
+    getEncuestasDelContactoAction(sessionId)
+      .then((res) => { if (vigente) setEncuestas(res.encuestas); })
+      .catch((error) => console.warn('[encuesta] no se pudieron traer las del contacto', String(error)));
+    return () => { vigente = false; };
+  }, [sessionId]);
+
+  if (encuestas.length === 0) return null;
+
+  return (
+    <Section title="Encuesta de satisfacción" icon={SmilePlus} defaultOpen>
+      <div className="px-2 space-y-1.5" data-encuestas-del-contacto>
+        {encuestas.map((e) => (
+          <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium truncate">
+                {e.categoria ? NOMBRE_DE_LA_CATEGORIA[e.categoria] : ESTADO_DE_LA_ENCUESTA[e.estado] ?? e.estado}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate" title={e.motivo ?? undefined}>
+                {fechaCorta(e.respondidaEn ?? e.enviadaEn)}
+                {e.asesor ? ` · ${e.asesor}` : ''}
+              </p>
+            </div>
+            {e.puntuacion !== null && e.categoria && (
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white tabular-nums"
+                style={{ backgroundColor: COLOR_DE_LA_CATEGORIA[e.categoria] }}
+                aria-label={`Puntuación ${e.puntuacion} de 10`}
+              >
+                {e.puntuacion}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
   );
 }
 
@@ -543,6 +613,9 @@ function FichaDeContacto({
           ))
         )}
 
+
+        {/* Encuesta de satisfacción (NPS) */}
+        <EncuestasDelContacto sessionId={session.id} />
 
         {/* Origen del anuncio */}
         {adSource && (

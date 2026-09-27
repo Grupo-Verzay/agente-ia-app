@@ -8,6 +8,7 @@ import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
+import { recogerLasRespuestas } from "@/lib/encuesta-de-satisfaccion-db";
 import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
@@ -156,6 +157,17 @@ export async function POST(request: Request) {
     purgaDeChats = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // Las encuestas de satisfacción: recoge las respuestas que nadie ha mirado y
+  // cierra como «sin respuesta» las que pasaron de su ventana. Al LEER (el NPS
+  // del CRM, la ficha) ya se recogen; esto es para las cuentas que no miran.
+  // En su propio `try` y acotado por vuelta, como los demas.
+  let encuestas: unknown = null;
+  try {
+    encuestas = await recogerLasRespuestas({});
+  } catch (e) {
+    encuestas = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
     {
       ...result,
@@ -168,6 +180,7 @@ export async function POST(request: Request) {
       llamadas,
       papeleraDeEmbudos,
       purgaDeChats,
+      encuestas,
     },
     { status: result.success ? 200 : 500 },
   );
