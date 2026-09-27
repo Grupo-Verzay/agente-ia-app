@@ -1,5 +1,6 @@
 "use client";
 
+import { elAnilloDelAvatar, type Sentimiento } from "@/lib/sentimiento";
 import { TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
@@ -90,6 +91,13 @@ type ChatContactItemProps = {
   contact: SidebarContact;
   /** El contacto esta escribiendo o grabando: se ensena en vez del ultimo mensaje. */
   presencia?: PresenciaContacto | null;
+  /**
+   * El sentimiento más reciente del cliente. Tiñe el aro que YA tiene el avatar:
+   * verde pastel si es positivo, rojo suave si es negativo, el de siempre si es
+   * neutro. Va como texto y no como objeto para que la fila memoizada no se
+   * repinte en cada vuelta de la lista.
+   */
+  sentimiento?: Sentimiento | null;
   onArchive: (id: string, isArchived: boolean, instanceName?: string) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
   canDelete?: boolean;
@@ -120,6 +128,7 @@ type ChatContactItemProps = {
 function ChatContactItemBase({
   contact,
   presencia,
+  sentimiento,
   onArchive,
   canDelete = true,
   onDeleteRequest,
@@ -493,8 +502,10 @@ function ChatContactItemBase({
           className="relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <Avatar
+            data-sentimiento={sentimiento ?? "neutro"}
             className={cn(
-              "h-10 w-10 ring-2 ring-background group-hover:ring-accent transition-opacity",
+              "h-10 w-10 ring-2 transition-opacity",
+              elAnilloDelAvatar(sentimiento),
               selectionMode && "opacity-30",
               !selectionMode && onToggleSelect && "group-hover:opacity-30",
             )}
