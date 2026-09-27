@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Mail, Server } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, Server, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,17 +20,48 @@ import type { ProveedorConBoton } from "@/lib/correo";
  * plataforma el botón sale apagado **y dice por qué**: un botón que lleva a una
  * pantalla de error de Google no explica nada.
  */
+/**
+ * El recuadro de un aviso de Correo. Lo usan el de la bandeja («volver a
+ * conectar») y el de por qué no se conectó: la misma forma para lo mismo.
+ */
+export const AVISO_DEL_CORREO =
+    "flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200";
+
 export function ConectarCorreo({
     conBoton,
     alConectar,
+    aviso = null,
+    alCerrarAviso,
 }: {
     conBoton: Record<ProveedorConBoton, boolean>;
     alConectar: (buzon: BuzonVisible) => void;
+    /** Por qué no se conectó la última vez. Se queda puesto hasta cerrarlo. */
+    aviso?: string | null;
+    alCerrarAviso?: () => void;
 }) {
     const [conImap, setConImap] = useState(false);
 
     return (
         <div data-conectar-correo className="flex w-full max-w-md flex-col gap-3">
+            {aviso ? (
+                <div data-aviso-conexion role="alert" className={AVISO_DEL_CORREO}>
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="flex-1">
+                        <p className="font-medium">No se pudo conectar el correo</p>
+                        <p>{aviso}</p>
+                    </div>
+                    {alCerrarAviso ? (
+                        <button
+                            type="button"
+                            aria-label="Cerrar aviso"
+                            className="shrink-0 rounded p-0.5 hover:bg-amber-100 dark:hover:bg-amber-900"
+                            onClick={alCerrarAviso}
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
             <BotonDeProveedor proveedor="gmail" nombre="Conectar Gmail" disponible={conBoton.gmail} />
             <BotonDeProveedor proveedor="outlook" nombre="Conectar Outlook" disponible={conBoton.outlook} />
             {conImap ? (

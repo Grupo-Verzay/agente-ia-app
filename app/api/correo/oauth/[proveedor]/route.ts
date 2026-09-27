@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
-import { comoProveedorConBoton, laDireccionDeVuelta } from "@/lib/correo";
+import { comoProveedorConBoton, elMotivoLegible, laDireccionDeVuelta } from "@/lib/correo";
 import { leerElEstado } from "@/lib/correo-cifrado.server";
 import { guardarElBuzon } from "@/lib/correo-db";
 import { cambiarElCodigo, ErrorDeCorreo, laDireccionAutorizada } from "@/lib/correo-proveedores.server";
@@ -64,7 +64,9 @@ export async function GET(req: Request, { params }: { params: { proveedor: strin
         });
         return volver(`conectado=${encodeURIComponent(quien.direccion)}`);
     } catch (e) {
-        const motivo = e instanceof ErrorDeCorreo ? e.message : "No se pudo conectar el correo.";
+        // El motivo del proveedor viene en inglés y nombra ajustes de la plataforma:
+        // se traduce a qué hacer (`elMotivoLegible`).
+        const motivo = e instanceof ErrorDeCorreo ? elMotivoLegible(proveedor, e.message) : "No se pudo conectar el correo.";
         console.error("[correo] no se pudo terminar la autorización", proveedor, e);
         return error(motivo);
     }
