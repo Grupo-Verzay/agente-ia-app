@@ -412,17 +412,6 @@ export default async function ChatsPage({
     new Set(instancias.map((inst) => inst.userId).filter(Boolean) as string[]),
   );
 
-  // El SENTIMIENTO se analiza AQUÍ y solo aquí: al abrir Chats, TODO lo
-  // pendiente de las cuentas de esta bandeja, de fondo (la pantalla no espera
-  // a la IA; los colores llegan en la vuelta siguiente de la lista). Ni reloj
-  // ni barrido diario: si nadie abre Chats, no se consume nada. Cada análisis
-  // lo paga la cuenta DUEÑA de su línea. Ver `lib/sentimiento-runner.server.ts`.
-  void analizarElSentimientoAlAbrirChats(
-    cuentasConLinea,
-    instancias.map((inst) => inst.instanceName),
-  )?.catch((error) => {
-    console.warn("[sentimiento] el análisis al abrir Chats falló", (error as Error)?.message);
-  });
   const duenosDeLinea = settleValue(
     await settle(
       db.user.findMany({
@@ -456,6 +445,23 @@ export default async function ChatsPage({
     user.sessionUserId,
     ...linkedAccountsData.map((la) => la.linkedUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
+
+  // El SENTIMIENTO se analiza AQUÍ y solo aquí: al abrir Chats, TODO lo
+  // pendiente de las cuentas de esta bandeja, de fondo (la pantalla no espera
+  // a la IA; los colores llegan en la vuelta siguiente de la lista). Ni reloj
+  // ni barrido diario: si nadie abre Chats, no se consume nada. Cada análisis
+  // lo paga la cuenta DUEÑA de su línea. Ver `lib/sentimiento-runner.server.ts`.
+  //
+  // Las cuentas son las MISMAS con las que se lee la bandeja
+  // (`allSessionUserIds`) más las dueñas de cada línea: con solo las dueñas,
+  // una conversación guardada bajo otra fila de las que la bandeja enseña no
+  // se analizaba nunca y se quedaba sin color, abriera Chats quien lo abriera.
+  void analizarElSentimientoAlAbrirChats(
+    Array.from(new Set([...cuentasConLinea, ...allSessionUserIds])),
+    instancias.map((inst) => inst.instanceName),
+  )?.catch((error) => {
+    console.warn("[sentimiento] el análisis al abrir Chats falló", (error as Error)?.message);
+  });
   const ownCompanyName = user.company || user.name || "";
 
   // Meta enriquecida para la UI (incluye info de cuenta vinculada)

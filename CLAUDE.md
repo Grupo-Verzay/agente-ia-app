@@ -8321,6 +8321,42 @@ ninguna tecla del selector**: ese manda con las flechas, Enter, Tab y Escape, y
 ninguna de ellas es b, i ni x. Todo lo demás pasa de largo tal cual llegó, que
 es la misma regla con la que estos atajos entraron en Chats.
 
+## Chats: reenviar un mensaje es el MISMO envío, a otra conversación
+
+Cada mensaje (texto, foto, vídeo, documento o nota de voz) lleva **Reenviar**:
+al pasar el ratón, justo después de Responder y con su misma forma, en las dos
+caras de la burbuja; y en el «⋯» del mensaje, que es por donde se llega en un
+táctil. Abre un `PanelLateral` (`PANEL_DE_REENVIAR`, como «Enviar al equipo»)
+con las conversaciones de la bandeja, buscador (nombre sin acentos, número por
+dígitos) y hasta **5** a la vez (`TOPE_DE_DESTINOS`, el de WhatsApp).
+
+> **Reenviar NO es un camino de envío nuevo.** Cada destino sale por el
+> `sendText` del juego de acciones de SU línea —el de la barra de escribir—, así
+> que pasa por la misma puerta, pausa la IA igual y se guarda igual. Qué se
+> reenvía lo decide `lib/reenviar-mensaje.ts` (pura); lo envía `reenviarA` en
+> `chats-client`, en serie.
+
+Cuatro cosas que hay que mantener:
+
+1. **Nunca por la línea de la conversación de origen**: el destino es otra
+   conversación y sale por la suya. Un destino sin juego de su línea no se
+   ofrece.
+2. **«Tal cual» es sin firma y sin cita** (`reenviado: true`): los dos envíos
+   que firman —Evolution y Waha— se la saltan. La cita apuntaría a un id de
+   otra conversación.
+3. **La dirección de WhatsApp va cifrada** (`mmg.whatsapp.net`, `.enc`) y no se
+   manda: el archivo se le pide a la línea de ORIGEN (`mediaDeUnMensajeAction`)
+   y sale en base64, como un adjunto. Sin archivo que sirva no se envía y se
+   dice.
+4. **Lo que no es un mensaje no se ofrece**: llamadas, reacciones, stickers,
+   notas internas y lo que el cliente borró (`sePuedeReenviar`). Y el resumen
+   nombra lo que no salió; con fallos el panel se queda abierto.
+
+Lo prueba `scripts/banco-reenviar-mensaje.sh`: la regla y un barrido sin
+navegador, y la burbuja y el panel reales en Chromium a 1440/1024/390.
+`MODO=roto` lee y monta la burbuja de `ANTES_REF` y afirma que no había forma
+de reenviar.
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano
@@ -17275,6 +17311,36 @@ exclusión con el hook real y los menús pintados por Radix, en dos modos; el
 roto construye con el código de `ANTES_REF` y afirma las tres capturas— y
 `scripts/banco-paneles-en-chats.sh` sobre la página servida.
 
+## El menú lateral se comprime solo al entrar a CUALQUIER sección
+
+Antes solo Chats lo hacía (al abrir una conversación). Ahora es una regla de la
+plataforma: entrar a Correo, Panel, Leads, Herramientas, CRM o cualquier otra
+sección deja el menú en su franja de iconos, y se vuelve a abrir con un clic.
+
+> **La regla es `debeComprimirse` (`lib/menu-al-navegar.ts`, pura) y la aplica
+> UNA pieza, `ComprimirMenuAlNavegar`, montada una vez DENTRO del
+> `SidebarProvider` del layout.** Un colapsador por pantalla es la pantalla que
+> se olvida de montarlo; por eso el viejo `ChatSidebarCollapser` —que además no
+> lo montaba nadie— se fue.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se comprime al CAMBIAR de ruta, y el efecto depende SOLO de la ruta.** El
+   estado del menú se lee por referencia: con `open` en las dependencias, abrir
+   el menú a mano lo volvería a cerrar al instante.
+2. **La portada (`/`) no es una sección**: no se toca.
+3. **En un teléfono no se toca**: allí el menú es una hoja que ya se cierra sola
+   al pulsar. `isMobile` nace en falso y lo corrige un efecto del proveedor que
+   corre DESPUÉS del de la pieza, así que en el primer pintado se pregunta a la
+   pantalla con `matchMedia`.
+4. **Chats conserva lo suyo**: abrir una conversación o la ficha de contacto
+   sigue comprimiéndolo aunque se haya abierto a mano, y lo devuelve al cerrar.
+
+Lo prueba `scripts/banco-menu-al-navegar.sh`: la regla y un barrido del layout,
+y el `SidebarProvider` de verdad en Chromium (1440/1280/1024 y 390).
+`MODO=roto` corre la regla de antes y el proveedor sin la pieza, y afirma que
+entrar a Correo dejaba el menú abierto.
+
 ## Chats: el panel de la derecha es la TERCERA columna, no una hoja sobre la ventana
 
 Con un panel abierto —contacto, contexto del lead, recordatorio, nueva tarea,
@@ -18528,7 +18594,7 @@ y afirma que cruzaba de cuenta.
 
 ## Calidad de conversaciones (CRM › Calidad) y exportar conversaciones
 
-**La IA puntúa cada conversación en reposo** con una rúbrica de cinco criterios
+**La IA puntúa cada conversación** con una rúbrica de cinco criterios
 (saludo 15, primera respuesta 15, resolución 10, tono 25, si resolvió 35) y el
 CRM lo reparte por asesor: puntaje medio, tiempo medio de primera respuesta y
 de resolución, y las conversaciones por debajo de 60 marcadas como ejemplo de
@@ -18545,10 +18611,10 @@ Seis cosas que hay que mantener:
 2. **La primera respuesta es la de una PERSONA** cuando hay asesor; la de la IA
    solo cuenta si la conversación es de la IA. Así «Agente IA» y cada asesor
    tienen su propio número.
-3. **El runner NO es una acción**: `server-only`, lanzado de fondo desde el cron
-   diario (`/api/cron/billing`, en su `try`) y desde «Evaluar ahora», que
-   re-resuelve el alcance. Topes: 25 por cuenta y vuelta, 2 h de reposo, solo lo
-   que tiene mensajes nuevos, 30 min por barrido.
+3. **El runner NO es una acción**: `server-only`, y corre SOLO por dos
+   puertas: «Evaluar ahora», que re-resuelve el alcance, y el corte semanal del
+   reporte (ver la sección de abajo). Topes: 25 por cuenta y vuelta, solo lo que
+   tiene mensajes nuevos, 3 min por cuenta en el corte.
 4. **Paga la cuenta dueña, con la IA de la cuenta** (el mismo proveedor que el
    motor) y solo si tiene créditos; se cobra después de guardar. Sin IA o sin
    créditos no se evalúa y se dice.
@@ -18569,7 +18635,45 @@ del propio buzón y sin marcarlo como leído.
 Lo prueba `scripts/banco-calidad-y-exportacion.sh`: reglas, zip abierto con
 Python y un barrido, y las acciones y el runner contra Postgres. `MODO=roto`
 afirma la lectura por una sola identidad (la conversación sale a medias) y la
-selección ingenua (grupos y conversaciones vivas pagadas).
+selección ingenua (grupos pagados).
+
+### Cuándo corre: a pedido y en el corte del reporte, nunca solo
+
+Evaluaba cada día, desde el cron de facturación, toda conversación con **dos
+horas sin mensajes**. Eso se fue entero: ni barrido diario, ni reposo que
+esperar. Corre cuando alguien pulsa «Evaluar ahora» y en el **corte semanal**,
+que es el mismo reloj que ya usa Reportes: `runWeeklyReportForAllUsers` evalúa
+cada cuenta **justo antes** de mandar su reporte, con su tope de tiempo y en su
+propio `try` —un fallo del QA no puede dejar a nadie sin reporte—.
+
+Sin reposo, una conversación evaluada a medias se vuelve a evaluar en el
+siguiente corte si entraron mensajes nuevos: la fila se reescribe, no cuenta dos
+veces. **Generar el reporte a mano desde Reportes NO evalúa** ni gasta créditos:
+lee lo ya evaluado. El botón para eso es «Evaluar ahora».
+
+### Y el reporte semanal lleva la calidad en una o dos líneas
+
+Sección «🎯 CALIDAD DE ATENCIÓN», sin desglose por conversación —eso vive en
+CRM › Calidad—. Lo decide `elResumenSemanalDeCalidad` (puro) y lo escribe
+`lasLineasDeLaCalidad`, que usan **los dos sitios**: el WhatsApp (con
+asteriscos) y la pantalla de Reportes, que la lee de `metrics.calidad` del
+reporte guardado. Con dos redacciones una diría otra cosa.
+
+1. **El promedio es de todo lo evaluado de la semana**, IA incluida: es lo que
+   se atendió. **El mejor asesor sale solo de las personas** (`asesorId`), y a
+   igualdad gana quien atendió más.
+2. **Sin equipo** —nadie cuelga de la cuenta por `ownerId`— el dueño atiende
+   solo: el reporte dice «Tu calidad de atención» y no nombra a ningún mejor
+   asesor.
+3. **Sin nada evaluado no hay sección**, nunca un «0/100». Y leer la calidad
+   nunca tumba el reporte: si falla, sale sin ella y se dice.
+
+Lo prueba `scripts/banco-calidad-semanal.sh`: la regla y un barrido, y el corte
+de verdad contra Postgres con la IA y el WhatsApp fingidos (una cuenta con
+equipo, una con el dueño solo y una vacía, y una conversación de hace cinco
+minutos). `MODO=roto` corre lo mismo contra `ANTES_REF` y afirma que el cron
+diario lanzaba el barrido, que se esperaban dos horas y que el reporte no decía
+nada de la calidad.
 
 ## Chats: el SENTIMIENTO del cliente se analiza al ABRIR Chats, y lo paga la cuenta dueña
 
@@ -18623,6 +18727,26 @@ Seis cosas que hay que mantener:
    (`sentimiento_caidas`), con el asesor de su ficha en ese momento; el reporte
    pasa por `lasCuentasQueConsultaElCrm`, la puerta del CRM.
 
+### El aro NEUTRO es un gris que se VE, y ninguna conversación se queda sin color
+
+Había conversaciones sin ningún aro aunque se abriera Chats. Eran tres cosas a
+la vez, y las tres se ven igual desde fuera:
+
+1. **El aro neutro era el color del FONDO** (`ring-background`): invisible en
+   claro y en oscuro. Ahora es `ring-slate-400 dark:ring-slate-500`, medido en
+   Chromium con más contraste que el verde y el rojo en los dos temas.
+2. **El neutro no viajaba a la pantalla**: la lista solo traía positivo y
+   negativo. Ahora trae los tres (`losSentimientosDeLasLineas`).
+3. **La fila buscaba solo por su id**, y el sentimiento se guarda bajo las tres
+   identidades: la fila y la conversación abierta buscan por TODAS
+   (`identidades`, `identidadesParaPedirMensajes`).
+
+Y lo que no se analizaba nunca: una conversación guardada bajo otra fila de la
+bandeja (la persona que atiende, una vinculada). Abrir Chats analiza ahora las
+cuentas de la bandeja entera (`allSessionUserIds`), y **la paga la dueña de la
+LÍNEA** (`pagador`, de `Instancias`), no la fila bajo la que se guardó. Una
+cuenta sin créditos se excluye de las páginas siguientes por su `pagador`.
+
 Dos tablas de la App (`sentimiento_de_conversacion`, `sentimiento_caidas`), con
 `ddl()` y sin clave foránea: ni una columna en `Session` ni en `chat_messages`.
 Lo prueba `scripts/banco-sentimiento.sh`: reglas, barrido, el análisis contra
@@ -18655,14 +18779,32 @@ nunca hacia arriba) y la **de Correo** (la cuenta del buzón). Transcripciones,
 calidad y llamadas ya cobraban por su camino. **Si se añade otro uso de IA, va
 por estas dos funciones.**
 
-**Y quedan usos que todavía NO cobran**, contados con un barrido el 2026-09-27
-para que no se den por revisados: el copiloto (`ai-chat-actions`), el asistente
-del editor de prompts (`ai-prompt-chat-actions`, `ai-inject-section-action`), el
-resumen al cerrar una conversación (`conversation-intelligence-actions`), la
-puntuación del lead (`lead-score-action`), el informe semanal
-(`weekly-report-runner`), el aprendizaje de ventas (`sales-learning`) y las
-imágenes con IA (`ai-image-actions`, que va con la llave de Google de la
-cuenta). Cada uno pasa por `antesDeUsarLaIa` / `cobrarElUsoDeIa` cuando se toque.
+**Y ya no queda ninguno sin cobrar.** Los que faltaban —el copiloto, el
+asistente de prompts (y su «analizar instrucción»), el resumen al cerrar una
+conversación, la puntuación del lead, el informe semanal, el aprendizaje de
+ventas y su playbook, las imágenes con IA y su copy, el simulador de chat y el
+generador del agente— pasan por **`usarLaIaCobrando`**
+(`lib/cobro-de-ia.server.ts`), que junta las dos mitades: mira el saldo, llama,
+y cobra SOLO si la IA contestó (si la llamada lanza, no se cobra). Los que van
+a OpenAI por `fetch` usan `pedirAOpenAiCobrando` (`lib/openai-cobrado.server.ts`).
+
+Cuatro cosas que hay que mantener:
+
+1. **Quién paga, por uso**: lo que se hace sobre una CONVERSACIÓN (resumen,
+   puntuación, aprendizaje) lo paga `session.userId`; lo que se hace en una
+   pantalla de la cuenta (copiloto, prompts, imágenes, simulador, generador),
+   `user.effectiveId`, y la IA se resuelve con ESA misma cuenta. El informe
+   semanal, la cuenta del informe.
+2. **Los tokens salen del proveedor** (`losTokensDelProveedor`: `usage` de
+   OpenAI, `usageMetadata` de Gemini); si no los dice, se estiman, nunca cero.
+   Una imagen de `imagen-4` no dice tokens y cuesta `TOKENS_DE_UNA_IMAGEN`.
+3. **Sin créditos se DICE**, con el aviso que nombra la cuenta: el copiloto y
+   la puntuación lo devuelven, las imágenes lo lanzan, y lo que corre de fondo
+   (resumen, informe) cae en su respaldo sin IA. Puntuar en lote se para en el
+   primer «sin créditos».
+4. **El barrido del banco falla si aparece otra llamada a una IA** sin pasar
+   por el cobro; las que cobran por su propio camino (transcripciones,
+   grabaciones, calidad) están en su lista de excepciones con su motivo.
 
 Lo prueba `scripts/banco-cobro-de-ia.sh`, contra Postgres con el cliente de IA
 fingido: 130 pendientes (más de una página, la mitad de hace horas) se analizan
@@ -21480,6 +21622,55 @@ acciones de verdad contra Postgres (aviso, acceso solo a ESA conversación, el
 dueño lo quita y otro agente no, resolver lo quita y no toca participantes).
 `MODO=roto` corre las acciones de `ANTES_REF` y afirma que mencionar no abría
 nada y se avisaba a gente de fuera del equipo.
+
+## El menú lateral: el numerito de pendientes va por la RUTA, esté donde esté el apartado
+
+Al agrupar pantallas dentro de módulos (Bandeja, Contactos, Integraciones,
+Herramientas, Automatizaciones…) se perdió el numerito rojo: el menú solo lo
+pintaba en dos apartados SUELTOS, con la ruta escrita a mano
+(`route === '/chats'`, `route === '/tareas'`). Dentro de un desplegable nadie
+lo pintaba.
+
+> **El número va por la RUTA del apartado, no por su nombre ni por el módulo
+> donde esté.** Lo decide `lib/pendientes-del-menu.ts` (puro) y lo pinta el
+> menú en sus TRES sitios —el apartado suelto (`ContadorSuelto`), el
+> desplegable abierto y el menú flotante de la barra plegada
+> (`ContadorDelMenu`)— con una sola forma (`CLASE_DEL_CONTADOR`).
+
+| apartado | ruta | qué cuenta | de dónde sale |
+| --- | --- | --- | --- |
+| Chats | `/chats` | sin leer | `useChatsQueEsperan` (la pastilla «Sin leer») |
+| Correos | `/correo` | sin leer en la entrada | `correosSinLeerAction`, el contador del proveedor |
+| Agenda | `/schedule` | citas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
+| Multiagenda | `/bookings` | reservas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
+| Mis tareas | `/tareas` | pendientes de hoy o vencidas | `useTaskStore` |
+| Recordatorios | `/reminders` | el grupo «Pendientes» de su pantalla | `pendientesDelMenuAction` |
+
+**Ningún otro apartado lleva número**, y Llamadas tampoco: es un registro. Un
+número que no se atiende enseña a ignorar los que sí.
+
+Cinco cosas que hay que mantener:
+
+1. **Chats y Mis tareas no se vuelven a pedir**: ya los tiene el navegador, y
+   una segunda fuente diría un día otra cosa.
+2. **Agenda es la regla de la campanita** (`esCitaPendiente`: PENDIENTE y sin
+   pasar) y **Recordatorios la de su pantalla** (`elGrupoDelRecordatorio`, que
+   `MainReminders` importa de ahí): el número del menú es el que se ve al
+   entrar. Y viaja el desfase horario del navegador: sin él, un recordatorio
+   de mañana por la noche caería en otro grupo en el servidor.
+3. **Correos suma el contador de cada buzón SOLO si se saben todos**
+   (`losNumerosDeLasBandejas`, la regla del selector de bandejas): con uno que
+   no contesta, sin número; nunca una suma más baja. Va en su propia acción y
+   a otro ritmo (2 min): un buzón lento no retiene los demás.
+4. **Solo se cuenta lo que está en el menú** (`lasClavesDelMenu`): quien no
+   tiene Correo no le pregunta nada a Gmail. Un reloj montado una vez, que no
+   pregunta con la pestaña de fondo.
+5. **Cero y «no se sabe» no se pintan**, y por encima de 99 dice «99+».
+
+Lo prueban `scripts/banco-pendientes-del-menu.sh` —la regla, un barrido del
+menú y la acción contra Postgres; `MODO=roto` lee el menú de `59f08b4` y
+afirma que dentro de un desplegable no había número— y el caso de sin leer de
+`scripts/banco-correo.sh`, con los tres proveedores fingidos.
 
 ## Cómo reportar al terminar
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageBubble } from './MessageBubble';
+import { sePuedeReenviar } from '@/lib/reenviar-mensaje';
 import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
@@ -121,6 +122,8 @@ interface MessageRowProps {
   onJumpToMessage?: (messageId: string) => void;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
+  /** Reenviar a otras conversaciones. Solo se ofrece en lo que `sePuedeReenviar` deja. */
+  onForwardMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
   onEditMessage?: (bubble: UIBubble) => void;
@@ -138,6 +141,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   onJumpToMessage,
   onSetReplyTo,
   onCopyMessage,
+  onForwardMessage,
   onReactMessage,
   onDeleteMessage,
   onEditMessage,
@@ -203,6 +207,11 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           adPreview={message.adPreview}
           onReply={onSetReplyTo ? () => onSetReplyTo(message) : undefined}
           onCopy={onCopyMessage ? () => onCopyMessage(message) : undefined}
+          onForward={
+            onForwardMessage && sePuedeReenviar(message)
+              ? () => onForwardMessage(message)
+              : undefined
+          }
           onReact={onReactMessage ? (emoji) => onReactMessage(message, emoji) : undefined}
           onEdit={onEditMessage ? () => onEditMessage(message) : undefined}
           onDelete={onDeleteMessage ? () => onDeleteMessage(message) : undefined}
@@ -216,6 +225,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
   if (
     prev.onSetReplyTo !== next.onSetReplyTo ||
     prev.onCopyMessage !== next.onCopyMessage ||
+    prev.onForwardMessage !== next.onForwardMessage ||
     prev.onReactMessage !== next.onReactMessage ||
     prev.onDeleteMessage !== next.onDeleteMessage ||
     prev.onEditMessage !== next.onEditMessage ||
@@ -303,6 +313,8 @@ interface ChatMessageListProps {
   advisorName?: string;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
+  /** Reenviar a otras conversaciones. Solo se ofrece en lo que `sePuedeReenviar` deja. */
+  onForwardMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
   onEditMessage?: (bubble: UIBubble) => void;
@@ -346,6 +358,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   advisorName,
   onSetReplyTo,
   onCopyMessage,
+  onForwardMessage,
   onReactMessage,
   onDeleteMessage,
   onEditMessage,
@@ -588,6 +601,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               onJumpToMessage={onJumpToMessage}
               onSetReplyTo={onSetReplyTo}
               onCopyMessage={onCopyMessage}
+              onForwardMessage={onForwardMessage}
               onReactMessage={onReactMessage}
               onDeleteMessage={onDeleteMessage}
               onEditMessage={onEditMessage}

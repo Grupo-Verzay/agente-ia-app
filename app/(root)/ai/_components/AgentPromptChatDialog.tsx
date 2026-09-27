@@ -377,7 +377,15 @@ export function AgentPromptChatDialog({
         toast.error(res.message || "No se pudo consultar el asistente.");
         setMessages((current) => [
           ...current,
-          createMessage("assistant", "No pude responder ahora. Revisa la configuracion de IA e intenta de nuevo."),
+          // Sin créditos el motivo nombra la cuenta que paga: se dice tal cual
+          // en vez del genérico, que mandaría a revisar una configuración que
+          // está bien.
+          createMessage(
+            "assistant",
+            /créditos/i.test(res.message || "")
+              ? res.message
+              : "No pude responder ahora. Revisa la configuracion de IA e intenta de nuevo.",
+          ),
         ]);
         return;
       }

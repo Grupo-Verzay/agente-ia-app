@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { toAiMessages } from "@/app/(root)/ai-chat/helpers/toAiMessages";
 import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
 import { getPromptAssistence } from "./ai-actions";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
 import {
     COPILOT_MODE_INSTRUCTIONS,
     COPILOT_MODE_LABELS,
@@ -322,7 +323,7 @@ export async function sendChatAction(
             return {
                 success: true,
                 message: "ai_diagnostic",
-                data: { message: await buildAiDiagnosticMessage(user.id) },
+                data: { message: await buildAiDiagnosticMessage(user.effectiveId) },
             };
         }
 
@@ -335,7 +336,12 @@ export async function sendChatAction(
             };
         }
 
-        const resolved = await resolveUserAiClient(user.id);
+        // La cuenta que usa su IA y la PAGA es la cuenta en la que se trabaja
+        // (`effectiveId`, o sea `ownerId ?? id`), no la fila de la persona: un
+        // asesor no tiene bolsa propia, y el copiloto trabaja sobre lo de su
+        // cuenta. Es la regla de `lib/cobro-de-ia.ts`.
+        const cuenta = user.effectiveId;
+        const resolved = await resolveUserAiClient(cuenta);
         if (!resolved.success || !resolved.data) return { success: false, message: resolved.message };
 
         const { provider, model, apiKey } = resolved.data;
@@ -344,16 +350,28 @@ export async function sendChatAction(
         const system = await buildSystemPrompt(req.context);
         const msgs = toAiMessages(req.messages);
 
-        const result = await withTimeout(
-            ai.complete({
-                apiKey,
-                model,
-                system,
-                messages: msgs,
-            }),
-            AI_TIMEOUT_MS,
-            "ai_completion",
-        );
+        const uso = await usarLaIaCobrando(cuenta, "copiloto", async () => {
+            const r = await withTimeout(
+                ai.complete({
+                    apiKey,
+                    model,
+                    system,
+                    messages: msgs,
+                }),
+                AI_TIMEOUT_MS,
+                "ai_completion",
+            );
+            return {
+                valor: r,
+                tokens: r.tokens,
+                entrada: system + msgs.map((m) => m.content).join("\n"),
+                salida: r.content,
+            };
+        });
+        // Sin créditos no se llama a la IA, y se dice por qué: no se cae a la
+        // respuesta local, que haría creer que el copiloto contestó.
+        if (!uso.ok) return { success: false, message: uso.aviso };
+        const result = uso.valor;
 
         const content =
             (result.content || "").trim() ||

@@ -357,6 +357,13 @@ const gmail = {
         return comoTotal(l.messagesTotal);
     },
 
+    /** Cuántos SIN LEER hay en la bandeja de entrada: el `messagesUnread` de `INBOX`. */
+    async sinLeer(buzon: Buzon): Promise<number> {
+        const token = await elTokenVigente(buzon, "gmail");
+        const l = await pedir<{ messagesUnread?: number }>(`${GMAIL}/labels/INBOX`, token);
+        return comoTotal(l.messagesUnread);
+    },
+
     async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {
         const token = await elTokenVigente(buzon, "gmail");
         // El archivo de Gmail no es una etiqueta: es lo que salió de `INBOX`
@@ -525,6 +532,13 @@ const outlook = {
         const token = await elTokenVigente(buzon, "outlook");
         const f = await pedir<{ totalItemCount?: number }>(`${GRAPH}/mailFolders/inbox?$select=totalItemCount`, token);
         return comoTotal(f.totalItemCount);
+    },
+
+    /** Cuántos SIN LEER hay en la bandeja de entrada: el `unreadItemCount` de `inbox`. */
+    async sinLeer(buzon: Buzon): Promise<number> {
+        const token = await elTokenVigente(buzon, "outlook");
+        const f = await pedir<{ unreadItemCount?: number }>(`${GRAPH}/mailFolders/inbox?$select=unreadItemCount`, token);
+        return comoTotal(f.unreadItemCount);
     },
 
     async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {
@@ -762,6 +776,11 @@ const imap = {
     /** Cuántos correos hay en `INBOX`: el `STATUS … (MESSAGES)` del servidor. */
     async total(buzon: Buzon): Promise<number> {
         return conImap(buzon, async (cliente) => comoTotal((await cliente.status("INBOX", { messages: true }))?.messages));
+    },
+
+    /** Cuántos SIN LEER hay en `INBOX`: el `STATUS … (UNSEEN)` del servidor. */
+    async sinLeer(buzon: Buzon): Promise<number> {
+        return conImap(buzon, async (cliente) => comoTotal((await cliente.status("INBOX", { unseen: true }))?.unseen));
     },
 
     async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {

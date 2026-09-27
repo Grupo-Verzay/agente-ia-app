@@ -1,4 +1,6 @@
 import "server-only";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor } from "@/lib/cobro-de-ia";
 
 /**
  * El informe semanal: recoger las metricas, redactarlo y mandarlo por WhatsApp.
@@ -35,6 +37,13 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
 import { normalizeChatHistoryRemoteJid } from "@/lib/chat-history/build-session-id";
+import { laCalidadDeLasCuentas } from "@/lib/calidad-db";
+import {
+    elResumenSemanalDeCalidad,
+    lasLineasDeLaCalidad,
+    type ResumenSemanalDeCalidad,
+} from "@/lib/calidad-de-conversaciones";
+import { evaluarLaCalidadDeLaCuenta, TIEMPO_POR_CUENTA_EN_EL_CORTE_MS } from "@/lib/calidad-runner.server";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +60,12 @@ export type WeeklyMetrics = {
     followUpsPending: number;
     conversions: number;
     registrosByTipo: Record<string, number>;
+    /**
+     * La calidad de atención de la semana (CRM › Calidad), en una o dos líneas.
+     * Opcional: los reportes de antes no la traen, y `null` es «no hubo
+     * conversaciones evaluadas», que no se pinta —nunca un 0/100—.
+     */
+    calidad?: ResumenSemanalDeCalidad | null;
 };
 
 export type WeeklyReportItem = {
@@ -159,11 +174,47 @@ async function collectMetrics(userId: string, from: Date, to: Date): Promise<Wee
     };
 }
 
+// ─── Calidad de la semana ───────────────────────────────────────────────────
+
+/** Tope de filas que se leen para el promedio: una semana de una cuenta cabe de sobra. */
+const TOPE_DE_CALIDAD_EN_EL_REPORTE = 5000;
+
+/**
+ * El resumen de calidad de la semana de UNA cuenta, sobre lo que ya está
+ * evaluado (no evalúa nada: eso lo hace el corte, antes). Nunca tumba el
+ * reporte: si falla, el reporte sale sin la sección, y se dice.
+ *
+ * «Sin equipo» es que nadie cuelga de la cuenta (`ownerId`): el dueño atiende
+ * solo, y entonces el reporte dice SU puntaje en vez de nombrar a un mejor
+ * asesor que no existe.
+ */
+export async function laCalidadDeLaSemana(userId: string, from: Date): Promise<ResumenSemanalDeCalidad | null> {
+    try {
+        const [filas, equipo] = await Promise.all([
+            laCalidadDeLasCuentas({ cuentas: [userId], desde: from, tope: TOPE_DE_CALIDAD_EN_EL_REPORTE }),
+            db.user.count({ where: { ownerId: userId, deletedAt: null } }),
+        ]);
+        const ids = Array.from(new Set(filas.map((f) => f.asesorId).filter((x): x is string => Boolean(x))));
+        const personas = ids.length
+            ? await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } })
+            : [];
+        const nombres = new Map(personas.map((p) => [p.id, p.name?.trim() || p.email || "Asesor"]));
+        return elResumenSemanalDeCalidad(filas, { tieneEquipo: equipo > 0, nombres });
+    } catch (error) {
+        console.warn("[weeklyReport] no se pudo leer la calidad de la semana; el reporte sale sin ella", {
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
 // ─── AI narrative ─────────────────────────────────────────────────────────────
 
 const REPORT_PROMPT = `Eres un asistente de ventas. Genera un resumen ejecutivo semanal en español, amigable y orientado a acción, basado en estas métricas de CRM. Máximo 3 párrafos cortos. Destaca lo más importante, tendencias y una recomendación concreta para la próxima semana. No uses listas, escribe en prosa fluida.`;
 
-async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promise<string> {
+/** Exportada para el banco del cobro (`lib/__tests__/cobro-de-ia.test.mjs`). */
+export async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promise<string> {
     const user = await db.user.findUnique({
         where: { id: userId },
         select: { defaultProviderId: true, defaultAiModelId: true },
@@ -186,22 +237,37 @@ async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promis
     const modelName = model?.name ?? (provider.name === "google" ? "gemini-2.0-flash" : "gpt-4o-mini");
     const content = `${REPORT_PROMPT}\n\nMétricas:\n${JSON.stringify(metrics, null, 2)}`;
 
+    // El informe lo PAGA la cuenta a la que se le hace (`userId`), con su IA.
+    // Sin créditos no se llama a la IA: sale el resumen de respaldo con los
+    // números, que es lo que ya salía cuando la IA no contestaba.
     try {
-        if (provider.name === "google") {
-            const { GoogleGenAI } = await import("@google/genai");
-            const ai = new GoogleGenAI({ apiKey: config.apiKey });
-            const res = await ai.models.generateContent({ model: modelName, contents: content });
-            return res.text?.trim() || formatFallbackSummary(metrics);
-        }
-        const OpenAI = (await import("openai")).default;
-        const client = new OpenAI({ apiKey: config.apiKey });
-        const res = await client.chat.completions.create({
-            model: modelName,
-            messages: [{ role: "user", content }],
-            max_completion_tokens: 500,
+        const apiKey = config.apiKey;
+        const proveedor = provider.name;
+        const uso = await usarLaIaCobrando(userId, "informe semanal", async () => {
+            if (proveedor === "google") {
+                const { GoogleGenAI } = await import("@google/genai");
+                const ai = new GoogleGenAI({ apiKey });
+                const res = await ai.models.generateContent({ model: modelName, contents: content });
+                const texto = res.text?.trim() ?? "";
+                return { valor: texto, tokens: losTokensDelProveedor(res), entrada: content, salida: texto };
+            }
+            const OpenAI = (await import("openai")).default;
+            const client = new OpenAI({ apiKey });
+            const res = await client.chat.completions.create({
+                model: modelName,
+                messages: [{ role: "user", content }],
+                max_completion_tokens: 500,
+            });
+            const texto = res.choices[0]?.message?.content?.trim() ?? "";
+            return { valor: texto, tokens: losTokensDelProveedor(res), entrada: content, salida: texto };
         });
-        return res.choices[0]?.message?.content?.trim() || formatFallbackSummary(metrics);
-    } catch {
+        if (!uso.ok) return formatFallbackSummary(metrics);
+        return uso.valor || formatFallbackSummary(metrics);
+    } catch (error) {
+        console.warn("[informe-semanal] la IA no escribió el resumen; sale el de respaldo", {
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+        });
         return formatFallbackSummary(metrics);
     }
 }
@@ -272,6 +338,11 @@ function formatWhatsAppReport(metrics: WeeklyMetrics, summary: string): string {
         lines.push(sep, `📋 *ACTIVIDAD*`, ...actividadLines);
     }
 
+    // Una o dos líneas, sin desglose: el detalle está en CRM › Calidad.
+    if (metrics.calidad) {
+        lines.push(sep, `🎯 *CALIDAD DE ATENCIÓN*`, ...lasLineasDeLaCalidad(metrics.calidad, { negrilla: true }));
+    }
+
     lines.push(
         sep,
         `_🤖 Generado por tu Agente IA_`,
@@ -326,6 +397,7 @@ export async function generateWeeklyReportForUser(userId: string): Promise<{
 
     console.log("[weeklyReport] collecting metrics for", userId);
     const metrics  = await collectMetrics(userId, from, to);
+    metrics.calidad = await laCalidadDeLaSemana(userId, from);
     console.log("[weeklyReport] metrics collected, generating narrative");
     const summary  = await generateNarrative(userId, metrics);
     console.log("[weeklyReport] narrative ready, saving to DB");
@@ -390,6 +462,15 @@ export async function runWeeklyReportForAllUsers(): Promise<{
     let processed = 0, sent = 0, errors = 0;
 
     for (const user of users) {
+        // El CORTE de la calidad: se evalúa la semana de la cuenta justo antes
+        // de su reporte, para que la sección salga con lo de esta semana. Es el
+        // único disparo automático del QA; nunca tumba el reporte.
+        try {
+            const calidad = await evaluarLaCalidadDeLaCuenta(user.id, { tiempoMaximoMs: TIEMPO_POR_CUENTA_EN_EL_CORTE_MS });
+            console.info("[calidad] corte semanal", calidad);
+        } catch (err) {
+            console.error(`[calidad] el corte semanal falló userId=${user.id}`, err);
+        }
         try {
             const res = await generateWeeklyReportForUser(user.id);
             processed++;

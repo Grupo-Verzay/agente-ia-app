@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # El banco de la REGLA de la plataforma: todo uso de IA descuenta créditos de la
-# cuenta DUEÑA de lo que se analiza. Y el sentimiento se analiza SOLO al abrir
-# Chats. Ver la cabecera de `lib/__tests__/cobro-de-ia.test.mjs`.
+# cuenta DUEÑA de lo que se analiza —TODOS los usos de IA de la plataforma—. Y el
+# sentimiento se analiza SOLO al abrir Chats. Ver la cabecera de `lib/__tests__/cobro-de-ia.test.mjs`.
 #
 # `MODO=roto` lee el código de ANTES_REF —pinchado a un commit, nunca
 # `origin/main`— y AFIRMA el fallo.
@@ -41,6 +41,8 @@ if [ "$MODO" = "bueno" ]; then
     --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
     "--alias:@/app/(root)/ai-chat/helpers/createAiClient=./lib/__tests__/fingido/cliente-de-ia-de-mentira.ts" \
     --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
+    --alias:openai=./lib/__tests__/fingido/openai-de-mentira.ts \
+    --alias:@google/genai=./lib/__tests__/fingido/google-genai-de-mentira.ts \
     --alias:react=./lib/__tests__/fingido/react-cache.ts \
     --banner:js='import{createRequire as __cr}from "module";const require=__cr(import.meta.url);' \
     --log-level=error

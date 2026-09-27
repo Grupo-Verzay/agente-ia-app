@@ -180,3 +180,14 @@ export async function correosEnLoteAction(accion: unknown, lote: any[]) {
         sinPapelera: 0,
     };
 }
+
+/** Exportar: la pantalla solo necesita que exista para empaquetarse. */
+export async function exportarCorreosAction() {
+    apuntar("exportar");
+    return { success: true, archivo: "", nombre: "correos.txt", tipo: "text/plain", omitidos: 0 };
+}
+
+/** Los sin leer del menú: la pantalla de Correo no los pide, pero el empaquetado los resuelve. */
+export async function correosSinLeerAction() {
+    return { success: true, sinLeer: 0 };
+}

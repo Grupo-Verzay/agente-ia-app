@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import type { CurrentUser } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
-import { useTaskStore } from '@/stores/useTaskStore';
-import { useChatsQueEsperan } from '@/stores/useChatUnreadStore';
+import { usePendientesDelMenu } from '@/hooks/usePendientesDelMenu';
+import { CLASE_DEL_CONTADOR, elTextoDelContador, type ConteosDelMenu } from '@/lib/pendientes-del-menu';
 
 import { PremiumModule } from './shared/PremiumModule';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -38,8 +38,6 @@ export function NavMain({ user }: { user: CurrentUser }) {
     const pathname = usePathname();
     const router = useRouter();
     const { isMobile, openMobile, setOpenMobile, state: sidebarState } = useSidebar();
-    const taskPendingCount = useTaskStore((s) => s.pendingCount);
-    const chatUnreadCount = useChatsQueEsperan();
 
     const isAdvisor = !!user.ownerId;
     // Mismo criterio que el guardián de rutas del layout: sin esto el sidebar
@@ -83,6 +81,12 @@ export function NavMain({ user }: { user: CurrentUser }) {
         // desaparece del menú, igual que las pestañas del panel.
         .filter(link => !link.isHidden && !(link.isLocked && !puedeMejorarPlan))
         .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // El numerito de pendientes va por la RUTA de cada apartado, esté suelto o
+    // dentro de un módulo: da igual cómo se agrupen, donde esté lleva su número.
+    const conteos = usePendientesDelMenu(
+        navItems.flatMap((m) => [m.route, ...(m.moduleItems ?? []).map((sub) => sub.url ?? null)]),
+    );
 
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null, isLocked?: boolean) => {
         if (isLocked) {
@@ -136,16 +140,7 @@ export function NavMain({ user }: { user: CurrentUser }) {
                                         ? <Lock className="ml-auto h-3.5 w-3.5 text-orange-400" />
                                         : requiresPremium && <PremiumModule />}
                                 </SidebarMenuButton>
-                                {route === '/tareas' && taskPendingCount > 0 && (
-                                    <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
-                                        {taskPendingCount > 99 ? '99+' : taskPendingCount}
-                                    </SidebarMenuBadge>
-                                )}
-                                {route === '/chats' && chatUnreadCount > 0 && (
-                                    <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
-                                        {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                                    </SidebarMenuBadge>
-                                )}
+                                <ContadorSuelto ruta={route} conteos={conteos} />
 
                             </SidebarMenuItem>
                         );
@@ -323,8 +318,10 @@ export function NavMain({ user }: { user: CurrentUser }) {
                                                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                                                     )}
                                                 >
-                                                    <span className="flex-1">{subItem.title}</span>
-                                                    {isSubLocked && <Lock className="h-3 w-3 text-orange-400 shrink-0" />}
+                                                    <span className="min-w-0 flex-1 truncate">{subItem.title}</span>
+                                                    {isSubLocked
+                                                        ? <Lock className="ml-2 h-3 w-3 text-orange-400 shrink-0" />
+                                                        : <ContadorDelMenu ruta={dest} conteos={conteos} />}
                                                 </button>
                                             );
                                         })}
@@ -368,8 +365,10 @@ export function NavMain({ user }: { user: CurrentUser }) {
                                                                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                                                         )}
                                                     >
-                                                        {subItem.title}
-                                                        {isSubLocked && <Lock className="ml-auto h-3 w-3 text-orange-400 shrink-0" />}
+                                                        <span className="min-w-0 flex-1 truncate text-left">{subItem.title}</span>
+                                                        {isSubLocked
+                                                            ? <Lock className="ml-2 h-3 w-3 text-orange-400 shrink-0" />
+                                                            : <ContadorDelMenu ruta={dest} conteos={conteos} />}
                                                     </button>
                                                 </SidebarMenuSubItem>
                                             );
@@ -382,5 +381,38 @@ export function NavMain({ user }: { user: CurrentUser }) {
                 })}
             </SidebarMenu>
         </SidebarGroup >
+    );
+}
+
+/**
+ * El numerito de pendientes junto al nombre de un apartado de un desplegable
+ * (abierto, o flotante con la barra plegada). Misma forma que el del apartado
+ * suelto (`CLASE_DEL_CONTADOR`); sin número que enseñar no pinta nada.
+ */
+function ContadorDelMenu({ ruta, conteos }: { ruta: string | null | undefined; conteos: ConteosDelMenu }) {
+    const texto = elTextoDelContador(ruta, conteos);
+    if (!texto) return null;
+    return (
+        <span data-contador-del-menu={ruta ?? undefined} className={clsx('ml-2', CLASE_DEL_CONTADOR)}>
+            {texto}
+        </span>
+    );
+}
+
+/**
+ * El mismo numerito en un apartado SUELTO del menú: va sobre el botón, pegado
+ * a la derecha, como lo llevaban Chats y Mis tareas antes de agruparse —con la
+ * barra plegada se queda en la esquina del icono—.
+ */
+function ContadorSuelto({ ruta, conteos }: { ruta: string | null | undefined; conteos: ConteosDelMenu }) {
+    const texto = elTextoDelContador(ruta, conteos);
+    if (!texto) return null;
+    return (
+        <SidebarMenuBadge
+            data-contador-del-menu={ruta ?? undefined}
+            className={clsx('right-2 top-1/2 z-20 -translate-y-1/2 group-data-[collapsible=icon]:right-0.5', CLASE_DEL_CONTADOR)}
+        >
+            {texto}
+        </SidebarMenuBadge>
     );
 }

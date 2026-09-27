@@ -589,6 +589,7 @@ export function ChatSidebar({
             ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
             : undefined,
           hasNotes: notedSessionIds.has(chatSession?.id ?? -1),
+          identidades: getChatIdentityCandidates(chat),
           // Para la pasada barata de abajo, que decide lo de "no leido" sin
           // tener que volver a mirar el chat entero.
           _remoteJid: chat.remoteJid,
@@ -1878,7 +1879,7 @@ export function ChatSidebar({
                 key={`${contact.instanceName ?? ""}::${contact.id}`}
                 contact={contact}
                 presencia={presencias?.[`${contact.instanceName ?? ""}::${contact.id}`] ?? null}
-                sentimiento={elSentimientoDe(sentimientos, contact.instanceName, [contact.id])?.sentimiento ?? null}
+                sentimiento={elSentimientoDe(sentimientos, contact.instanceName, [contact.id, ...(contact.identidades ?? [])])?.sentimiento ?? null}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
                 onPrefetch={handlePrefetchJid}

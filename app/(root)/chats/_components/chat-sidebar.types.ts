@@ -30,6 +30,13 @@ export type SidebarContact = {
   instanceName?: string;
   instanceDisplayName?: string;
   hasNotes?: boolean;
+  /**
+   * TODAS las identidades del contacto (`getChatIdentityCandidates`). Con ellas
+   * se busca su sentimiento: el análisis lo guarda bajo las del mensaje y la
+   * fila puede venir por otra. Buscando solo por `id`, un contacto abierto por
+   * su `@lid` y analizado por su número se quedaba sin color.
+   */
+  identidades?: string[];
 };
 
 // Sin "deleted": un chat eliminado no se ve en ninguna parte (ver `isDeleted`).

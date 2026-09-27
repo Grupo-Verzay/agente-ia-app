@@ -27,7 +27,7 @@ export class ImapFlow {
     }
     async status(ruta: string, pedido: any) {
         (g.__imap.estados ??= []).push({ ruta, pedido });
-        return { path: ruta, messages: g.__imap.mensajes.length };
+        return { path: ruta, messages: g.__imap.mensajes.length, unseen: g.__imap.mensajes.filter((m: any) => !m.leido).length };
     }
     async search() {
         return g.__imap.mensajes.map((m: any) => m.uid);

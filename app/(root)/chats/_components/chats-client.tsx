@@ -5,7 +5,17 @@ import { MedidaDeChats } from "@/components/chats/MedidaDeChats";
 import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
 import { atajosDeLaConversacion } from "@/lib/atajos-de-la-linea";
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
-import { suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
+import { mediaDeUnMensajeAction, suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
+import { ReenviarMensaje } from "@/components/chats/ReenviarMensaje";
+import {
+  elPayloadDelReenvio,
+  elResumenDelReenvio,
+  laUrlSirve,
+  losDestinosDelReenvio,
+  loQueSeReenvia,
+  type DestinoDelReenvio,
+  type ResultadoDelReenvio,
+} from "@/lib/reenviar-mensaje";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -103,6 +113,7 @@ import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
 import type { OutgoingMessagePayload } from "./chat-main";
+import type { UIBubble } from "./chat-message-types";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -3023,6 +3034,133 @@ export function ChatsClient({
     [instanceActionSets],
   );
 
+  /* ─── Reenviar un mensaje a otras conversaciones ───
+   *
+   * El panel lo pinta la bandeja porque es quien tiene las conversaciones y los
+   * juegos de acciones de cada linea. Cada destino sale por el `sendText` de SU
+   * linea —el mismo de la barra de escribir—: ni un camino de envio nuevo, ni
+   * la linea de la conversacion de origen (ver `lib/reenviar-mensaje`).
+   */
+  const [mensajeAReenviar, setMensajeAReenviar] = useState<UIBubble | null>(null);
+  const reenvio = useMemo(() => loQueSeReenvia(mensajeAReenviar), [mensajeAReenviar]);
+  // La conversacion de ORIGEN se fija al abrir el panel: si mientras tanto se
+  // cambia de chat, el archivo se sigue pidiendo a la linea de donde salio.
+  const origenDelReenvio = useRef<{ linea: string | null; remoteJid: string } | null>(null);
+
+  const abrirReenvio = useCallback((bubble: UIBubble) => {
+    if (!loQueSeReenvia(bubble)) {
+      toast.error("Este mensaje no se puede reenviar.");
+      return;
+    }
+    origenDelReenvio.current = {
+      linea: laLineaDeLaConversacion({
+        contacto: currentContactRef.current,
+        seleccionada: selectedInstanceNameRef.current,
+        info: infoRef.current,
+      }),
+      remoteJid: currentContactRef.current?.remoteJid ?? selectedJid,
+    };
+    setMensajeAReenviar(bubble);
+  }, [selectedJid]);
+
+  // Solo con el panel abierto: la bandeja puede tener miles de filas y esto no
+  // se paga en cada vuelta del reloj de la lista.
+  const destinosDelReenvio = useMemo((): DestinoDelReenvio[] => {
+    if (!mensajeAReenviar) return [];
+    const conJuego = new Set((instanceActionSets ?? []).map((j) => j.instanceName));
+    const origen = origenDelReenvio.current;
+    const salida: DestinoDelReenvio[] = [];
+    for (const chat of dedupeAndSortChats(contacts as ChatData[])) {
+      // Sin juego de su linea no hay con que enviar: no se ofrece. Un destino
+      // que al elegirlo da error es peor que no verlo.
+      if (!chat.instanceName || !conJuego.has(chat.instanceName)) continue;
+      if (origen && origen.linea === chat.instanceName && chatMatchesAnyJid(chat, new Set(buildWhatsAppJidCandidates(origen.remoteJid)))) continue;
+      const sesion = getSessionForChat(chat, chatSessions);
+      const nombre = (() => {
+        for (const n of [sesion?.customName, sesion?.pushName, chat.pushName]) {
+          const limpio = n?.trim();
+          if (limpio && !isBadContactName(limpio)) return limpio;
+        }
+        if (isLidJid(chat.remoteJid)) return "Contacto sin número";
+        return fmtPhone(chat.remoteJid) || extractWhatsAppDigits(chat.remoteJid) || chat.remoteJid;
+      })();
+      salida.push({
+        linea: chat.instanceName,
+        remoteJid: chat.remoteJid,
+        nombre,
+        numero: isLidJid(chat.remoteJid) ? undefined : fmtPhone(chat.remoteJid) || undefined,
+      });
+    }
+    return salida;
+  }, [mensajeAReenviar, contacts, chatSessions, instanceActionSets]);
+
+  const reenviarA = useCallback(async (elegidos: DestinoDelReenvio[]) => {
+    const bubble = mensajeAReenviar;
+    const lo = loQueSeReenvia(bubble);
+    if (!bubble || !lo) return;
+    const origen = origenDelReenvio.current;
+    const destinos = losDestinosDelReenvio(elegidos, origen?.linea ? { linea: origen.linea, remoteJid: origen.remoteJid } : null);
+
+    // El archivo: el de la burbuja si sirve tal cual; si no (la direccion de
+    // WhatsApp va cifrada), se le pide a la linea de ORIGEN, con su puerta.
+    let archivo: string | null = null;
+    if (lo.kind === "media" && !laUrlSirve(lo.url)) {
+      if (origen?.linea) {
+        try {
+          const res = await mediaDeUnMensajeAction({ apiKeyData: null, instanceName: origen.linea }, bubble.id);
+          if (res.success && res.data?.base64) {
+            archivo = `data:${res.data.mimetype || lo.mimetype || "application/octet-stream"};base64,${res.data.base64}`;
+          } else {
+            console.warn("[chats] reenviar: la linea de origen no devolvio el archivo", { linea: origen.linea, mensaje: bubble.id, motivo: res.message });
+          }
+        } catch (error) {
+          console.warn("[chats] reenviar: no se pudo pedir el archivo", { linea: origen.linea, mensaje: bubble.id, error: String(error) });
+        }
+      }
+    }
+    const payload = elPayloadDelReenvio(lo, archivo);
+    if (!payload) {
+      toast.error("No se pudo obtener el archivo de este mensaje para reenviarlo. Ábrelo y vuelve a intentarlo.");
+      return;
+    }
+
+    // En serie: Next atiende las acciones de una pagina de una en una, y varios
+    // envios a la vez por la misma linea es lo que hace que WhatsApp la mire.
+    const resultados: ResultadoDelReenvio[] = [];
+    for (const destino of destinos) {
+      const juego = (instanceActionSets ?? []).find((j) => j.instanceName === destino.linea);
+      if (!juego) {
+        resultados.push({ destino, ok: false, motivo: `la línea «${destino.linea}» no está disponible` });
+        continue;
+      }
+      const contacto = (contactsRef.current as ChatData[]).find(
+        (c) => c.instanceName === destino.linea && c.remoteJid === destino.remoteJid,
+      );
+      try {
+        const r = await juego.sendText(resolveSendRemoteJid(destino.remoteJid, contacto), payload as OutgoingMessagePayload);
+        resultados.push(r.success ? { destino, ok: true } : { destino, ok: false, motivo: r.message || "no se pudo enviar" });
+      } catch (error) {
+        console.warn("[chats] reenviar: el envio revento", { linea: destino.linea, chat: destino.remoteJid, error: String(error) });
+        resultados.push({ destino, ok: false, motivo: "no se pudo enviar" });
+      }
+    }
+
+    const resumen = elResumenDelReenvio(resultados);
+    if (resumen.tono === "ok") toast.success(resumen.texto);
+    else if (resumen.tono === "parcial") toast.warning(resumen.texto);
+    else toast.error(resumen.texto);
+    if (resultados.some((r) => r.ok)) {
+      // Lo que salio sube en la lista, y si una de ellas es la que esta abierta
+      // la burbuja aparece sin esperar al reloj.
+      void refreshSidebarData();
+      if (selectedJid && resultados.some((r) => r.ok && r.destino.remoteJid === selectedJid)) {
+        void pollAndCompareMessages(selectedJid, currentContactRef.current?.aliases);
+      }
+    }
+    // Se cierra solo si todo salio: con fallos se queda abierto para reintentar.
+    if (resumen.tono === "ok") setMensajeAReenviar(null);
+  }, [mensajeAReenviar, instanceActionSets, refreshSidebarData, pollAndCompareMessages, selectedJid]);
+
   // Precalienta el historial de una conversación (página 1, solo local) y lo
   // deja en el cache en memoria SIN cambiar la selección ni la UI. Se dispara al
   // pasar el mouse/tocar un chat en la lista, de modo que al hacer click los
@@ -5588,7 +5726,7 @@ export function ChatsClient({
             }
             sentimiento={
               selectedJid
-                ? elSentimientoDe(sentimientos, currentContact?.instanceName ?? selectedInstanceName, [currentContact?.remoteJid, selectedJid])
+                ? elSentimientoDe(sentimientos, currentContact?.instanceName ?? selectedInstanceName, [currentContact?.remoteJid, ...identidadesParaPedirMensajes(currentContact, selectedJid)])
                 : null
             }
             llaveDeLaConversacion={llaveDelSentimiento(currentContact?.instanceName ?? selectedInstanceName, currentContact?.remoteJid ?? selectedJid)}
@@ -5601,6 +5739,7 @@ export function ChatsClient({
             messages={messages}
             onBackToList={toggleSidebarVisibility}
             onSend={handleSendAny}
+            onForwardMessage={instanceActionSets && instanceActionSets.length > 0 ? abrirReenvio : undefined}
             onSendQuickReply={handleSendQuickReply}
             onSendWorkflow={handleSendWorkflow}
             instanceType={currentContact?.instanceType}
@@ -5700,6 +5839,16 @@ export function ChatsClient({
         )}
       </div>
     </div>
+
+    {instanceActionSets && instanceActionSets.length > 0 && (
+      <ReenviarMensaje
+        abierto={mensajeAReenviar !== null}
+        onCerrar={() => setMensajeAReenviar(null)}
+        reenvio={reenvio}
+        destinos={destinosDelReenvio}
+        onReenviar={reenviarA}
+      />
+    )}
 
     {instanceActionSets && instanceActionSets.length > 0 && (
       <NewConversationDialog
