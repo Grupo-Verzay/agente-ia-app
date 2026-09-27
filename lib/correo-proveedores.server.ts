@@ -3,7 +3,10 @@ import "server-only";
 import {
     elAsuntoDeLaRespuesta,
     elHtmlDeUnTexto,
+    esFaltaDePermiso,
     lasReferenciasDeLaRespuesta,
+    losPermisosAlRenovar,
+    MOTIVO_SIN_PERMISO_PARA_ORGANIZAR,
     partirRemitente,
     TAMANO_DE_PAGINA,
     type AdjuntoDeCorreo,
@@ -20,17 +23,23 @@ import {
 } from "@/lib/correo-db";
 
 /**
- * Los tres proveedores detrás de UNA interfaz: bandeja, leer, adjunto y
- * responder. La pantalla y las acciones no saben cuál hay debajo, y eso es lo
+ * Los tres proveedores detrás de UNA interfaz: bandeja, leer, marcar como
+ * leído, eliminar, adjunto y responder. La pantalla y las acciones no saben cuál hay debajo, y eso es lo
  * que hace que las tres se comporten igual: lo que cambia es cómo se le
  * pregunta a cada uno, no lo que se enseña.
  *
  * Tres reglas comunes, escritas una vez:
  *
- * 1. **Leer no cambia nada en el buzón.** Ni marca como leído, ni mueve, ni
- *    archiva. Gmail va con `gmail.readonly` (no podría aunque quisiera), así
- *    que para que las tres digan lo mismo, Outlook e IMAP tampoco lo hacen:
- *    IMAP abre la bandeja en solo lectura y pide el cuerpo con `PEEK`.
+ * 1. **Traer el correo y marcarlo son DOS pasos, y el segundo es explícito.**
+ *    `leer` no cambia nada (IMAP pide el cuerpo con `PEEK`, Gmail y Outlook con
+ *    un GET): así la descarga de un adjunto o el preparar una respuesta, que
+ *    también leen el original, no marcan nada por su cuenta. Lo que marca es
+ *    `marcarComoLeido`, y solo lo llama la acción de ABRIR — igual en los tres.
+ *    La bandeja se sigue abriendo en solo lectura; solo marcar y eliminar abren
+ *    IMAP con escritura.
+ *    Eliminar es mandar a la PAPELERA en los tres (Gmail `trash`, Outlook
+ *    `deleteditems`, IMAP la carpeta `\Trash`): nunca un borrado definitivo,
+ *    salvo un servidor IMAP que no tenga papelera, y eso se DICE.
  * 2. **Una autorización que el proveedor rechaza deja el buzón en «volver a
  *    conectar»** con su motivo, en vez de fallar en cada vuelta sin decir nada.
  * 3. **Nada de aquí escribe en la base un mensaje.** Solo credenciales.
@@ -41,6 +50,11 @@ export class ErrorDeCorreo extends Error {
         message: string,
         /** El proveedor rechazó la autorización: hay que volver a conectar. */
         public readonly reconectar = false,
+        /**
+         * El token no tiene el permiso de ORGANIZAR (se conectó cuando solo se
+         * pedía leer). Leer y responder siguen valiendo; marcar y eliminar no.
+         */
+        public readonly faltaPermiso = false,
     ) {
         super(message);
         this.name = "ErrorDeCorreo";
@@ -51,6 +65,22 @@ export interface Pagina {
     correos: ResumenDeCorreo[];
     /** Para pedir la página siguiente; `null` si no hay más. */
     siguiente: string | null;
+}
+
+/** Eliminar manda a la papelera en los tres; `false` solo si el servidor IMAP no tiene. */
+export interface Eliminado {
+    aLaPapelera: boolean;
+}
+
+/**
+ * La papelera de un servidor IMAP: la carpeta marcada `\Trash` (RFC 6154), y
+ * si el servidor no marca ninguna, la que se llame como una papelera. Pura.
+ */
+export function laPapeleraImap(carpetas: { path?: string; specialUse?: string }[]): string | null {
+    const marcada = carpetas.find((c) => c.specialUse === "\\Trash");
+    if (marcada?.path) return marcada.path;
+    const nombre = /^(inbox[./])?(trash|papelera|deleted( items| messages)?|elementos eliminados|bin)$/i;
+    return carpetas.find((c) => c.path && nombre.test(c.path))?.path ?? null;
 }
 
 export interface AdjuntoDescargado {
@@ -142,7 +172,7 @@ async function elTokenVigente(buzon: Buzon, proveedor: ProveedorConBoton): Promi
     if (c.expiraEn - 60_000 > Date.now()) return c.accessToken;
     try {
         const cuerpo: Record<string, string> = { grant_type: "refresh_token", refresh_token: c.refreshToken };
-        if (proveedor === "outlook") cuerpo.scope = "offline_access User.Read Mail.Read Mail.Send";
+        if (proveedor === "outlook") cuerpo.scope = losPermisosAlRenovar("outlook");
         const t = await pedirToken(proveedor, cuerpo);
         const nuevas: CredencialesOAuth = {
             tipo: "oauth",
@@ -169,7 +199,12 @@ async function pedir<T>(url: string, token: string, init: RequestInit = {}): Pro
     if (r.status === 202 || r.status === 204) return {} as T;
     const datos = (await r.json().catch(() => ({}))) as any;
     if (!r.ok) {
-        const motivo = String(datos?.error?.message || datos?.error_description || datos?.error || `HTTP ${r.status}`);
+        const motivo = String(datos?.error?.message || datos?.error?.code || datos?.error_description || datos?.error || `HTTP ${r.status}`);
+        // Un 403 por falta de permiso no es «revocado»: el buzón sigue leyendo.
+        // Se dice qué hacer (volver a conectar) en vez de un inglés técnico.
+        if (r.status === 403 && (esFaltaDePermiso(motivo) || esFaltaDePermiso(String(datos?.error?.code ?? "")))) {
+            throw new ErrorDeCorreo(MOTIVO_SIN_PERMISO_PARA_ORGANIZAR, true, true);
+        }
         throw new ErrorDeCorreo(motivo, r.status === 401);
     }
     return datos as T;
@@ -294,6 +329,22 @@ const gmail = {
         };
     },
 
+    async marcarComoLeido(buzon: Buzon, id: string): Promise<void> {
+        const token = await elTokenVigente(buzon, "gmail");
+        await pedir(`${GMAIL}/messages/${encodeURIComponent(id)}/modify`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+        });
+    },
+
+    async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
+        const token = await elTokenVigente(buzon, "gmail");
+        // `trash`, nunca `delete`: se recupera desde la papelera de Gmail.
+        await pedir(`${GMAIL}/messages/${encodeURIComponent(id)}/trash`, token, { method: "POST" });
+        return { aLaPapelera: true };
+    },
+
     async adjunto(buzon: Buzon, id: string, adjuntoId: string): Promise<AdjuntoDescargado> {
         const token = await elTokenVigente(buzon, "gmail");
         const m = await pedir<{ payload?: ParteGmail }>(`${GMAIL}/messages/${encodeURIComponent(id)}?format=full`, token);
@@ -396,6 +447,26 @@ const outlook = {
         };
     },
 
+    async marcarComoLeido(buzon: Buzon, id: string): Promise<void> {
+        const token = await elTokenVigente(buzon, "outlook");
+        await pedir(`${GRAPH}/messages/${encodeURIComponent(id)}`, token, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isRead: true }),
+        });
+    },
+
+    async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
+        const token = await elTokenVigente(buzon, "outlook");
+        // Mover a «Elementos eliminados», nunca DELETE: se recupera desde ahí.
+        await pedir(`${GRAPH}/messages/${encodeURIComponent(id)}/move`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destinationId: "deleteditems" }),
+        });
+        return { aLaPapelera: true };
+    },
+
     async adjunto(buzon: Buzon, id: string, adjuntoId: string): Promise<AdjuntoDescargado> {
         const token = await elTokenVigente(buzon, "outlook");
         const a = await pedir<any>(
@@ -426,8 +497,11 @@ function lasCredencialesImap(buzon: Buzon): CredencialesImap {
     return c;
 }
 
-/** Una conexión por petición, y se cierra pase lo que pase. */
-async function conImap<T>(buzon: Buzon, hacer: (cliente: any) => Promise<T>): Promise<T> {
+/**
+ * Una conexión por petición, y se cierra pase lo que pase. En solo lectura
+ * salvo que se pida `escribir`: solo marcar y eliminar lo piden.
+ */
+async function conImap<T>(buzon: Buzon, hacer: (cliente: any) => Promise<T>, { escribir = false } = {}): Promise<T> {
     const c = lasCredencialesImap(buzon);
     const { ImapFlow } = await import("imapflow");
     const cliente = new ImapFlow({
@@ -449,8 +523,8 @@ async function conImap<T>(buzon: Buzon, hacer: (cliente: any) => Promise<T>): Pr
         throw new ErrorDeCorreo(`No se pudo conectar con ${c.imapHost}: ${error?.message ?? error}`);
     }
     try {
-        // Solo lectura: abrir un correo aquí no lo marca como leído allí.
-        await cliente.mailboxOpen("INBOX", { readOnly: true });
+        // Solo lectura para traer: pedir el cuerpo no marca nada por su cuenta.
+        await cliente.mailboxOpen("INBOX", { readOnly: !escribir });
         return await hacer(cliente);
     } finally {
         await cliente.logout().catch(() => cliente.close?.());
@@ -534,6 +608,35 @@ const imap = {
                 responderA: replyTo ? (replyTo.name ? `${replyTo.name} <${replyTo.address}>` : replyTo.address ?? "") : c.from?.text ?? "",
             };
         });
+    },
+
+    async marcarComoLeido(buzon: Buzon, id: string): Promise<void> {
+        await conImap(
+            buzon,
+            async (cliente) => {
+                await cliente.messageFlagsAdd(id, ["\\Seen"], { uid: true });
+            },
+            { escribir: true },
+        );
+    },
+
+    async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
+        return conImap(
+            buzon,
+            async (cliente) => {
+                const existe = await cliente.fetchOne(id, { uid: true }, { uid: true });
+                if (!existe) throw new ErrorDeCorreo("Ese correo ya no está en la bandeja.");
+                const papelera = laPapeleraImap(await cliente.list().catch(() => []));
+                if (papelera) {
+                    await cliente.messageMove(id, papelera, { uid: true });
+                    return { aLaPapelera: true };
+                }
+                // Sin papelera no hay adónde moverlo: se borra, y la acción lo DICE.
+                await cliente.messageDelete(id, { uid: true });
+                return { aLaPapelera: false };
+            },
+            { escribir: true },
+        );
     },
 
     async adjunto(buzon: Buzon, id: string, adjuntoId: string): Promise<AdjuntoDescargado> {

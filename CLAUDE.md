@@ -18206,9 +18206,10 @@ Cinco reglas que hay que mantener:
 3. **Las credenciales van selladas** (AES-256-GCM, `lib/correo-cifrado.server.ts`)
    con una llave derivada de `AUTH_SECRET`: sin variable nueva. Si
    `AUTH_SECRET` cambia, los buzones piden volver a conectar.
-4. **Leer no cambia nada en el buzón.** Gmail va con `gmail.readonly` +
-   `gmail.send`; para que los tres digan lo mismo, Outlook no marca como leído e
-   IMAP abre la bandeja en solo lectura.
+4. **Abrir un correo lo MARCA como leído, y eliminar lo manda a la PAPELERA,
+   igual en los tres** (ver *Correo: abrir marca leído, y eliminar es a la
+   papelera*, abajo). Traer el correo y marcarlo son dos pasos: bajar un
+   adjunto o preparar una respuesta leen el original y no marcan nada.
 5. **El HTML de un correo se pinta en un `iframe` con `sandbox` sin
    `allow-scripts`, y con su CSP dentro** (`elDocumentoDelCorreo`): dos
    cerrojos. Y a quién va una respuesta lo decide el SERVIDOR leyendo el
@@ -18246,6 +18247,47 @@ Lo prueba `scripts/banco-correo.sh`: reglas y barrido, las acciones y las rutas
 contra Postgres con Gmail y Outlook fingidos en el `fetch` e IMAP/SMTP en el
 socket, y la pantalla en Chromium. `MODO=roto` afirma el diseño ingenuo: un
 buzón buscado por su id a secas se lo entrega a cualquiera.
+
+### Abrir marca leído, y eliminar es a la papelera
+
+Al abrir un correo se quedaba «sin leer» en el buzón, y no había forma de
+eliminarlo. No era un fallo de la pantalla: era la regla de la primera versión
+(«leer no cambia nada»), con los permisos pedidos a juego —Gmail
+`gmail.readonly`, Outlook `Mail.Read`, IMAP abierto siempre en solo lectura—.
+
+> **Abrir marca, en los tres; eliminar manda a la papelera, en los tres.**
+> Gmail quita la etiqueta `UNREAD` y usa `trash`; Outlook pone `isRead` y mueve
+> a `deleteditems`; IMAP pone `\Seen` y mueve a la carpeta `\Trash`
+> (`laPapeleraImap`). **Nunca un borrado definitivo** —ni `DELETE`, ni
+> `mail.google.com`—, salvo un servidor IMAP sin papelera, y entonces
+> `aLaPapelera: false` lo dice y la confirmación lo avisa antes.
+
+Cinco cosas que hay que mantener:
+
+1. **Los permisos son `gmail.modify` y `Mail.ReadWrite`**, los más estrechos
+   que dejan marcar y mover a la papelera. `losPermisosAlRenovar` repite los
+   mismos al renovar el token de Microsoft.
+2. **Un buzón conectado con los permisos VIEJOS sigue leyendo y respondiendo.**
+   El 403 por falta de permiso (`esFaltaDePermiso`) no lo deja en «volver a
+   conectar»: abrir enseña el correo con `leido: false` y eliminar rebota, los
+   dos con `MOTIVO_SIN_PERMISO_PARA_ORGANIZAR` y su botón de volver a conectar.
+   **Quien conectó Gmail antes de esto tiene que volver a conectarlo** para
+   marcar y eliminar; y el proyecto de Google Cloud tiene que tener
+   `gmail.modify` en la pantalla de consentimiento.
+3. **Marcar no puede tumbar la lectura**: va en su propio `try` dentro de
+   `leerCorreoAction`, y no es mudo. La acción recibe `estabaSinLeer` para no
+   pedir marcar uno ya leído; no decide ningún acceso.
+4. **La lista se pinta al momento**: el punto de «sin leer» se quita al abrir y
+   la fila se quita al eliminar, ANTES de que el proveedor conteste; si dice que
+   no, el punto vuelve y el correo vuelve a SU sitio (`conLeido`, `sinElCorreo`,
+   `devolverElCorreo`, puras). Es la regla de eliminar un chat.
+5. **Se elimina desde la fila de la bandeja** (la papelera sale al pasar el
+   ratón, como botón HERMANO del de abrir: un botón no va dentro de otro) **y
+   desde el correo abierto** (que es por donde se elimina en un teléfono). Los
+   dos pasan por la MISMA confirmación y el mismo `eliminar`.
+
+Lo prueba `scripts/banco-correo.sh` en sus tres mitades; `MODO=roto` lee los
+ficheros de `ANTES_REF` (dc71d09) y afirma que no se marcaba ni se eliminaba.
 
 ## Borrar los seguimientos de un número es borrarlos en SU cuenta
 
