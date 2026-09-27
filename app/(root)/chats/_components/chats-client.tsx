@@ -1,5 +1,6 @@
 "use client";
 
+import { AvisoDeInvitado, SinAccesoPorMencion, useAccesoDeInvitado } from "./InvitadoPorMencion";
 import { MedidaDeChats } from "@/components/chats/MedidaDeChats";
 import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
 import { atajosDeLaConversacion } from "@/lib/atajos-de-la-linea";
@@ -708,6 +709,8 @@ interface ChatsClientProps {
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;
   initialSelectedJid: string;
+  /** La conversación a la que se entró por el aviso de una mención (`?mencion=`). */
+  sesionDeLaMencion?: number | null;
   initialMessages: EvolutionMessage[];
   instanceName?: string;
   lidPhoneMap?: LidPhoneMap;
@@ -763,6 +766,7 @@ export function ChatsClient({
   initialChatPreferences,
   initialChatSessions,
   initialSelectedJid,
+  sesionDeLaMencion = null,
   initialMessages,
   lidPhoneMap,
   warmMessagesAction,
@@ -1741,6 +1745,20 @@ export function ChatsClient({
       .map((candidate) => chatSessions[candidate])
       .find(Boolean);
   }, [chatSessions, currentContact, selectedJid]);
+
+  // Un AGENTE con una conversación delante que no es suya: si entró por una
+  // mención, la ve como invitado; si ese acceso ya no está, no la ve. Cualquier
+  // otro camino, como hasta ahora (ver `useAccesoDeInvitado`).
+  const esLaDeLaMencion = Boolean(sesionDeLaMencion) && selectedJid === initialSelectedJid;
+  const accesoDeInvitado = useAccesoDeInvitado({
+    esAgente: advisorRole === "agente",
+    sessionId: currentContactSession?.id ?? (esLaDeLaMencion ? sesionDeLaMencion : null),
+    personaId: currentAdvisorId ?? null,
+    asignadoA: currentContactSession ? currentContactSession.assignedAdvisorId ?? null : undefined,
+    puedeTomarSinAsignar: canTakeUnassigned,
+    entroPorMencion:
+      esLaDeLaMencion && (!currentContactSession?.id || currentContactSession.id === sesionDeLaMencion),
+  });
 
   const currentPreference = useMemo(
     () =>
@@ -5546,7 +5564,18 @@ export function ChatsClient({
           !isSidebarVisible ? "flex-1 w-full" : "hidden sm:flex sm:flex-1"
         } h-full min-w-0 transition-all duration-300`}
       >
-        {selectedJid ? (
+        {selectedJid && accesoDeInvitado.vista === "sin-acceso" ? (
+          <SinAccesoPorMencion />
+        ) : selectedJid ? (
+          <div
+            className={accesoDeInvitado.vista === "invitado" ? "flex h-full w-full min-w-0 flex-col" : "contents"}
+          >
+          {/* La misma forma del árbol con aviso y sin él: cambiarla desmontaría
+              la conversación —y lo escrito— en cuanto llega la respuesta. */}
+          {accesoDeInvitado.vista === "invitado" && (
+            <AvisoDeInvitado otorgadoPorNombre={accesoDeInvitado.otorgadoPorNombre} />
+          )}
+          <div className={accesoDeInvitado.vista === "invitado" ? "flex min-h-0 w-full flex-1" : "contents"}>
           <ChatMain
             key={selectedJid || "no-jid"}
             allTags={allTags}
@@ -5616,6 +5645,8 @@ export function ChatsClient({
             onRefresh={refreshSidebarData}
             sessionRefreshSignal={sessionRefreshSignal}
           />
+          </div>
+          </div>
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 ring-8 ring-primary/5">

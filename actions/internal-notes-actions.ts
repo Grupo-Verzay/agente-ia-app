@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
+import { elEquipoDeLaCuenta } from "@/lib/equipo-de-la-cuenta.server";
+import { darAccesoPorMencion } from "@/lib/acceso-por-mencion-db";
+import { quienesRecibenAcceso, quienesRecibenElAviso } from "@/lib/acceso-por-mencion";
 
 /**
  * # Quién firma una nota interna, y quién la puede borrar
@@ -77,9 +80,21 @@ export async function createInternalNoteAction(
     // ids que llegan salen del desplegable de asesores, que son personas, así
     // que descontando la fila efectiva uno podría mencionarse a sí mismo desde
     // dentro de otra cuenta y saltarse su propio aviso.
-    const mentioned = Array.from(new Set(parsed.mentionedUserIds)).filter(
-      (id) => id && id !== yo,
-    );
+    //
+    // Y la lista de gente manda, no el navegador: una mención ahora ABRE la
+    // conversación a quien se nombra, así que un id de fuera del equipo sería
+    // la forma de abrírsela a cualquiera. Es la MISMA lista con la que se
+    // agrega un participante (`elEquipoDeLaCuenta`), con el alcance de la
+    // cuenta por la que se actúa (`ownerId ?? id`).
+    const equipo = await elEquipoDeLaCuenta((user as any).ownerId ?? user.id);
+    const mentioned = quienesRecibenElAviso(parsed.mentionedUserIds, equipo, yo);
+    const descartados = parsed.mentionedUserIds.filter((id) => id && id !== yo && !equipo.has(id));
+    if (descartados.length) {
+      console.warn("[notas internas] menciones fuera del equipo, se ignoran", {
+        sessionId: parsed.sessionId,
+        descartados,
+      });
+    }
 
     const note = await (db as any).internalNote.create({
       data: {
@@ -90,6 +105,23 @@ export async function createInternalNoteAction(
       },
       include: { author: { select: { name: true, email: true } } },
     });
+
+    // El acceso va ANTES del aviso: quien pulse la notificación en el acto
+    // tiene que encontrar la puerta abierta. Solo a los agentes —los demás ya
+    // ven la conversación—, y un fallo aquí no tumba la nota, pero se dice:
+    // un acceso que no se dio se ve como «me mencionaron y no puedo entrar».
+    const conAcceso = quienesRecibenAcceso(mentioned, equipo, yo);
+    if (conAcceso.length) {
+      try {
+        await darAccesoPorMencion(parsed.sessionId, conAcceso, yo);
+      } catch (accesoErr) {
+        console.error("[createInternalNoteAction] no se pudo dar el acceso por mención", {
+          sessionId: parsed.sessionId,
+          conAcceso,
+          accesoErr,
+        });
+      }
+    }
 
     // Notificación por mención (campanita) para cada asesor mencionado.
     if (mentioned.length > 0) {

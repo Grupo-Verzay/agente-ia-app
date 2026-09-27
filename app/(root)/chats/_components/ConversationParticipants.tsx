@@ -14,7 +14,7 @@ import {
   type ParticipantInfo,
 } from '@/actions/collab-actions';
 
-function initials(name?: string | null, email?: string | null) {
+export function initials(name?: string | null, email?: string | null) {
   const s = (name || email || '?').trim();
   const parts = s.split(/\s+/);
   return (parts.length >= 2 ? parts[0][0] + parts[1][0] : s.slice(0, 2)).toUpperCase();
@@ -30,7 +30,7 @@ const AVATAR_COLORS = [
   'bg-indigo-500',
   'bg-teal-500',
 ];
-function colorFor(id: string) {
+export function colorFor(id: string) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];

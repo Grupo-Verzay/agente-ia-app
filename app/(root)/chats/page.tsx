@@ -9,6 +9,8 @@ import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
+import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
+import { comoSesionDeLaMencion } from "@/lib/acceso-por-mencion";
 import {
   sendWahaTextAction,
   sendWahaWorkflowAction,
@@ -216,11 +218,44 @@ function SinAccesoALaLinea({ linea }: { linea: string }) {
   );
 }
 
+/**
+ * Si el enlace es el de una mención y no trae la línea, la saca de la
+ * conversación. Sin permiso sobre esa conversación no añade nada: la página
+ * sigue como si el parámetro no estuviera.
+ */
+async function conLaLineaDeLaMencion(
+  params: { jid?: string; instance?: string; mencion?: string } | undefined,
+  sesion: number | null,
+): Promise<{ jid?: string; instance?: string } | undefined> {
+  if (!sesion || params?.instance) return params;
+  try {
+    const alcanzada = await laCuentaDeLaConversacion(sesion);
+    if (!alcanzada) return params;
+    const fila = await db.session.findUnique({ where: { id: sesion }, select: { instanceId: true } });
+    const linea = fila?.instanceId
+      ? await db.instancia.findFirst({
+          where: { instanceId: fila.instanceId },
+          select: { instanceName: true },
+        })
+      : null;
+    return linea?.instanceName ? { ...params, instance: linea.instanceName } : params;
+  } catch (error) {
+    console.warn("[chats] no se pudo resolver la línea de la mención", { sesion, error });
+    return params;
+  }
+}
+
 export default async function ChatsPage({
-  searchParams,
+  searchParams: paramsDeLaUrl,
 }: {
-  searchParams?: { jid?: string; instance?: string };
+  searchParams?: { jid?: string; instance?: string; mencion?: string };
 }) {
+  // El aviso de una MENCIÓN lleva la conversación (`?mencion=<id>`) y no la
+  // línea: `collab_notifications` no la guarda. Se resuelve aquí, de la fila,
+  // y solo si quien mira alcanza esa conversación; después todo sigue como si
+  // el enlace hubiera traído `?instance=`, que es la ruta de siempre.
+  const sesionDeLaMencion = comoSesionDeLaMencion(paramsDeLaUrl?.mencion);
+  const searchParams = await conLaLineaDeLaMencion(paramsDeLaUrl, sesionDeLaMencion);
   // Tiempos por fase del render. La consulta de la bandeja ya se mide aparte
   // ([PERF] getPersistedInboxChats) y sale en 0,5-2,6s, así que cuando la
   // pantalla tarda mucho más el cuello de botella está en otra fase: estos
@@ -927,6 +962,9 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
+      // Se entró por el aviso de una mención: si el acceso ya no está, la
+      // conversación no se enseña (ver `laVistaDelInvitado`).
+      sesionDeLaMencion={sesionDeLaMencion}
       // Por qué dominio se sirve esto, para que la burbuja sepa qué enlace de
       // un mensaje es de dentro. Sale de la petición y no de una variable: la
       // App se abre por más de un dominio.

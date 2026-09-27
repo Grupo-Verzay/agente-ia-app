@@ -691,11 +691,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             )}
         </ZonaDeHerramientas>
 
-        {/* Sugerencias de @menciones (modo nota) */}
+        {/* Sugerencias de @menciones: en los dos modos; elegir pasa a nota interna */}
         {mentionOpen && mentionSuggestions.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-1 z-20 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
             <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60">
               Mencionar a un asesor
+              {!noteMode && <span className="ml-1 normal-case tracking-normal font-normal">· va como nota interna</span>}
             </div>
             {mentionSuggestions.map((a) => (
               <button

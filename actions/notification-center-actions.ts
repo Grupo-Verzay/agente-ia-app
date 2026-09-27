@@ -6,6 +6,7 @@ import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 import { avisosDeLaCampanita } from "@/lib/avisos-de-tarea";
+import { enlaceDeLaMencion } from "@/lib/acceso-por-mencion";
 import { elDestinatarioDeLosAvisos } from "@/lib/avisos-de-tarea-tipos";
 import { aDondeLleva } from "@/lib/avisos-de-tarea-tipos";
 
@@ -207,14 +208,16 @@ export async function getNotificationCenterData(): Promise<{
         const who = r.actorId ? actorName.get(r.actorId) || "Un asesor" : "Un asesor";
         const title =
           r.type === "mention"
-            ? `${who} te mencionó en una nota`
+            ? `${who} te mencionó en una conversación`
             : `${who} te agregó a una conversación`;
         return {
           id: `collab:${r.id}`,
           kind: "mention" as const,
           title,
           description: r.content ?? null,
-          href: r.remoteJid ? `/chats?jid=${encodeURIComponent(r.remoteJid)}` : "/chats",
+          // El mismo enlace que la campanita del navegador (`enlaceDeLaMencion`):
+          // lleva a ESA conversación y dice que se entra por una mención.
+          href: enlaceDeLaMencion({ remoteJid: r.remoteJid ?? null, sessionId: r.type === "mention" ? r.sessionId ?? null : null }),
           date: r.createdAt.toISOString(),
         };
       });
