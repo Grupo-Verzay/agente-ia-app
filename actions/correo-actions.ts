@@ -15,6 +15,7 @@ import {
     elTextoParaLaIa,
     hayLlavesDe,
     laFotoDelAnclado,
+    losNumerosDeLasBandejas,
     type AccionEnLote,
     type CorreoAnclado,
     type CorreoCompleto,
@@ -220,25 +221,59 @@ export async function totalesDeLosBuzonesAction(): Promise<Resultado<{ totales: 
     try {
         const persona = await laPersona();
         if (!persona) return { success: false, message: "No autorizado." };
-        const mios = await losBuzonesDe(persona.id);
-        const resultados = await Promise.allSettled(
-            mios.map(async (visible): Promise<TotalDeUnBuzon> => {
-                if (visible.estado === "reconectar") return { buzonId: visible.id, total: null };
-                const buzon = await elBuzonDe(persona.id, visible.id);
-                if (!buzon) return { buzonId: visible.id, total: null };
-                return { buzonId: visible.id, total: await elProveedorDe(buzon).total(buzon) };
-            }),
-        );
-        const totales = resultados.map((r, i): TotalDeUnBuzon => {
-            if (r.status === "fulfilled") return r.value;
-            // No es mudo: un número que falta sin decirlo se lee como un contador roto.
-            fallo(r.reason, `no se pudo contar la bandeja de ${mios[i].direccion}`);
-            return { buzonId: mios[i].id, total: null };
-        });
-        return { success: true, totales };
+        return { success: true, totales: await contarLosBuzones(persona.id, "total") };
     } catch (error) {
         return fallo(error, "no se pudieron contar las bandejas");
     }
+}
+
+/**
+ * Cuántos correos SIN LEER tiene la persona entre todos sus buzones: el número
+ * que el menú lateral pinta junto a «Correos».
+ *
+ * Es el contador del PROVEEDOR sobre la bandeja de entrada (`messagesUnread` de
+ * Gmail, `unreadItemCount` de Outlook, `STATUS UNSEEN` de IMAP), con la MISMA
+ * regla de suma que el selector de bandejas (`losNumerosDeLasBandejas`): si un
+ * buzón no contesta, el total es `null` —sin número—, nunca una suma más baja
+ * dicha con toda la seguridad de un número. Sin buzones, 0.
+ */
+export async function correosSinLeerAction(): Promise<Resultado<{ sinLeer: number | null }>> {
+    try {
+        const persona = await laPersona();
+        if (!persona) return { success: false, message: "No autorizado." };
+        const porBuzon = await contarLosBuzones(persona.id, "sinLeer");
+        if (porBuzon.length === 0) return { success: true, sinLeer: 0 };
+        const { todas } = losNumerosDeLasBandejas(porBuzon.map((t) => ({ id: t.buzonId })), porBuzon);
+        return { success: true, sinLeer: todas ?? null };
+    } catch (error) {
+        return fallo(error, "no se pudieron contar los correos sin leer");
+    }
+}
+
+/**
+ * Un número por buzón de la persona —su total o sus sin leer—, preguntado al
+ * proveedor. La lista sale de `losBuzonesDe(persona)`: ningún id llega del
+ * navegador. `Promise.allSettled`: un buzón que no contesta se queda SIN número
+ * (`total: null`), no en cero, y no le quita el suyo a los demás. Un buzón que
+ * pide volver a conectar ni se pregunta.
+ */
+async function contarLosBuzones(personaId: string, que: "total" | "sinLeer"): Promise<TotalDeUnBuzon[]> {
+    const mios = await losBuzonesDe(personaId);
+    const resultados = await Promise.allSettled(
+        mios.map(async (visible): Promise<TotalDeUnBuzon> => {
+            if (visible.estado === "reconectar") return { buzonId: visible.id, total: null };
+            const buzon = await elBuzonDe(personaId, visible.id);
+            if (!buzon) return { buzonId: visible.id, total: null };
+            const proveedor = elProveedorDe(buzon);
+            return { buzonId: visible.id, total: await (que === "total" ? proveedor.total(buzon) : proveedor.sinLeer(buzon)) };
+        }),
+    );
+    return resultados.map((r, i): TotalDeUnBuzon => {
+        if (r.status === "fulfilled") return r.value;
+        // No es mudo: un número que falta sin decirlo se lee como un contador roto.
+        fallo(r.reason, `no se pudo contar la bandeja de ${mios[i].direccion}`);
+        return { buzonId: mios[i].id, total: null };
+    });
 }
 
 /**
