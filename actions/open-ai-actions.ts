@@ -8,7 +8,7 @@ export class OpenAiClient implements AiClient {
         model: string;
         system: string;
         messages: { role: "user" | "assistant"; content: string }[];
-    }): Promise<{ content: string }> {
+    }): Promise<{ content: string; tokens?: number }> {
         const openai = new OpenAI({ apiKey: args.apiKey });
 
         const res = await openai.chat.completions.create({
@@ -21,7 +21,9 @@ export class OpenAiClient implements AiClient {
         });
 
         const content = res.choices?.[0]?.message?.content ?? "";
-        return { content: content.trim() };
+        // Los tokens viajan para que quien llama los descuente de la cuenta
+        // dueña: todo uso de IA se cobra (ver `lib/cobro-de-ia.ts`).
+        return { content: content.trim(), tokens: res.usage?.total_tokens ?? undefined };
     }
 }
 
@@ -31,7 +33,7 @@ export class GoogleAiClient implements AiClient {
         model: string;
         system: string;
         messages: { role: "user" | "assistant"; content: string }[];
-    }): Promise<{ content: string }> {
+    }): Promise<{ content: string; tokens?: number }> {
         const genAI = new GoogleGenAI({ apiKey: args.apiKey });
 
         const contents = args.messages.map((m) => ({
@@ -49,6 +51,6 @@ export class GoogleAiClient implements AiClient {
         });
 
         const text = response.text ?? "";
-        return { content: text.trim() };
+        return { content: text.trim(), tokens: response.usageMetadata?.totalTokenCount ?? undefined };
     }
 }

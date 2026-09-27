@@ -46,6 +46,7 @@ import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
 import { listTagsDeLasCuentasAction } from "@/actions/tag-actions";
 import { leerTrazaConfigAction } from "@/actions/traza-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
+import { analizarElSentimientoAlAbrirChats } from "@/lib/sentimiento-runner.server";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { applyLidMappingToChats, type LidPhoneMap } from "./_components/lid-mapping";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
@@ -373,6 +374,18 @@ export default async function ChatsPage({
   const cuentasConLinea = Array.from(
     new Set(instancias.map((inst) => inst.userId).filter(Boolean) as string[]),
   );
+
+  // El SENTIMIENTO se analiza AQUÍ y solo aquí: al abrir Chats, TODO lo
+  // pendiente de las cuentas de esta bandeja, de fondo (la pantalla no espera
+  // a la IA; los colores llegan en la vuelta siguiente de la lista). Ni reloj
+  // ni barrido diario: si nadie abre Chats, no se consume nada. Cada análisis
+  // lo paga la cuenta DUEÑA de su línea. Ver `lib/sentimiento-runner.server.ts`.
+  void analizarElSentimientoAlAbrirChats(
+    cuentasConLinea,
+    instancias.map((inst) => inst.instanceName),
+  )?.catch((error) => {
+    console.warn("[sentimiento] el análisis al abrir Chats falló", (error as Error)?.message);
+  });
   const duenosDeLinea = settleValue(
     await settle(
       db.user.findMany({

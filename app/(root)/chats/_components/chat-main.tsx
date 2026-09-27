@@ -316,6 +316,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [suggestion, setSuggestion] = useState('');
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [suggestionError, setSuggestionError] = useState(false);
+  const [suggestionMotivo, setSuggestionMotivo] = useState<string | null>(null);
 
   /* ─── Custom hooks ─── */
   const {
@@ -679,16 +680,22 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (!userId || messages.length === 0) return;
     setSuggestion('');
     setSuggestionError(false);
+    setSuggestionMotivo(null);
     setIsGeneratingSuggestion(true);
     try {
       const result = await generateSuggestedReplyAction({
         userId,
+        // La línea dice qué cuenta es la dueña de la conversación: esa paga.
+        instanceName: info?.instanceName ?? null,
         messages,
         contactName: header.name || null,
       });
       if (result.success && result.data?.reply) {
         setSuggestion(result.data.reply);
       } else {
+        // Sin créditos se dice con esas palabras, no «no se pudo».
+        const motivo = result.message || '';
+        setSuggestionMotivo(/créditos/i.test(motivo) ? motivo : null);
         setSuggestionError(true);
       }
     } catch {
@@ -696,7 +703,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } finally {
       setIsGeneratingSuggestion(false);
     }
-  }, [userId, messages, header.name]);
+  }, [userId, info?.instanceName, messages, header.name]);
 
   const buildCopilotTaskDraft = useCallback(() => {
     const lastClientMessage = [...allMessages]
@@ -1369,6 +1376,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         suggestion={suggestion}
         isLoading={isGeneratingSuggestion}
         hasError={suggestionError}
+        motivo={suggestionMotivo}
         onUse={(text) => {
           setInput(text);
           setSuggestion('');

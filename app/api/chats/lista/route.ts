@@ -8,7 +8,6 @@ import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
 import { fetchChannelChats } from "@/actions/channel-chat-actions";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { losSentimientosDeLasLineas } from "@/lib/sentimiento-db";
-import { barrerElSentimientoDeLaBandeja } from "@/lib/sentimiento-runner.server";
 import type { SentimientoDeLaConversacion } from "@/lib/sentimiento";
 
 export const dynamic = "force-dynamic";
@@ -174,11 +173,9 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  // Y se analiza lo que entro, DE FONDO: la lista no espera a la IA. El
-  // resultado viaja en la vuelta siguiente. Ver `lib/sentimiento-runner.server.ts`.
-  void barrerElSentimientoDeLaBandeja(cuentas, pedidas)?.catch((error) => {
-    console.warn("[sentimiento] el barrido de la bandeja fallo", (error as Error)?.message);
-  });
+  // El sentimiento aqui solo se LEE. No se analiza nada en esta vuelta: la
+  // lista se pide cada 20 s por pestaña, y el analisis corre UNA vez al abrir
+  // Chats (`app/(root)/chats/page.tsx`). Ver `lib/sentimiento-runner.server.ts`.
 
   console.info("[chats] las lineas de una vuelta de la lista", {
     trasElAcceso,

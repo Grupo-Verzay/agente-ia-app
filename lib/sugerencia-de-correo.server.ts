@@ -2,6 +2,7 @@ import "server-only";
 
 import { resolveUserAiClient } from "@/lib/cliente-de-ia.server";
 import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
+import { antesDeUsarLaIa, cobrarElUsoDeIa } from "@/lib/cobro-de-ia.server";
 
 /**
  * La sugerencia de respuesta de un CORREO, con la IA de la cuenta.
@@ -11,6 +12,10 @@ import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
  * con su puerta de siempre— y el mismo cliente. Lo que cambia es la
  * instrucción: un correo no es un WhatsApp, lleva saludo y despedida y puede
  * ser más largo que tres frases.
+ *
+ * Y la PAGA la cuenta por la que se trabaja (la del buzón, que es de una
+ * persona de esa cuenta): todo uso de IA descuenta créditos, con la MISMA regla
+ * que la de Chats y el sentimiento (`lib/cobro-de-ia.ts`).
  *
  * Vive aparte de `actions/correo-actions.ts` por dos motivos: la clave de IA no
  * puede pasar por un fichero `'use server'` (ver `lib/cliente-de-ia.server.ts`),
@@ -28,6 +33,8 @@ export async function pedirSugerenciaALaIa(
     correo: { de: string; asunto: string; texto: string },
     borrador: string,
 ): Promise<{ ok: true; texto: string } | { ok: false; motivo: string }> {
+    const permiso = await antesDeUsarLaIa(cuentaId);
+    if (!permiso.ok) return { ok: false, motivo: permiso.aviso };
     const resuelto = await resolveUserAiClient(cuentaId);
     if (!resuelto.success || !resuelto.data) {
         return { ok: false, motivo: resuelto.message || "La cuenta no tiene una IA configurada." };
@@ -48,6 +55,12 @@ export async function pedirSugerenciaALaIa(
         system: INSTRUCCION_DEL_CORREO,
         messages: [{ role: "user", content: pedido }],
     });
+    await cobrarElUsoDeIa(
+        cuentaId,
+        permiso.saldo,
+        { tokens: r.tokens, entrada: INSTRUCCION_DEL_CORREO + pedido, salida: r.content },
+        "sugerencia de correo",
+    );
     const texto = (r.content || "").trim();
     return texto ? { ok: true, texto } : { ok: false, motivo: "La IA no devolvió ninguna respuesta." };
 }
