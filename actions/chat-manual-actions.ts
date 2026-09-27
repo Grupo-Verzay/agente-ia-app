@@ -100,6 +100,8 @@ type SuccessfulFindMessagesResult = Extract<FindMessagesResult, { success: true 
 type OutgoingTextPayload = {
   kind: "text";
   text: string;
+  /** Un reenvío: sale tal cual, sin firma del asesor (ver `lib/reenviar-mensaje`). */
+  reenviado?: boolean;
   delay?: number;
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
@@ -110,6 +112,8 @@ type OutgoingTextPayload = {
 type OutgoingMediaPayload = {
   kind: "media";
   mediatype: MediaType;
+  /** Un reenvío: sale tal cual, sin firma del asesor (ver `lib/reenviar-mensaje`). */
+  reenviado?: boolean;
   mediaUrl: string;
   mimetype?: string;
   fileName?: string;
@@ -1699,7 +1703,9 @@ export async function sendManualChatPayloadAction(
   // el de WhatsApp Mensajeria) y escribirla solo en uno es lo
   // que hacia que el interruptor se viera encendido y el mensaje saliera sin
   // firma en las otras lineas.
-  if (payload.kind === "text") {
+  // Un REENVÍO sale tal cual: la firma presenta a quien escribe, y un mensaje
+  // reenviado no lo escribió nadie de nuevo (ver `lib/reenviar-mensaje`).
+  if (payload.kind === "text" && !payload.reenviado) {
     payload = {
       ...payload,
       text: await anteponerFirmaDelAsesor({
