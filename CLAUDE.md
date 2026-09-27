@@ -18191,6 +18191,28 @@ módulo**: se asigna a mano, como `/cobros`. La conexión vive en la propia
 pantalla y no en Conexiones: aquella es de las líneas de la CUENTA y el correo
 es de una persona.
 
+### La vuelta de autorización que «no hace nada»: el error se QUEDA en pantalla
+
+El 2026-09-27 se autorizó Gmail entero y la pantalla volvió a «Conecta tu
+correo» sin buzón y sin error a la vista. El registro del contenedor decía:
+
+```
+[correo] no se pudo terminar la autorización gmail ErrorDeCorreo: Gmail API has
+not been used in project 821244703851 before or it is disabled.
+```
+
+O sea: **la API de Gmail estaba apagada en el proyecto de Google Cloud**. Eso no
+se arregla en el código —se habilita en APIs y servicios › Gmail API— pero el
+fallo se veía como nada porque el motivo salía **en inglés y en un toast que se
+va a los cuatro segundos**, abajo a la derecha.
+
+> **Por qué no se conectó se traduce a qué hacer** (`elMotivoLegible`, en
+> `lib/correo.ts`, puro) **y se queda puesto encima de los botones de conectar**
+> hasta cerrarlo (`aviso` de `ConectarCorreo`). Con un buzón ya conectado, se
+> abre «Conectar otro correo» con el MISMO aviso: los dos sitios con botones lo
+> enseñan igual, con la forma de `AVISO_DEL_CORREO`. Lo que no se reconoce se
+> enseña tal cual: inventar un motivo es peor.
+
 Lo prueba `scripts/banco-correo.sh`: reglas y barrido, las acciones y las rutas
 contra Postgres con Gmail y Outlook fingidos en el `fetch` e IMAP/SMTP en el
 socket, y la pantalla en Chromium. `MODO=roto` afirma el diseño ingenuo: un

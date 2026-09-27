@@ -7,7 +7,7 @@ import { CorreoClient } from "@/app/(root)/correo/_components/CorreoClient";
     raiz.render(
         // El hueco de un módulo: alto fijo, y el contenido se reparte dentro.
         <div style={{ height: "calc(100vh - 16px)", padding: 8 }}>
-            <CorreoClient conectado={null} error={null} />
+            <CorreoClient conectado={null} error={(window as any).__error ?? null} />
         </div>,
     );
 };

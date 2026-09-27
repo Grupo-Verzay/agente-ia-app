@@ -56,7 +56,7 @@ import {
     misBuzonesAction,
     responderCorreoAction,
 } from "@/actions/correo-actions";
-import { ConectarCorreo } from "./ConectarCorreo";
+import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
 
 /** El último buzón abierto, en ESTE navegador. Cada acceso va en su `try`. */
 const LLAVE_DEL_ULTIMO = "correo:ultimo-buzon";
@@ -92,11 +92,17 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
     const [conectarAbierto, setConectarAbierto] = useState(false);
     const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
 
-    // El aviso de la vuelta de Google o Microsoft, una vez, y se limpia la URL
-    // para que recargar no lo repita.
+    // Por qué NO se conectó, cuando la vuelta de Google o Microsoft trae un
+    // error. Se queda PUESTO encima de los botones de conectar hasta que se
+    // cierra o se vuelve a intentar: un aviso que se va solo en unos segundos
+    // es un aviso que no se lee, y entonces la vuelta parece no haber hecho
+    // nada — que es justo como se reportó.
+    const [aviso, setAviso] = useState<string | null>(error);
+
+    // El aviso de la vuelta, una vez, y se limpia la URL para que recargar no
+    // lo repita (el de error sigue en `aviso`, que no depende de la URL).
     useEffect(() => {
         if (conectado) toast.success(`Correo conectado: ${conectado}`);
-        if (error) toast.error(error);
         if (conectado || error) window.history.replaceState(null, "", "/correo");
     }, [conectado, error]);
 
@@ -113,12 +119,15 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
             const quiero = preferido ?? leerUltimo();
             const elegido = r.buzones.find((b) => b.id === quiero) ?? r.buzones[0] ?? null;
             setBuzonId(elegido?.id ?? null);
+            // Con otro buzón ya conectado, el aviso sale en el diálogo de
+            // «Conectar otro correo», que es donde están los mismos botones.
+            if (elegido && error) setConectarAbierto(true);
         } catch {
             setFalloDeCarga("No se pudo cargar el correo. Revisa la conexión.");
         } finally {
             setCargando(false);
         }
-    }, []);
+    }, [error]);
 
     useEffect(() => {
         void cargarBuzones();
@@ -147,7 +156,10 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
                 </div>
                 <ConectarCorreo
                     conBoton={conBoton}
+                    aviso={aviso}
+                    alCerrarAviso={() => setAviso(null)}
                     alConectar={(b) => {
+                        setAviso(null);
                         guardarUltimo(b.id);
                         void cargarBuzones(b.id);
                     }}
@@ -185,7 +197,10 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
                     </DialogHeader>
                     <ConectarCorreo
                         conBoton={conBoton}
+                        aviso={aviso}
+                        alCerrarAviso={() => setAviso(null)}
                         alConectar={(b) => {
+                            setAviso(null);
                             setConectarAbierto(false);
                             guardarUltimo(b.id);
                             void cargarBuzones(b.id);
@@ -333,7 +348,7 @@ function Bandeja({
             />
 
             {aviso ? (
-                <div data-aviso-correo className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                <div data-aviso-correo className={AVISO_DEL_CORREO}>
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div className="flex-1">{aviso.texto}</div>
                     {aviso.reconectar && buzon.proveedor !== "imap" ? (

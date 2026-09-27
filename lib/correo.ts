@@ -328,3 +328,34 @@ export function elNombreSeguroDelAdjunto(nombre: string | null | undefined): str
         .slice(0, 180);
     return limpio || "adjunto";
 }
+
+/**
+ * Por qué no se pudo conectar un buzón de Google o Microsoft, **en palabras que
+ * digan qué hacer**. Lo que devuelven sus APIs viene en inglés y nombra cosas
+ * que quien pulsa «Conectar» no puede tocar: «Gmail API has not been used in
+ * project 821244703851 before or it is disabled» no es un fallo de esa persona,
+ * es un ajuste de la PLATAFORMA en Google Cloud, y tiene que decirlo así.
+ *
+ * Lo que no se reconoce se devuelve tal cual: inventarse un motivo es peor que
+ * enseñar el de verdad.
+ */
+export function elMotivoLegible(proveedor: ProveedorConBoton, motivo: string): string {
+    const m = motivo ?? "";
+    const quien = proveedor === "gmail" ? "Google" : "Microsoft";
+    if (/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(m)) {
+        const api = proveedor === "gmail" ? "la API de Gmail" : "la API de correo";
+        return `${quien} tiene apagada ${api} en el proyecto de la plataforma. Quien administra la plataforma tiene que activarla en ${
+            proveedor === "gmail" ? "Google Cloud (APIs y servicios › Gmail API › Habilitar)" : "Azure"
+        }; después, vuelve a pulsar «Conectar».`;
+    }
+    if (/insufficient.*(scope|permission)|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
+        return `No se concedieron los permisos de leer y enviar correo. Vuelve a pulsar «Conectar» y, en la pantalla de ${quien}, marca las casillas de correo.`;
+    }
+    if (/redirect_uri_mismatch/i.test(m)) {
+        return `La dirección de vuelta no está registrada en ${quien}. Quien administra la plataforma tiene que añadirla.`;
+    }
+    if (/invalid_client|unauthorized_client/i.test(m)) {
+        return `${quien} rechazó las credenciales de la plataforma. Quien administra la plataforma tiene que revisarlas.`;
+    }
+    return m || "No se pudo conectar el correo.";
+}
