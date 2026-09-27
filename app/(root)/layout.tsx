@@ -26,6 +26,7 @@ import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { ComprimirMenuAlNavegar } from "@/components/ComprimirMenuAlNavegar";
 import { AppSidebar } from "@/components/app-sidebar";
 
 import { themeClass } from "@/types/generic";
@@ -487,6 +488,9 @@ export default async function RootGroupLayout({
                 minuto. Ver `components/actividad/ContadorDeJornada.tsx`. */}
             <ContadorDeJornada />
             <SidebarProvider defaultOpen={defaultOpen}>
+                {/* El menú se comprime solo al entrar a cualquier sección, no
+                    solo en Chats. Ver `lib/menu-al-navegar.ts`. */}
+                <ComprimirMenuAlNavegar />
                 <AppSidebar user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} planLabel={planLabelSidebar} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
