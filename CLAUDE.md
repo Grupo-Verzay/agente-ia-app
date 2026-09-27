@@ -18092,6 +18092,17 @@ La dirección de vuelta que hay que registrar en Google Cloud y en Azure es
 llaves el botón sale apagado y dice por qué** (`hayLlavesDe`); el dominio
 propio funciona sin nada.
 
+**Gmail está encendido en producción** (2026-09-27): las dos llaves de Google
+están en el stack de Portainer (`agente-app`), y la vuelta
+`https://agente.ia-app.com/api/correo/oauth/gmail` está registrada en Google.
+Outlook sigue apagado hasta que se carguen las suyas. Lo comprueba
+`scripts/banco-gmail-oauth.sh`, con las credenciales pasadas por el ENTORNO:
+que Google acepta esa vuelta y ese secreto (un código inventado da
+`invalid_grant`, que solo sale con el cliente autenticado) y que el servicio y
+sus contenedores vivos llevan las dos llaves. **Cambiar el secreto en Google
+obliga a cambiarlo en el stack**: si no, el botón sale encendido y la vuelta
+falla con `invalid_client`.
+
 Cinco reglas que hay que mantener:
 
 1. **El correo NO pasa por el camino de Chats.** No se guarda ni un mensaje:

@@ -76,6 +76,17 @@ services:
       - AUTH_GITHUB_ID=
       - AUTH_GITHUB_SECRET=
 
+      # --- Correo: botones "Conectar Gmail" y "Conectar Outlook" (OAuth) ---
+      # Direcciones de vuelta a registrar, carácter a carácter:
+      #   Google:    https://<dominio>/api/correo/oauth/gmail
+      #   Microsoft: https://<dominio>/api/correo/oauth/outlook
+      # Sin estas dos parejas el botón sale apagado y dice por qué. Los valores
+      # reales van SOLO en el stack de Portainer, nunca aquí.
+      - GOOGLE_OAUTH_CLIENT_ID=
+      - GOOGLE_OAUTH_CLIENT_SECRET=
+      - MICROSOFT_OAUTH_CLIENT_ID=
+      - MICROSOFT_OAUTH_CLIENT_SECRET=
+
       - S3_ACCESS_KEY=CAMBIA_ESTE_VALOR
       - S3_SECRET_KEY=CAMBIA_ESTE_VALOR
       - S3_ENDPOINT=medias3.verzay.co
