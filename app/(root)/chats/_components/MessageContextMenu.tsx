@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Forward, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -17,6 +17,8 @@ const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 interface MessageContextMenuProps {
   isUserMessage: boolean;
   onCopy: () => void;
+  /** Reenviar a otras conversaciones. Solo llega cuando el mensaje se puede reenviar. */
+  onForward?: () => void;
   onReact: (emoji: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -35,6 +37,7 @@ interface MessageContextMenuProps {
 export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   isUserMessage,
   onCopy,
+  onForward,
   onReact,
   onEdit,
   onDelete,
@@ -86,6 +89,19 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
           <Copy className="w-3.5 h-3.5 text-muted-foreground" />
           Copiar
         </DropdownMenuItem>
+
+        {/* Reenviar: la misma acción que el botón que sale al pasar el ratón,
+            que en un táctil no existe. Solo si el mensaje se puede reenviar. */}
+        {onForward && (
+          <DropdownMenuItem
+            onSelect={() => onForward()}
+            data-reenviar-del-menu=""
+            className="w-full flex items-center gap-2 rounded-none px-3 py-2 text-sm cursor-pointer"
+          >
+            <Forward className="w-3.5 h-3.5 text-muted-foreground" />
+            Reenviar
+          </DropdownMenuItem>
+        )}
 
         {/* Editar (solo mensajes propios) */}
         {onEdit && isUserMessage && (

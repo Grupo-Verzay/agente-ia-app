@@ -103,6 +103,8 @@ type ChatMainProps = {
   llaveDeLaConversacion?: string;
   loading?: boolean;
   onSend: (payload: OutgoingMessagePayload) => void | Promise<void>;
+  /** Abre el panel de reenviar con este mensaje. Lo pinta la bandeja, que es quien tiene las conversaciones. */
+  onForwardMessage?: (bubble: UIBubble) => void;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
   onSendQuickReply: (quickReplyId: number) => Promise<ChatToolActionResult>;
   instanceType?: string;
@@ -161,6 +163,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   llaveDeLaConversacion,
   loading,
   onSend,
+  onForwardMessage,
   onSendQuickReply,
   onSendWorkflow,
   instanceType,
@@ -1356,6 +1359,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         advisorName={assignedAdvisorName}
         onSetReplyTo={setReplyTo}
         onCopyMessage={handleCopyMessage}
+        onForwardMessage={onForwardMessage}
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
         onEditMessage={handleEditMessage}

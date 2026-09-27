@@ -229,6 +229,8 @@ export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
  */
 export const PANEL_DE_LA_FICHA = "panel-ficha-de-contacto";
 export const PANEL_DE_ENVIAR_AL_EQUIPO = "panel-enviar-al-equipo";
+/** Reenviar un mensaje a otras conversaciones. Un panel más: entra en la misma exclusión. */
+export const PANEL_DE_REENVIAR = "panel-reenviar-mensaje";
 /**
  * La nota rápida: el papel de al lado del teclado, uno por persona.
  *

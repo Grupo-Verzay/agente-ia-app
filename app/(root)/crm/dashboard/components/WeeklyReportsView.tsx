@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { lasLineasDeLaCalidad } from '@/lib/calidad-de-conversaciones';
 import {
     getWeeklyReports,
     generateMyWeeklyReport,
@@ -190,6 +191,20 @@ function ReportCard({
                         </div>
                     )}
 
+                    {/* Calidad de atención: las MISMAS líneas que el WhatsApp del reporte. */}
+                    {m.calidad && (
+                        <div data-calidad-del-reporte>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                                Calidad de atención
+                            </p>
+                            <div className="rounded-lg border bg-card px-4 py-3 space-y-1 text-sm">
+                                {lasLineasDeLaCalidad(m.calidad, { negrilla: false }).map((linea) => (
+                                    <p key={linea}>{linea}</p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Actividad por tipo */}
                     {actividadEntries.length > 0 && (
                         <div>
@@ -310,6 +325,7 @@ export function WeeklyReportsView({
             'Nuevos leads': r.metrics.newLeads,
             Conversiones: r.metrics.conversions,
             'Puntuación promedio': r.metrics.avgScore,
+            'Calidad de atención': r.metrics.calidad?.puntajePromedio ?? '',
             'Enviado por WhatsApp': r.sentAt ? fmtDate(r.sentAt) : 'No',
             Generado: fmtDate(r.createdAt),
         }));
