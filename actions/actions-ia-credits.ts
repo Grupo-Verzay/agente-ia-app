@@ -6,7 +6,8 @@ import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { laFechaQueRenueva } from '@/lib/fecha-de-renovacion';
 import { pagaElClienteSuIa } from '@/lib/llaves-de-verzay';
 import { elSaldoDeLaFila, loQueQueda, TOKENS_POR_CREDITO } from '@/lib/saldo-de-la-cuenta';
-import { isAdminLike } from '@/lib/rbac';
+import { comoEnteroNoNegativo } from '@/lib/numeros-de-la-configuracion';
+import { quienMandaEnLaCasa } from '@/lib/puerta-de-la-casa';
 import { IaCredit, Plan } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -47,8 +48,10 @@ export async function getAllPlanConfigs(): Promise<{
   data?: PlanConfigItem[];
 }> {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    // Los créditos de cada plan son de la plataforma. Preguntaba por el rol de
+    // la PERSONA (`me.role`): el administrador del equipo de la casa se quedaba
+    // fuera y la pantalla le abría. Va por la puerta de la casa, como Planes.
+    if (!(await quienMandaEnLaCasa('getAllPlanConfigs'))) {
       return { success: false, message: 'No autorizado' };
     }
 
@@ -71,18 +74,20 @@ export async function updatePlanConfigAction(
   credits: number,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    if (!(await quienMandaEnLaCasa('updatePlanConfigAction'))) {
       return { success: false, message: 'No autorizado' };
     }
+    const creditos = comoEnteroNoNegativo(credits);
+    if (creditos === null) return { success: false, message: 'Los créditos no son válidos' };
+    if (!(plan in PLAN_CREDIT_DEFAULTS)) return { success: false, message: 'Plan desconocido' };
 
     await db.planConfig.upsert({
       where: { plan },
-      create: { id: randomUUID(), plan, credits },
-      update: { credits },
+      create: { id: randomUUID(), plan, credits: creditos },
+      update: { credits: creditos },
     });
 
-    return { success: true, message: `Plan ${plan} actualizado a ${credits} créditos` };
+    return { success: true, message: `Plan ${plan} actualizado a ${creditos} créditos` };
   } catch (error) {
     console.error('[UPDATE_PLAN_CONFIG_ERROR]', error);
     return { success: false, message: 'Error al actualizar configuración del plan' };

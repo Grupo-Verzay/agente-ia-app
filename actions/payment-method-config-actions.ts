@@ -2,6 +2,14 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
+
+// Las cuentas bancarias y métodos a los que paga TODA la plataforma. Las lee y
+// las cambia la casa (`lib/mando-de-la-casa.ts`) y nadie más: antes cualquiera
+// con sesión podía cambiar el número de cuenta al que pagan los clientes.
+//
+// La única lectura abierta es `getActivePaymentMethodConfigs`, a propósito: es
+// lo que ve un cliente para saber dónde pagar (/planes). Solo lo ACTIVO.
 
 export type AccountField = { label: string; value: string };
 
@@ -18,6 +26,9 @@ export type PaymentMethodConfigItem = {
 
 export async function getAllPaymentMethodConfigs() {
   try {
+    if (!(await quienMandaEnLaCasa("getAllPaymentMethodConfigs"))) {
+      return { success: false, data: [] as PaymentMethodConfigItem[] };
+    }
     const configs = await db.paymentMethodConfig.findMany({
       orderBy: { order: "asc" },
     });
@@ -62,6 +73,9 @@ export async function savePaymentMethodConfig(data: {
   order?: number;
 }) {
   try {
+    if (!(await quienMandaEnLaCasa("savePaymentMethodConfig"))) {
+      return { success: false, message: "No autorizado" };
+    }
     const payload = {
       label: data.label,
       icon: data.icon ?? null,
@@ -94,6 +108,7 @@ export async function savePaymentMethodConfig(data: {
 
 export async function deletePaymentMethodConfig(id: string) {
   try {
+    if (!(await quienMandaEnLaCasa("deletePaymentMethodConfig"))) return { success: false };
     await db.paymentMethodConfig.delete({ where: { id } });
     revalidatePath("/planes");
     return { success: true };
@@ -104,6 +119,7 @@ export async function deletePaymentMethodConfig(id: string) {
 
 export async function reorderPaymentMethods(ids: string[]) {
   try {
+    if (!(await quienMandaEnLaCasa("reorderPaymentMethods"))) return { success: false };
     await Promise.all(
       ids.map((id, index) =>
         db.paymentMethodConfig.update({ where: { id }, data: { order: index } })

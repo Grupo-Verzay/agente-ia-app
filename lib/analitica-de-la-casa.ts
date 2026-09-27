@@ -1,8 +1,10 @@
 import "server-only";
 
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
-import { isAdminLike } from "@/lib/rbac";
-import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import {
+    mandaEnLaCasa,
+    mandaEnLaCasaDeVerdad,
+    type PersonaDeLaCasa,
+} from "@/lib/mando-de-la-casa";
 
 /**
  * Quién ve la Analítica de la CASA: la de la plataforma entera, con sus tres
@@ -47,32 +49,12 @@ import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
  * (`actions/vigilancia-actions.ts`) y es otra pregunta —a quién se le avisa—,
  * no esta —quién puede mirar—.
  */
-export async function puedeVerLaAnaliticaDeLaCasa(persona: {
-    id?: string | null;
-    role?: string | null;
-    rolDeLaPersona?: string | null;
-    ownerId?: string | null;
-    advisorRole?: string | null;
-} | null | undefined): Promise<boolean> {
-    if (!persona?.id) return false;
-    // El súper administrador de plataforma manda esté en la cuenta que esté
-    // (`lib/super-admin-de-verdad.ts`), y va primero: detrás de la condición de
-    // cuenta no serviría de nada.
-    if (esSuperAdminDeVerdad(persona)) return true;
-    return mandaEnLaCasa(false, (await cuentaQueManda(persona)).role);
+export async function puedeVerLaAnaliticaDeLaCasa(
+    persona: PersonaDeLaCasa | null | undefined,
+): Promise<boolean> {
+    // Es la misma pregunta que la configuración de la plataforma, y vive en un
+    // solo sitio (`lib/mando-de-la-casa.ts`).
+    return mandaEnLaCasaDeVerdad(persona);
 }
 
-/**
- * La mitad pura de la de arriba, para poder probarla sin levantar nada.
- *
- * `admin` y `super_admin` son los dos roles de la casa; los otros tres
- * —`user`, `affiliate`, `reseller`— son clientes y cuentas que venden, y ven su
- * cartera por otro camino.
- */
-export function mandaEnLaCasa(
-    esSuperAdminDeLaPersona: boolean,
-    rolDeLaCuenta: string | null | undefined,
-): boolean {
-    if (esSuperAdminDeLaPersona) return true;
-    return isAdminLike(rolDeLaCuenta);
-}
+export { mandaEnLaCasa };
