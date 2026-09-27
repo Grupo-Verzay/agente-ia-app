@@ -2,6 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { resolveUserAiClient } from '@/lib/cliente-de-ia.server';
+import { pedirAOpenAiCobrando } from '@/lib/openai-cobrado.server';
 import { WELCOME_MAIN_MESSAGE, WELCOME_TITLE } from '@/app/(root)/ai/_components/helpers/trainingDefaults';
 import {
     patchBusinessSection,
@@ -363,36 +364,27 @@ export async function autoSaveBeforeGenerate(input: {
     return { ok: true, newVersion };
 }
 
-/** Helper interno: una llamada a OpenAI con JSON mode. */
-async function callOpenAI(apiKey: string, userContent: string): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+/**
+ * Helper interno: una llamada a OpenAI con JSON mode, COBRADA a la cuenta en
+ * la que se trabaja (ver `lib/openai-cobrado.server.ts`).
+ */
+async function callOpenAI(cuenta: string, apiKey: string, userContent: string): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+    const r = await pedirAOpenAiCobrando(cuenta, "generador del agente", apiKey, {
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 16384,
+        messages: [
+            { role: 'system', content: CONSTRUCTOR_SYSTEM_PROMPT },
+            { role: 'user', content: userContent },
+        ],
+    });
+    if (!r.ok) return r;
+    const raw = r.json?.choices?.[0]?.message?.content ?? '';
     try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                response_format: { type: 'json_object' },
-                temperature: 0.6,
-                max_tokens: 16384,
-                messages: [
-                    { role: 'system', content: CONSTRUCTOR_SYSTEM_PROMPT },
-                    { role: 'user', content: userContent },
-                ],
-            }),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            return { ok: false, error: `Error OpenAI ${res.status}: ${err?.error?.message ?? 'desconocido'}` };
-        }
-        const json = await res.json();
-        const raw = json.choices?.[0]?.message?.content ?? '';
-        try {
-            return { ok: true, data: JSON.parse(raw) };
-        } catch {
-            return { ok: false, error: 'El modelo no devolvió JSON válido. Intenta de nuevo.' };
-        }
-    } catch (err) {
-        return { ok: false, error: `Error de red: ${(err as any)?.message ?? 'desconocido'}` };
+        return { ok: true, data: JSON.parse(raw) };
+    } catch {
+        return { ok: false, error: 'El modelo no devolvió JSON válido. Intenta de nuevo.' };
     }
 }
 
@@ -474,8 +466,8 @@ MANAGEMENT: OBLIGATORIO — NUNCA dejar management.steps vacío. Analiza el tipo
 
     // Ejecutar ambas llamadas en paralelo
     const [resA, resB] = await Promise.all([
-        callOpenAI(apiKey, msgA),
-        callOpenAI(apiKey, msgB),
+        callOpenAI(user.effectiveId, apiKey, msgA),
+        callOpenAI(user.effectiveId, apiKey, msgB),
     ]);
 
     if (!resA.ok) return { ok: false, error: resA.error };
@@ -607,37 +599,20 @@ export async function generateAgentFlow(input: {
     if (!keyCheck.ok) return { success: false, error: keyCheck.error };
     const apiKey = keyCheck.key;
 
-    // Llamar a OpenAI con JSON mode
-    let raw: string;
-    try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                response_format: { type: 'json_object' },
-                temperature: 0.4,
-                max_tokens: 16384,
-                messages: [
-                    { role: 'system', content: CONSTRUCTOR_SYSTEM_PROMPT },
-                    { role: 'user', content: description },
-                ],
-            }),
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            return { success: false, error: `Error OpenAI ${res.status}: ${err?.error?.message ?? 'desconocido'}` };
-        }
-
-        const json = await res.json();
-        raw = json.choices?.[0]?.message?.content ?? '';
-    } catch (err) {
-        return { success: false, error: `Error de red: ${(err as any)?.message ?? 'desconocido'}` };
-    }
+    // Llamar a OpenAI con JSON mode, cobrado a la cuenta (`userId` =
+    // `effectiveId`). Sin créditos no se llama y se dice.
+    const pedido = await pedirAOpenAiCobrando(userId, "generador del agente", apiKey, {
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 16384,
+        messages: [
+            { role: 'system', content: CONSTRUCTOR_SYSTEM_PROMPT },
+            { role: 'user', content: description },
+        ],
+    });
+    if (!pedido.ok) return { success: false, error: pedido.error };
+    const raw: string = pedido.json?.choices?.[0]?.message?.content ?? '';
 
     // Parsear JSON generado
     let generated: any;

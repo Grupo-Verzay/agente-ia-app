@@ -1,5 +1,7 @@
 "use server";
 
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor } from "@/lib/cobro-de-ia";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
@@ -113,18 +115,23 @@ No inventes datos. Omite valores desconocidos. Fecha actual: ${new Date().toISOS
 CONVERSACIÓN:
 ${conversation}`;
 
+  // El resumen lo PAGA la cuenta dueña de la conversación (`userId`, que es
+  // `session.userId`), con su IA. Sin créditos no se llama a la IA: se deja la
+  // nota de respaldo, como cuando la IA no contesta. Ver `lib/cobro-de-ia.ts`.
   let raw = "{}";
   try {
-    if (cfg.provider === "google") {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
-      const result = await ai.models.generateContent({
-        model: cfg.model,
-        contents: prompt,
-        config: { responseMimeType: "application/json", temperature: 0.1 },
-      });
-      raw = result.text ?? "{}";
-    } else {
+    const uso = await usarLaIaCobrando(userId, "resumen al cerrar", async () => {
+      if (cfg.provider === "google") {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
+        const result = await ai.models.generateContent({
+          model: cfg.model,
+          contents: prompt,
+          config: { responseMimeType: "application/json", temperature: 0.1 },
+        });
+        const texto = result.text ?? "{}";
+        return { valor: texto, tokens: losTokensDelProveedor(result), entrada: prompt, salida: texto };
+      }
       const OpenAI = (await import("openai")).default;
       const client = new OpenAI({ apiKey: cfg.apiKey });
       const result = await client.chat.completions.create({
@@ -133,8 +140,11 @@ ${conversation}`;
         response_format: { type: "json_object" },
         max_completion_tokens: 900,
       });
-      raw = result.choices[0]?.message?.content ?? "{}";
-    }
+      const texto = result.choices[0]?.message?.content ?? "{}";
+      return { valor: texto, tokens: losTokensDelProveedor(result), entrada: prompt, salida: texto };
+    });
+    if (!uso.ok) return null;
+    raw = uso.valor;
   } catch (error) {
     // Solo se absorbe el rechazo de credenciales, que no se arregla
     // reintentando; el resto de fallos siguen propagándose como hasta ahora.

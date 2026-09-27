@@ -6,6 +6,7 @@ import { toAiMessages } from "@/app/(root)/ai-chat/helpers/toAiMessages";
 import { createAiClient } from "@/app/(root)/ai-chat/helpers/createAiClient";
 import { type ActionResult } from "./userAiconfig-actions";
 import { resolveUserAiClient } from "@/lib/cliente-de-ia.server";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
 
 export type AgentPromptChatContext = {
   activeSection: string;
@@ -68,7 +69,10 @@ export async function sendAgentPromptChatAction(
     const user = await currentUser();
     if (!user?.id) return { success: false, message: "auth_required" };
 
-    const resolved = await resolveUserAiClient(user.id);
+    // La IA la usa y la PAGA la cuenta en la que se trabaja (`effectiveId`):
+    // el prompt es de la cuenta, no de la persona. Ver `lib/cobro-de-ia.ts`.
+    const cuenta = user.effectiveId;
+    const resolved = await resolveUserAiClient(cuenta);
     if (!resolved.success || !resolved.data) {
       return { success: false, message: resolved.message || "ai_config_missing" };
     }
@@ -76,12 +80,20 @@ export async function sendAgentPromptChatAction(
     const { provider, model, apiKey } = resolved.data;
     const ai = createAiClient(provider);
 
-    const result = await ai.complete({
-      apiKey,
-      model,
-      system: buildAgentPromptAssistantSystem(req.context),
-      messages: toAiMessages(req.messages).slice(-12),
+    const system = buildAgentPromptAssistantSystem(req.context);
+    const messages = toAiMessages(req.messages).slice(-12);
+    const uso = await usarLaIaCobrando(cuenta, "asistente de prompts", async () => {
+      const r = await ai.complete({ apiKey, model, system, messages });
+      return {
+        valor: r,
+        tokens: r.tokens,
+        entrada: system + messages.map((m) => m.content).join("\n"),
+        salida: r.content,
+      };
     });
+    // Sin créditos no se llama a la IA, y se dice nombrando la cuenta.
+    if (!uso.ok) return { success: false, message: uso.aviso };
+    const result = uso.valor;
 
     const content =
       (result.content || "").trim() ||

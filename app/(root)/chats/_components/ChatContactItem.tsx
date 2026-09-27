@@ -502,7 +502,7 @@ function ChatContactItemBase({
           className="relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <Avatar
-            data-sentimiento={sentimiento ?? "neutro"}
+            data-sentimiento={sentimiento ?? "sin-analizar"}
             className={cn(
               "h-10 w-10 ring-2 transition-opacity",
               elAnilloDelAvatar(sentimiento),

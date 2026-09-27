@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor } from "@/lib/cobro-de-ia";
 
 type AiConfig = { apiKey: string; provider: string; model: string };
 type OutcomeAnalysis = {
@@ -44,19 +46,27 @@ async function aiConfig(userId: string): Promise<AiConfig | null> {
   };
 }
 
-async function generateJson<T>(config: AiConfig, prompt: string): Promise<T | null> {
+/**
+ * Pide un JSON a la IA de la cuenta y lo COBRA a esa cuenta (`cuenta`, la
+ * dueña de la conversación: `session.userId`). Sin créditos no se llama a la
+ * IA y se devuelve `null`, que es el camino que ya existía cuando la IA no
+ * contestaba: el aprendizaje queda sin análisis y el playbook sale con la guía
+ * base. Ver `lib/cobro-de-ia.ts`.
+ */
+async function generateJson<T>(cuenta: string, donde: string, config: AiConfig, prompt: string): Promise<T | null> {
   try {
-    let raw = "{}";
-    if (config.provider === "google") {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: config.apiKey });
-      const result = await ai.models.generateContent({
-        model: config.model,
-        contents: prompt,
-        config: { responseMimeType: "application/json", temperature: 0.15 },
-      });
-      raw = result.text ?? "{}";
-    } else {
+    const uso = await usarLaIaCobrando(cuenta, donde, async () => {
+      if (config.provider === "google") {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: config.apiKey });
+        const result = await ai.models.generateContent({
+          model: config.model,
+          contents: prompt,
+          config: { responseMimeType: "application/json", temperature: 0.15 },
+        });
+        const raw = result.text ?? "{}";
+        return { valor: raw, tokens: losTokensDelProveedor(result), entrada: prompt, salida: raw };
+      }
       const OpenAI = (await import("openai")).default;
       const client = new OpenAI({ apiKey: config.apiKey });
       const result = await client.chat.completions.create({
@@ -65,9 +75,11 @@ async function generateJson<T>(config: AiConfig, prompt: string): Promise<T | nu
         response_format: { type: "json_object" },
         max_completion_tokens: 900,
       });
-      raw = result.choices[0]?.message?.content ?? "{}";
-    }
-    return JSON.parse(raw) as T;
+      const raw = result.choices[0]?.message?.content ?? "{}";
+      return { valor: raw, tokens: losTokensDelProveedor(result), entrada: prompt, salida: raw };
+    });
+    if (!uso.ok) return null;
+    return JSON.parse(uso.valor) as T;
   } catch (error) {
     console.error("[sales-learning:generateJson]", error);
     return null;
@@ -123,7 +135,7 @@ export async function recordConfirmedSalesOutcome(sessionId: number, outcome: "W
   ]);
   const knownProduct = productFromProfile(profile?.data);
   const analysis = config && conversation.text
-    ? await generateJson<OutcomeAnalysis>(config, `Analiza esta venta con resultado CONFIRMADO ${outcome === "WON" ? "GANADA" : "PERDIDA"}.
+    ? await generateJson<OutcomeAnalysis>(session.userId, "aprendizaje de ventas", config, `Analiza esta venta con resultado CONFIRMADO ${outcome === "WON" ? "GANADA" : "PERDIDA"}.
 Devuelve SOLO JSON: {"product":"","outcomeReason":"","keyArguments":[],"objections":[],"effectiveSteps":[]}
 No inventes. Los argumentos y acciones deben aparecer realmente en la conversación.
 Producto conocido: ${knownProduct ?? "desconocido"}.
@@ -208,7 +220,7 @@ export async function buildDynamicSalesPlaybook(sessionId: number): Promise<Sale
   const stage = session.leadStatus ?? "FRIO";
   const inferredProduct = knownProduct || learning[0]?.product || "General";
   const generated = config && conversation.text
-    ? await generateJson<Partial<SalesPlaybook>>(config, `Crea un playbook breve para ayudar al asesor. No redactes mensajes para enviar.
+    ? await generateJson<Partial<SalesPlaybook>>(session.userId, "playbook de venta", config, `Crea un playbook breve para ayudar al asesor. No redactes mensajes para enviar.
 Devuelve SOLO JSON: {"product":"","questions":[],"nextSteps":[],"arguments":[],"warnings":[]}
 Etapa: ${stage}. Producto: ${inferredProduct}. Máximo 3 elementos por lista. No prometas resultados.
 CONVERSACION:

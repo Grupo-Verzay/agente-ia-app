@@ -5559,7 +5559,7 @@ export function ChatsClient({
             }
             sentimiento={
               selectedJid
-                ? elSentimientoDe(sentimientos, currentContact?.instanceName ?? selectedInstanceName, [currentContact?.remoteJid, selectedJid])
+                ? elSentimientoDe(sentimientos, currentContact?.instanceName ?? selectedInstanceName, [currentContact?.remoteJid, ...identidadesParaPedirMensajes(currentContact, selectedJid)])
                 : null
             }
             llaveDeLaConversacion={llaveDelSentimiento(currentContact?.instanceName ?? selectedInstanceName, currentContact?.remoteJid ?? selectedJid)}
