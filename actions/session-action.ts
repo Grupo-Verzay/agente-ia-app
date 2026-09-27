@@ -3,6 +3,7 @@
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
+import { borrarSeguimientosDelNumeroEnLaCuenta } from '@/lib/seguimientos-de-la-cuenta.server';
 import type { EtapaDeLaFila } from '@/lib/embudos';
 import { lasEtapasDeLaBandeja } from '@/lib/etapas-de-la-bandeja.server';
 import {
@@ -1415,7 +1416,9 @@ export async function updateSessionLeadStatus(
 
       // Eliminar todos los seguimientos (mensajes programados) del contacto
       if (session.remoteJid) {
-        await db.seguimiento.deleteMany({ where: { remoteJid: session.remoteJid } });
+        // Solo en las líneas de ESTA cuenta: el mismo número está en otras
+        // cuentas de la plataforma y sus seguimientos no son de aquí.
+        await borrarSeguimientosDelNumeroEnLaCuenta(session.userId, session.remoteJid);
 
         // Limpiar referencias de seguimientos en la sesión
         await db.session.update({
