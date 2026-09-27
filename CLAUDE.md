@@ -18727,6 +18727,26 @@ Seis cosas que hay que mantener:
    (`sentimiento_caidas`), con el asesor de su ficha en ese momento; el reporte
    pasa por `lasCuentasQueConsultaElCrm`, la puerta del CRM.
 
+### El aro NEUTRO es un gris que se VE, y ninguna conversación se queda sin color
+
+Había conversaciones sin ningún aro aunque se abriera Chats. Eran tres cosas a
+la vez, y las tres se ven igual desde fuera:
+
+1. **El aro neutro era el color del FONDO** (`ring-background`): invisible en
+   claro y en oscuro. Ahora es `ring-slate-400 dark:ring-slate-500`, medido en
+   Chromium con más contraste que el verde y el rojo en los dos temas.
+2. **El neutro no viajaba a la pantalla**: la lista solo traía positivo y
+   negativo. Ahora trae los tres (`losSentimientosDeLasLineas`).
+3. **La fila buscaba solo por su id**, y el sentimiento se guarda bajo las tres
+   identidades: la fila y la conversación abierta buscan por TODAS
+   (`identidades`, `identidadesParaPedirMensajes`).
+
+Y lo que no se analizaba nunca: una conversación guardada bajo otra fila de la
+bandeja (la persona que atiende, una vinculada). Abrir Chats analiza ahora las
+cuentas de la bandeja entera (`allSessionUserIds`), y **la paga la dueña de la
+LÍNEA** (`pagador`, de `Instancias`), no la fila bajo la que se guardó. Una
+cuenta sin créditos se excluye de las páginas siguientes por su `pagador`.
+
 Dos tablas de la App (`sentimiento_de_conversacion`, `sentimiento_caidas`), con
 `ddl()` y sin clave foránea: ni una columna en `Session` ni en `chat_messages`.
 Lo prueba `scripts/banco-sentimiento.sh`: reglas, barrido, el análisis contra
@@ -18759,14 +18779,32 @@ nunca hacia arriba) y la **de Correo** (la cuenta del buzón). Transcripciones,
 calidad y llamadas ya cobraban por su camino. **Si se añade otro uso de IA, va
 por estas dos funciones.**
 
-**Y quedan usos que todavía NO cobran**, contados con un barrido el 2026-09-27
-para que no se den por revisados: el copiloto (`ai-chat-actions`), el asistente
-del editor de prompts (`ai-prompt-chat-actions`, `ai-inject-section-action`), el
-resumen al cerrar una conversación (`conversation-intelligence-actions`), la
-puntuación del lead (`lead-score-action`), el informe semanal
-(`weekly-report-runner`), el aprendizaje de ventas (`sales-learning`) y las
-imágenes con IA (`ai-image-actions`, que va con la llave de Google de la
-cuenta). Cada uno pasa por `antesDeUsarLaIa` / `cobrarElUsoDeIa` cuando se toque.
+**Y ya no queda ninguno sin cobrar.** Los que faltaban —el copiloto, el
+asistente de prompts (y su «analizar instrucción»), el resumen al cerrar una
+conversación, la puntuación del lead, el informe semanal, el aprendizaje de
+ventas y su playbook, las imágenes con IA y su copy, el simulador de chat y el
+generador del agente— pasan por **`usarLaIaCobrando`**
+(`lib/cobro-de-ia.server.ts`), que junta las dos mitades: mira el saldo, llama,
+y cobra SOLO si la IA contestó (si la llamada lanza, no se cobra). Los que van
+a OpenAI por `fetch` usan `pedirAOpenAiCobrando` (`lib/openai-cobrado.server.ts`).
+
+Cuatro cosas que hay que mantener:
+
+1. **Quién paga, por uso**: lo que se hace sobre una CONVERSACIÓN (resumen,
+   puntuación, aprendizaje) lo paga `session.userId`; lo que se hace en una
+   pantalla de la cuenta (copiloto, prompts, imágenes, simulador, generador),
+   `user.effectiveId`, y la IA se resuelve con ESA misma cuenta. El informe
+   semanal, la cuenta del informe.
+2. **Los tokens salen del proveedor** (`losTokensDelProveedor`: `usage` de
+   OpenAI, `usageMetadata` de Gemini); si no los dice, se estiman, nunca cero.
+   Una imagen de `imagen-4` no dice tokens y cuesta `TOKENS_DE_UNA_IMAGEN`.
+3. **Sin créditos se DICE**, con el aviso que nombra la cuenta: el copiloto y
+   la puntuación lo devuelven, las imágenes lo lanzan, y lo que corre de fondo
+   (resumen, informe) cae en su respaldo sin IA. Puntuar en lote se para en el
+   primer «sin créditos».
+4. **El barrido del banco falla si aparece otra llamada a una IA** sin pasar
+   por el cobro; las que cobran por su propio camino (transcripciones,
+   grabaciones, calidad) están en su lista de excepciones con su motivo.
 
 Lo prueba `scripts/banco-cobro-de-ia.sh`, contra Postgres con el cliente de IA
 fingido: 130 pendientes (más de una página, la mitad de hace horas) se analizan

@@ -124,6 +124,15 @@ export type Pendiente = {
     senderPn: string | null;
     messageId: string;
     messageTimestamp: Date;
+    /**
+     * La cuenta que PAGA el análisis: la dueña de la LÍNEA (`Instancias`), que
+     * es la dueña de la conversación. Casi siempre es `userId`; no lo es en las
+     * conversaciones que quedaron guardadas bajo otra fila (el dueño anterior de
+     * la línea, la persona que la atendía), y a esas no se les puede cobrar a
+     * una fila que normalmente no tiene bolsa: se quedarían pendientes para
+     * siempre sin color. Sin línea conocida, `userId`.
+     */
+    pagador: string;
 };
 
 /**
@@ -151,16 +160,31 @@ export async function losPendientes(opciones: {
     cuentas: readonly string[];
     lineas?: readonly string[] | null;
     tope: number;
+    /**
+     * Cuentas pagadoras que ya se sabe que no tienen créditos: sus
+     * conversaciones no salen, para que no tapen la página de las demás.
+     */
+    excluirPagadores?: readonly string[] | null;
 }): Promise<Pendiente[]> {
     const tope = Math.max(1, Math.min(500, Math.floor(opciones.tope)));
     if (!opciones.cuentas.length) return [];
     const porLinea = opciones.lineas?.length
         ? Prisma.sql`AND c."instanceName" = ANY(${[...opciones.lineas]}::text[])`
         : Prisma.empty;
+    const sinPagadores = opciones.excluirPagadores?.length
+        ? Prisma.sql`AND COALESCE(il."userId", c."userId") <> ALL(${[...opciones.excluirPagadores]}::text[])`
+        : Prisma.empty;
     return conLasTablas(() => db.$queryRaw<Pendiente[]>`
         SELECT c."userId", c."instanceName", c."remoteJid", u."remoteJidAlt", u."senderPn",
-               u."messageId", u."messageTimestamp"
+               u."messageId", u."messageTimestamp",
+               COALESCE(il."userId", c."userId") AS "pagador"
         FROM "chat_conversations" c
+        LEFT JOIN LATERAL (
+            SELECT i."userId" FROM "Instancias" i
+            WHERE i."instanceName" = c."instanceName"
+            ORDER BY (i."userId" = c."userId") DESC
+            LIMIT 1
+        ) il ON TRUE
         LEFT JOIN "sentimiento_de_conversacion" s
           ON s."userId" = c."userId" AND s."instanceName" = c."instanceName" AND s."remoteJid" = c."remoteJid"
         CROSS JOIN LATERAL (
@@ -175,6 +199,7 @@ export async function losPendientes(opciones: {
         ) u
         WHERE c."userId" = ANY(${[...opciones.cuentas]}::text[])
           ${porLinea}
+          ${sinPagadores}
           AND c."remoteJid" NOT LIKE '%@g.us'
           AND c."remoteJid" NOT LIKE '%@broadcast'
           AND c."remoteJid" NOT LIKE '%@newsletter'
@@ -328,9 +353,15 @@ async function elAsesorDeLaConversacion(p: Pendiente): Promise<string | null> {
 }
 
 /**
- * Lo que viaja con la lista de chats: las conversaciones NO neutras de estas
- * cuentas y líneas, bajo cada una de sus identidades. Neutro no viaja: es lo de
- * siempre, y sin fila la pantalla ya pinta lo de siempre.
+ * Lo que viaja con la lista de chats: el sentimiento de TODAS las conversaciones
+ * analizadas de estas cuentas y líneas —positivo, neutro y negativo—, bajo cada
+ * una de sus identidades.
+ *
+ * Neutro viaja también. Antes no, con el argumento de que «sin fila la pantalla
+ * pinta lo de siempre»; pero lo de siempre era un aro del color del FONDO, así
+ * que una conversación neutra no se distinguía de una sin analizar y el aro
+ * gris no existía. Es una fila por conversación y ya se leía por el mismo
+ * índice: no cuesta más consulta.
  */
 export async function losSentimientosDeLasLineas(
     cuentas: readonly string[],
@@ -351,7 +382,7 @@ export async function losSentimientosDeLasLineas(
         FROM "sentimiento_de_conversacion"
         WHERE "userId" = ANY(${[...cuentas]}::text[])
           AND "instanceName" = ANY(${[...lineas]}::text[])
-          AND "sentimiento" IN ('positivo', 'negativo')
+          AND "sentimiento" IN ('positivo', 'neutro', 'negativo')
     `);
     const salida: Record<string, SentimientoDeLaConversacion> = {};
     for (const f of filas) {

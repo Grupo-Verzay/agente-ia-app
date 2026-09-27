@@ -129,19 +129,32 @@ export function cayoANegativo(antes: Sentimiento | null, ahora: Sentimiento): bo
 
 /**
  * El aro del avatar según el sentimiento. Se tiñe el aro que YA existe
- * (`ring-2`), no se añade nada. Neutro no cambia nada: el aro de siempre.
+ * (`ring-2`), no se añade nada. **Los tres se ven**: verde, gris y rojo.
  *
- * Tonos pastel (`-300`), y las clases van LITERALES: Tailwind solo genera lo
- * que ve escrito, así que un color compuesto en tiempo de ejecución no
- * existiría en el CSS. Con color puesto no se cambia al pasar el ratón: un aro
+ * El neutro era `ring-background`, o sea **el color del FONDO**: en claro un aro
+ * blanco sobre blanco y en oscuro uno negro sobre negro. Una conversación neutra
+ * se veía exactamente igual que una sin ningún color, y el reporte «hay
+ * avatares sin color aunque abrí Chats varias veces» salía de ahí. El gris es un
+ * tono con contraste propio contra el fondo en los DOS temas, al menos el de sus
+ * vecinos verde y rojo (lo mide el banco, `scripts/banco-sentimiento.sh`).
+ *
+ * Tonos pastel en claro y de peso medio en oscuro, y las clases van LITERALES:
+ * Tailwind solo genera lo que ve escrito, así que un color compuesto en tiempo
+ * de ejecución no existiría en el CSS. Ninguno cambia al pasar el ratón: un aro
  * que pierde su color al apuntarlo no marca nada.
  */
 export const ANILLO_DEL_SENTIMIENTO: Record<Sentimiento, string> = {
     positivo: "ring-emerald-300 dark:ring-emerald-700",
-    neutro: "ring-background group-hover:ring-accent",
+    neutro: "ring-slate-400 dark:ring-slate-500",
     negativo: "ring-red-300 dark:ring-red-700",
 };
 
+/**
+ * Sin sentimiento conocido —aún no analizada, sin un solo mensaje del cliente
+ * que juzgar, o su cuenta sin créditos— se pinta el NEUTRO: nada dice que el
+ * cliente esté contento ni molesto. Así ningún avatar de la lista se queda sin
+ * color; quien quiera saber si ya se analizó lo lee en `data-sentimiento`.
+ */
 export function elAnilloDelAvatar(sentimiento: Sentimiento | null | undefined): string {
     return ANILLO_DEL_SENTIMIENTO[sentimiento ?? "neutro"] ?? ANILLO_DEL_SENTIMIENTO.neutro;
 }

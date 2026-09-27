@@ -520,6 +520,8 @@ export function TagKanbanBoard({
         const res = await scoreAllLeadsByUserId();
         if (res.success) {
             toast.success(`${res.scored ?? 0} leads puntuados`);
+            // Se paró a medias por créditos: se dice, no solo el número.
+            if (res.message) toast.warning(res.message);
             await loadCards();
         } else {
             toast.error(res.message ?? 'Error en puntuación masiva');

@@ -3,6 +3,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor, TOKENS_DE_UNA_IMAGEN } from "@/lib/cobro-de-ia";
 import {
   comoSeLeeElCopy,
   instruccionesDelCopy,
@@ -10,7 +12,12 @@ import {
   porQueFalloGemini,
 } from "@/lib/copy-del-anuncio";
 
-async function getGeminiApiKey(): Promise<string> {
+/**
+ * La clave de Gemini de la cuenta en la que se trabaja y ESA cuenta, que es la
+ * que PAGA lo que se genere aquí: las imágenes y el copy son contenido suyo
+ * (`effectiveId`). Ver `lib/cobro-de-ia.ts`.
+ */
+async function getGeminiApiKey(): Promise<{ apiKey: string; cuenta: string }> {
   const user = await currentUser();
   if (!user) throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
 
@@ -24,7 +31,7 @@ async function getGeminiApiKey(): Promise<string> {
       where: { userId: user.effectiveId, providerId: googleProvider.id, isActive: true },
       select: { apiKey: true },
     });
-    if (config?.apiKey) return config.apiKey;
+    if (config?.apiKey) return { apiKey: config.apiKey, cuenta: user.effectiveId };
   }
 
   throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
@@ -91,7 +98,7 @@ export async function generateAdImage(
   model: string = "gemini-2.5-flash-image",
   quality: string = "high"
 ) {
-  const apiKey = await getGeminiApiKey();
+  const { apiKey, cuenta } = await getGeminiApiKey();
 
   if (!apiKey) {
     throw new Error(
@@ -183,7 +190,11 @@ export async function generateAdImage(
   `;
 
   if (model === "imagen-4.0-generate-001") {
-    const response = await ai.models.generateImages({
+    // La imagen la PAGA la cuenta: sin créditos no se genera y se dice.
+    // `generateImages` no dice sus tokens: se cobra lo que Gemini cuenta por
+    // una imagen de salida (`TOKENS_DE_UNA_IMAGEN`).
+    const uso = await usarLaIaCobrando(cuenta, "imagen con IA", async () => {
+      const r = await ai.models.generateImages({
       model,
       prompt,
       config: {
@@ -195,7 +206,11 @@ export async function generateAdImage(
               ? "16:9"
               : "1:1",
       },
+      });
+      return { valor: r, tokens: losTokensDelProveedor(r) ?? TOKENS_DE_UNA_IMAGEN, entrada: prompt };
     });
+    if (!uso.ok) throw new Error(uso.aviso);
+    const response = uso.valor;
 
     const base64EncodeString = response.generatedImages?.[0]?.image?.imageBytes;
 
@@ -212,7 +227,8 @@ export async function generateAdImage(
     throw new Error("La imagen base64 no es válida.");
   }
 
-  const response = await ai.models.generateContent({
+  const uso = await usarLaIaCobrando(cuenta, "imagen con IA", async () => {
+    const r = await ai.models.generateContent({
     model,
     contents: {
       parts: [
@@ -233,7 +249,14 @@ export async function generateAdImage(
         aspectRatio,
       },
     },
+    });
+    // La imagen va en la entrada, pero su base64 no son tokens: si el
+    // proveedor no los dice, se cobra la imagen de salida y el prompt.
+    return { valor: r, tokens: losTokensDelProveedor(r) ?? TOKENS_DE_UNA_IMAGEN, entrada: prompt };
   });
+  // Sin créditos no se genera, y se dice nombrando la cuenta.
+  if (!uso.ok) throw new Error(uso.aviso);
+  const response = uso.valor;
 
   const candidate = response.candidates?.[0];
 
@@ -301,7 +324,7 @@ export async function generarCopyDelAnuncio(
   const red = laRedDelFormato(formato);
 
   try {
-    const apiKey = await getGeminiApiKey();
+    const { apiKey, cuenta } = await getGeminiApiKey();
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = instruccionesDelCopy({ formato, plantilla, estilo, detalles, adn });
@@ -315,15 +338,24 @@ export async function generarCopyDelAnuncio(
     if (datos) partes.push({ inlineData: { data: datos, mimeType: "image/png" } });
     partes.push({ text: prompt });
 
-    const response = await ai.models.generateContent({
-      model: MODELO_DEL_COPY,
-      contents: { parts: partes },
+    // El copy lo PAGA la misma cuenta que la imagen. Sin créditos no se pide,
+    // y el motivo baja al panel como cualquier otro fallo del copy.
+    const uso = await usarLaIaCobrando(cuenta, "copy del anuncio", async () => {
+      const r = await ai.models.generateContent({
+        model: MODELO_DEL_COPY,
+        contents: { parts: partes },
+      });
+      const texto = (r.candidates?.[0]?.content?.parts ?? [])
+        .map((p) => p.text ?? "")
+        .join("")
+        .trim();
+      return { valor: texto, tokens: losTokensDelProveedor(r), entrada: prompt, salida: texto };
     });
-
-    const crudo = (response.candidates?.[0]?.content?.parts ?? [])
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
+    if (!uso.ok) {
+      console.warn("[ai-image] no se pide el copy: la cuenta no tiene créditos", { red });
+      return { ok: false, red, motivo: uso.aviso };
+    }
+    const crudo = uso.valor;
 
     const copy = comoSeLeeElCopy(crudo, formato);
 

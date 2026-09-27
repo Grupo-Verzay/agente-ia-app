@@ -54,3 +54,42 @@ export function losTokensDelUso(input: {
 
 /** Si ESTE saldo se descuenta (no, si la cuenta paga su propia IA o no tiene tope). */
 export { seCobra };
+
+/**
+ * Los tokens que dice la respuesta CRUDA de un proveedor, cuando se le llama
+ * sin pasar por `createAiClient`: OpenAI los trae en `usage.total_tokens` y
+ * Gemini en `usageMetadata.totalTokenCount`. Si no los dice, `null`, y quien
+ * cobra los estima por el largo con `losTokensDelUso` (nunca cero).
+ *
+ * Vive aquí, una vez, porque la usan el resumen al cerrar, la puntuación del
+ * lead, el informe semanal, el aprendizaje de ventas y las imágenes: con la
+ * lectura copiada en cada uno, el día que un proveedor cambie de forma uno
+ * cobraría los tokens y otro la estimación.
+ */
+export function losTokensDelProveedor(respuesta: unknown): number | null {
+    if (!respuesta || typeof respuesta !== "object") return null;
+    const r = respuesta as {
+        usage?: { total_tokens?: unknown; prompt_tokens?: unknown; completion_tokens?: unknown } | null;
+        usageMetadata?: { totalTokenCount?: unknown; promptTokenCount?: unknown; candidatesTokenCount?: unknown } | null;
+    };
+    const numero = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const openai = numero(r.usage?.total_tokens) || numero(r.usage?.prompt_tokens) + numero(r.usage?.completion_tokens);
+    if (openai > 0) return Math.ceil(openai);
+    const gemini =
+        numero(r.usageMetadata?.totalTokenCount) ||
+        numero(r.usageMetadata?.promptTokenCount) + numero(r.usageMetadata?.candidatesTokenCount);
+    if (gemini > 0) return Math.ceil(gemini);
+    return null;
+}
+
+/**
+ * Lo que se descuenta por una IMAGEN generada cuando el proveedor no dice sus
+ * tokens (el modelo `imagen-4` de Google, `generateImages`, no los devuelve).
+ * Es la cuenta de la propia Gemini: una imagen de salida son 1.290 tokens. Sin
+ * esto, la estimación por el largo cobraría solo el prompt —unas decenas de
+ * tokens— por la operación más cara de la plataforma.
+ */
+export const TOKENS_DE_UNA_IMAGEN = 1290;

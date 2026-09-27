@@ -1,5 +1,7 @@
 "use server";
 
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor } from "@/lib/cobro-de-ia";
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
@@ -24,7 +26,16 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 Conversación a analizar:
 `;
 
-async function callAI(providerName: string, apiKey: string, modelName: string, conversacion: string): Promise<string> {
+/**
+ * Pide la puntuación a la IA. Devuelve el texto y los tokens que dijo el
+ * proveedor, para cobrarlos a la cuenta dueña del lead (ver `lib/cobro-de-ia.ts`).
+ */
+async function callAI(
+    providerName: string,
+    apiKey: string,
+    modelName: string,
+    conversacion: string,
+): Promise<{ texto: string; tokens: number | null }> {
     if (providerName === "google") {
         const { GoogleGenAI } = await import("@google/genai");
         const ai = new GoogleGenAI({ apiKey });
@@ -33,7 +44,7 @@ async function callAI(providerName: string, apiKey: string, modelName: string, c
             contents: SCORE_PROMPT + conversacion,
             config: { responseMimeType: "application/json", temperature: 0.3 },
         });
-        return result.text ?? "{}";
+        return { texto: result.text ?? "{}", tokens: losTokensDelProveedor(result) };
     }
 
     // openai (default)
@@ -48,7 +59,10 @@ async function callAI(providerName: string, apiKey: string, modelName: string, c
         max_completion_tokens: 400,
         response_format: { type: "json_object" },
     });
-    return completion.choices[0]?.message?.content || '{"score":0,"reason":"Sin respuesta del modelo"}';
+    return {
+        texto: completion.choices[0]?.message?.content || '{"score":0,"reason":"Sin respuesta del modelo"}',
+        tokens: losTokensDelProveedor(completion),
+    };
 }
 
 async function getUserAiConfig(userId: string) {
@@ -138,6 +152,8 @@ export async function scoreLeadBySessionId(sessionId: number): Promise<{
     score?: number;
     reason?: string;
     message?: string;
+    /** La cuenta dueña no tiene créditos: no se llamó a la IA. */
+    sinCreditos?: boolean;
 }> {
     try {
         const user = await currentUser();
@@ -208,7 +224,14 @@ export async function scoreLeadBySessionId(sessionId: number): Promise<{
 
         const resumenCombinado = textos.join("\n\n---\n\n");
 
-        const raw = await callAI(aiConfig.providerName, aiConfig.apiKey, aiConfig.modelName, resumenCombinado);
+        // La puntuación la PAGA la cuenta dueña del lead, con su IA. Sin
+        // créditos no se llama a la IA y se dice nombrando la cuenta.
+        const uso = await usarLaIaCobrando(cuentaId, "puntuación del lead", async () => {
+            const r = await callAI(aiConfig.providerName, aiConfig.apiKey, aiConfig.modelName, resumenCombinado);
+            return { valor: r.texto, tokens: r.tokens, entrada: SCORE_PROMPT + resumenCombinado, salida: r.texto };
+        });
+        if (!uso.ok) return { success: false, message: uso.aviso, sinCreditos: true };
+        const raw = uso.valor;
         const parsed = JSON.parse(raw) as { score?: number; reason?: string };
 
         const score = Math.min(100, Math.max(0, Math.round(Number(parsed.score ?? 0))));
@@ -273,6 +296,11 @@ export async function scoreAllLeadsByUserId(): Promise<{
         for (const s of pendientes) {
             const res = await scoreLeadBySessionId(s.id);
             if (res.success) scored++;
+            // Sin créditos, las que quedan fallarían igual: se para y se dice,
+            // en vez de devolver «0 puntuados» como si no hubiera nada que hacer.
+            else if (res.sinCreditos) {
+                return { success: scored > 0, scored, message: res.message };
+            }
         }
 
         return { success: true, scored };

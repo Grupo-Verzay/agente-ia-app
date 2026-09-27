@@ -1,4 +1,6 @@
 import "server-only";
+import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
+import { losTokensDelProveedor } from "@/lib/cobro-de-ia";
 
 /**
  * El informe semanal: recoger las metricas, redactarlo y mandarlo por WhatsApp.
@@ -211,7 +213,8 @@ export async function laCalidadDeLaSemana(userId: string, from: Date): Promise<R
 
 const REPORT_PROMPT = `Eres un asistente de ventas. Genera un resumen ejecutivo semanal en español, amigable y orientado a acción, basado en estas métricas de CRM. Máximo 3 párrafos cortos. Destaca lo más importante, tendencias y una recomendación concreta para la próxima semana. No uses listas, escribe en prosa fluida.`;
 
-async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promise<string> {
+/** Exportada para el banco del cobro (`lib/__tests__/cobro-de-ia.test.mjs`). */
+export async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promise<string> {
     const user = await db.user.findUnique({
         where: { id: userId },
         select: { defaultProviderId: true, defaultAiModelId: true },
@@ -234,22 +237,37 @@ async function generateNarrative(userId: string, metrics: WeeklyMetrics): Promis
     const modelName = model?.name ?? (provider.name === "google" ? "gemini-2.0-flash" : "gpt-4o-mini");
     const content = `${REPORT_PROMPT}\n\nMétricas:\n${JSON.stringify(metrics, null, 2)}`;
 
+    // El informe lo PAGA la cuenta a la que se le hace (`userId`), con su IA.
+    // Sin créditos no se llama a la IA: sale el resumen de respaldo con los
+    // números, que es lo que ya salía cuando la IA no contestaba.
     try {
-        if (provider.name === "google") {
-            const { GoogleGenAI } = await import("@google/genai");
-            const ai = new GoogleGenAI({ apiKey: config.apiKey });
-            const res = await ai.models.generateContent({ model: modelName, contents: content });
-            return res.text?.trim() || formatFallbackSummary(metrics);
-        }
-        const OpenAI = (await import("openai")).default;
-        const client = new OpenAI({ apiKey: config.apiKey });
-        const res = await client.chat.completions.create({
-            model: modelName,
-            messages: [{ role: "user", content }],
-            max_completion_tokens: 500,
+        const apiKey = config.apiKey;
+        const proveedor = provider.name;
+        const uso = await usarLaIaCobrando(userId, "informe semanal", async () => {
+            if (proveedor === "google") {
+                const { GoogleGenAI } = await import("@google/genai");
+                const ai = new GoogleGenAI({ apiKey });
+                const res = await ai.models.generateContent({ model: modelName, contents: content });
+                const texto = res.text?.trim() ?? "";
+                return { valor: texto, tokens: losTokensDelProveedor(res), entrada: content, salida: texto };
+            }
+            const OpenAI = (await import("openai")).default;
+            const client = new OpenAI({ apiKey });
+            const res = await client.chat.completions.create({
+                model: modelName,
+                messages: [{ role: "user", content }],
+                max_completion_tokens: 500,
+            });
+            const texto = res.choices[0]?.message?.content?.trim() ?? "";
+            return { valor: texto, tokens: losTokensDelProveedor(res), entrada: content, salida: texto };
         });
-        return res.choices[0]?.message?.content?.trim() || formatFallbackSummary(metrics);
-    } catch {
+        if (!uso.ok) return formatFallbackSummary(metrics);
+        return uso.valor || formatFallbackSummary(metrics);
+    } catch (error) {
+        console.warn("[informe-semanal] la IA no escribió el resumen; sale el de respaldo", {
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+        });
         return formatFallbackSummary(metrics);
     }
 }

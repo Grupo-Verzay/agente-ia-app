@@ -148,7 +148,10 @@ export async function analizarUnaConversacion(
     try {
         // Antes de reclamar nada: si la cuenta dueña no puede pagar, la
         // conversación se queda pendiente para cuando recargue.
-        const permiso = await antesDeUsarLaIa(p.userId);
+        // Paga la dueña de la LÍNEA (`p.pagador`), que es la dueña de la
+        // conversación; casi siempre coincide con `p.userId`.
+        const pagador = p.pagador || p.userId;
+        const permiso = await antesDeUsarLaIa(pagador);
         if (!permiso.ok) return { resultado: "sin_creditos", tokens: 0 };
 
         const antes = await reclamarElAnalisis(p);
@@ -167,7 +170,7 @@ export async function analizarUnaConversacion(
         } else {
             let respuesta: Awaited<ReturnType<Analizador>>;
             try {
-                respuesta = await conPlazo(analizar({ cuenta: p.userId, texto }), PLAZO_DE_LA_IA_MS);
+                respuesta = await conPlazo(analizar({ cuenta: pagador, texto }), PLAZO_DE_LA_IA_MS);
             } catch (error) {
                 if (error instanceof SinIa) {
                     // Una cuenta sin IA configurada: no se reintenta en bucle.
@@ -184,7 +187,7 @@ export async function analizarUnaConversacion(
             ahora = leido.sentimiento;
             // La IA contestó (entendible o no): ese uso se cobra a la cuenta dueña.
             tokens = await cobrarElUsoDeIa(
-                p.userId,
+                pagador,
                 permiso.saldo,
                 {
                     tokens: leido.tokens,
@@ -238,13 +241,14 @@ async function vaciarLaCola(
     const obrero = async () => {
         while (siguiente < pendientes.length) {
             const p = pendientes[siguiente++];
-            if (sinCreditos.has(p.userId)) { r.sinCreditos++; continue; }
+            const pagador = p.pagador || p.userId;
+            if (sinCreditos.has(pagador)) { r.sinCreditos++; continue; }
             const { resultado, tokens } = await analizarUnaConversacion(p, analizar);
             r.tokens += tokens;
             if (resultado === "analizado") { r.analizados++; hechos++; }
             else if (resultado === "cayo") { r.analizados++; r.cayeron++; hechos++; }
             else if (resultado === "sin_ia") { r.sinIa++; hechos++; }
-            else if (resultado === "sin_creditos") { r.sinCreditos++; sinCreditos.add(p.userId); }
+            else if (resultado === "sin_creditos") { r.sinCreditos++; sinCreditos.add(pagador); }
             else if (resultado === "fallido") { r.fallidos++; yaFallaron.add(llaveDelPendiente(p)); }
         }
     };
@@ -282,16 +286,22 @@ export function analizarElSentimientoAlAbrirChats(
         // siguiente: se reintenta en la próxima apertura, no en bucle.
         const yaFallaron = new Set<string>();
         for (let pagina = 0; pagina < PAGINAS_MAXIMAS; pagina++) {
-            const quedan = cuentas.filter((c) => !sinCreditos.has(c));
-            if (!quedan.length) break;
-            const pagina_ = await losPendientes({ cuentas: quedan, lineas, tope: POR_PAGINA });
+            // Las cuentas sin créditos salen de la consulta por PAGADOR (la
+            // dueña de la línea), no por la fila de la conversación: así sus
+            // pendientes no tapan la página de las demás.
+            const pagina_ = await losPendientes({
+                cuentas,
+                lineas,
+                tope: POR_PAGINA,
+                excluirPagadores: [...sinCreditos],
+            });
             const pendientes = pagina_.filter((p) => !yaFallaron.has(llaveDelPendiente(p)));
             if (!pendientes.length) break;
             const antesFallidos = r.fallidos;
             const hechos = await vaciarLaCola(pendientes, analizar, r, sinCreditos, yaFallaron);
             // Una página que no avanzó (todo falló u otro lo tenía reclamado) y
             // en la que no cayó ninguna cuenta por créditos: se para aquí.
-            const soloCreditos = pendientes.every((p) => sinCreditos.has(p.userId));
+            const soloCreditos = pendientes.every((p) => sinCreditos.has(p.pagador || p.userId));
             if (hechos === 0 && !soloCreditos && r.fallidos === antesFallidos) break;
         }
         r.cuentasSinCreditos = [...sinCreditos];

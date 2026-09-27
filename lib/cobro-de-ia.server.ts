@@ -57,3 +57,46 @@ export async function cobrarElUsoDeIa(
         return 0;
     }
 }
+
+export type UsoDeIaCobrado<T> =
+    | { ok: true; valor: T; tokens: number }
+    | { ok: false; motivo: "sin_bolsa" | "sin_creditos"; aviso: string };
+
+/**
+ * Las dos puntas en UNA llamada, para los usos que no necesitan nada entre
+ * medias: comprueba el saldo de la cuenta DUEÑA, pide a la IA y cobra.
+ *
+ * - Sin créditos o sin bolsa **no se llama a `pedir`** y se devuelve el aviso
+ *   nombrando la cuenta. No es mudo: se dice en la consola con su `donde`.
+ * - Si `pedir` lanza (la IA no contestó, credenciales rechazadas…) **no se
+ *   cobra** y el error sube tal cual: quien llama ya sabe qué hacer con él.
+ * - Si contesta, se cobra lo que dijo el proveedor (o la estimación), entregue
+ *   algo útil o no: la IA se usó. Es la regla de la sugerencia de respuesta.
+ *
+ * La usan el copiloto, el asistente de prompts, el resumen al cerrar, la
+ * puntuación del lead, el informe semanal, el aprendizaje de ventas y las
+ * imágenes. Si se añade otro uso de IA, va por aquí.
+ */
+export async function usarLaIaCobrando<T>(
+    cuenta: string,
+    donde: string,
+    pedir: () => Promise<{ valor: T; tokens?: number | null; entrada?: string | null; salida?: string | null }>,
+): Promise<UsoDeIaCobrado<T>> {
+    const permiso = await antesDeUsarLaIa(cuenta);
+    if (!permiso.ok) {
+        console.info("[ia] no se usa la IA: la cuenta dueña no tiene créditos", {
+            donde,
+            cuenta,
+            motivo: permiso.motivo,
+        });
+        return { ok: false, motivo: permiso.motivo, aviso: permiso.aviso };
+    }
+    const r = await pedir();
+    const tokens = await cobrarElUsoDeIa(
+        cuenta,
+        permiso.saldo,
+        { tokens: r.tokens, entrada: r.entrada, salida: r.salida },
+        donde,
+    );
+    return { ok: true, valor: r.valor, tokens };
+}
