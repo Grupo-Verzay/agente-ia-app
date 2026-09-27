@@ -13,7 +13,10 @@ import {
     MOTIVO_SIN_PERMISO_PARA_ORGANIZAR,
     partirRemitente,
     TAMANO_DE_PAGINA,
+    idImapDelArchivo,
+    partirIdImap,
     type AdjuntoDeCorreo,
+    type CarpetaDeCorreo,
     type CorreoCompleto,
     type ProveedorConBoton,
     type ResumenDeCorreo,
@@ -290,6 +293,9 @@ async function pedir<T>(url: string, token: string, init: RequestInit = {}): Pro
 
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+/** Lo archivado en Gmail: lo que ya no tiene `INBOX` y no es papelera, spam, enviado ni borrador. */
+export const GMAIL_ARCHIVO = "-in:inbox -in:trash -in:spam -in:sent -in:drafts -in:chats";
+
 type ParteGmail = {
     partId?: string;
     mimeType?: string;
@@ -351,9 +357,15 @@ const gmail = {
         return comoTotal(l.messagesTotal);
     },
 
-    async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
+    async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {
         const token = await elTokenVigente(buzon, "gmail");
-        const q = new URLSearchParams({ labelIds: "INBOX", maxResults: String(TAMANO_DE_PAGINA) });
+        // El archivo de Gmail no es una etiqueta: es lo que salió de `INBOX`
+        // sin ir a la papelera, al spam ni ser propio (enviados, borradores).
+        const q = new URLSearchParams(
+            carpeta === "archivo"
+                ? { q: GMAIL_ARCHIVO, maxResults: String(TAMANO_DE_PAGINA) }
+                : { labelIds: "INBOX", maxResults: String(TAMANO_DE_PAGINA) },
+        );
         if (cursor) q.set("pageToken", cursor);
         const lista = await pedir<{ messages?: { id: string }[]; nextPageToken?: string }>(`${GMAIL}/messages?${q}`, token);
         const ids = (lista.messages ?? []).map((m) => m.id);
@@ -432,6 +444,7 @@ const gmail = {
 
     async archivar(buzon: Buzon, id: string): Promise<Archivado> {
         // Archivar en Gmail es quitarle `INBOX`: sigue en «Todos los mensajes».
+        // Sobre uno ya archivado no cambia nada: `removeLabelIds` de algo que no tiene.
         await gmail.etiquetas(buzon, id, { removeLabelIds: ["INBOX"] });
         return { carpeta: "Todos los mensajes" };
     },
@@ -514,8 +527,10 @@ const outlook = {
         return comoTotal(f.totalItemCount);
     },
 
-    async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
+    async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {
         const token = await elTokenVigente(buzon, "outlook");
+        // `archive` es la carpeta conocida de «Archivo»: la misma a la que va archivar.
+        const carpetaDeGraph = carpeta === "archivo" ? "archive" : "inbox";
         const salto = Math.max(0, Number.parseInt(cursor ?? "0", 10) || 0);
         const q = new URLSearchParams({
             $top: String(TAMANO_DE_PAGINA),
@@ -523,7 +538,7 @@ const outlook = {
             $orderby: "receivedDateTime desc",
             $select: "id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments,flag",
         });
-        const r = await pedir<{ value?: any[]; "@odata.nextLink"?: string }>(`${GRAPH}/mailFolders/inbox/messages?${q}`, token);
+        const r = await pedir<{ value?: any[]; "@odata.nextLink"?: string }>(`${GRAPH}/mailFolders/${carpetaDeGraph}/messages?${q}`, token);
         const correos: ResumenDeCorreo[] = (r.value ?? []).map((m) => ({
             id: m.id,
             de: m.from?.emailAddress?.name || m.from?.emailAddress?.address || "",
@@ -676,7 +691,11 @@ function lasCredencialesImap(buzon: Buzon): CredencialesImap {
  * Una conexión por petición, y se cierra pase lo que pase. En solo lectura
  * salvo que se pida `escribir`: solo marcar y eliminar lo piden.
  */
-async function conImap<T>(buzon: Buzon, hacer: (cliente: any) => Promise<T>, { escribir = false } = {}): Promise<T> {
+async function conImap<T>(
+    buzon: Buzon,
+    hacer: (cliente: any) => Promise<T>,
+    { escribir = false, enArchivo = false, sinArchivo }: { escribir?: boolean; enArchivo?: boolean; sinArchivo?: () => T } = {},
+): Promise<T> {
     const c = lasCredencialesImap(buzon);
     const { ImapFlow } = await import("imapflow");
     const cliente = new ImapFlow({
@@ -699,7 +718,17 @@ async function conImap<T>(buzon: Buzon, hacer: (cliente: any) => Promise<T>, { e
     }
     try {
         // Solo lectura para traer: pedir el cuerpo no marca nada por su cuenta.
-        await cliente.mailboxOpen("INBOX", { readOnly: !escribir });
+        // Un correo del ARCHIVO se abre en SU carpeta: el UID es de ella.
+        let carpeta = "INBOX";
+        if (enArchivo) {
+            const archivo = elArchivoImap(await cliente.list().catch(() => []));
+            if (!archivo) {
+                if (sinArchivo) return sinArchivo();
+                throw new ErrorDeCorreo("Tu servidor no tiene carpeta de archivo.");
+            }
+            carpeta = archivo;
+        }
+        await cliente.mailboxOpen(carpeta, { readOnly: !escribir });
         return await hacer(cliente);
     } finally {
         await cliente.logout().catch(() => cliente.close?.());
@@ -735,7 +764,9 @@ const imap = {
         return conImap(buzon, async (cliente) => comoTotal((await cliente.status("INBOX", { messages: true }))?.messages));
     },
 
-    async bandeja(buzon: Buzon, cursor: string | null): Promise<Pagina> {
+    async bandeja(buzon: Buzon, cursor: string | null, carpeta: CarpetaDeCorreo = "entrada"): Promise<Pagina> {
+        const enArchivo = carpeta === "archivo";
+        // Sin carpeta de archivo no hay nada archivado todavía: una lista vacía, no un error.
         return conImap(buzon, async (cliente) => {
             const uids: number[] = ((await cliente.search({ all: true }, { uid: true })) || []).sort((a: number, b: number) => b - a);
             const salto = Math.max(0, Number.parseInt(cursor ?? "0", 10) || 0);
@@ -746,7 +777,7 @@ const imap = {
                     const marcas: Set<string> = m.flags instanceof Set ? m.flags : new Set();
                     const f = m.envelope?.from?.[0];
                     correos.push({
-                        id: String(m.uid),
+                        id: enArchivo ? idImapDelArchivo(m.uid) : String(m.uid),
                         de: f?.name || f?.address || "",
                         deDireccion: f?.address || "",
                         asunto: m.envelope?.subject ?? "",
@@ -758,14 +789,15 @@ const imap = {
                     });
                 }
             }
-            correos.sort((a, b) => Number(b.id) - Number(a.id));
+            correos.sort((a, b) => Number(partirIdImap(b.id).uid) - Number(partirIdImap(a.id).uid));
             return { correos, siguiente: salto + TAMANO_DE_PAGINA < uids.length ? String(salto + TAMANO_DE_PAGINA) : null };
-        });
+        }, { enArchivo, sinArchivo: () => ({ correos: [], siguiente: null }) });
     },
 
     async leer(buzon: Buzon, id: string): Promise<CorreoCompleto> {
+        const { enArchivo, uid } = partirIdImap(id);
         return conImap(buzon, async (cliente) => {
-            const c = await elCorreoImap(cliente, id);
+            const c = await elCorreoImap(cliente, uid);
             const from = c.from?.value?.[0];
             const replyTo = c.replyTo?.value?.[0];
             return {
@@ -789,45 +821,51 @@ const imap = {
                 hilo: null,
                 responderA: replyTo ? (replyTo.name ? `${replyTo.name} <${replyTo.address}>` : replyTo.address ?? "") : c.from?.text ?? "",
             };
-        });
+        }, { enArchivo });
     },
 
     async marcarComoLeido(buzon: Buzon, id: string): Promise<void> {
+        const { enArchivo, uid } = partirIdImap(id);
         await conImap(
             buzon,
             async (cliente) => {
-                await cliente.messageFlagsAdd(id, ["\\Seen"], { uid: true });
+                await cliente.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
             },
-            { escribir: true },
+            { escribir: true, enArchivo },
         );
     },
 
     async marcarComoNoLeido(buzon: Buzon, id: string): Promise<void> {
+        const { enArchivo, uid } = partirIdImap(id);
         await conImap(
             buzon,
             async (cliente) => {
-                await cliente.messageFlagsRemove(id, ["\\Seen"], { uid: true });
+                await cliente.messageFlagsRemove(uid, ["\\Seen"], { uid: true });
             },
-            { escribir: true },
+            { escribir: true, enArchivo },
         );
     },
 
     async destacar(buzon: Buzon, id: string, destacado: boolean): Promise<void> {
+        const { enArchivo, uid } = partirIdImap(id);
         await conImap(
             buzon,
             async (cliente) => {
-                if (destacado) await cliente.messageFlagsAdd(id, ["\\Flagged"], { uid: true });
-                else await cliente.messageFlagsRemove(id, ["\\Flagged"], { uid: true });
+                if (destacado) await cliente.messageFlagsAdd(uid, ["\\Flagged"], { uid: true });
+                else await cliente.messageFlagsRemove(uid, ["\\Flagged"], { uid: true });
             },
-            { escribir: true },
+            { escribir: true, enArchivo },
         );
     },
 
     async archivar(buzon: Buzon, id: string): Promise<Archivado> {
+        const { enArchivo, uid } = partirIdImap(id);
+        // Uno que ya está en el archivo no se mueve a ninguna parte.
+        if (enArchivo) throw new ErrorDeCorreo("Ese correo ya está archivado.");
         return conImap(
             buzon,
             async (cliente) => {
-                const existe = await cliente.fetchOne(id, { uid: true }, { uid: true });
+                const existe = await cliente.fetchOne(uid, { uid: true }, { uid: true });
                 if (!existe) throw new ErrorDeCorreo("Ese correo ya no está en la bandeja.");
                 let archivo = elArchivoImap(await cliente.list().catch(() => []));
                 if (!archivo) {
@@ -836,7 +874,7 @@ const imap = {
                     await cliente.mailboxCreate("Archive");
                     archivo = "Archive";
                 }
-                await cliente.messageMove(id, archivo, { uid: true });
+                await cliente.messageMove(uid, archivo, { uid: true });
                 return { carpeta: archivo };
             },
             { escribir: true },
@@ -844,31 +882,33 @@ const imap = {
     },
 
     async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
+        const { enArchivo, uid } = partirIdImap(id);
         return conImap(
             buzon,
             async (cliente) => {
-                const existe = await cliente.fetchOne(id, { uid: true }, { uid: true });
+                const existe = await cliente.fetchOne(uid, { uid: true }, { uid: true });
                 if (!existe) throw new ErrorDeCorreo("Ese correo ya no está en la bandeja.");
                 const papelera = laPapeleraImap(await cliente.list().catch(() => []));
                 if (papelera) {
-                    await cliente.messageMove(id, papelera, { uid: true });
+                    await cliente.messageMove(uid, papelera, { uid: true });
                     return { aLaPapelera: true };
                 }
                 // Sin papelera no hay adónde moverlo: se borra, y la acción lo DICE.
-                await cliente.messageDelete(id, { uid: true });
+                await cliente.messageDelete(uid, { uid: true });
                 return { aLaPapelera: false };
             },
-            { escribir: true },
+            { escribir: true, enArchivo },
         );
     },
 
     async adjunto(buzon: Buzon, id: string, adjuntoId: string): Promise<AdjuntoDescargado> {
+        const { enArchivo, uid } = partirIdImap(id);
         return conImap(buzon, async (cliente) => {
-            const c = await elCorreoImap(cliente, id);
+            const c = await elCorreoImap(cliente, uid);
             const a = (c.attachments ?? [])[Number(adjuntoId)];
             if (!a) throw new ErrorDeCorreo("Ese adjunto ya no está en el correo.");
             return { nombre: a.filename || "adjunto", tipo: a.contentType || "application/octet-stream", bytes: a.content };
-        });
+        }, { enArchivo });
     },
 
     async responder(buzon: Buzon, original: CorreoCompleto, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {

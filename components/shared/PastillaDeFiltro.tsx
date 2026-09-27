@@ -65,6 +65,20 @@ export const TONO_EN_ESPERA: TonoDePastilla = {
         "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20",
     insignia: "#e11d48",
 };
+/** Destacados (Correo): ámbar, el de la estrella de Chats y de la cabecera del correo. */
+export const TONO_DESTACADOS: TonoDePastilla = {
+    activa: "border-amber-500 bg-amber-500 text-white",
+    inactiva:
+        "border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20",
+    insignia: "#f59e0b",
+};
+/** Archivados (Correo): pizarra, el del «⌄» y del archivado de Chats. */
+export const TONO_ARCHIVADOS: TonoDePastilla = {
+    activa: "border-slate-600 bg-slate-600 text-white",
+    inactiva:
+        "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700",
+    insignia: "#475569",
+};
 /** Leídos (Correo): verde, el color del «ya está» y libre en esta familia. */
 export const TONO_LEIDOS: TonoDePastilla = {
     activa: "border-emerald-600 bg-emerald-600 text-white",
@@ -72,6 +86,19 @@ export const TONO_LEIDOS: TonoDePastilla = {
         "border-emerald-300 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20",
     insignia: "#059669",
 };
+
+/**
+ * La flecha «⌄» del final de la fila de pastillas: la de Chats y la de Correo.
+ * Abre lo que se usa menos, y se pinta ENCENDIDA cuando el filtro puesto vive
+ * dentro de ella —si no, no habría forma de ver qué está filtrando—. Una sola
+ * forma para las dos filas: con una copia en cada una, la flecha de una sale
+ * de otro tamaño que la de la otra.
+ */
+export const FLECHA_DE_LA_FILA =
+    "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-all";
+export const FLECHA_ENCENDIDA = "border-slate-500 bg-slate-500 text-white";
+export const FLECHA_APAGADA =
+    "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
 
 export function PastillaDeFiltro({
     rotulo,
