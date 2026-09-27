@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
+import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 
 /**
  * # Quién firma una nota interna, y quién la puede borrar
@@ -20,6 +21,14 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
  * `authorId` con quien llama para decidir si puede borrarla. Eso es identidad,
  * no alcance, así que se compara también con la persona; cambiando solo el
  * lado de escribir, el autor no podría borrar su propia nota.
+ *
+ * # Y la conversación tiene que ser de una cuenta que se alcanza
+ *
+ * Crear y leer las notas de una conversación preguntaban solo «¿hay sesión?»:
+ * con cualquier cuenta y otro `sessionId` se leían —y se escribían— las notas
+ * internas de una conversación ajena. Ahora las dos pasan por
+ * `laCuentaDeLaConversacion` (`lib/dueno-del-dato.server.ts`), que saca el
+ * dueño de la FILA y lo pregunta con la puerta de siempre.
  *
  * Lo que **no** se toca es `getSessionIdsWithNotesAction`, que filtra por
  * `session.userId`: eso es ALCANCE —de qué cuenta son esas conversaciones— y
@@ -58,11 +67,11 @@ export async function createInternalNoteAction(
     const user = await assertAuthorized();
     const yo = laPersonaQueActua(user).id;
 
-    const session = await db.session.findUnique({
-      where: { id: parsed.sessionId },
-      select: { userId: true, remoteJid: true },
-    });
-    if (!session) return { success: false, message: "Sesión no encontrada." };
+    // De quién es la conversación lo dice la fila; «no existe» y «no es tuya»
+    // se contestan igual.
+    const alcanzada = await laCuentaDeLaConversacion(parsed.sessionId);
+    if (!alcanzada) return { success: false, message: "Sesión no encontrada." };
+    const session = alcanzada.sesion;
 
     // No mencionarse a sí mismo; sin duplicados. Se descuenta la PERSONA: los
     // ids que llegan salen del desplegable de asesores, que son personas, así
@@ -127,6 +136,9 @@ export async function getInternalNotesBySessionAction(
 ): Promise<{ success: boolean; data?: InternalNoteData[]; message?: string }> {
   try {
     await assertAuthorized();
+    if (!(await laCuentaDeLaConversacion(sessionId))) {
+      return { success: false, message: "No autorizado." };
+    }
 
     const notes = await (db as any).internalNote.findMany({
       where: { sessionId },

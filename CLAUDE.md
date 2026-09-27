@@ -1345,6 +1345,55 @@ Cinco cosas que hay que mantener:
    sitios, y con la nueva pasa. Sin el modo roto no se sabe si se arregló la
    causa o algo parecido.
 
+### Y lo que llega es el id de la COSA: el dueño sale de la fila
+
+`lib/cuenta-de-la-accion.ts` cerró las acciones que reciben un `userId`.
+Quedaban las que reciben el id de una **cosa** y no preguntaban de quién era, y
+eran muchas: las notas internas y los participantes de una conversación,
+asignar o **tomar** un chat ajeno (y a quién se le asigna), el historial de
+asignación, los registros de un lead, crear y etiquetar leads, el entrenamiento
+maestro (`SystemMessage`), el editor del agente —guardar cada sección, publicar,
+listar y **restaurar** versiones, aplicar una plantilla— y los pasos de un flujo
+—editar, reordenar, leer, mover, borrar—. Y lo peor de todos: **borrar un flujo
+entero borraba sus archivos y sus pasos ANTES de comprobar de quién era**; la
+comprobación estaba en el último paso, con el flujo ya vacío.
+
+> **El dueño sale de la FILA y se pregunta con la puerta de siempre.**
+> `lib/dueno-del-dato.server.ts`: `laCuentaDeLaConversacion`,
+> `laCuentaDelFlujo`, `laCuentaDelNodo`, `laCuentaDelEntrenamiento` y
+> `esGenteQueAlcanzo` (para el asesor al que se asigna o transfiere). Las cinco
+> acaban en `laCuentaDeLaAccion` → `assertCanAccessTargetUser`, así que dicen
+> exactamente lo mismo que las 129 acciones de la casa: ni una sexta regla.
+
+Cinco cosas que hay que mantener:
+
+1. **Una puerta por familia, no una por acción.** Los pasos de un flujo tenían
+   tres variantes (`ownerId ?? id`, `user.id` y nada); ahora todas pasan por
+   `laCuentaDelNodo`/`laCuentaDelFlujo`, que es igual o más amplio que lo de
+   antes (el asesor sigue llegando a los flujos de su dueño).
+2. **La puerta va ANTES de tocar nada**, y eso incluye el bucket:
+   `deleteFileNode` comprueba el paso —y que el archivo sea el SUYO— antes de
+   `removeObject`; `deleteEntireWorkflow` antes de sus archivos y sus pasos.
+3. **«No existe» y «no es tuyo» se contestan igual**, con la forma que cada
+   acción ya devolvía cuando no encontraba la fila.
+4. **Lo que se llama sin sesión no pasa por la acción: se muda a `lib/*.server.ts`.**
+   El editor del agente vive en `lib/entrenamiento-del-agente.server.ts` (lo usa
+   el modo dueño por WhatsApp); crear y etiquetar un lead, en
+   `lib/leads-sin-puerta.server.ts` (lo usan la reserva pública, por dentro de
+   `createAppointment`, y el modo dueño). **La página pública de reservas ya no
+   llama a `registerSession`**: su lead lo crea `createAppointment`. Una
+   pantalla nunca importa de esos dos ficheros.
+5. **Un `Partial<Fila>` del navegador no toca la identidad**: `updateWorkflow`
+   quita `id`, `userId` y `createdAt` antes de escribir, o se movía un flujo a
+   otra cuenta cambiando su `userId`.
+
+Lo prueba `scripts/banco-dueno-del-dato.sh`: un barrido de que cada acción de
+esos nueve ficheros pasa por una puerta (o dice por qué no), y las acciones de
+verdad contra Postgres con tres cuentas —la dueña, su hija y una ajena—. En
+`MODO=roto` las mismas pruebas corren contra un commit pinchado y **afirman la
+fuga**: la ajena lee las notas, toma el chat, reescribe el entrenamiento y deja
+el flujo sin un solo paso.
+
 ## Las notas son de la PERSONA, no de la cuenta
 
 Un administrador comparte unas notas con su equipo. Todo bien en `/notas`. Pero
