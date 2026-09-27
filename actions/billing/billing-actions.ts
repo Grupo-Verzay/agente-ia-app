@@ -13,13 +13,11 @@ import { BillingUpsertInput, ResponseFormat, UserBilling } from "@/types/billing
 // `lib/robot-por-facturacion.ts`; aquí solo se llama.
 import { apagarElRobotPorImpago, devolverElRobotAlPagar } from "@/lib/robot-por-facturacion";
 
-import {
-    loadBillingDispatcherConfig,
-    getBillingUserRecord,
-    sendBillingStateChangeMessage,
-    setUserBillingWebhookEnabled,
-    syncUserBillingLifecycle,
-} from "./helpers/billing-notifications.server";
+import { syncUserBillingLifecycle } from "./helpers/billing-notifications.server";
+import { avisarDelCambioDeCobro, darElCicloPorPagado } from "@/lib/ciclo-pagado.server";
+import { elSiguienteVencimiento, esUnaRenovacion } from "@/lib/ciclo-pagado";
+import { renovarLosCreditos } from "@/lib/renovar-creditos";
+import { SERVER_TIME_ZONE } from "@/lib/utils";
 import { etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
 import { whatsappDeLaMarca } from "@/lib/brand-support.server";
 import { serializeUserBilling, toDate } from "./helpers/billing-helpers";
@@ -44,84 +42,16 @@ async function syncSessionClientStatus(userId: string, isActive: boolean): Promi
     });
 }
 
+// Una sola versión para todos los caminos: `avisarDelCambioDeCobro`. Era una
+// copia casi igual de la de la pasarela, y avisaba a un cliente de reseller por
+// la línea de Verzay.
 async function runManualStatusSideEffects(args: {
     userId: string;
     previousBillingStatus?: string | null;
     previousAccessStatus?: string | null;
     source: string;
 }) {
-    const updated = await getBillingUserRecord(args.userId);
-    if (!updated) {
-        return {
-            billing: null,
-            changed: false,
-            notificationSent: false,
-            notificationFailed: false,
-            webhookFailed: false,
-        };
-    }
-
-    const changed =
-        updated.billingStatus !== (args.previousBillingStatus ?? null) ||
-        updated.accessStatus !== (args.previousAccessStatus ?? null);
-
-    if (!changed) {
-        return {
-            billing: updated,
-            changed: false,
-            notificationSent: false,
-            notificationFailed: false,
-            webhookFailed: false,
-        };
-    }
-
-    const dispatcher = await loadBillingDispatcherConfig();
-    // El webhook va SIEMPRE encendido, pase lo que pase con el cobro: es lo que
-    // trae los avisos en vivo y lo que guarda el historial. Apagarlo al
-    // suspender dejaba la línea sin las dos cosas, y eso desde fuera no se lee
-    // como una cuenta suspendida — se lee como una App rota. Lo que calla al
-    // agente es el Robot, unas líneas más abajo.
-    const webhookResult = await setUserBillingWebhookEnabled({
-        userId: updated.userId,
-        enable: true,
-    });
-    const notificationResult = await sendBillingStateChangeMessage({
-        billing: updated,
-        dispatcher,
-        source: args.source,
-    });
-
-    if (!webhookResult.success && !webhookResult.skipped) {
-        console.warn("[billing-actions:webhook]", webhookResult);
-    }
-
-    if (!notificationResult.success) {
-        console.warn("[billing-actions:notification]", notificationResult);
-    }
-
-    const wasJustSuspended =
-        args.previousAccessStatus !== "SUSPENDED" &&
-        updated.accessStatus === "SUSPENDED";
-
-    if (wasJustSuspended) {
-        await apagarElRobotPorImpago(updated.userId);
-    }
-
-    const wasReactivated =
-        args.previousAccessStatus === "SUSPENDED" &&
-        updated.accessStatus === "ACTIVE";
-
-    if (wasReactivated) {
-        await devolverElRobotAlPagar(updated.userId);
-    }
-
-    return {
-        billing: updated,
-        changed: true,
-        notificationSent: notificationResult.success,
-        notificationFailed: !notificationResult.success,
-        webhookFailed: !webhookResult.success && !webhookResult.skipped,
-    };
+    return avisarDelCambioDeCobro(args);
 }
 
 export async function getUserBillingByUserId(
@@ -326,6 +256,19 @@ export async function setUserBillingDueDate(
             return { success: false, message: "dueDate invalida." };
         }
 
+        const anterior = await db.userBilling.findUnique({
+            where: { userId: scopedUserId },
+            select: { dueDate: true },
+        });
+
+        // Mover la fecha HACIA ADELANTE es anotar un pago: los créditos se
+        // reponen igual que por Wompi o por «Marcar pagado». Corregirla hacia
+        // atrás o borrarla no regala un mes de créditos (`esUnaRenovacion`).
+        const renueva = esUnaRenovacion(anterior?.dueDate ?? null, parsed);
+        if (renueva && parsed) {
+            await renovarLosCreditos(scopedUserId, parsed);
+        }
+
         const billing = await db.userBilling.upsert({
             where: { userId: scopedUserId },
             create: {
@@ -363,17 +306,19 @@ export async function setUserBillingDueDate(
             }
         }
 
+        const creditos = renueva ? " Créditos repuestos." : "";
+
         if (parsed && syncResult.stateChanged) {
             return {
                 success: true,
-                message: "Fecha de pago actualizada y estados sincronizados.",
+                message: `Fecha de pago actualizada y estados sincronizados.${creditos}`,
                 data: syncResult.billing ?? billing,
             };
         }
 
         return {
             success: true,
-            message: "Fecha de pago actualizada.",
+            message: `Fecha de pago actualizada.${creditos}`,
             data: syncResult.billing ?? billing,
         };
     } catch (error: any) {
@@ -389,45 +334,30 @@ export async function markUserAsPaid(
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
 
-        const now = new Date();
-        const existing = await db.userBilling.findUnique({ where: { userId: scopedUserId } });
-
-        await db.userBilling.upsert({
+        // Marcar pagado es pagar UN ciclo, igual que un pago por Wompi: el
+        // vencimiento avanza, los créditos se reponen y el acceso vuelve. Antes
+        // solo cambiaba el estado y dejaba el vencimiento viejo, así que al día
+        // siguiente el trabajo diario lo veía vencido y volvía a suspenderlo.
+        const actual = await db.userBilling.findUnique({
             where: { userId: scopedUserId },
-            create: {
-                userId: scopedUserId,
-                currencyCode: "COP",
-                billingStatus: "PAID",
-                accessStatus: "ACTIVE",
-                lastPaymentAt: now,
-                graceDays: 0,
-                serviceStartAt: now,
-                serviceEndAt: null,
-            },
-            update: {
-                billingStatus: "PAID",
-                accessStatus: "ACTIVE",
-                lastPaymentAt: now,
-                suspendedAt: null,
-                suspendedReason: null,
-                serviceStartAt: existing?.serviceStartAt ?? now,
-                serviceEndAt: null,
-            },
+            select: { dueDate: true, licenseDays: true },
         });
+        const vence = elSiguienteVencimiento(actual ?? {});
+        const ciclo = await darElCicloPorPagado(scopedUserId, { vence });
 
-        await syncSessionClientStatus(scopedUserId, true);
         const sideEffects = await runManualStatusSideEffects({
             userId: scopedUserId,
-            previousBillingStatus: existing?.billingStatus ?? null,
-            previousAccessStatus: existing?.accessStatus ?? null,
+            previousBillingStatus: ciclo.antes?.billingStatus ?? null,
+            previousAccessStatus: ciclo.antes?.accessStatus ?? null,
             source: "billing-mark-paid",
         });
 
+        const hasta = vence.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: SERVER_TIME_ZONE });
         return {
             success: true,
             message: sideEffects.changed
-                ? "Pago registrado. Servicio activo y cliente notificado."
-                : "Pago registrado. Servicio activo.",
+                ? `Pago registrado. Activo hasta el ${hasta}; cliente notificado.`
+                : `Pago registrado. Activo hasta el ${hasta}.`,
             data: sideEffects.billing,
         };
     } catch (error: any) {

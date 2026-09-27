@@ -19,6 +19,7 @@ import {
 } from "@/actions/user-subscription-actions";
 import { PLAN_LABELS } from "@/types/plans";
 import { Plan } from "@prisma/client";
+import { ESTADOS_PENDIENTES, estaPendiente } from "@/lib/ciclo-pagado";
 
 const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   PENDING_PAYMENT: "Pendiente pago",
@@ -38,9 +39,14 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   REJECTED: "bg-red-100 text-red-800",
 };
 
-const FILTER_OPTIONS: { label: string; value: SubscriptionStatus | "ALL" }[] = [
+type Filtro = SubscriptionStatus | "ALL" | "PENDIENTES";
+
+// «Pendientes» son las dos que esperan algo —el pago o el comprobante—. La de
+// antes solo enseñaba «Pendiente aprobación», así que una pagada por Wompi
+// (nace en «Pendiente pago») no la veía nadie.
+const FILTER_OPTIONS: { label: string; value: Filtro }[] = [
   { label: "Todos", value: "ALL" },
-  { label: "Pendiente aprobación", value: "PENDING_APPROVAL" },
+  { label: "Pendientes", value: "PENDIENTES" },
   { label: "Activos", value: "ACTIVE" },
   { label: "Rechazados", value: "REJECTED" },
   { label: "Expirados", value: "EXPIRED" },
@@ -52,7 +58,7 @@ type RejectForm = { reason: string };
 export function SuscripcionesMain() {
   const [subs, setSubs] = useState<UserSubscriptionWithPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<SubscriptionStatus | "ALL">("PENDING_APPROVAL");
+  const [filter, setFilter] = useState<Filtro>("PENDIENTES");
   const [approveTarget, setApproveTarget] = useState<UserSubscriptionWithPlan | null>(null);
   const [rejectTarget, setRejectTarget] = useState<UserSubscriptionWithPlan | null>(null);
   const [approveForm, setApproveForm] = useState<ApproveForm>({ startDate: "", expiresAt: "", adminNotes: "" });
@@ -63,7 +69,9 @@ export function SuscripcionesMain() {
     setLoading(true);
     try {
       const res = await getAllSubscriptionsAdmin(
-        filter === "ALL" ? {} : { status: filter }
+        filter === "ALL"
+          ? {}
+          : { status: filter === "PENDIENTES" ? [...ESTADOS_PENDIENTES] : filter }
       );
       if (res.success) setSubs(res.data as UserSubscriptionWithPlan[]);
     } catch (e) {
@@ -91,8 +99,10 @@ export function SuscripcionesMain() {
     if (!approveTarget) return;
     setActionLoading(true);
     const res = await approveSubscription(approveTarget.id, {
-      startDate: new Date(approveForm.startDate),
-      expiresAt: new Date(approveForm.expiresAt),
+      // Medianoche LOCAL, como «Editar pagos». `new Date("2026-10-27")` es
+      // medianoche UTC, que en Colombia cae el día 26 a las 7 de la tarde.
+      startDate: new Date(`${approveForm.startDate}T00:00:00`),
+      expiresAt: new Date(`${approveForm.expiresAt}T00:00:00`),
       adminNotes: approveForm.adminNotes,
     });
     if (res.success) {
@@ -124,7 +134,7 @@ export function SuscripcionesMain() {
       <div>
         <h2 className="text-lg font-semibold">Suscripciones</h2>
         <p className="hidden text-xs text-muted-foreground sm:block">
-          Revisa y aprueba los pagos manuales pendientes.
+          Revisa y aprueba los pagos pendientes.
         </p>
       </div>
 
@@ -205,7 +215,7 @@ export function SuscripcionesMain() {
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
-                    {sub.status === "PENDING_APPROVAL" && (
+                    {estaPendiente(sub.status) && (
                       <>
                         <Button size="sm" variant="outline" className="gap-1 text-green-600 border-green-300" onClick={() => openApprove(sub)}>
                           <CheckCircle className="h-3.5 w-3.5" /> Aprobar
