@@ -18324,10 +18324,9 @@ Cinco cosas que hay que mantener:
    eso, «Cargar más» metería correos de anteayer por ENCIMA de los de hace un
    mes que ya se veían, y la lista cambiaría de orden debajo del dedo. Cargar
    más pide solo la página siguiente de los buzones que la tienen.
-4. **El filtro es «Todos · Sin leer · Leídos»**, el mismo grupo de botones que
-   CRM › Llamadas (`components/shared/GrupoDeOpciones.tsx`, que usan los dos), y
-   vale igual en la unificada y en un buzón. Filtra lo cargado, como el
-   buscador; «Sin leer» lleva su número.
+4. **El filtro es «Todos · Sin leer · Leídos»**, con las pastillas de Chats
+   (ver la sección de abajo), y vale igual en la unificada y en un buzón.
+   Filtra lo cargado, como el buscador.
 5. **Nada de esto toca Chats ni guarda correos**: sigue siendo leer del
    proveedor al abrir.
 
@@ -18337,6 +18336,42 @@ id, un buzón revocado no tumba a los otros); y la pantalla en Chromium con dos
 buzones que comparten un id de correo. `MODO=roto` lee la pantalla de un commit
 pinchado (`ANTES_DE_LA_UNIFICADA`) y afirma que no había unificada, ni marca,
 ni filtro de leídos.
+
+### El selector y el filtro son LOS de Chats, no unos parecidos
+
+El selector de bandejas era un `<select>` nativo —otro alto, otro borde y una
+lista que pinta el sistema operativo— y el filtro, el grupo de botones pequeños
+de Llamadas. Puesto al lado de Chats no se leía como la misma plataforma.
+
+> **Las dos piezas se sacaron de Chats a `components/shared/` y ahora las
+> pintan las dos pantallas**: `SelectorDeCanal` (el «Todos ▾» de canales,
+> aquí «Todas ▾», con su panel: título, fila de «todos», raya y una fila por
+> opción con su marca) y `PastillaDeFiltro` (la forma, los huecos que ceden y
+> la insignia, con sus tonos: `TONO_TODOS`, `TONO_SIN_LEER`… y `TONO_LEIDOS`,
+> verde, que en Chats no existe). Chats no cambió de aspecto: dejó de llevar
+> su copia.
+
+Cuatro cosas que hay que mantener:
+
+1. **El panel nace como el de canales** (`usePanelFlotante("columnaAncha")`),
+   así que Correo lleva `MARCA_DE_LA_COLUMNA` en su raíz y
+   `MARCA_DE_LA_CABECERA_DE_LA_COLUMNA` en la barra: el panel sale colgado del
+   botón, justo debajo de la barra y con el ancho común de los filtros.
+2. **El selector va delante del buscador**, como en Chats; las pastillas, en
+   el carril de la barra (y en el teléfono, en su segunda fila).
+3. **Los números de las pastillas son de lo CARGADO** (`losNumerosDelFiltro`):
+   el proveedor no dice cuántos correos hay, así que con páginas por traer
+   llevan un «+» —«al menos»—. En cero no hay insignia, como en Chats. Y las
+   filas del selector **no llevan número**: un largo de lo cargado no es un
+   total.
+4. **Llamadas conserva su `GrupoDeOpciones`**: esto solo toca Correo y Chats.
+
+Lo prueba `scripts/banco-correo.sh`: el barrido y los números sin navegador, y
+en Chromium la pantalla de Correo con la cabecera REAL de Chats pintada al
+lado, comparando alto, radio, borde, letra y colores del selector y de las
+pastillas, y que el panel se despliega hacia abajo colgado de su botón.
+`MODO=roto` lee Correo de un commit pinchado (`ANTES_DE_LOS_MANDOS`) y afirma
+el `<select>` y el grupo de botones.
 
 ## Borrar los seguimientos de un número es borrarlos en SU cuenta
 

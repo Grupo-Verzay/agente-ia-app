@@ -42,7 +42,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
-import { GrupoDeOpciones } from "@/components/shared/GrupoDeOpciones";
+import { PastillaDeFiltro, TONO_LEIDOS, TONO_SIN_LEER, TONO_TODOS, type TonoDePastilla } from "@/components/shared/PastillaDeFiltro";
+import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
+import { MARCA_DE_LA_CABECERA_DE_LA_COLUMNA, MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 import { useAltoDeLaCaja } from "@/components/shared/BarraDeEscribir";
 import { cn } from "@/lib/utils";
@@ -56,6 +58,7 @@ import {
     laBandejaUnificada,
     laLlaveDelCorreo,
     laPalabraDelBuzon,
+    losNumerosDelFiltro,
     pasaElFiltroDeLeido,
     type CorreoDeLaBandeja,
     type FiltroDeLeido,
@@ -122,6 +125,17 @@ function laVistaDeEntrada(buzones: BuzonVisible[], quiero: string | null): strin
     if (quiero && buzones.some((b) => b.id === quiero)) return quiero;
     return hayVarios ? BANDEJA_UNIFICADA : buzones[0].id;
 }
+
+/**
+ * El color de cada pastilla del filtro. «Todos» y «Sin leer» son LOS de Chats
+ * —el mismo azul, el mismo naranja—: el mismo filtro no puede cambiar de color
+ * al pasar de un canal a otro. «Leídos» no existe en Chats y va en verde.
+ */
+const TONO_DEL_FILTRO: Record<FiltroDeLeido, TonoDePastilla> = {
+    todos: TONO_TODOS,
+    sinLeer: TONO_SIN_LEER,
+    leidos: TONO_LEIDOS,
+};
 
 function laFechaCorta(iso: string | null): string {
     if (!iso) return "";
@@ -458,54 +472,70 @@ function Bandeja({
                 (!q || `${c.de} ${c.deDireccion} ${c.asunto} ${c.fragmento}`.toLowerCase().includes(q)),
         );
     }, [correos, busqueda, filtro]);
-    const sinLeer = correos.filter((c) => c.sinLeer).length;
     const buzonDeLaVista = unificada ? null : deLaVista[0] ?? null;
     const avisosVisibles = deLaVista.filter((b) => avisos[b.id]).map((b) => ({ buzon: b, aviso: avisos[b.id] }));
     const buzonAEliminar = aEliminar ? porId.get(aEliminar.buzonId) ?? null : null;
 
-    // El buzón y el filtro. En computador van en el carril de la barra; en el
-    // teléfono ese carril se queda en unos 46 px —el buscador, actualizar y el
-    // «⋯» se comen el resto— y las flechas taparían el filtro entero, así que
-    // bajan a una segunda fila que se desplaza, como el marcador de Llamadas.
-    // Se pintan UNA vez, en un sitio o en otro: dos copias serían dos selectores.
-    const mandos = (
-        <>
-            {buzones.length > 1 ? (
-                <select
-                    aria-label="Buzón"
-                    value={vista}
-                    onChange={(e) => alElegir(e.target.value)}
-                    className="h-9 min-w-0 max-w-[10rem] shrink truncate rounded-md border md:max-w-[16rem] border-input bg-background px-2 text-sm"
-                >
-                    <option value={BANDEJA_UNIFICADA}>Todas las bandejas ({buzones.length})</option>
-                    {buzones.map((b) => (
-                        <option key={b.id} value={b.id}>
-                            {b.direccion} · {NOMBRE_DEL_PROVEEDOR[b.proveedor]}
-                        </option>
-                    ))}
-                </select>
-            ) : buzonDeLaVista ? (
-                <span className="truncate text-sm text-muted-foreground" title={buzonDeLaVista.direccion}>
-                    {buzonDeLaVista.direccion} · {NOMBRE_DEL_PROVEEDOR[buzonDeLaVista.proveedor]}
-                </span>
-            ) : null}
-            <GrupoDeOpciones
-                grupo="leido"
-                opciones={FILTROS_DE_LEIDO.map((f) => ({
-                    value: f,
-                    label: f === "sinLeer" && sinLeer ? `${NOMBRE_DEL_FILTRO[f]} (${sinLeer})` : NOMBRE_DEL_FILTRO[f],
-                }))}
-                valor={filtro}
-                alCambiar={setFiltro}
+    // El buzón y el filtro, con las MISMAS piezas que Chats: el selector de
+    // canales («Todos ▾» → aquí «Todas ▾») y sus pastillas con contador. No
+    // parecidas: los mismos componentes, que viven en `components/shared/`.
+    //
+    // El selector va delante del buscador, como en Chats. Las pastillas, en
+    // computador, en el carril de la barra; en el teléfono ese carril se queda
+    // en unos 46 px —el buscador, actualizar y el «⋯» se comen el resto—, así
+    // que bajan a una segunda fila, como el marcador de Llamadas. Se pintan
+    // UNA vez, en un sitio o en otro: dos copias serían dos filtros.
+    const numeros = losNumerosDelFiltro(correos, hayMas);
+    const selector =
+        buzones.length > 1 ? (
+            <SelectorDeCanal
+                titulo="Bandejas"
+                ariaLabel="Buzón"
+                // Sin número en ninguna fila: el proveedor no dice cuántos
+                // correos hay, y un largo de lo cargado no es un total.
+                todos={{ etiqueta: "Todas" }}
+                opciones={buzones.map((b) => ({ valor: b.id, etiqueta: b.direccion, detalle: NOMBRE_DEL_PROVEEDOR[b.proveedor] }))}
+                valor={unificada ? null : vista}
+                alCambiar={(v) => alElegir(v ?? BANDEJA_UNIFICADA)}
             />
-        </>
+        ) : buzonDeLaVista ? (
+            <span className="max-w-[10rem] shrink truncate text-sm text-muted-foreground" title={buzonDeLaVista.direccion}>
+                {buzonDeLaVista.direccion} · {NOMBRE_DEL_PROVEEDOR[buzonDeLaVista.proveedor]}
+            </span>
+        ) : null;
+    const pastillas = (
+        <div data-pastillas-de-correo className="flex items-center gap-1">
+            {FILTROS_DE_LEIDO.map((f) => (
+                <PastillaDeFiltro
+                    key={f}
+                    valor={f}
+                    rotulo={NOMBRE_DEL_FILTRO[f]}
+                    activa={filtro === f}
+                    alPulsar={() => setFiltro(f)}
+                    tono={TONO_DEL_FILTRO[f]}
+                    cuenta={numeros[f]}
+                    tabular
+                />
+            ))}
+        </div>
     );
 
     return (
-        <div data-correo data-vista={unificada ? "unificada" : "buzon"} className="flex h-full min-h-0 flex-col gap-2">
+        // `MARCA_DE_LA_COLUMNA` y la de su cabecera: son las que mide el panel
+        // del selector (`columnaAncha`) para nacer justo debajo de la barra y
+        // colgado de su botón, igual que el de canales en Chats.
+        <div
+            data-correo
+            data-vista={unificada ? "unificada" : "buzon"}
+            {...{ [MARCA_DE_LA_COLUMNA]: "" }}
+            className="flex h-full min-h-0 flex-col gap-2"
+        >
+            <div {...{ [MARCA_DE_LA_CABECERA_DE_LA_COLUMNA]: "" }} className="flex shrink-0 flex-col gap-2">
             <BarraDeAcciones
                 buscador={
-                    <div className="relative w-56 sm:w-72">
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                    {selector}
+                    <div className="relative w-56 min-w-[36px] shrink sm:w-72">
                         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={busqueda}
@@ -515,8 +545,9 @@ function Bandeja({
                             aria-label="Buscar correo"
                         />
                     </div>
+                    </div>
                 }
-                filtros={enElTelefono ? undefined : mandos}
+                filtros={enElTelefono ? undefined : pastillas}
                 secundarias={
                     <Button
                         variant="outline"
@@ -551,9 +582,10 @@ function Bandeja({
 
             {enElTelefono ? (
                 <div data-fila-de-filtros className="-mt-1 flex shrink-0 items-center gap-2 overflow-x-auto">
-                    {mandos}
+                    {pastillas}
                 </div>
             ) : null}
+            </div>
 
             {avisosVisibles.map(({ buzon: b, aviso }) => (
                 <div key={b.id} data-aviso-correo={b.id} className={AVISO_DEL_CORREO}>

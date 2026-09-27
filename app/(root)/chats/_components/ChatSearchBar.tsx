@@ -1,19 +1,10 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Search, X, ChevronDown, Check } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
 import { getInstanceUiDisplayName } from "@/lib/instance-display-name";
-import { usePanelFlotante } from "@/hooks/usePanelFlotante";
-import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 
 type Channel = {
   instanceName: string;
@@ -44,13 +35,6 @@ export function ChatSearchBar({
   onChannelChange,
 }: ChatSearchBarProps) {
   const hasChannels = channels.length > 1;
-  // Canales: uno de los cuatro paneles que ocupan el ancho de la columna.
-  const panelDeCanales = usePanelFlotante("columnaAncha", "menu");
-  const activeChannel = channels.find((ch) => ch.instanceName === selectedChannel);
-  const activeLabel = activeChannel
-    ? getInstanceUiDisplayName(activeChannel)
-    : "Todos";
-
   /** La suma de las lineas: el mismo total que enseña el chip de la cabecera. */
   const totalCount = Object.values(channelCounts).reduce((a, b) => a + b, 0);
 
@@ -88,120 +72,36 @@ export function ChatSearchBar({
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
       {hasChannels ? (
-        <DropdownMenu onOpenChange={panelDeCanales.alAbrir}>
-          <DropdownMenuTrigger asChild ref={panelDeCanales.disparador}>
-            <button
-              type="button"
-              title={activeLabel}
-              className="inline-flex h-8 min-w-[56px] max-w-[104px] items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
-            >
-              <span className="min-w-0 flex-1 truncate text-left">{activeLabel}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          {/* El ancho común, colgado de su botón y justo DEBAJO de la raya de
-              la cabecera: lo decide `usePanelFlotante` (`columnaAncha`) para
-              los cuatro menús de esta cabecera. El scroll sigue siendo el de
-              siempre —la lista crece con las lineas de la cuenta— y su tope,
-              el hueco de verdad y no `vh`. */}
-          <DropdownMenuContent
-            {...panelDeCanales.props}
-            className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
-          >
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Canales
-            </p>
-            {/* Todos */}
-            <DropdownMenuItem
-              onSelect={() => onChannelChange?.(null)}
-              className="flex items-center justify-between gap-2 cursor-pointer"
-            >
-              <span className="text-xs font-medium">Todos</span>
-              {/* La suma de las líneas, que es EXACTAMENTE lo que dice el chip
-                  azul de la cabecera: los dos salen de `channelCounts`.
-                  Estuvo un rato sin número porque cada uno decía una cosa —la
-                  suma aquí, las filas cargadas allí— y dos «Todos» distintos
-                  pegados despistan más que informar. Ya dicen lo mismo, así
-                  que el número vuelve. Si algún día vuelven a separarse, se
-                  arregla la fuente, no se esconde el número. */}
-              <div className="flex items-center gap-1.5">
-                {Object.keys(channelCounts).length > 0 && (
-                  <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
-                    {totalCount}
-                  </span>
-                )}
-                {!selectedChannel && <Check className="h-3.5 w-3.5 text-primary" />}
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {/* Por instancia */}
-            {channels.map((ch) => {
-              const isActive = selectedChannel === ch.instanceName;
-              // Sin numero solo cuando todavia no se sabe. Una linea con cero
-              // conversaciones bajo «Todos» enseña su 0: sin el, la suma de
-              // arriba no se puede comprobar a ojo.
-              const count = channelCounts[ch.instanceName];
-              const label = getInstanceUiDisplayName(ch);
-              return (
-                <DropdownMenuItem
-                  key={ch.instanceName}
-                  onSelect={() => onChannelChange?.(ch.instanceName)}
-                  className="flex items-center justify-between gap-2 cursor-pointer"
-                >
-                  <div className="flex min-w-0 flex-col">
-                    <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
-                      {label}
-                    </span>
-                    {ch.company && ch.company !== label && (
-                      <span className="truncate text-[10px] text-muted-foreground">{ch.company}</span>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {count !== undefined && (
-                      <span className={cn(
-                        "rounded-full px-1.5 py-px text-[10px] font-semibold",
-                        isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-                      )}>
-                        {count}
-                      </span>
-                    )}
-                    {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </div>
-                </DropdownMenuItem>
-              );
-            })}
-            {/* Lineas con chats que no estan en `channels`: sin esta fila sus
-                chats se cuentan en «Todos» y no hay forma de filtrarlos. */}
-            {lineasSinFila.map((nombre) => {
-              const isActive = selectedChannel === nombre;
-              return (
-                <DropdownMenuItem
-                  key={nombre}
-                  onSelect={() => onChannelChange?.(nombre)}
-                  className="flex items-center justify-between gap-2 cursor-pointer"
-                >
-                  <div className="flex min-w-0 flex-col">
-                    <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
-                      {nombre}
-                    </span>
-                    <span className="truncate text-[10px] text-muted-foreground">
-                      Linea sin ficha
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span className={cn(
-                      "rounded-full px-1.5 py-px text-[10px] font-semibold",
-                      isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-                    )}>
-                      {channelCounts[nombre]}
-                    </span>
-                    {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </div>
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        // El selector es el componente compartido con Correo: el botón, el
+        // panel, su título, la fila de «Todos» y una por línea salen de un
+        // sitio. La fila de «Todos» lleva la suma de las líneas —el mismo
+        // total que el chip azul de la cabecera— y sin número solo cuando
+        // todavía no se sabe.
+        <SelectorDeCanal
+          titulo="Canales"
+          ariaLabel="Canal"
+          todos={{ etiqueta: "Todos", cuenta: Object.keys(channelCounts).length > 0 ? totalCount : undefined }}
+          opciones={[
+            ...channels.map((ch) => ({
+              valor: ch.instanceName,
+              etiqueta: getInstanceUiDisplayName(ch),
+              detalle: ch.company,
+              // Una linea con cero conversaciones enseña su 0: sin el, la suma
+              // de arriba no se puede comprobar a ojo.
+              cuenta: channelCounts[ch.instanceName],
+            })),
+            // Lineas con chats que no estan en `channels`: sin esta fila sus
+            // chats se cuentan en «Todos» y no hay forma de filtrarlos.
+            ...lineasSinFila.map((nombre) => ({
+              valor: nombre,
+              etiqueta: nombre,
+              detalle: "Linea sin ficha",
+              cuenta: channelCounts[nombre],
+            })),
+          ]}
+          valor={selectedChannel ?? null}
+          alCambiar={(v) => onChannelChange?.(v)}
+        />
       ) : (
         <span className="shrink-0 text-sm font-bold tracking-tight text-foreground">Chats</span>
       )}

@@ -390,6 +390,28 @@ export function pasaElFiltroDeLeido(c: { sinLeer: boolean }, filtro: FiltroDeLei
     return true;
 }
 
+/**
+ * Los números de las tres pastillas del filtro, sobre lo CARGADO.
+ *
+ * Un contador es un `COUNT`, no un `length` — y aquí no hay `COUNT`: el
+ * proveedor no dice cuántos correos hay en total. Así que cuando quedan
+ * páginas sin traer (`hayMas`) el número lleva un «+» detrás: dice «al menos
+ * esto», que es lo cierto. Por encima de 99, «99+», como «Sin leer» en Chats.
+ * En cero no hay número (la pastilla no pinta insignia en cero).
+ */
+export function losNumerosDelFiltro(
+    correos: { sinLeer: boolean }[],
+    hayMas: boolean,
+): Record<FiltroDeLeido, string | undefined> {
+    const sinLeer = correos.filter((c) => c.sinLeer).length;
+    const numero = (n: number): string | undefined => {
+        if (n <= 0) return undefined;
+        if (n > 99) return "99+";
+        return hayMas ? `${n}+` : String(n);
+    };
+    return { todos: numero(correos.length), sinLeer: numero(sinLeer), leidos: numero(correos.length - sinLeer) };
+}
+
 /** Qué dice la confirmación de eliminar, según adónde va el correo en cada proveedor. */
 export function laAdvertenciaDeEliminar(proveedor: ProveedorDeCorreo): string {
     if (proveedor === "gmail") return "Se mueve a la papelera de Gmail. Desde ahí se puede recuperar durante 30 días.";
