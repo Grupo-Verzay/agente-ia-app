@@ -18528,7 +18528,7 @@ y afirma que cruzaba de cuenta.
 
 ## Calidad de conversaciones (CRM › Calidad) y exportar conversaciones
 
-**La IA puntúa cada conversación en reposo** con una rúbrica de cinco criterios
+**La IA puntúa cada conversación** con una rúbrica de cinco criterios
 (saludo 15, primera respuesta 15, resolución 10, tono 25, si resolvió 35) y el
 CRM lo reparte por asesor: puntaje medio, tiempo medio de primera respuesta y
 de resolución, y las conversaciones por debajo de 60 marcadas como ejemplo de
@@ -18545,10 +18545,10 @@ Seis cosas que hay que mantener:
 2. **La primera respuesta es la de una PERSONA** cuando hay asesor; la de la IA
    solo cuenta si la conversación es de la IA. Así «Agente IA» y cada asesor
    tienen su propio número.
-3. **El runner NO es una acción**: `server-only`, lanzado de fondo desde el cron
-   diario (`/api/cron/billing`, en su `try`) y desde «Evaluar ahora», que
-   re-resuelve el alcance. Topes: 25 por cuenta y vuelta, 2 h de reposo, solo lo
-   que tiene mensajes nuevos, 30 min por barrido.
+3. **El runner NO es una acción**: `server-only`, y corre SOLO por dos
+   puertas: «Evaluar ahora», que re-resuelve el alcance, y el corte semanal del
+   reporte (ver la sección de abajo). Topes: 25 por cuenta y vuelta, solo lo que
+   tiene mensajes nuevos, 3 min por cuenta en el corte.
 4. **Paga la cuenta dueña, con la IA de la cuenta** (el mismo proveedor que el
    motor) y solo si tiene créditos; se cobra después de guardar. Sin IA o sin
    créditos no se evalúa y se dice.
@@ -18569,7 +18569,45 @@ del propio buzón y sin marcarlo como leído.
 Lo prueba `scripts/banco-calidad-y-exportacion.sh`: reglas, zip abierto con
 Python y un barrido, y las acciones y el runner contra Postgres. `MODO=roto`
 afirma la lectura por una sola identidad (la conversación sale a medias) y la
-selección ingenua (grupos y conversaciones vivas pagadas).
+selección ingenua (grupos pagados).
+
+### Cuándo corre: a pedido y en el corte del reporte, nunca solo
+
+Evaluaba cada día, desde el cron de facturación, toda conversación con **dos
+horas sin mensajes**. Eso se fue entero: ni barrido diario, ni reposo que
+esperar. Corre cuando alguien pulsa «Evaluar ahora» y en el **corte semanal**,
+que es el mismo reloj que ya usa Reportes: `runWeeklyReportForAllUsers` evalúa
+cada cuenta **justo antes** de mandar su reporte, con su tope de tiempo y en su
+propio `try` —un fallo del QA no puede dejar a nadie sin reporte—.
+
+Sin reposo, una conversación evaluada a medias se vuelve a evaluar en el
+siguiente corte si entraron mensajes nuevos: la fila se reescribe, no cuenta dos
+veces. **Generar el reporte a mano desde Reportes NO evalúa** ni gasta créditos:
+lee lo ya evaluado. El botón para eso es «Evaluar ahora».
+
+### Y el reporte semanal lleva la calidad en una o dos líneas
+
+Sección «🎯 CALIDAD DE ATENCIÓN», sin desglose por conversación —eso vive en
+CRM › Calidad—. Lo decide `elResumenSemanalDeCalidad` (puro) y lo escribe
+`lasLineasDeLaCalidad`, que usan **los dos sitios**: el WhatsApp (con
+asteriscos) y la pantalla de Reportes, que la lee de `metrics.calidad` del
+reporte guardado. Con dos redacciones una diría otra cosa.
+
+1. **El promedio es de todo lo evaluado de la semana**, IA incluida: es lo que
+   se atendió. **El mejor asesor sale solo de las personas** (`asesorId`), y a
+   igualdad gana quien atendió más.
+2. **Sin equipo** —nadie cuelga de la cuenta por `ownerId`— el dueño atiende
+   solo: el reporte dice «Tu calidad de atención» y no nombra a ningún mejor
+   asesor.
+3. **Sin nada evaluado no hay sección**, nunca un «0/100». Y leer la calidad
+   nunca tumba el reporte: si falla, sale sin ella y se dice.
+
+Lo prueba `scripts/banco-calidad-semanal.sh`: la regla y un barrido, y el corte
+de verdad contra Postgres con la IA y el WhatsApp fingidos (una cuenta con
+equipo, una con el dueño solo y una vacía, y una conversación de hace cinco
+minutos). `MODO=roto` corre lo mismo contra `ANTES_REF` y afirma que el cron
+diario lanzaba el barrido, que se esperaban dos horas y que el reporte no decía
+nada de la calidad.
 
 ## Chats: el SENTIMIENTO del cliente se analiza al ABRIR Chats, y lo paga la cuenta dueña
 

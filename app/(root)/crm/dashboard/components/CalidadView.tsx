@@ -215,8 +215,8 @@ export function CalidadView({
                 </div>
             ) : datos && conversaciones.length === 0 ? (
                 <div data-calidad-vacia className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    Todavía no hay conversaciones evaluadas en este periodo. La IA las revisa cada día cuando llevan
-                    dos horas sin mensajes; pulsa «Evaluar ahora» para no esperar.
+                    Todavía no hay conversaciones evaluadas en este periodo. La IA las revisa en el corte semanal del
+                    reporte; pulsa «Evaluar ahora» para no esperar.
                 </div>
             ) : datos ? (
                 <>
@@ -332,8 +332,8 @@ export function CalidadView({
 
             {datos?.ultimaEvaluacion ? (
                 <p className="text-xs text-muted-foreground">
-                    Última evaluación: {new Date(datos.ultimaEvaluacion).toLocaleString("es")}. La IA revisa cada día las
-                    conversaciones con más de dos horas sin mensajes. El puntaje combina saludo, tono, si se resolvió y los
+                    Última evaluación: {new Date(datos.ultimaEvaluacion).toLocaleString("es")}. La IA revisa las conversaciones
+                    en el corte semanal del reporte y cuando pulsas «Evaluar ahora». El puntaje combina saludo, tono, si se resolvió y los
                     tiempos de primera respuesta y de resolución.
                 </p>
             ) : null}

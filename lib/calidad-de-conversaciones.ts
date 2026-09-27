@@ -57,13 +57,15 @@ export const MENSAJES_A_EVALUAR = 60;
 export const CARACTERES_A_EVALUAR = 8000;
 
 /**
- * Una conversación no se evalúa mientras sigue viva: se espera a que lleve
- * este rato sin mensajes. Evaluarla a medias sería juzgar una consulta que
- * todavía se está atendiendo, y el «no se resolvió» saldría siempre.
+ * Cuántos días hacia atrás mira una evaluación. Es la ventana del reporte
+ * semanal, que es el corte automático: lo que entró en la semana.
+ *
+ * **No hay reposo.** La evaluación ya no corre sola en cuanto una conversación
+ * lleva un rato callada: corre cuando alguien pulsa «Evaluar ahora» y en el
+ * corte semanal del reporte. Lo que se evaluó a medias se vuelve a evaluar en
+ * el siguiente corte si entraron mensajes nuevos (una fila por conversación, que
+ * se reescribe), así que no cuenta dos veces.
  */
-export const REPOSO_ANTES_DE_EVALUAR_MS = 2 * 60 * 60 * 1000;
-
-/** Cuántos días hacia atrás mira el barrido. */
 export const DIAS_QUE_SE_EVALUAN = 7;
 
 /** Tope de conversaciones evaluadas por cuenta y vuelta: son créditos. */
@@ -353,4 +355,68 @@ export function laDuracionLegible(seg: number | null): string {
 /** La llave de una conversación evaluada: cuenta, línea y contacto. */
 export function laLlaveDeLaEvaluacion(cuentaId: string, instanceName: string, remoteJid: string): string {
     return `${cuentaId}::${instanceName}::${remoteJid}`;
+}
+
+/**
+ * Lo que el reporte semanal cuenta de la calidad: el puntaje promedio de la
+ * semana y el mejor asesor. Una o dos líneas, sin desglose por conversación:
+ * el detalle vive en CRM › Calidad.
+ */
+export interface ResumenSemanalDeCalidad {
+    conversaciones: number;
+    puntajePromedio: number;
+    /** La cuenta no tiene equipo: el dueño atiende solo, y el puntaje es el suyo. */
+    soloElDueno: boolean;
+    mejor: { asesorId: string; nombre: string; puntaje: number; conversaciones: number } | null;
+}
+
+/**
+ * El resumen, puro. Sin conversaciones con puntaje no hay resumen (`null`),
+ * nunca un «0/100»: un número que no se puede calcular no se sustituye por otro.
+ *
+ * El promedio es de TODAS las conversaciones evaluadas de la cuenta —las que
+ * contestó una persona y las que contestó la IA—, que es lo que se atendió esa
+ * semana. El mejor asesor sale solo de las que tienen asesor (una persona), y a
+ * igualdad gana quien atendió más. Sin equipo no se nombra a nadie.
+ */
+export function elResumenSemanalDeCalidad(
+    filas: Pick<ConversacionEvaluada, "asesorId" | "puntaje">[],
+    opciones: { tieneEquipo: boolean; nombres: ReadonlyMap<string, string> },
+): ResumenSemanalDeCalidad | null {
+    const conPuntaje = filas.filter((f): f is typeof f & { puntaje: number } => f.puntaje !== null && Number.isFinite(f.puntaje));
+    if (conPuntaje.length === 0) return null;
+    const puntajePromedio = Math.round(conPuntaje.reduce((s, f) => s + f.puntaje, 0) / conPuntaje.length);
+    let mejor: ResumenSemanalDeCalidad["mejor"] = null;
+    if (opciones.tieneEquipo) {
+        const porAsesor = new Map<string, number[]>();
+        for (const f of conPuntaje) {
+            if (!f.asesorId) continue;
+            porAsesor.set(f.asesorId, [...(porAsesor.get(f.asesorId) ?? []), f.puntaje]);
+        }
+        for (const [asesorId, ps] of porAsesor) {
+            const puntaje = Math.round(ps.reduce((s, x) => s + x, 0) / ps.length);
+            const nombre = opciones.nombres.get(asesorId)?.trim() || "Asesor";
+            const gana =
+                !mejor ||
+                puntaje > mejor.puntaje ||
+                (puntaje === mejor.puntaje && ps.length > mejor.conversaciones) ||
+                (puntaje === mejor.puntaje && ps.length === mejor.conversaciones && nombre.localeCompare(mejor.nombre) < 0);
+            if (gana) mejor = { asesorId, nombre, puntaje, conversaciones: ps.length };
+        }
+    }
+    return { conversaciones: conPuntaje.length, puntajePromedio, soloElDueno: !opciones.tieneEquipo, mejor };
+}
+
+/**
+ * Las líneas que se escriben: las MISMAS en el WhatsApp del reporte y en la
+ * pantalla de Reportes (`negrilla` pone los asteriscos de WhatsApp). Con dos
+ * redacciones, el día que se afine una la otra diría otra cosa.
+ */
+export function lasLineasDeLaCalidad(r: ResumenSemanalDeCalidad, opciones: { negrilla: boolean }): string[] {
+    const b = (t: string) => (opciones.negrilla ? `*${t}*` : t);
+    const cuantas = `${r.conversaciones} conversaci${r.conversaciones === 1 ? "ón evaluada" : "ones evaluadas"}`;
+    if (r.soloElDueno) return [`⭐ Tu calidad de atención: ${b(`${r.puntajePromedio}/100`)} (${cuantas})`];
+    const lineas = [`⭐ Calidad del equipo: ${b(`${r.puntajePromedio}/100`)} (${cuantas})`];
+    if (r.mejor) lineas.push(`🏆 Mejor asesor: ${b(r.mejor.nombre)} (${r.mejor.puntaje}/100)`);
+    return lineas;
 }
