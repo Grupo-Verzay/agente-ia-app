@@ -10,15 +10,14 @@ import { getReminderFormDeps, getRemindersByRemoteJid } from '@/actions/reminder
 import { readBadgeCount, writeBadgeCount } from './chat-badge-cache';
 import type { Session, Workflow } from '@prisma/client';
 
+// Sin la clave del servidor: el recordatorio la pone en el servidor al guardarse.
 type FormDeps = {
-  apikey: string;
-  serverUrl: string;
   instanceName: string;
   workflows: Workflow[];
   leads: Session[];
 };
 
-// Las deps del recordatorio (apikey + workflows + TODOS los leads) son a nivel de
+// Las deps del recordatorio (la línea + workflows + TODOS los leads) son a nivel de
 // USUARIO: iguales para todos los chats. Se cargan UNA sola vez por sesión del
 // navegador y se cachean a nivel de módulo, así el diálogo abre al instante en
 // cualquier chat (antes se re-consultaba por chat, con una query pesada de leads).
@@ -111,8 +110,6 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
     instanceName: deps?.instanceName ?? session.instanceId,
     pushName: session.pushName,
     workflowId: '',
-    apikey: deps?.apikey ?? '',
-    serverUrl: deps?.serverUrl ?? '',
     isSchedule: false,
   };
 
@@ -167,8 +164,6 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
               // `onCancel` que aquí nadie le pasaba.
               onCancel={() => setOpen(false)}
               userId={userId}
-              serverUrl={deps.serverUrl}
-              apikey={deps.apikey}
               instanceNameReminder={deps.instanceName}
               workflows={deps.workflows}
               leads={deps.leads}

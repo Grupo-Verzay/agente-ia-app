@@ -22,25 +22,26 @@ export type UserWithApiKeys = CurrentUser & {
 };
 
 /**
- * El usuario de la pagina publica de agendamiento. Esa pagina no usa
- * `currentUser()` -no hay sesion: entra el cliente final-, hace su propia
- * consulta y SI trae los servicios, que son sobre los que el cliente elige.
+ * La cuenta tal y como llega a la pagina PUBLICA de agendar (`/schedule/[userId]`).
+ *
+ * Era la fila ENTERA de `User` —con la clave GLOBAL del servidor de Evolution
+ * (`apiKey`), el token de cada linea (`instancias[].instanceId`), el correo y
+ * todas las columnas de la tabla— y viajaba al navegador de cualquiera que
+ * abriera el enlace. Ahora es una lista cerrada con lo que la pagina pinta:
+ * quien no esta aqui, no viaja. Si hace falta otro dato, se añade con su motivo
+ * y nunca una clave: lo que necesita claves lo hace el servidor
+ * (`confirmarLaCitaPublicaAction`).
  */
-export type UserConServicios = Omit<
-    UserWithApiKeys,
-    'effectiveId' | 'sessionUserId' | 'rolDeLaPersona' | 'rolDeLaCuenta' | 'porImpersonacion' | 'nombreDeLaPersona'
-> & {
+export type UserConServicios = {
+    id: string;
+    image: string | null;
+    company: string | null;
+    timezone: string | null;
+    meetingDuration: number | null;
+    minNoticeMinutes: number | null;
     services: Service[];
-    // No hay sesion en esa pagina, asi que no hay "usuario efectivo", ni
-    // "usuario de la sesion", ni rol de la persona: entra el cliente final,
-    // sin cuenta. Los tres van juntos por el mismo motivo.
-    effectiveId?: string;
-    sessionUserId?: string;
-    rolDeLaPersona?: string | null;
-    rolDeLaCuenta?: string | null;
-    // Tampoco se ha «Ingresado» a ninguna cuenta: no hay sesion que impersonar.
-    porImpersonacion?: boolean;
-    nombreDeLaPersona?: string | null;
+    /** El NOMBRE de la linea con la que se agenda. El nombre, nunca su token. */
+    lineaDeLaAgenda: string | null;
 };
 
 export interface ScheduleInterface {

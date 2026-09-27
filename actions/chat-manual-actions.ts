@@ -482,21 +482,24 @@ const cacheDeClavePorLinea = new Map<string, { valor: { url: string; key: string
 const CLAVE_LINEA_TTL_MS = 5 * 60 * 1000;
 
 async function resolverContexto(context: ChatActionContext): Promise<ChatActionContext> {
-  if (hasReadyContext(context)) return context;
+  // La clave que llegue del NAVEGADOR no decide nada, y por eso no se mira:
+  // antes, si el contexto venia «listo» se devolvia tal cual, asi que quien
+  // llamaba elegia contra que servidor y con que clave hablaba el nuestro. Las
+  // pantallas ya no la tienen (mandan el marcador `CLAVE_EN_EL_SERVIDOR`), y
+  // aunque alguien la mandara a mano, aqui se vuelve a resolver desde la LINEA.
   const instanceName = context?.instanceName?.trim();
-  if (!instanceName) return context;
+  if (!instanceName) return context ? { apiKeyData: null, instanceName: context.instanceName } : context;
+  const sinClave: ChatActionContext = { apiKeyData: null, instanceName };
 
   const user = await currentUser();
-  if (!user?.id) return context;
-
-  const enCache = cacheDeClavePorLinea.get(instanceName);
-  if (enCache && Date.now() - enCache.at < CLAVE_LINEA_TTL_MS) {
-    return enCache.valor ? { apiKeyData: enCache.valor, instanceName } : context;
-  }
+  if (!user?.id) return sinClave;
 
   try {
+    // La LINEA y su dueña se resuelven siempre, antes de la cache: la cache
+    // guarda la clave de un servidor, y servirla sin mirar quien pregunta era
+    // darle la de otra cuenta a cualquiera que nombrara esa linea despues.
     const dueno = await resolveInstanceOwner(instanceName);
-    if (!dueno?.userId) return context;
+    if (!dueno?.userId) return sinClave;
 
     // WhatsApp Mensajeria (waha) NO habla con Evolution. Rellenar
     // aqui la clave de Evolution de la cuenta hacia que la lista y los
@@ -505,13 +508,18 @@ async function resolverContexto(context: ChatActionContext): Promise<ChatActionC
     // disimulaba, y tarde. Para ellas el contexto se queda sin clave, que es
     // lo que hace que las acciones genericas tiren de la base.
     const tipo = (dueno.instanceType ?? '').trim().toLowerCase();
-    if (tipo === 'waha') {
-      cacheDeClavePorLinea.set(instanceName, { valor: null, at: Date.now() });
-      return context;
-    }
+    if (tipo === 'waha') return sinClave;
 
     const cuentas = await getAssociatedAccountIds(user);
-    if (!cuentas.includes(dueno.userId)) return context;
+    if (!cuentas.includes(dueno.userId)) {
+      console.warn("[chats] se pidio la clave de una linea que no se alcanza", { instanceName });
+      return sinClave;
+    }
+
+    const enCache = cacheDeClavePorLinea.get(instanceName);
+    if (enCache && Date.now() - enCache.at < CLAVE_LINEA_TTL_MS) {
+      return enCache.valor ? { apiKeyData: enCache.valor, instanceName } : sinClave;
+    }
 
     const cuenta = await db.user.findUnique({
       where: { id: dueno.userId },
@@ -526,10 +534,10 @@ async function resolverContexto(context: ChatActionContext): Promise<ChatActionC
 
     const valor = clave?.url && clave?.key ? { url: clave.url, key: clave.key } : null;
     cacheDeClavePorLinea.set(instanceName, { valor, at: Date.now() });
-    return valor ? { apiKeyData: valor, instanceName } : context;
+    return valor ? { apiKeyData: valor, instanceName } : sinClave;
   } catch (error) {
     console.error("[resolverContexto]", error);
-    return context;
+    return sinClave;
   }
 }
 
@@ -2115,6 +2123,28 @@ export async function sendManualQuickReplyAction(
     message: "Respuesta rapida enviada correctamente.",
     data: { sentCount: 1 },
   };
+}
+
+/**
+ * La media de un mensaje de una linea de Evolution (una imagen, una nota de
+ * voz), en base64.
+ *
+ * La pedia el navegador DIRECTAMENTE a `getMediaBase64FromMessage`, pasandole
+ * la clave del servidor que la pantalla tenia en la mano. Ahora la pantalla no
+ * la tiene: nombra la linea y el mensaje, y la clave la pone
+ * `resolverContexto` despues de comprobar que quien mira alcanza esa linea.
+ */
+export async function mediaDeUnMensajeAction(
+  context: ChatActionContext,
+  messageId: string,
+  options?: { timeoutMs?: number; convertToMp4?: boolean },
+) {
+  context = await resolverContexto(context);
+  if (!hasReadyContext(context)) {
+    return { success: false as const, message: "No hay clave para esta linea, o no se alcanza.", messageId };
+  }
+  const { getMediaBase64FromMessage } = await import("./chat-actions");
+  return getMediaBase64FromMessage(context.apiKeyData, context.instanceName, messageId, options);
 }
 
 /**

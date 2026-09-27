@@ -728,7 +728,7 @@ export async function sendBookingNotifications(input: BookingNotificationInput):
         const apikey       = instance.instanceId;
         const baseUrl      = `https://${apiKeyUrl}`;
 
-        const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
+        const { enviarConHistorial: sendMessageWithHistoryAction } = await import('@/lib/envio-con-historial.server');
 
         const localStart = toZonedTime(new Date(startTimeIso), timezone);
         const dateLabel  = format(localStart, "d 'de' MMMM 'de' yyyy", { locale: es });

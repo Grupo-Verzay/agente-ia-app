@@ -631,7 +631,7 @@ async function sendRegistroEstadoNotification({
     const tipoLabel = `${TIPO_REGISTRO_LABEL[tipo].toUpperCase()} ${TIPO_REGISTRO_EMOJI[tipo]}`;
     const message = messageFn(nombre, tipoLabel, company);
 
-    const { sendMessageWithHistoryAction } = await import("@/actions/chat-history/send-message-with-history-action");
+    const { enviarConHistorial: sendMessageWithHistoryAction } = await import("@/lib/envio-con-historial.server");
 
     await sendMessageWithHistoryAction({
         instanceName,

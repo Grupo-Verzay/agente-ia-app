@@ -5,6 +5,12 @@ import { db } from "@/lib/db"
 import { currentUser } from "@/lib/auth"
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
 import { resolveInstanceOwner } from "@/lib/chat-persistence"
+import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server"
+import { sinLaClaveDeLaFila } from "@/lib/clave-del-servidor"
+
+import { apuntarLoQueHizo } from "@/lib/apuntar-actividad"
+import { whereSeguimientosDelLead } from "@/lib/registros-del-lead"
+import { seguimientosSchema } from "@/schema/seguimientos"
 
 /**
  * Un seguimiento **no tiene `userId`**: cuelga de su línea (`instancia`). Así
@@ -28,9 +34,6 @@ async function alcanzoElSeguimiento(id: number) {
   const suyo = await db.seguimiento.findUnique({ where: { id }, select: { instancia: true } })
   return alcanzoLaLinea(suyo?.instancia)
 }
-import { apuntarLoQueHizo } from "@/lib/apuntar-actividad"
-import { whereSeguimientosDelLead } from "@/lib/registros-del-lead"
-import { seguimientosSchema } from "@/schema/seguimientos"
 
 export interface SeguimientosResponse {
   success: boolean
@@ -38,6 +41,19 @@ export interface SeguimientosResponse {
   data?: any
 }
 
+/**
+ * Crear un seguimiento a mano.
+ *
+ * No tenía NINGUNA puerta, y era de las peores: la llamaba la página PÚBLICA
+ * de agendar, sin sesión, con la clave del servidor y el token de la línea
+ * sacados del navegador. O sea que cualquiera programaba un mensaje por la
+ * línea de cualquier cuenta, con la clave que quisiera.
+ *
+ * Ahora pide sesión y que la LÍNEA sea de una cuenta que quien llama alcanza,
+ * y **la clave la pone el servidor**: lo que llegue en `apikey`/`serverurl` se
+ * ignora. La página pública ya no llama aquí: sus seguimientos los arma
+ * `lib/cita-publica.server.ts` a partir de la cita.
+ */
 export const createSeguimiento = async (input: unknown) => {
   const validated = seguimientosSchema.safeParse(input)
 
@@ -50,8 +66,15 @@ export const createSeguimiento = async (input: unknown) => {
   }
 
   try {
+    const dueno = validated.data.instancia ? await resolveInstanceOwner(validated.data.instancia) : null
+    if (!dueno?.userId || !(await laCuentaDeLaAccion(dueno.userId))) {
+      return { success: false, message: "No autorizado." }
+    }
+
+    const servidor = await laClaveDelServidorDeLaCuenta(dueno.userId)
+    const { apikey: _apikey, serverurl: _serverurl, ...resto } = validated.data
     const seguimiento = await db.seguimiento.create({
-      data: validated.data,
+      data: { ...resto, serverurl: servidor?.url ?? "", apikey: servidor?.key ?? "" },
     })
 
     // Actividad del equipo. Con `refId`, para poder cerrar el círculo el día
@@ -65,7 +88,7 @@ export const createSeguimiento = async (input: unknown) => {
     return {
       success: true,
       message: "Seguimiento creado correctamente",
-      data: seguimiento,
+      data: sinLaClaveDeLaFila(seguimiento),
     }
   } catch (error) {
     console.error("Error al crear seguimiento:", error)
@@ -172,7 +195,7 @@ export async function updateSeguimientoById(
     }
 
     const updated = await db.seguimiento.update({ where: { id }, data });
-    return { success: true, message: "Seguimiento actualizado correctamente.", data: updated };
+    return { success: true, message: "Seguimiento actualizado correctamente.", data: sinLaClaveDeLaFila(updated) };
   } catch (error) {
     return {
       success: false,

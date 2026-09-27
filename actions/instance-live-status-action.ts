@@ -40,5 +40,9 @@ export async function getInstanceLiveStatusAction(instanceName: string): Promise
   const apiKey = await db.apiKey.findUnique({ where: { id: dbUser.apiKeyId }, select: { key: true, url: true } });
   if (!apiKey) return { success: false, message: 'API key no encontrada.' };
 
-  return fetchInstanceAction({ evoApiKey: apiKey.key, evoUrl: apiKey.url, instanceName });
+  const res = await fetchInstanceAction({ evoApiKey: apiKey.key, evoUrl: apiKey.url, instanceName });
+  // Evolution devuelve el `token` de la línea dentro de la instancia: es la
+  // clave con la que se manda por ella. La pantalla solo pinta el estado, así
+  // que no viaja (ver `lib/clave-del-servidor.ts`).
+  return { ...res, data: res.data?.map((i) => ({ ...i, token: '' })) };
 }

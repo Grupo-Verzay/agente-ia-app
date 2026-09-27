@@ -5,7 +5,9 @@ import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { getTimezoneFromPhone } from '@/lib/timezones';
 import { createAppointment } from '@/actions/appointments-actions';
-import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
+// El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
+// resuelta desde la base. La acción con puerta es para el navegador.
+import { enviarConHistorial as sendMessageWithHistoryAction } from '@/lib/envio-con-historial.server';
 
 function isAuthorized(request: Request): boolean {
   const expected = (process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '').trim();

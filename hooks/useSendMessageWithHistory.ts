@@ -3,10 +3,13 @@
 import { useTransition } from 'react';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
 
+/**
+ * Sin `url` ni `apikey`: la clave del servidor no está en el navegador. Se
+ * nombra la línea y `sendMessageWithHistoryAction` la resuelve en el servidor
+ * después de comprobar que quien manda alcanza esa línea.
+ */
 interface UseSendMessageWithHistoryParams {
     instanceName: string;
-    url: string;
-    apikey: string;
     remoteJid?: string;
     payload?: Record<string, unknown>;
     additionalKwargs?: Record<string, unknown>;
@@ -15,8 +18,6 @@ interface UseSendMessageWithHistoryParams {
 
 export function useSendMessageWithHistory({
     instanceName,
-    url,
-    apikey,
     remoteJid,
     payload = {},
     additionalKwargs = {},
@@ -37,7 +38,7 @@ export function useSendMessageWithHistory({
     ) => {
         const targetRemoteJid = options?.remoteJid?.trim() || remoteJid?.trim();
 
-        if (!instanceName?.trim() || !url?.trim() || !apikey?.trim()) {
+        if (!instanceName?.trim()) {
             options?.onError?.('Faltan datos de configuracion para enviar el mensaje.');
             return;
         }
@@ -53,8 +54,6 @@ export function useSendMessageWithHistory({
                     instanceName,
                     remoteJid: targetRemoteJid,
                     message,
-                    url,
-                    apikey,
                     historyType: options?.historyType ?? 'ia',
                     payload,
                     additionalKwargs: {

@@ -448,8 +448,13 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           credits = resCredits.data[0]
         }
 
+        // Sin la clave del SERVIDOR: la de Evolution es global —abre las
+        // líneas de todas las cuentas del servidor— y esta lista la abren
+        // administradores y resellers. Aquí solo se usó para consultar el
+        // estado, cosa que ya pasó arriba, en el servidor.
+        const { apiKey: _claveDelServidor, ...sinClaveDelServidor } = user;
         return {
-          ...user,
+          ...sinClaveDelServidor,
           pausar: user.pausar as Pausar[],
           // Sin la clave de IA: esta lista viaja entera al navegador, y la
           // clave de estas filas suele ser la de la casa o la del reseller.

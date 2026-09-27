@@ -17,6 +17,8 @@ import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
 import { motivoDeNoPoderCrearLaLinea } from '@/lib/motivo-de-evolution';
 import { assertApiKeyHasCapacity } from "./admin/evolution-capacity";
+import { administraLosServidores } from "@/lib/clave-del-servidor.server";
+import { assertCanAccessTargetUser } from "./billing/helpers/app-access-guard";
 
 // Vincular Mensajería WhatsApp por NÚMERO de teléfono (código): Evolution devuelve
 // un pairingCode al pasar ?number=. Alternativa al QR (evita el flujo QR+passkey).
@@ -319,9 +321,35 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
 }
 
 /* =========================
-   API Keys CRUD (sin cambios de mensajes)
+   API Keys CRUD — los servidores de Evolution de la PLATAFORMA
 ========================= */
+
+/**
+ * Estas cuatro acciones no preguntaban NADA: ni sesión. Y lo que tocan no es
+ * de una cuenta: una `ApiKey` es la clave GLOBAL de un servidor de Evolution,
+ * compartida por todas las cuentas que viven en él. O sea que cualquiera con
+ * una sesión —o sin ella, llamando al POST de la acción— podía **leer** todas
+ * las claves de la plataforma, **cambiar** la de un servidor (y dejar sin
+ * WhatsApp a cientos de cuentas) o **borrarla**.
+ *
+ * La puerta es la MISMA que ya abre la pantalla de Panel › Conexión y el
+ * servidor de WhatsApp Mensajería: la cuenta por la que se actúa es de la casa
+ * (`administraLosServidores`). Con «Ingresar» manda la cuenta en la que se
+ * está, así que desde dentro de un cliente no se administra ningún servidor.
+ *
+ * `getApiKeyById` ya no existe como acción: era «dame la clave de este
+ * servidor» a quien la pidiera. Las pantallas que necesitan saber que hay
+ * servidor usan `elServidorSinClave`, y el código de servidor que necesita la
+ * clave la lee con `lib/clave-del-servidor.server.ts`.
+ */
+const NO_AUTORIZADO_SERVIDORES = "No autorizado: solo quien administra la plataforma gestiona los servidores.";
+
 export async function agregarApi(data: FormData): Promise<ClientResponse<ApiKey>> {
+  if (!(await administraLosServidores())) {
+    console.warn('[servidores] intento de crear una clave de servidor sin permiso');
+    return { success: false, message: NO_AUTORIZADO_SERVIDORES }
+  }
+
   const url = data.get('url') as string
   const key = data.get('key') as string
 
@@ -339,6 +367,11 @@ export async function agregarApi(data: FormData): Promise<ClientResponse<ApiKey>
 }
 
 export async function editarApiKey(data: FormData): Promise<ClientResponse<ApiKey>> {
+  if (!(await administraLosServidores())) {
+    console.warn('[servidores] intento de editar una clave de servidor sin permiso');
+    return { success: false, message: NO_AUTORIZADO_SERVIDORES }
+  }
+
   const id = data.get('id') as string
   const url = data.get('url') as string
   const key = data.get('key') as string
@@ -356,6 +389,11 @@ export async function editarApiKey(data: FormData): Promise<ClientResponse<ApiKe
 }
 
 export async function eliminarApiKey(id: string) {
+  if (!(await administraLosServidores())) {
+    console.warn('[servidores] intento de borrar una clave de servidor sin permiso');
+    return { success: false, message: NO_AUTORIZADO_SERVIDORES }
+  }
+
   if (!id) {
     return { success: false, message: 'No se encontró el id' }
   }
@@ -369,21 +407,19 @@ export async function eliminarApiKey(id: string) {
   }
 }
 
+/**
+ * La lista CON las claves: solo para la pantalla que las administra. Quien solo
+ * necesita elegir un servidor (Panel › Clientes) usa `losServidoresSinClave`.
+ */
 export async function obtenerApiKeys() {
+  if (!(await administraLosServidores())) {
+    return { success: false, message: NO_AUTORIZADO_SERVIDORES, data: undefined };
+  }
+
   try {
     const apiKeys = await db.apiKey.findMany();
     apiKeys.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
     return { success: true, data: apiKeys };
-  } catch (error: any) {
-    return { success: false, message: error.message || "Error al obtener las API Keys." };
-  }
-}
-
-export async function getApiKeyById(id: string) {
-  try {
-    if (!id) return { success: false, message: 'Missing id' };
-    const apiKey = await db.apiKey.findUnique({ where: { id } });
-    return { success: true, data: apiKey };
   } catch (error: any) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
   }
@@ -750,6 +786,31 @@ export async function renameInstance(userId: string, instanceType: string, newNa
 }
 
 /**
+ * La puerta de las tres funciones «internas» de abajo.
+ *
+ * Se llamaban internas porque las escribió el sistema para sí mismo —el borrado
+ * de la cuenta a los 30 días, la cascada del reseller—, pero viven en un
+ * fichero `'use server'`: **todo lo que se exporta aquí es un POST** al que se
+ * llega desde el navegador con el `userId` que uno quiera. Sin puerta eso era
+ * «borra la línea de WhatsApp de esta cuenta» y «créale una línea a esta
+ * cuenta en nuestro servidor», para cualquiera.
+ *
+ * Hoy el sistema ya no las llama —el borrado de la cuenta libera las líneas
+ * con `liberarLasLineasDeLaCuenta` (`lib/sesion-de-la-linea.ts`)—, así que la
+ * puerta no apaga ningún runner. Pide lo mismo que el resto de las acciones de
+ * líneas: que quien llama alcance ESA cuenta.
+ */
+async function puedeTocarLasLineasDe(userId: string): Promise<boolean> {
+  try {
+    await assertCanAccessTargetUser(userId);
+    return true;
+  } catch {
+    console.warn('[linea] se pidió tocar las líneas de una cuenta que no se alcanza', { userId });
+    return false;
+  }
+}
+
+/**
  * Borra la linea y su sesion. Version interna sin `assertUserCanUseApp` — para
  * uso exclusivo del sistema (el borrado de la cuenta a los 30 dias).
  *
@@ -770,6 +831,9 @@ export async function deleteInstanceInternal(
   userId: string,
   instanceType: string = 'Whatsapp'
 ): Promise<{ success: boolean; message: string; instanceName: string | null }> {
+  if (!(await puedeTocarLasLineasDe(userId))) {
+    return { success: false, message: "No autorizado.", instanceName: null };
+  }
   try {
     const instanciaActiva = await checkActiveInstance(userId, instanceType);
     if (!instanciaActiva) {
@@ -824,6 +888,9 @@ export async function deleteInstanceEvolutionAware(
   userId: string,
   instanceType: string = 'Whatsapp'
 ): Promise<{ success: boolean; retryable: boolean; message: string; instanceName: string | null }> {
+  if (!(await puedeTocarLasLineasDe(userId))) {
+    return { success: false, retryable: false, message: "No autorizado.", instanceName: null };
+  }
   try {
     const instanciaActiva = await checkActiveInstance(userId, instanceType);
     if (!instanciaActiva) {
@@ -873,6 +940,10 @@ export async function createInstanceInternal(
   try {
     if (!instanceName || !userId) {
       return { success: false, message: 'userId e instanceName son obligatorios.' };
+    }
+
+    if (!(await puedeTocarLasLineasDe(userId))) {
+      return { success: false, message: "No autorizado." };
     }
 
     const instanciaActiva = await checkActiveInstance(userId, instanceType);
@@ -1017,6 +1088,13 @@ export async function createBotAction(data: FormData) {
 
   if (!instanceName || !instanceId || !systemMessage) {
     throw new Error('Faltan datos necesarios.');
+  }
+
+  // La línea tiene que ser de una cuenta que quien llama alcanza. Sin esto era
+  // un POST abierto que mandaba a un servidor externo el token que le dieran.
+  const linea = await db.instancia.findFirst({ where: { instanceName }, select: { userId: true } });
+  if (!linea?.userId || !(await puedeTocarLasLineasDe(linea.userId))) {
+    throw new Error('No autorizado.');
   }
 
   const requestBody = {

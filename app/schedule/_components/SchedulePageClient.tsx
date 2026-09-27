@@ -5,7 +5,6 @@ import Image from "next/image";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { getTimezoneFromPhone } from "@/lib/timezones";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -20,21 +19,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { createAppointment } from "@/actions/appointments-actions";
-import { sendMessageWithHistoryAction } from "@/actions/chat-history/send-message-with-history-action";
+import { confirmarLaCitaPublicaAction } from "@/actions/cita-publica-actions";
 import { getAvailableSlots } from "@/actions/getAvailableSlots-actions";
-import { getNotificationContacts } from "@/actions/notification-contacts-actions";
-import { createSeguimiento } from "@/actions/seguimientos-actions";
+import { registerSession } from "@/actions/session-action";
 import { ScheduleInterface, UserConServicios } from "@/schema/schema";
-import { SeguimientoInput } from "@/schema/seguimientos";
 import {
     formatDateLabel,
-    formatServiceMessage,
-    normalizeTimeToSeconds,
     normalizeToE164,
     toRemoteJid,
 } from "../helpers";
 import { CalendarIcon, ClipboardList, Clock, List, ScrollText } from "lucide-react";
-import { es } from "date-fns/locale";
 import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { QualificationStep } from "./steps/QualificationStep";
 import { SummaryItem } from "./";
@@ -64,7 +58,7 @@ interface SchedulePageClientProps extends Omit<ScheduleInterface, 'user'> {
 
 const FALLBACK_LOGO = "/assets/image/logo_app.png";
 
-export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '', questions = [], availableWeekdays = [] }: SchedulePageClientProps) => {
+export const SchedulePageClient = ({ user, countries, prefillName = '', prefillPhone = '', questions = [], availableWeekdays = [] }: SchedulePageClientProps) => {
     const [step, setStep] = useState(0);
     // Logo del asesor con respaldo: cubre tanto string vacío ("") como fallos de
     // carga (404 / dominio no permitido), para que nunca se vea roto el alt.
@@ -84,8 +78,9 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const ownerTimezone = user.timezone ?? 'America/Bogota';
     const slotDuration = !user.meetingDuration ? 60 : user.meetingDuration;
-    const primaryInstance = user.instancias?.[0];
-    const instanceName = primaryInstance?.instanceName ?? "";
+    // El NOMBRE de la línea, nunca su token: lo que necesita la clave lo hace el
+    // servidor (`confirmarLaCitaPublicaAction`).
+    const instanceName = user.lineaDeLaAgenda ?? "";
 
     const [selectedService, setSelectedService] = useState("");
     const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -123,16 +118,6 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
         setPhone(stripDial(phone.replace(/\D/g, ''), areaCode));
     };
 
-    const mutationSeguimiento = useMutation({
-        mutationFn: async (data: SeguimientoInput) => await createSeguimiento(data),
-        onSuccess: (res) => {
-            if (!res.success) toast.error(res.message);
-        },
-        onError: () => {
-            toast.error("Error inesperado al crear seguimiento");
-        },
-    });
-
     useEffect(() => {
         if (!user.id || !selectedDateYmd) return;
         setLoadingSlots(true);
@@ -152,11 +137,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
             return false;
         }
 
-        if (!reminders || reminders.length === 0) {
-            console.warn("[SchedulePageClient] No hay recordatorios de agenda configurados (isSchedule=true). La cita se agendará sin recordatorios.");
-        }
-
-        if (!user.id || !instanceName || !primaryInstance) {
+        if (!user.id || !instanceName) {
             toast.error("No se pudo identificar la sesión para esta cita.");
             return false;
         }
@@ -226,110 +207,20 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 }).catch(() => {});
             }
 
-            // Timezone del cliente derivado del indicativo seleccionado en el formulario
-            const clientTimezone = getTimezoneFromPhone(areaCode, timezone);
-
-            const secondsReminders = (reminders ?? []).map((rem) => ({
-                ...rem,
-                normalizedSeconds: isNaN(normalizeTimeToSeconds(rem?.time ?? "")) ? 0 : normalizeTimeToSeconds(rem?.time ?? ""),
-            }));
-
-            secondsReminders.forEach((rem) => {
-                if (!rem.normalizedSeconds) return;
-
-                const reminderDate = new Date(new Date(startTime).getTime() - rem.normalizedSeconds * 1000);
-                const reminderTime = reminderDate.toISOString();
-
-                const dataSeguimiento: SeguimientoInput = {
-                    idNodo: "",
-                    serverurl: `https://${user.apiKey?.url}`,
-                    instancia: primaryInstance.instanceName,
-                    apikey: primaryInstance.instanceId,
-                    remoteJid,
-                    mensaje: formatServiceMessage(rem.description ?? "", {
-                        nameClient: normalizedClientName,
-                        selectedDate,
-                        selectedSlot,
-                        timezone: clientTimezone,
-                        slotDuration,
-                        serviceName: user.services.find((s) => s.id === selectedService)?.name ?? '',
-                    }),
-                    tipo: "text",
-                    time: reminderTime,
-                    name_file: undefined,
-                    consecutivo: undefined,
-                    media: undefined,
-                };
-                mutationSeguimiento.mutate(dataSeguimiento);
+            // Lo que sale después de agendar —los recordatorios de la agenda,
+            // el aviso al dueño y la confirmación al cliente— lo manda el
+            // SERVIDOR a partir del id de la cita. Antes lo hacía esta pantalla
+            // con la clave del servidor que se le entregaba a cualquiera.
+            const aviso = await confirmarLaCitaPublicaAction({
+                appointmentId: apptId ?? "",
+                diaElegido: selectedDateYmd,
+                zonaDelCliente: getTimezoneFromPhone(areaCode, timezone),
             });
-
-            if (user.apiKey && primaryInstance) {
-                const urlevo = user.apiKey.url;
-                const apikey = primaryInstance.instanceId;
-                const url = `https://${urlevo}/message/sendText/${instanceName}`;
-
-                const allPhones: string[] = [];
-                if (user.notificationNumber) allPhones.push(user.notificationNumber);
-                try {
-                    const contactsResult = await getNotificationContacts(user.id);
-                    if (contactsResult.success) {
-                        for (const c of contactsResult.data ?? []) {
-                            if (!allPhones.includes(c.phone)) allPhones.push(c.phone);
-                        }
-                    }
-                } catch { /* non-critical */ }
-
-                if (allPhones.length > 0) {
-                    const startLocal = toZonedTime(new Date(startTime), ownerTimezone);
-                    const dateLabel = format(selectedDate!, "d 'de' MMMM 'de' yyyy", { locale: es });
-                    const tzParts = ownerTimezone.split('/');
-                    const tzOwnerCity = (tzParts[tzParts.length - 1] ?? ownerTimezone).replace(/_/g, ' ');
-                    const hourLabel = `${format(startLocal, "hh:mm a")} (hora ${tzOwnerCity})`;
-                    const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "Asesoría";
-
-                    const ownerText = `📅 *Tienes Nueva Cita*:
-
-👤 *Nombre:* ${normalizedClientName}
-📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel}.
-
-📱 *WhatsApp del usuario:*
-
-👉 ${e164}`;
-
-                    await Promise.allSettled(
-                        allPhones.map(async (phone) => {
-                            const ownerJid = phone.includes("@s.whatsapp.net")
-                                ? phone
-                                : `${phone}@s.whatsapp.net`;
-                            try {
-                                const ownerRes = await sendMessageWithHistoryAction({
-                                    instanceName,
-                                    url,
-                                    apikey,
-                                    remoteJid: ownerJid,
-                                    message: ownerText,
-                                    historyType: "notification",
-                                    additionalKwargs: {
-                                        source: "SchedulePageClient",
-                                        recipient: "owner",
-                                        appointmentUserId: user.id,
-                                        eventType: "Cita",
-                                        advisorRequest: false,
-                                        contactName: normalizedClientName,
-                                        descriptionLabel: serviceName,
-                                        description: `Para el día ${dateLabel} a las ${hourLabel}.`,
-                                        contactPhone: `+${e164.replace(/\D/g, "")}`,
-                                    },
-                                });
-                                if (!ownerRes.success) {
-                                    toast.warning(`No se pudo notificar a ${phone}: ${ownerRes.message}`);
-                                }
-                            } catch (e) {
-                                console.error(`Error notificando a ${phone}:`, e);
-                            }
-                        }),
-                    );
-                }
+            if (!aviso.success) {
+                toast.info("La cita quedó agendada, pero no se envió la notificación.");
+                console.error(`Error SchedulePageClient: ${aviso.message}`);
+            } else if (aviso.confirmacionEnviada) {
+                toast.success(aviso.message);
             }
 
             toast.success("Cita agendada correctamente.");
@@ -345,57 +236,17 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     };
 
     const scheduleAndNotify = async () => {
-        if (!primaryInstance) return toast.info("No se encontró instancia configurada.");
+        if (!instanceName) return toast.info("No se encontró instancia configurada.");
         if (!selectedService) return toast.info("Debes seleccionar un servicio");
 
-        const normalizedClientName = nameClient.trim();
         const e164 = normalizeToE164(areaCode, phone);
         if (!e164) {
             toast.error("Número de WhatsApp inválido. Verifica el país y el número.");
             return;
         }
 
-        const remoteJid = toRemoteJid(e164);
-
-        // Capturar antes de handleConfirmAppointment(), que internamente llama resetForm()
-        // y borra selectedDate / selectedSlot del estado.
-        const confirmUrl = user.apiKey
-            ? `https://${user.apiKey.url}/message/sendText/${instanceName}`
-            : null;
-        const confirmApikey = primaryInstance.instanceId;
-        const clientTimezoneForMsg = getTimezoneFromPhone(areaCode, timezone);
-        const confirmText = confirmUrl
-            ? formatServiceMessage(
-                user.services.find((s) => s.id === selectedService)?.messageText,
-                { nameClient: normalizedClientName, selectedDate, selectedSlot, timezone: clientTimezoneForMsg, slotDuration, serviceName: user.services.find((s) => s.id === selectedService)?.name ?? '' },
-              )
-            : null;
-
         try {
-            const appointmentCreated = await handleConfirmAppointment();
-            if (!appointmentCreated) return;
-
-            if (confirmUrl && confirmText) {
-                const result = await sendMessageWithHistoryAction({
-                    instanceName,
-                    url: confirmUrl,
-                    apikey: confirmApikey,
-                    remoteJid,
-                    message: confirmText,
-                    historyType: "notification",
-                    additionalKwargs: {
-                        source: "SchedulePageClient",
-                        recipient: "client",
-                        serviceId: selectedService,
-                    },
-                });
-
-                if (result.success) toast.success(result.message);
-                else {
-                    toast.info("No se envió el mensaje de notificación");
-                    console.error(`Error SchedulePageClient: ${result.message}`);
-                }
-            }
+            await handleConfirmAppointment();
         } catch (error) {
             console.error("Error en notificación:", error);
             toast.error("Ocurrió un error al intentar agendar la cita.");

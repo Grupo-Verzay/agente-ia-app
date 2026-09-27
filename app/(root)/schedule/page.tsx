@@ -1,8 +1,8 @@
-﻿import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
+﻿import { Instancia, Reminders, Session, Workflow } from "@prisma/client"
 
 import { currentUser } from '@/lib/auth';
 
-import { getApiKeyById } from "@/actions/api-action"
+import { elServidorSinClave } from "@/lib/clave-del-servidor.server"
 import { getRemindersByUserId } from "@/actions/reminders-actions"
 import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
@@ -11,10 +11,6 @@ import { getInstancesByUserId } from "@/actions/instances-actions"
 import { resolverLasCuentasDelCrm } from "@/lib/cuentas-del-crm";
 
 import { MainSchedule } from './_components';
-
-function hasApiKey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
-    return !!result.data
-}
 
 function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
     return !!result.data
@@ -45,8 +41,8 @@ const SchedulePage = async ({
     const effectiveId: string = user.effectiveId;
 
     // Obtener API Key (opcional — sin ella el módulo de recordatorios no puede enviar mensajes)
-    const resApikey = user.apiKeyId ? await getApiKeyById(user.apiKeyId) : { data: null };
-    const apiKey = hasApiKey(resApikey) ? resApikey.data : null;
+    // Sin la clave: la pone `createReminder` en el servidor.
+    const apiKey = await elServidorSinClave(user.apiKeyId);
 
     // Obtener recordatorios, sesiones, workflows e instancia en paralelo
     // Las citas del tablero se leen de la cuenta y de las que cuelgan de ella,

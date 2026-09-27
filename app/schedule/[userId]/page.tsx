@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { Reminders } from "@prisma/client";
-import { getScheduleRemindersByUserId } from "@/actions/reminders-actions";
+import type { UserConServicios } from "@/schema/schema";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
@@ -9,10 +8,6 @@ import { getResellerProfileForUser } from "@/actions/reseller-action";
 import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import type { Metadata } from "next";
 import { SchedulePageClient } from "../_components/SchedulePageClient";
-
-function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
-    return !!result.data
-}
 
 // Favicon y título de la marca (reseller del asesor → plataforma → fallback),
 // para que estas páginas usen el mismo favicon que la app y no el genérico.
@@ -42,29 +37,30 @@ export async function generateMetadata(
     }
 }
 
-// Puedes precargar el asesor para mostrar info contextual
+// Lo que viaja al navegador es `UserConServicios`: una lista CERRADA. Antes se
+// pasaba la fila entera de `User` con `apiKey` e `instancias` incluidas, o sea
+// la clave GLOBAL del servidor de Evolution y el token de cada línea, a
+// cualquiera que abriera este enlace. Lo que necesita claves —programar los
+// recordatorios, avisar al dueño, confirmar al cliente— lo hace el servidor a
+// partir del id de la cita (`confirmarLaCitaPublicaAction`).
 const SchedulePage = async ({ params, searchParams }: { params: { userId: string }; searchParams: { name?: string; phone?: string } }) => {
     const user = await db.user.findUnique({
         where: { id: params.userId },
-        include: {
-            instancias: true,
+        select: {
+            id: true,
+            image: true,
+            company: true,
+            timezone: true,
+            meetingDuration: true,
+            minNoticeMinutes: true,
+            apiKey: { select: { url: true } },
+            instancias: { select: { instanceName: true, instanceId: true } },
             services: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
-            apiKey: true,
         },
     });
 
     // Manejo si no se encuentra el usuario
     if (!user) return notFound();
-
-    const resReminder = await getScheduleRemindersByUserId(user.id)
-    if (!resReminder.success) {
-        console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
-        return <strong>404</strong>
-    }
-
-    const reminders = Array.isArray(resReminder.data)
-        ? (resReminder.data as Reminders[]).filter((r) => r.isSchedule === true)
-        : [];
 
     const [countries, questions, availability] = await Promise.all([
         getCountryCodes(),
@@ -77,6 +73,8 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
     ]);
     const availableWeekdays = availability.map((a) => a.dayOfWeek);
 
+    // El teléfono de la línea se pregunta AQUÍ, en el servidor, con el token de
+    // la línea; al navegador solo le llega el número resultante.
     let instancePhone: string | null = null;
     const primaryInstance = user.instancias?.[0];
     if (user.apiKey && primaryInstance) {
@@ -89,9 +87,19 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         if (ownerJid) instancePhone = ownerJid.split("@")[0];
     }
 
+    const cuenta: UserConServicios = {
+        id: user.id,
+        image: user.image,
+        company: user.company,
+        timezone: user.timezone,
+        meetingDuration: user.meetingDuration,
+        minNoticeMinutes: user.minNoticeMinutes,
+        services: user.services,
+        lineaDeLaAgenda: primaryInstance?.instanceName ?? null,
+    };
+
     return <SchedulePageClient
-        user={user}
-        reminders={reminders}
+        user={cuenta}
         countries={countries}
         instancePhone={instancePhone}
         prefillName={searchParams.name}

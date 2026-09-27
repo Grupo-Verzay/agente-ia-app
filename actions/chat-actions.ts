@@ -1,4 +1,20 @@
-﻿'use server';
+import "server-only";
+
+/*
+ * Este fichero era `'use server'`, y eso publicaba como POST cada función que
+ * exporta: `sendTextMessage(apiKeyData, …)`, `getMediaBase64FromMessage(…)`,
+ * `fetchChatsFromEvolution(…)`… Todas reciben la URL y la clave del servidor
+ * como PARÁMETRO, así que desde el navegador eran «habla con este servidor,
+ * con esta clave»: hacían falta porque la pantalla de Chats tenía la clave en
+ * la mano, y la tenía porque se la mandábamos.
+ *
+ * Ya no la tiene (ver `lib/clave-del-servidor.ts`). Lo que pide la pantalla va
+ * por `actions/chat-manual-actions.ts`, que resuelve la clave en el servidor
+ * con `resolverContexto` después de comprobar quién mira. Esto se queda como lo
+ * que siempre fue en la práctica: el cliente HTTP de Evolution, para uso del
+ * servidor. Los tipos se siguen importando desde el navegador con
+ * `import type`, que se borra al compilar.
+ */
 
 import type { ApiKey } from '@prisma/client';
 import { Buffer } from 'buffer';

@@ -18,19 +18,16 @@ type Props = {
 }
 
 export default function SendMessageCard({ user }: Props) {
-    const userUrl = user.apiKey?.url
-    const userApiKey = user.apiKey?.key
+    // Ni la URL ni la clave del servidor: se nombra la línea y el servidor
+    // pone la clave después de comprobar quién manda. Antes esta tarjeta
+    // pintaba `user.apiKey.key` —la clave GLOBAL del servidor— en el navegador.
     const userInstance = user.instancias?.[0]?.instanceName
-
-    const sendTextUrl = userUrl && userInstance ? `https://${userUrl}/message/sendText/${userInstance}` : ''
 
     const [remoteJid, setRemoteJid] = React.useState('573107964105@s.whatsapp.net')
     const [text, setText] = React.useState('')
 
     const { sendMessage, isPending } = useSendMessageWithHistory({
         instanceName: userInstance ?? '',
-        url: sendTextUrl,
-        apikey: userApiKey ?? '',
         remoteJid,
         additionalKwargs: {
             source: 'SendMessageCard',
@@ -38,12 +35,12 @@ export default function SendMessageCard({ user }: Props) {
         },
     })
 
-    const hasConfig = !!sendTextUrl && !!userApiKey
+    const hasConfig = !!userInstance
     const canSend = hasConfig && remoteJid.trim().length > 0 && text.trim().length > 0 && !isPending
 
     const onSend = () => {
         if (!hasConfig) {
-            return toast.error('Este usuario no tiene configuracion (url/apikey/instancia) para enviar mensajes.')
+            return toast.error('Este usuario no tiene una línea para enviar mensajes.')
         }
         if (!remoteJid.trim() || !text.trim()) {
             return toast.error('Faltan datos: RemoteJid y mensaje.')
@@ -79,7 +76,7 @@ export default function SendMessageCard({ user }: Props) {
 
                 {!hasConfig && (
                     <p className="text-xs text-destructive mt-2">
-                        Falta configuracion del usuario (apiKey / url / instancia).
+                        Falta una línea conectada para enviar mensajes.
                     </p>
                 )}
             </CardHeader>

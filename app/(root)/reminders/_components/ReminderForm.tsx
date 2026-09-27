@@ -67,8 +67,6 @@ function formatFileSize(bytes: number) {
 
 export const ReminderForm = ({
     userId,
-    serverUrl,
-    apikey,
     leads,
     workflows,
     instanceNameReminder,
@@ -199,13 +197,13 @@ export const ReminderForm = ({
     });
 
     useEffect(() => {
+        // La clave del servidor NO pasa por aquí: la pone `createReminder` en el
+        // servidor, con la de la cuenta. Ver `lib/clave-del-servidor.ts`.
         const v = getValues();
-        if (apikey && v.apikey !== apikey) setValue("apikey", apikey);
-        if (serverUrl && v.serverUrl !== serverUrl) setValue("serverUrl", serverUrl);
         if (instanceNameReminder && v.instanceName !== instanceNameReminder) {
             setValue("instanceName", instanceNameReminder);
         }
-    }, [apikey, serverUrl, getValues, instanceNameReminder, setValue]);
+    }, [getValues, instanceNameReminder, setValue]);
 
     const handleTimeChange = useCallback((value: string) => {
         setValue("time", value);
@@ -321,7 +319,7 @@ export const ReminderForm = ({
             <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col flex-1 min-h-0 h-full">
                 {/* Campos ocultos */}
                 <>
-                    {["userId", "remoteJid", "instanceName", "pushName", "workflowId", "apikey", "serverUrl"].map((name) => (
+                    {["userId", "remoteJid", "instanceName", "pushName", "workflowId"].map((name) => (
                         <input key={name} type="hidden" {...register(name as keyof formValuesReminderSchema)} />
                     ))}
                 </>

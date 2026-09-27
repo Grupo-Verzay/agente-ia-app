@@ -2,7 +2,7 @@
 
 import { currentUser } from "@/lib/auth";
 import { getEnrichedClients } from "@/actions/userClientDataActions";
-import { obtenerApiKeys } from "@/actions/api-action";
+import { losServidoresSinClave } from "@/lib/clave-del-servidor.server";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { rolConElQueReparte } from "@/lib/gestion-de-clientes";
@@ -42,7 +42,9 @@ export async function getClientsPageData(): Promise<
         //  Paralelo (evita “tildado” por awaits en cascada)
         const [resUsers, resApikeys, countries, allModules] = await Promise.all([
             usersPromise,
-            obtenerApiKeys(),
+            // Para ELEGIR servidor basta el id y la dirección: la clave es la
+            // global del servidor y esta pantalla la abren también resellers.
+            losServidoresSinClave().then((data) => ({ data })),
             getCountryCodes(),
             db.module.findMany({
                 where: { showInSidebar: { not: false }, adminOnly: false },

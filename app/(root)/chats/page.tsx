@@ -16,7 +16,8 @@ import {
 } from "@/actions/waha-chat-actions";
 import { getPersistedInboxChats } from "@/lib/chat-persistence";
 import { contarTodosDeLaBandeja, leerParaElConteo } from "@/lib/conteo-de-todos.server";
-import { getApiKeyById } from "@/actions/api-action";
+import { elServidorSinClave } from "@/lib/clave-del-servidor.server";
+import { CLAVE_EN_EL_SERVIDOR } from "@/lib/clave-del-servidor";
 import {
   fetchChatsFromEvolution,
   type ChatData,
@@ -264,7 +265,8 @@ export default async function ChatsPage({
     user.sessionUserId && user.sessionUserId !== effectiveOwnerId
       ? settle(getInstancesByUserId(user.sessionUserId))
       : Promise.resolve(null),
-    settle(getApiKeyById(ownerApiKeyId ?? "")),
+    // Sin la clave: aquí solo decide si la cuenta tiene servidor.
+    settle(elServidorSinClave(ownerApiKeyId).then((data) => ({ success: true as const, data }))),
     settle(lasLineasDeLasCuentas(cuentasVinculadas)),
   ]);
 
@@ -694,7 +696,7 @@ export default async function ChatsPage({
         apiKeyData: plan.isWaha
           ? null
           : claveInst
-            ? { url: claveInst.url, key: claveInst.key }
+            ? CLAVE_EN_EL_SERVIDOR // el marcador, nunca la clave: la pone el servidor
             : null,
         instanceName: inst.instanceName,
       };
@@ -732,7 +734,7 @@ export default async function ChatsPage({
         apiKeyData: plan.isWaha
           ? null
           : claveInst
-            ? { url: claveInst.url, key: claveInst.key }
+            ? CLAVE_EN_EL_SERVIDOR // el marcador, nunca la clave: la pone el servidor
             : null,
         instanceName: inst.instanceName,
       };
@@ -879,13 +881,18 @@ export default async function ChatsPage({
   const currentAdvisorId: string = laPersonaQueActua(user).id;
   // La clave de la linea seleccionada, con respaldo en la de la cuenta propia
   // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
+  //
+  // Y NO viaja: lo que llega al navegador es el marcador «esta línea habla con
+  // Evolution; la clave la pone el servidor» (`CLAVE_EN_EL_SERVIDOR`). Antes se
+  // mandaba la clave GLOBAL del servidor en claro, dos veces: como prop de la
+  // pantalla y dentro de los argumentos ATADOS de cada acción —que Next manda
+  // al navegador tal cual—. `resolverContexto` la vuelve a poner en el
+  // servidor después de comprobar que quien mira alcanza la línea.
   const claveActiva = whatsappInstancia ? claveDeLaLinea(whatsappInstancia) ?? apiKey : apiKey;
   const actionContext =
     whatsappInstancia
       ? {
-          // Igual que arriba: sin clave se manda la linea a secas y el servidor
-          // la resuelve.
-          apiKeyData: claveActiva ? { url: claveActiva.url, key: claveActiva.key } : null,
+          apiKeyData: claveActiva ? CLAVE_EN_EL_SERVIDOR : null,
           instanceName: whatsappInstancia.instanceName,
         }
       : null;
@@ -930,7 +937,7 @@ export default async function ChatsPage({
       sendWorkflowAction={sendWorkflowAction}
       sendQuickReplyAction={sendQuickReplyAction}
       refetchChatsAction={refetchChatsAction}
-      apiKeyData={claveActiva ? { url: claveActiva.url, key: claveActiva.key } : undefined}
+      apiKeyData={claveActiva ? CLAVE_EN_EL_SERVIDOR : undefined}
       instanceActionSets={instanceActionSets}
       instanceHealth={instanceHealth}
       allTags={initialAllTags}

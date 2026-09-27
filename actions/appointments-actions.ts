@@ -390,7 +390,7 @@ export async function sendAppointmentStatusNotification(
         }
 
         const { buildStatusOwnerMessage } = await import('@/app/(root)/schedule/helpers/buildStatusOwnerMessage');
-        const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
+        const { enviarConHistorial: sendMessageWithHistoryAction } = await import('@/lib/envio-con-historial.server');
 
         const message = buildStatusOwnerMessage({
             appointment: appt as unknown as import('@/app/(root)/schedule/helpers/normalizeAppointmentsToEvents').AppointmentWithSession,

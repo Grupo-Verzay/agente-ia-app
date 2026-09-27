@@ -70,6 +70,9 @@ export async function createService(
             // y las credenciales del dueño. Antes se daban por hechas y, sin
             // ellas, esto reventaba y se perdia el servicio recien creado; son
             // un extra, asi que si no estan el servicio se crea igual.
+            // `user.apiKey` ya no trae la clave (ver `lib/auth.ts`): basta con
+            // saber que la cuenta tiene servidor. La clave la pone
+            // `createReminder` en el servidor, con la de la cuenta.
             if (!hasReminders && user && instancia && user.apiKey) {
                 const reminderResults = [];
 
@@ -80,8 +83,6 @@ export async function createService(
                         time: tpl.time,
                         isSchedule: true,
                         instanceName: instancia.instanceName,
-                        serverUrl: user.apiKey.url,
-                        apikey: user.apiKey.key,
                         userId: user.id,
                     });
 

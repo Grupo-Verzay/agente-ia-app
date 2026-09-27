@@ -1,8 +1,9 @@
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isAdminOrReseller } from "@/lib/rbac";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { comoUrlDelServidor } from "@/lib/clave-del-servidor";
 
 export const USER_BACKUP_VERSION = 1;
 const BACKUP_TRANSACTION_TIMEOUT_MS = 60_000;
@@ -103,14 +104,34 @@ const userBackupSchema = z.object({
 
 export type UserBackupPayload = z.infer<typeof userBackupSchema>;
 
-function assertCanManageTarget(me: Awaited<ReturnType<typeof currentUser>>, targetUserId: string) {
+/**
+ * Quién puede sacar o restaurar la copia de una cuenta: la puerta de siempre
+ * (`assertCanAccessTargetUser`), que va HACIA ABAJO. Antes bastaba con tener
+ * rol de admin o de reseller para exportar CUALQUIER cuenta de la plataforma,
+ * con sus líneas y la clave del servidor dentro.
+ */
+async function assertCanManageTarget(me: Awaited<ReturnType<typeof currentUser>>, targetUserId: string) {
   if (!me) {
     throw new Error("No autorizado.");
   }
-
-  if (me.id !== targetUserId && !isAdminOrReseller(me.role)) {
+  try {
+    await assertCanAccessTargetUser(targetUserId);
+  } catch {
+    console.warn("[backup] se pidió la copia de una cuenta que no se alcanza", { targetUserId });
     throw new Error("No autorizado para administrar este usuario.");
   }
+}
+
+/**
+ * La clave del servidor de WhatsApp NO viaja en una copia: es GLOBAL —la
+ * comparten muchas cuentas— y el fichero acaba en el navegador y en un disco.
+ * Sale solo la URL; y al restaurar, la cuenta conserva SU servidor (ver
+ * `importUserBackup`), así que la clave no hace falta.
+ */
+function sinClaveEnLaFila<T extends Record<string, unknown>>(fila: T): T {
+  if (!fila || typeof fila !== "object") return fila;
+  if (!("apikey" in fila)) return fila;
+  return { ...fila, apikey: null };
 }
 
 function pickRestorableUserData(user: Record<string, unknown>) {
@@ -145,16 +166,6 @@ async function createManyIfPresent<TInput>(
   await createMany(items);
 }
 
-async function cleanupOrphanApiKey(tx: TxClient, apiKeyId: string | null | undefined) {
-  if (!apiKeyId) return;
-
-  await tx.apiKey.deleteMany({
-    where: {
-      id: apiKeyId,
-      users: { none: {} },
-    },
-  });
-}
 
 async function purgeUserOwnedData(tx: TxClient, userId: string) {
   const [sessions, instancias] = await Promise.all([
@@ -232,7 +243,7 @@ async function purgeUserOwnedData(tx: TxClient, userId: string) {
 
 export async function exportUserBackup(targetUserId: string) {
   const me = await currentUser();
-  assertCanManageTarget(me, targetUserId);
+  await assertCanManageTarget(me, targetUserId);
 
   const payload = await db.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
@@ -271,7 +282,6 @@ export async function exportUserBackup(targetUserId: string) {
         apiKey: {
           select: {
             url: true,
-            key: true,
           },
         },
       },
@@ -399,7 +409,7 @@ export async function exportUserBackup(targetUserId: string) {
         products,
         promptInstances,
         quickReplies,
-        reminders,
+        reminders: reminders.map((r) => sinClaveEnLaFila(r as unknown as Record<string, unknown>)),
         registros,
         services,
         sessionTags,
@@ -432,7 +442,7 @@ export async function exportUserBackup(targetUserId: string) {
 
 export async function importUserBackup(targetUserId: string, rawBackup: string) {
   const me = await currentUser();
-  assertCanManageTarget(me, targetUserId);
+  await assertCanManageTarget(me, targetUserId);
 
   const parsedJson = JSON.parse(rawBackup);
   const backup = userBackupSchema.parse(parsedJson);
@@ -451,15 +461,11 @@ export async function importUserBackup(targetUserId: string, rawBackup: string) 
     }
 
     const incomingUserData = pickRestorableUserData(backup.data.user);
-    const nextApiKeyData = backup.data.apiKey;
-
-    const nextApiKey = nextApiKeyData
-      ? await tx.apiKey.create({
-          data: {
-            url: String(nextApiKeyData.url ?? ""),
-            key: String(nextApiKeyData.key ?? ""),
-          },
-        })
+    // La cuenta conserva SU servidor. Crear uno con lo que traiga el fichero
+    // sería dejar que quien sube una copia elija contra qué servidor y con qué
+    // clave habla la plataforma en nombre de esa cuenta.
+    const servidorDeLaCuenta = targetUser.apiKeyId
+      ? await tx.apiKey.findUnique({ where: { id: targetUser.apiKeyId }, select: { url: true, key: true } })
       : null;
 
     await purgeUserOwnedData(tx, targetUserId);
@@ -468,7 +474,7 @@ export async function importUserBackup(targetUserId: string, rawBackup: string) 
       where: { id: targetUserId },
       data: {
         ...incomingUserData,
-        apiKeyId: nextApiKey?.id ?? null,
+        apiKeyId: targetUser.apiKeyId ?? null,
       },
     });
 
@@ -716,6 +722,9 @@ export async function importUserBackup(targetUserId: string, rawBackup: string) 
       backup.data.reminders.map((item) => ({
         ...(item as Prisma.RemindersCreateManyInput),
         userId: targetUserId,
+        // La clave no viene en la copia: la pone el servidor de la cuenta.
+        serverUrl: servidorDeLaCuenta?.url ? comoUrlDelServidor(servidorDeLaCuenta.url) : null,
+        apikey: servidorDeLaCuenta?.key ?? null,
       })),
       (data) => tx.reminders.createMany({ data })
     );
@@ -738,7 +747,6 @@ export async function importUserBackup(targetUserId: string, rawBackup: string) 
       }
     }
 
-    await cleanupOrphanApiKey(tx, targetUser.apiKeyId);
 
     return {
       restoredCollections: {

@@ -2,9 +2,8 @@ import { redirect } from 'next/navigation';
 import { UserInformation } from '@/app/(root)/profile/_components/UserInformation';
 import { currentUser } from '@/lib/auth';
 import { getCountryCodes } from '@/actions/get-country-action';
-import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
+import { Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
-import { getApiKeyById } from "@/actions/api-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { isWahaConfigured } from "@/lib/waha";
 interface ActionResponse<T> {
@@ -44,9 +43,6 @@ export interface UserInformationProps {
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
   return !!result.data && result.data.length > 0;
 }
-function hasApikey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
-  return !!result.data;
-}
 function hasPrompts(result: { data?: PromptInstance[] | null }): result is { data: PromptInstance[] } {
   return !!result.data && result.data.length > 0;
 }
@@ -78,15 +74,13 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
   // ven/gestionan la configuración (conexión, instancias, etc.) de la cuenta principal.
   const effectiveId = user.effectiveId ?? user.id;
 
-  // Obtener instancias, API key y prompts en paralelo
-  const [resInstancias, resApikey, resPrompts] = await Promise.all([
+  // Obtener instancias y prompts en paralelo (la clave del servidor ya no: no se usaba)
+  const [resInstancias, resPrompts] = await Promise.all([
     getInstancesByUserId(effectiveId),
-    getApiKeyById(user.apiKeyId ?? ''),
     getPromptsByUserId(effectiveId)
   ]);
 
   const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
-  const apiKey = hasApikey(resApikey) ? resApikey.data : null;
   const prompts = hasPrompts(resPrompts) ? resPrompts.data : [];
 
 

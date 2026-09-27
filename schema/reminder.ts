@@ -75,8 +75,6 @@ export type formValuesReminderSchema = z.infer<typeof reminderSchema>
 
 export interface ReminderInterface {
     userId: string,
-    serverUrl: string,
-    apikey: string,
     workflows?: Workflow[],
     instanceNameReminder: string,
     leads?: Session[],

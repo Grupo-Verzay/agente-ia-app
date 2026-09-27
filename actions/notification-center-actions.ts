@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { getApiKeyById } from "@/actions/api-action";
+import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
 import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 import { avisosDeLaCampanita } from "@/lib/avisos-de-tarea";
@@ -158,8 +158,9 @@ export async function getNotificationCenterData(): Promise<{
         instances.find((i) => isEvolutionRestInstance(i.instanceType));
 
       if (instance) {
-        const resApikey = await getApiKeyById(owner.apiKeyId);
-        const apiKey = resApikey.success && resApikey.data ? resApikey.data : null;
+        // La clave se lee en el servidor y se queda aquí: con ella solo se
+        // consulta Evolution, no viaja en la respuesta.
+        const apiKey = await laClaveDelServidorDeLaCuenta(ownerId);
         if (apiKey) {
           const chatsResult = await fetchChatsFromEvolution(
             { url: apiKey.url, key: apiKey.key },
