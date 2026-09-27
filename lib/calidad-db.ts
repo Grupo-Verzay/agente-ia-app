@@ -107,7 +107,7 @@ export interface CandidataDeCalidad {
 
 /**
  * Las conversaciones de una cuenta que toca evaluar: con actividad en la
- * ventana, EN REPOSO (sin mensajes desde hace `reposoMs`) y que no se hayan
+ * ventana y que no se hayan
  * evaluado desde su último mensaje.
  *
  * Sale de `chat_conversations`, que es una fila por conversación y lleva la

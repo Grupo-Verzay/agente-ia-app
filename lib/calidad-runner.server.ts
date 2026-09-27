@@ -10,7 +10,6 @@ import {
     laTranscripcionParaEvaluar,
     leerLaEvaluacionDeLaIa,
     medirTiempos,
-    REPOSO_ANTES_DE_EVALUAR_MS,
     sePuedeEvaluar,
     TOPE_POR_CUENTA_Y_VUELTA,
     type MensajeParaMedir,
@@ -27,8 +26,9 @@ import { obtenerResueltas } from "@/lib/session-resolved";
  *
  * ## Por qué vive aquí y no en una acción
  *
- * Lo llama el cron diario, y **desde un cron no hay sesión**: con la guarda de
- * siempre se apagaría en silencio. Y como gasta créditos de IA de la cuenta,
+ * Lo llama el corte semanal del reporte (`runWeeklyReportForAllUsers`, el
+ * mismo de las seis de la tarde), y **desde un cron no hay sesión**: con la
+ * guarda de siempre se apagaría en silencio. Y como gasta créditos de IA de la cuenta,
  * exportarlo desde un fichero `'use server'` lo convertiría en un endpoint con
  * el que cualquiera gastaría los créditos de otra. Es la regla de
  * `lib/weekly-report-runner.server.ts`: un runner de sistema no es una acción.
@@ -43,12 +43,19 @@ import { obtenerResueltas } from "@/lib/session-resolved";
  * la evaluación, y solo si la cuenta no paga su propia IA. Sin bolsa o sin
  * créditos no se evalúa nada, y se dice.
  *
- * Y va acotado: `TOPE_POR_CUENTA_Y_VUELTA` conversaciones por vuelta, solo las
- * que están EN REPOSO y solo las que tienen mensajes nuevos desde su última
- * evaluación. Una conversación no se paga dos veces por lo mismo.
+ * Y va acotado: `TOPE_POR_CUENTA_Y_VUELTA` conversaciones por vuelta, y solo
+ * las que tienen mensajes nuevos desde su última evaluación. Una conversación
+ * no se paga dos veces por lo mismo.
+ *
+ * ## Cuándo corre: SOLO a pedido y en el corte semanal
+ *
+ * Antes corría sola cada día, sobre toda conversación con dos horas sin
+ * mensajes. Ya no: corre cuando alguien pulsa «Evaluar ahora» en CRM › Calidad
+ * y en el corte automático del reporte semanal, que es el mismo reloj que ya
+ * usa Reportes. No hay barrido diario ni reposo que esperar.
  */
 
-/** Modelos baratos a propósito: esto corre solo, todos los días, en todas las cuentas. */
+/** Modelos baratos a propósito: esto corre cada semana en todas las cuentas con reporte. */
 export const MODELO_DE_LA_CALIDAD = { openai: "gpt-4o-mini", google: "gemini-2.0-flash" } as const;
 
 export interface IaDeLaCuenta {
@@ -144,7 +151,7 @@ export async function porQueNoSePuedeEvaluar(cuentaId: string): Promise<MotivoSi
     return null;
 }
 
-/** Un solo recorrido por cuenta y proceso: el botón y el cron no se pisan. */
+/** Un solo recorrido por cuenta y proceso: el botón y el corte semanal no se pisan. */
 const enCurso = new Set<string>();
 
 /** Tras estos fallos seguidos de la IA la cuenta se deja para la vuelta siguiente. */
@@ -152,7 +159,7 @@ const FALLOS_SEGUIDOS_PARA_PARAR = 3;
 
 export async function evaluarLaCalidadDeLaCuenta(
     cuentaId: string,
-    opciones: { tope?: number; ahora?: Date; pedir?: PedirALaIa } = {},
+    opciones: { tope?: number; ahora?: Date; pedir?: PedirALaIa; tiempoMaximoMs?: number } = {},
 ): Promise<ResultadoDeLaCuenta> {
     const resultado: ResultadoDeLaCuenta = { cuentaId, evaluadas: 0, sinRespuesta: 0, fallos: 0, tokens: 0, motivo: null };
     if (enCurso.has(cuentaId)) return { ...resultado, motivo: "en_curso" };
@@ -169,15 +176,23 @@ export async function evaluarLaCalidadDeLaCuenta(
         const candidatas = await lasConversacionesPorEvaluar({
             cuentaId,
             desde: new Date(ahora.getTime() - DIAS_QUE_SE_EVALUAN * 24 * 60 * 60 * 1000),
-            hasta: new Date(ahora.getTime() - REPOSO_ANTES_DE_EVALUAR_MS),
+            hasta: ahora,
             tope: Math.max(1, Math.min(opciones.tope ?? TOPE_POR_CUENTA_Y_VUELTA, 100)),
         });
         const pedir = opciones.pedir ?? pedirALaIaDeVerdad;
+        // El corte semanal recorre cuenta por cuenta antes de mandar cada
+        // reporte: una cuenta no puede quedarse con el turno de las demás. Lo que
+        // no llegó a evaluarse sigue sin fila y lo recoge el siguiente corte.
+        const limite = opciones.tiempoMaximoMs ? Date.now() + opciones.tiempoMaximoMs : Infinity;
         let fallosSeguidos = 0;
 
         // En serie: son llamadas a la IA con la clave de la cuenta y lecturas de
         // `chat_messages`; en paralelo robarían turnos a la bandeja.
         for (const c of candidatas) {
+            if (Date.now() > limite) {
+                console.info("[calidad] se agotó el tiempo de la cuenta; lo que falta, en el próximo corte", { cuentaId });
+                break;
+            }
             if (resultado.tokens >= presupuestoTokens) {
                 resultado.motivo = "sin_creditos";
                 break;
@@ -274,62 +289,5 @@ export async function evaluarLaCalidadDeLaCuenta(
     }
 }
 
-/** Cuánto puede durar el barrido diario antes de dejar el resto para mañana. */
-export const TIEMPO_MAXIMO_DEL_BARRIDO_MS = 30 * 60 * 1000;
-
-/** Cuántas cuentas mira el barrido diario por vuelta. */
-export const TOPE_DE_CUENTAS_POR_VUELTA = 300;
-
-/**
- * El barrido diario: las cuentas con conversaciones en la ventana, en serie.
- * Lo llama el cron de facturación dentro de su propio `try`: un fallo aquí no
- * puede tumbar el cobro de la plataforma.
- */
-export async function evaluarLaCalidadDeTodas(opciones: { ahora?: Date; pedir?: PedirALaIa; tiempoMaximoMs?: number } = {}) {
-    const ahora = opciones.ahora ?? new Date();
-    const limite = Date.now() + (opciones.tiempoMaximoMs ?? TIEMPO_MAXIMO_DEL_BARRIDO_MS);
-    const desde = new Date(ahora.getTime() - DIAS_QUE_SE_EVALUAN * 24 * 60 * 60 * 1000);
-    const cuentas = await db.$queryRaw<{ userId: string }[]>`
-        SELECT DISTINCT "userId" FROM "chat_conversations"
-        WHERE "lastMessageTimestamp" >= ${desde}
-        LIMIT ${TOPE_DE_CUENTAS_POR_VUELTA}
-    `;
-    const resumen = { cuentas: cuentas.length, evaluadas: 0, sinRespuesta: 0, fallos: 0, sinIa: 0, sinCreditos: 0, cortadoPorTiempo: false };
-    for (const { userId } of cuentas) {
-        if (Date.now() > limite) {
-            // Lo que queda sigue sin fila: la vuelta de mañana lo recoge.
-            resumen.cortadoPorTiempo = true;
-            break;
-        }
-        try {
-            const r = await evaluarLaCalidadDeLaCuenta(userId, { ahora, pedir: opciones.pedir });
-            resumen.evaluadas += r.evaluadas;
-            resumen.sinRespuesta += r.sinRespuesta;
-            resumen.fallos += r.fallos;
-            if (r.motivo === "sin_ia") resumen.sinIa++;
-            if (r.motivo === "sin_bolsa" || r.motivo === "sin_creditos") resumen.sinCreditos++;
-        } catch (error) {
-            resumen.fallos++;
-            console.error("[calidad] no se pudo evaluar una cuenta", userId, error);
-        }
-    }
-    return resumen;
-}
-
-let barridoEnMarcha = false;
-
-/**
- * Arrancar el barrido de fondo, una sola vez por proceso. Devuelve si arrancó.
- * Su resultado va al registro y no a quien lo lanzó: nadie lo espera.
- */
-export function lanzarElBarridoDeCalidad(): { arrancado: boolean } {
-    if (barridoEnMarcha) return { arrancado: false };
-    barridoEnMarcha = true;
-    void evaluarLaCalidadDeTodas()
-        .then((r) => console.info("[calidad] barrido diario terminado", r))
-        .catch((error) => console.error("[calidad] el barrido diario falló", error))
-        .finally(() => {
-            barridoEnMarcha = false;
-        });
-    return { arrancado: true };
-}
+/** Cuánto puede tardar la evaluación de UNA cuenta en el corte semanal. */
+export const TIEMPO_POR_CUENTA_EN_EL_CORTE_MS = 3 * 60 * 1000;

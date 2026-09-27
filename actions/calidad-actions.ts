@@ -78,8 +78,8 @@ export async function calidadDelCrmAction(
 }
 
 /**
- * «Evaluar ahora»: lo mismo que el barrido diario, pero para las cuentas que
- * se están mirando y en este momento. Va DE FONDO: son llamadas a la IA una
+ * «Evaluar ahora»: lo mismo que el corte semanal del reporte, pero para las
+ * cuentas que se están mirando y en este momento. Va DE FONDO: son llamadas a la IA una
  * tras otra y tardan; la pantalla vuelve a preguntar un rato después.
  *
  * Gasta créditos de cada cuenta, así que el alcance se vuelve a resolver aquí
@@ -115,7 +115,7 @@ export async function evaluarCalidadAhoraAction(
     return {
         success: true,
         message:
-            "Evaluando las conversaciones en reposo. Actualiza en un par de minutos para ver el resultado." +
+            "Evaluando las conversaciones con mensajes nuevos. Actualiza en un par de minutos para ver el resultado." +
             (omitidas ? ` ${omitidas} cuenta${omitidas === 1 ? "" : "s"} sin IA o sin créditos se ${omitidas === 1 ? "queda" : "quedan"} fuera.` : ""),
     };
 }
