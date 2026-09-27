@@ -28,6 +28,7 @@ import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analyt
 import { getCallsCrmData } from "@/actions/calls-crm-actions";
 import { getNpsDelCrm } from "@/actions/encuesta-de-satisfaccion-actions";
 import { COLOR_DE_LA_CATEGORIA } from "@/lib/encuesta-de-satisfaccion";
+import { getSentimientoCrmData } from "@/actions/sentimiento-actions";
 import { TagStatsCard } from "./TagStatsCard";
 import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
@@ -39,6 +40,7 @@ const ANALYTICS_SECTIONS = {
     citas:        "Citas",
     llamadas:     "Llamadas",
     satisfaccion: "Satisfacción (NPS)",
+    sentimiento:  "Sentimiento",
     sesiones:     "Sesiones",
     flujos:       "Flujos",
     etiquetas:    "Etiquetas y madurez",
@@ -175,6 +177,17 @@ export function AnalyticsView({
         Salientes: d.outgoing,
         Entrantes: d.incoming,
     }));
+    /* sentimiento: las mismas cuentas y el mismo período que el resto */
+    const { data: sentimientoData, isLoading: sentimientoLoading } = useSWR(
+        ["crm-analytics-sentimiento", userId, period, llaveDeCuentas],
+        () => getSentimientoCrmData({ days: callDays, cuentas })
+    );
+    const caidasPorDia = (sentimientoData?.porDia ?? []).map((d) => ({
+        date: d.dia.slice(5),
+        Negativas: d.cantidad,
+    }));
+    const caidasInterval = caidasPorDia.length > 30 ? 6 : caidasPorDia.length > 14 ? 3 : 0;
+
     const fmtCallDuration = (secs: number) => {
         if (!secs) return "—";
         const h = Math.floor(secs / 3600);
@@ -200,7 +213,7 @@ export function AnalyticsView({
             : COLOR_DE_LA_CATEGORIA.detractor;
 
     const [visibleSections, setVisibleSections] = useState<Record<SectionKey, boolean>>({
-        actividad: true, rendimiento: true, leads: true, citas: true, llamadas: true, satisfaccion: true, sesiones: true,
+        actividad: true, rendimiento: true, leads: true, citas: true, llamadas: true, satisfaccion: true, sentimiento: true, sesiones: true,
         flujos: true, etiquetas: true, ventas: true, productos: true, sistema: true,
     });
 
@@ -819,6 +832,53 @@ export function AnalyticsView({
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                    </CardContent>
+                </Card>
+            </div>
+            </>)}
+
+            {/* --- SENTIMIENTO: conversaciones que cayeron a negativo --- */}
+            {visibleSections.sentimiento && (<>
+            <SectionLabel>Sentimiento</SectionLabel>
+            <div className="grid gap-4 lg:grid-cols-2" data-reporte-de-sentimiento>
+                <Card className="border-border bg-muted/10">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-muted-foreground">Caídas a negativo por asesor</CardTitle>
+                        <CardDescription>
+                            {sentimientoLoading
+                                ? "Conversaciones que cayeron a negativo en el período."
+                                : `${sentimientoData?.total ?? 0} conversaciones cayeron a negativo en el período.`}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : (sentimientoData?.porAsesor.length ?? 0) === 0
+                            ? <EmptyState text="Ninguna conversación cayó a negativo en el período." />
+                            : <KpiList items={(sentimientoData?.porAsesor ?? []).map((a) => ({
+                                label: a.nombre,
+                                value: a.cantidad,
+                            }))} />}
+                    </CardContent>
+                </Card>
+
+                <Card className="border-border">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Caídas a negativo por día</CardTitle>
+                        <CardDescription>Conversaciones cuyo cliente pasó a negativo cada día.</CardDescription>
+                    </CardHeader>
+                    <CardContent className={CHART_H}>
+                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : (sentimientoData?.total ?? 0) === 0
+                            ? <EmptyState text="Sin caídas a negativo en el período." />
+                            : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={caidasPorDia} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={caidasInterval} />
+                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Bar dataKey="Negativas" fill="#EF4444" radius={[3, 3, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             )}
                     </CardContent>
                 </Card>

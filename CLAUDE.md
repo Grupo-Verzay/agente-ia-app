@@ -18456,6 +18456,52 @@ archiva, no reenvía, no ancla ni cambia la firma de un buzón ajeno) y la
 pantalla en Chromium a 1440/1280/1024/390. `MODO=roto` lee el Correo de un
 commit pinchado (`ANTES_DE_LO_COMPLETO`) y afirma que nada de esto existía.
 
+### Y la segunda vuelta: cuatro pastillas, la fila de Chats, selección y el panel que empuja
+
+Siete cosas de la misma pantalla, y todas salen de la misma regla: **lo que en
+Chats existe, en Correo se ve igual, no parecido**.
+
+| | cómo va |
+| --- | --- |
+| **pastillas** | **Destacados · Todos · Sin leer · Archivados**, y al final la flecha «⌄» de Chats (`FLECHA_DE_LA_FILA`, que ahora pintan las dos) con Leídos, Con adjuntos, Anclados y «Seleccionar todos» |
+| **panel lateral** | la bandeja es `data-chat-view` sin borde propio y monta `<MedidaDeChats />`: con Notas, Copiloto o Chat de equipo abierto, la regla de `globals.css` le reserva la franja y el panel cae justo en ella |
+| **barra de responder** | `conVoz: false` y `dictado={null}`: ni nota de voz ni dictado. A la derecha, UNA flecha, siempre a la vista, con `disabled:opacity-100` —apagada con la caja vacía, pero con su azul entero— |
+| **cabecera del correo** | cada mando con el color de su equivalente en Chats (`lib/mandos-del-correo.ts`: responder azul, reenviar índigo, no leído naranja, destacar ámbar, eliminar rojo, «⋯» pizarra) |
+| **la fila** | `FilaDeCorreo.tsx`, con la anatomía de `ChatContactItem`: círculo de iniciales con la casilla encima, la hora de Chats (`formatTimeFromEpoch`: hoy la hora, antes la fecha) y, debajo del asunto, el chip «Nuevo» y la marca del buzón en la unificada |
+| **al pasar el ratón** | archivar y eliminar entran EN EL FLUJO abriendo su sitio (`w-0 → group-hover:w-7`, como la estrella de Chats) y el «⋯» es un botón fijo: la hora se corre a la izquierda y la cuenta no se mueve. Nunca `absolute` encima |
+| **selección múltiple** | la `BulkActionBar` de Chats —con `sustantivo` y dos mandos nuevos, `onStar` y `onArchivar`— en la cabecera de la columna, como en Chats |
+
+Cinco cosas que hay que mantener:
+
+1. **«Archivados» NO filtra lo cargado: es OTRA carpeta del proveedor**
+   (`laCarpetaDelFiltro`). Gmail por búsqueda (`GMAIL_ARCHIVO`: `-in:inbox
+   -in:trash -in:spam…`), Outlook su carpeta `archive` (la misma a la que va
+   archivar) e IMAP la carpeta `\Archive` — sin ella, vacío, nunca un error.
+   Lo cargado se guarda POR CARPETA (`porCarpeta`), así que volver a «Todos» no
+   pide la bandeja otra vez; archivar deja el archivo por volver a pedir.
+2. **Un UID de IMAP es por carpeta**, así que lo del archivo lleva prefijo
+   (`idImapDelArchivo`, `partirIdImap`): el 7 del archivo no es el 7 de la
+   entrada. Marcar, destacar o eliminar desde el archivo abren EL archivo, y lo
+   archivado no se vuelve a archivar («Ese correo ya está archivado.»).
+3. **El lote es UNA acción con la lista** (`correosEnLoteAction`), en serie,
+   cada correo en SU buzón (`elBuzonDe(persona.id, …)`, nunca uno ajeno), y
+   devuelve qué salió y qué no con su motivo. La pantalla lo pinta al momento
+   (`conElLote`) y devuelve SOLO lo que falló (`devolverLosDelLote`). La
+   selección cuenta solo lo que se ve (`laSeleccionVisible`), y en modo
+   selección pulsar una fila la marca en vez de abrirla.
+4. **Los números de las pastillas son de lo cargado**, con «+» si quedan
+   páginas; «Archivados» va sin número hasta que se trae —nunca un 0—.
+5. **La `BulkActionBar` es la de Chats y Chats no cambió**: `sustantivo` va con
+   «chat/chats» por defecto, y los dos mandos nuevos solo se pintan si se pasan.
+
+Lo prueba `scripts/banco-correo.sh`: las reglas y un barrido, las acciones
+contra Postgres (Archivados en los tres proveedores y el lote, que no toca un
+buzón ajeno) y la pantalla en Chromium —las cuatro pastillas y la flecha, los
+chips, que al pasar el ratón nada tapa la hora ni la cuenta, la selección con
+su barra, el panel que corre la columna y la barra de responder acabando donde
+acaba el panel—. `MODO=roto` lee Correo de un commit pinchado
+(`ANTES_DE_COMO_CHATS`, `aecdcef`) y afirma los fallos.
+
 ## Borrar los seguimientos de un número es borrarlos en SU cuenta
 
 Marcar un lead como Descartado —desde la pantalla o con la herramienta
@@ -18479,6 +18525,48 @@ recordatorios y las citas) no cambia. **Si se añade otro borrado por número, v
 por esa función.** Lo prueba `scripts/banco-seguimientos-de-la-cuenta.sh` en los
 dos repositorios, contra Postgres y en dos modos: el roto corre el borrado viejo
 y afirma que cruzaba de cuenta.
+
+## Chats: el SENTIMIENTO del cliente se analiza en la App, de fondo, con la IA de la cuenta
+
+Cada mensaje entrante se clasifica en **positivo, neutro o negativo**. Tiñe el
+aro que YA tiene el avatar en la lista (verde pastel, rojo suave; neutro es el
+de siempre), saca una franja delgada «El cliente parece molesto» encima de la
+barra de escribir, y alimenta el reporte **Sentimiento** de CRM › Analíticas
+(caídas a negativo por día y por asesor).
+
+**Por qué en la App y no en el backend**: los webhooks los recibe el backend,
+que es otro repositorio. La App tiene `chat_messages` y un reloj que ya corre —la
+lista de Chats, cada 20 s por pestaña—, así que cada vuelta de
+`/api/chats/lista` lanza **de fondo** (`void`) el análisis de lo que entró en
+esas líneas (`lib/sentimiento-runner.server.ts`), y el resultado viaja en la
+vuelta siguiente (`sentimientos`, `linea::jid` bajo las TRES identidades). Un
+barrido diario en `/api/cron/billing` recoge lo que entró sin nadie mirando.
+
+Seis cosas que hay que mantener:
+
+1. **Se analiza el último mensaje ENTRANTE**, no el último a secas: con la IA
+   activa el último es su respuesta, y mirándolo no se analizaría nada.
+2. **Con la IA de la cuenta dueña de la línea** (`laIaDeLaCuenta`, la misma
+   consulta que `resolveUserAiClient` sin la puerta de sesión: la cuenta sale de
+   la fila, nunca del navegador). **No descuenta créditos**, como la sugerencia
+   de respuesta; si algún día se cobra, va por la regla de siempre.
+3. **Dos a la vez no pagan dos**: `reclamarElAnalisis` es un `ON CONFLICT DO
+   UPDATE … WHERE`; el reclamo caduca a los 2 min si quien lo tomó murió.
+4. **Lo que no se entiende NO es neutro**: una respuesta rara, o una cuenta sin
+   IA, conserva lo que había. Inventar un neutro borraría un negativo y la
+   franja se iría sin que el cliente mejorara.
+5. **La franja se cierra POR CAÍDA** (`negativoDesde` en la llave, en
+   `sessionStorage`): cerrada sigue cerrada mientras siga negativo, se va sola al
+   mejorar, y una caída nueva vuelve a salir.
+6. **Una caída se cuenta una vez por conversación y día**
+   (`sentimiento_caidas`), con el asesor de su ficha en ese momento; el reporte
+   pasa por `lasCuentasQueConsultaElCrm`, la puerta del CRM.
+
+Dos tablas de la App (`sentimiento_de_conversacion`, `sentimiento_caidas`), con
+`ddl()` y sin clave foránea: ni una columna en `Session` ni en `chat_messages`.
+Lo prueba `scripts/banco-sentimiento.sh`: reglas, barrido, el análisis contra
+Postgres con la IA fingida y la franja en Chromium; `MODO=roto` lee `ANTES_REF`
+y afirma que no había nada de esto.
 
 # Pendientes
 

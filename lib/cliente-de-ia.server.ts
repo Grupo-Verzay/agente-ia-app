@@ -38,6 +38,23 @@ export type ResultadoDelClienteDeIa = {
 export async function resolveUserAiClient(userId: string): Promise<ResultadoDelClienteDeIa> {
   try {
     const cuenta = await exigirLaCuentaDeLaAccion(userId);
+    return await laIaDeLaCuenta(cuenta);
+  } catch (e) {
+    // El rechazo de la guarda lanza «No autorizado.»; quien llama solo mira
+    // `success`, así que se convierte aquí y se dice.
+    console.warn("[cliente-de-ia] no se pudo resolver el cliente de IA", userId, (e as Error)?.message);
+    return { success: false, message: "resolve_ai_client_error" };
+  }
+}
+
+/**
+ * Lo mismo SIN la puerta de la sesión, para lo que corre en el servidor sin
+ * nadie delante —el análisis de sentimiento de Chats—, donde la cuenta ya la
+ * decidió el servidor a partir de la fila (el dueño de la línea), nunca un id
+ * que llegue del navegador. Es la MISMA consulta que usa `resolveUserAiClient`:
+ * la IA por defecto de la cuenta, que es la que procesa sus conversaciones.
+ */
+export async function laIaDeLaCuenta(cuenta: string): Promise<ResultadoDelClienteDeIa> {
     const u = await db.user.findUnique({
       where: { id: cuenta },
       select: { id: true, defaultProviderId: true, defaultAiModelId: true },
@@ -69,10 +86,4 @@ export async function resolveUserAiClient(userId: string): Promise<ResultadoDelC
       message: "ok",
       data: { provider: provider.name, model: model.name, apiKey: cfg.apiKey },
     };
-  } catch (e) {
-    // El rechazo de la guarda lanza «No autorizado.»; quien llama solo mira
-    // `success`, así que se convierte aquí y se dice.
-    console.warn("[cliente-de-ia] no se pudo resolver el cliente de IA", userId, (e as Error)?.message);
-    return { success: false, message: "resolve_ai_client_error" };
-  }
 }

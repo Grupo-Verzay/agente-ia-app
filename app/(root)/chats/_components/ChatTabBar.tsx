@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { PASTILLAS_DE_LA_COLUMNA } from "@/lib/cabeceras-de-chats";
-import { PastillaDeFiltro, TONO_EN_ESPERA, TONO_MIAS, TONO_SIN_LEER, TONO_TODOS } from "@/components/shared/PastillaDeFiltro";
+import { FLECHA_APAGADA, FLECHA_DE_LA_FILA, FLECHA_ENCENDIDA, PastillaDeFiltro, TONO_EN_ESPERA, TONO_MIAS, TONO_SIN_LEER, TONO_TODOS } from "@/components/shared/PastillaDeFiltro";
 import { MARCA_DE_LAS_PASTILLAS, usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
@@ -163,12 +163,9 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
         <DropdownMenuTrigger asChild ref={masFiltros.disparador}>
           <button
             type="button"
-            className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-all shrink-0",
-              isOverflowActive
-                ? "border-slate-500 bg-slate-500 text-white"
-                : "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
-            )}
+            aria-label="Más filtros"
+            data-flecha-de-la-fila
+            className={cn(FLECHA_DE_LA_FILA, isOverflowActive ? FLECHA_ENCENDIDA : FLECHA_APAGADA)}
           >
             <ChevronDown className="h-3 w-3" />
           </button>
