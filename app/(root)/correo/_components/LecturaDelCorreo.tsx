@@ -42,6 +42,7 @@ import {
 } from "@/components/shared/BarraDeEscribir";
 // El clip es EL de Chats: el mismo menú de imagen, vídeo, documento y audio.
 import { AttachmentMenu, type ComposeMedia } from "@/app/(root)/chats/_components/attachment-menu";
+import { useExportarCorreos } from "@/hooks/useExportarCorreos";
 import { CAJA_DEL_MANDO, TONO_DEL_MANDO, type MandoDelCorreo } from "@/lib/mandos-del-correo";
 import { cn } from "@/lib/utils";
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
@@ -176,6 +177,7 @@ export function LecturaDelCorreo({
     }, [buzonId, correoId]);
 
     const documento = useMemo(() => (correo ? elDocumentoDelCorreo(correo) : ""), [correo]);
+    const { exportando, exportar } = useExportarCorreos();
 
     const irA = (m: "responder" | "reenviar") => {
         setModo(m);
@@ -200,6 +202,8 @@ export function LecturaDelCorreo({
                 alAnclar={() => alAnclar(!anclado)}
                 alArchivar={alArchivar}
                 alEliminar={alEliminar}
+                alExportar={() => void exportar([{ buzonId, correoId }])}
+                exportando={exportando}
             />
             {correo && (correo.para || correo.cc) ? (
                 <div data-destinatarios className="shrink-0 border-b border-border px-3 py-1 text-xs text-muted-foreground">
@@ -283,6 +287,8 @@ function CabeceraDelCorreo({
     alAnclar,
     alArchivar,
     alEliminar,
+    alExportar,
+    exportando,
 }: {
     correo: CorreoCompleto | null;
     fallo: string | null;
@@ -297,6 +303,8 @@ function CabeceraDelCorreo({
     alAnclar: Accion;
     alArchivar: Accion;
     alEliminar: Accion;
+    alExportar: Accion;
+    exportando: boolean;
 }) {
     const remitente = correo ? correo.de || correo.deDireccion || "(sin remitente)" : fallo ?? "Abriendo…";
     const mando = (cual: MandoDelCorreo, etiqueta: string, icono: React.ReactNode, alPulsar: Accion, marcado?: boolean) => (
@@ -370,6 +378,10 @@ function CabeceraDelCorreo({
                                     Archivar
                                 </DropdownMenuItem>
                             ) : null}
+                            <DropdownMenuItem disabled={exportando} onSelect={alExportar}>
+                                <Download className="mr-2 h-4 w-4" />
+                                {exportando ? "Exportando…" : "Exportar este correo"}
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>

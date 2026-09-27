@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Archive, Check, Mail, MailOpen, MoreVertical, Paperclip, Pin, PinOff, Star, Trash2 } from "lucide-react";
+import { Archive, Check, Download, Mail, MailOpen, MoreVertical, Paperclip, Pin, PinOff, Star, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +62,7 @@ export type AccionesDeLaFila = {
     alAnclar: (c: CorreoDeLaBandeja, valor: boolean) => void;
     alDestacar: (c: CorreoDeLaBandeja, valor: boolean) => void;
     alMarcarNoLeido: (c: CorreoDeLaBandeja) => void;
+    alExportar: (c: CorreoDeLaBandeja) => void;
 };
 
 export const FilaDeCorreo = memo(function FilaDeCorreo({
@@ -274,6 +275,10 @@ export const FilaDeCorreo = memo(function FilaDeCorreo({
                                         {anclado ? "Desanclar" : "Anclar arriba"}
                                     </DropdownMenuItem>
                                 ) : null}
+                                <DropdownMenuItem onSelect={() => acciones.alExportar(c)}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Exportar este correo
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => acciones.alAlternarSeleccion(c)}>
                                     <Check className="mr-2 h-4 w-4" />
                                     Seleccionar

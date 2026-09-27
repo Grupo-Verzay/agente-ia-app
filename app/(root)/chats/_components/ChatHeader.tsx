@@ -4,7 +4,7 @@ import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChats
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
-import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search } from 'lucide-react';
+import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, Download } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ import { MARCA_DE_LA_CABECERA, usePanelFlotante } from '@/hooks/usePanelFlotante
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/paneles-flotantes';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+import { useExportarConversaciones } from '@/hooks/useExportarConversaciones';
 
 /*
  * El margen de la cabecera (16 px a los cuatro lados), el alto (110 px) y el de
@@ -245,7 +246,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const estaEnEspera = !!escalatedAt;
   const canUnescalate = !!session && estaEnEspera && puedeCerrarOAbrir;
   const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
-  const showLifecycleButton = session && (canResolve || canReopen || canLiberate || canTake || canReturnToAi || canUnescalate);
+  // Exportar la conversación: no pide sesión CRM, pide saber de qué línea y de
+  // qué contacto es. Por eso el menú «Acciones» sale también sin sesión cuando
+  // hay algo que exportar: si no, un chat sin ficha no tendría forma de bajarse.
+  const puedeExportar = Boolean(instanceName && remoteJid);
+  const { exportando, exportar } = useExportarConversaciones();
+  const showLifecycleButton = Boolean(session && (canResolve || canReopen || canLiberate || canTake || canReturnToAi || canUnescalate)) || puedeExportar;
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -509,6 +515,23 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             <Share2 className="h-3.5 w-3.5 shrink-0" />
             Enviar al equipo
+          </DropdownMenuItem>
+        )}
+
+        {/* Exportar esta conversación a un .txt legible, como «Exportar chat»
+          * de WhatsApp. Al lado de «Enviar al equipo» porque las dos se llevan
+          * la conversación a otro sitio. Es el mismo camino que el lote de la
+          * lista (`useExportarConversaciones`). */}
+        {puedeExportar && (
+          <DropdownMenuItem
+            disabled={exportando}
+            onSelect={() =>
+              void exportar([{ instanceName: instanceName!, remoteJid: remoteJid!, aliases: identidadesDelChat ?? [] }])
+            }
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5 shrink-0" />
+            {exportando ? "Exportando…" : "Exportar conversación"}
           </DropdownMenuItem>
         )}
 

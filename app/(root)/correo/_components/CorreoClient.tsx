@@ -10,6 +10,7 @@ import {
     Loader2,
     MailOpen,
     MoreHorizontal,
+    Download,
     Paperclip,
     Pin,
     RefreshCw,
@@ -136,6 +137,7 @@ import {
 import { FilaDeCorreo, type AccionesDeLaFila } from "./FilaDeCorreo";
 import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
 import { LecturaDelCorreo } from "./LecturaDelCorreo";
+import { useExportarCorreos } from "@/hooks/useExportarCorreos";
 
 /**
  * Lo último que se miró en ESTE navegador: el id de un buzón o
@@ -746,6 +748,12 @@ function Bandeja({
             ancladas,
         };
     }, [correos, ancladosDeLaVista, carpeta, busqueda, campo, filtro]);
+    // Exportar: el MISMO camino desde la fila, desde el correo abierto y desde
+    // la barra (los de la lista). La lista es la que se VE —con su filtro y su
+    // búsqueda—: exportar lo escondido sería la peor sorpresa posible.
+    const { exportando, exportar: exportarCorreos } = useExportarCorreos();
+    const exportarLaLista = () =>
+        void exportarCorreos(visibles.map((c) => ({ buzonId: c.buzonId, correoId: c.id })));
     const correoAbierto = abierto ? todas.find((x) => laLlaveDelCorreo(x) === abierto.llave) ?? null : null;
     const buzonDeLaVista = unificada ? null : deLaVista[0] ?? null;
     const avisosVisibles = deLaVista.filter((b) => avisos[b.id]).map((b) => ({ buzon: b, aviso: avisos[b.id] }));
@@ -833,6 +841,7 @@ function Bandeja({
         alAnclar: (c, v) => void anclar(c, v),
         alDestacar: (c, v) => void destacar(c, v),
         alMarcarNoLeido: (c) => void marcarNoLeido(c),
+        alExportar: (c) => void exportarCorreos([{ buzonId: c.buzonId, correoId: c.id }]),
     };
     const acciones = useMemo<AccionesDeLaFila>(
         () => ({
@@ -843,6 +852,7 @@ function Bandeja({
             alAnclar: (c, v) => accionesRef.current.alAnclar(c, v),
             alDestacar: (c, v) => accionesRef.current.alDestacar(c, v),
             alMarcarNoLeido: (c) => accionesRef.current.alMarcarNoLeido(c),
+            alExportar: (c) => accionesRef.current.alExportar(c),
         }),
         [],
     );
@@ -1082,6 +1092,10 @@ function Bandeja({
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent {...panelDeAcciones.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
+                                    <DropdownMenuItem disabled={exportando || visibles.length === 0} onSelect={exportarLaLista}>
+                                        {exportando ? "Exportando…" : `Exportar los de la lista (${visibles.length})`}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuItem onSelect={alConectarOtro}>Conectar otro correo</DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     {deLaVista.map((b) => (
@@ -1112,6 +1126,13 @@ function Bandeja({
                                     onStar={(v) => void enLote(v ? "destacar" : "quitarDestacado")}
                                     onArchivar={carpeta === "entrada" ? () => void enLote("archivar") : undefined}
                                     onDelete={() => setEliminarLote(true)}
+                                    onExport={() => {
+                                        const lote = visibles.filter((c) => seleccionados.has(laLlaveDelCorreo(c)));
+                                        void exportarCorreos(lote.map((c) => ({ buzonId: c.buzonId, correoId: c.id }))).then((ok) => {
+                                            if (ok) setSeleccion(new Set());
+                                        });
+                                    }}
+                                    exporting={exportando}
                                     sustantivo={{ uno: "correo", varios: "correos" }}
                                 />
                             </div>

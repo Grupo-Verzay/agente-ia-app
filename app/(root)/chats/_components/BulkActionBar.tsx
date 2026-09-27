@@ -1,7 +1,7 @@
 "use client";
 
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
-import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck, Star } from "lucide-react";
+import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck, Star, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,6 +32,13 @@ type BulkActionBarProps = {
    * resuelve»— no cabe en un menú.
    */
   onResolve?: () => void;
+  /**
+   * Exportar las conversaciones marcadas a texto legible (un .zip con un .txt
+   * por conversación). Omitir para esconder la acción.
+   */
+  onExport?: () => void;
+  /** Mientras exporta: el botón gira y una segunda pulsación no hace nada. */
+  exporting?: boolean;
   onAssignAdvisor?: (advisorId: string | null) => void;
   onAddTag?: (tagId: number) => void;
   advisors?: AdvisorInfo[];
@@ -76,6 +83,8 @@ export function BulkActionBar({
   onPin,
   onMarkRead,
   onResolve,
+  onExport,
+  exporting,
   onAssignAdvisor,
   onAddTag,
   advisors,
@@ -172,6 +181,22 @@ export function BulkActionBar({
             onClick={onResolve}
           >
             <CheckCheck className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Exportar: justo detrás de resolver, que es cuando se guarda una
+            conversación terminada. Botón suelto y no menú: no tiene variantes. */}
+        {onExport && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={`Exportar ${sustantivo.varios}`}
+            aria-label={`Exportar ${sustantivo.varios}`}
+            disabled={exporting}
+            onClick={onExport}
+          >
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
         )}
 

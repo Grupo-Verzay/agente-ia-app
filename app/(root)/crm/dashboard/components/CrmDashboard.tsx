@@ -11,6 +11,7 @@ import {
     TrendingUp,
     Kanban,
     PhoneCall,
+    ShieldCheck,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
@@ -35,6 +36,7 @@ import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView } from "./WeeklyReportsView";
 import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
+import { CalidadView } from "./CalidadView";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -88,11 +90,11 @@ export const CrmDashboard = ({
     isLoadingMore?: boolean;
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
-    initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas";
+    initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas" | "calidad";
     cuentas: CuentasDelCrm;
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas" | "calidad">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
@@ -274,9 +276,27 @@ export const CrmDashboard = ({
                                 <FileText className="h-3.5 w-3.5" />
                                 Reportes
                             </button>
+                            {/* Calidad: el QA automático de las conversaciones. Detrás de
+                                Reportes porque es de lo mismo —mirar hacia atrás—, y con la
+                                misma forma que las otras cinco. */}
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("calidad")}
+                                className={[
+                                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                    viewMode === "calidad"
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                ].join(" ")}
+                            >
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                                Calidad
+                            </button>
                         </div>
 
-                        {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && (
+                        {/* Calidad trae su propio periodo en su barra: el «Todo» de aquí no
+                            tiene sentido sobre evaluaciones que se guardan por días. */}
+                        {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && viewMode !== "calidad" && (
                             <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                                 {ANALYTICS_PERIODS.map((p) => (
                                     <button
@@ -369,7 +389,15 @@ export const CrmDashboard = ({
                 )}
 
                 {/* Content */}
-                {viewMode === "reportes" ? (
+                {viewMode === "calidad" ? (
+                    <div className="flex-1 min-h-0 flex flex-col">
+                        <CalidadView
+                            cuentas={cuentas.elegidas}
+                            unificado={unificado}
+                            nombresDeCuenta={nombresDeCuenta}
+                        />
+                    </div>
+                ) : viewMode === "reportes" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
                         <WeeklyReportsView
                             cuentas={cuentas.elegidas}
