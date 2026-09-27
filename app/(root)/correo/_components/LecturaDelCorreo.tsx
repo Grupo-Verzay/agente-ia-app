@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Archive,
     ArrowLeft,
-    AudioLines,
     Check,
     Download,
     Forward,
@@ -43,14 +42,13 @@ import {
 } from "@/components/shared/BarraDeEscribir";
 // El clip es EL de Chats: el mismo menú de imagen, vídeo, documento y audio.
 import { AttachmentMenu, type ComposeMedia } from "@/app/(root)/chats/_components/attachment-menu";
-import { useSpeechDictation } from "@/hooks/useSpeechDictation";
 import { useExportarCorreos } from "@/hooks/useExportarCorreos";
+import { CAJA_DEL_MANDO, TONO_DEL_MANDO, type MandoDelCorreo } from "@/lib/mandos-del-correo";
 import { cn } from "@/lib/utils";
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import {
     BOTON_DE_ENVIAR,
     BOTON_DE_HERRAMIENTA,
-    BOTON_REDONDO_GRABANDO,
     FILA_DE_LA_BARRA,
     MARCO_DE_LA_BARRA,
     archivosDelPortapapeles,
@@ -72,6 +70,7 @@ import {
     comoFirma,
     elDocumentoDelCorreo,
     elTamanoLegible,
+    lasInicialesDelRemitente,
     losBytesDeUnBase64,
     type CorreoCompleto,
 } from "@/lib/correo";
@@ -118,6 +117,7 @@ export function LecturaDelCorreo({
     estabaSinLeer,
     destacado,
     anclado,
+    enArchivo = false,
     alVolver,
     alMarcar,
     alEliminar,
@@ -132,6 +132,8 @@ export function LecturaDelCorreo({
     estabaSinLeer: boolean;
     destacado: boolean;
     anclado: boolean;
+    /** Se está mirando «Archivados»: «Archivar» no se ofrece y anclar tampoco. */
+    enArchivo?: boolean;
     alVolver: Accion;
     alMarcar: (id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => void;
     alEliminar: Accion;
@@ -191,6 +193,7 @@ export function LecturaDelCorreo({
                 fallo={fallo}
                 destacado={destacado}
                 anclado={anclado}
+                enArchivo={enArchivo}
                 alVolver={alVolver}
                 alResponder={() => irA("responder")}
                 alReenviar={() => irA("reenviar")}
@@ -259,15 +262,13 @@ export function LecturaDelCorreo({
 
 /* ─────────────────────────────── la cabecera ─────────────────────────────── */
 
-/** Las iniciales del remitente, para su círculo: como el avatar de un contacto sin foto en Chats. */
-function lasIniciales(nombre: string): string {
-    const partes = nombre.replace(/[<>"@].*$/, "").trim().split(/\s+/).filter(Boolean);
-    const letras = (partes.length > 1 ? partes[0][0] + partes[partes.length - 1][0] : (partes[0] ?? "?").slice(0, 2)) || "?";
-    return letras.toUpperCase();
-}
-
-/** La caja de un mando de la cabecera: la de Chats (borde, fondo y hover), con su lado de 28 px. */
-const MANDO = cn(
+/**
+ * La caja de un mando de la cabecera: el lado de 28 px de `CONTROL_DE_ICONO`
+ * y el COLOR de su equivalente en Chats (`TONO_DEL_MANDO`), no un gris plano.
+ */
+const MANDO = cn(CONTROL_DE_ICONO, CAJA_DEL_MANDO);
+/** El de volver (solo en el teléfono) no es un mando del correo: neutro. */
+const VOLVER = cn(
     CONTROL_DE_ICONO,
     "w-7 shrink-0 rounded-md border border-input bg-background p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground",
 );
@@ -277,6 +278,7 @@ function CabeceraDelCorreo({
     fallo,
     destacado,
     anclado,
+    enArchivo,
     alVolver,
     alResponder,
     alReenviar,
@@ -292,6 +294,7 @@ function CabeceraDelCorreo({
     fallo: string | null;
     destacado: boolean;
     anclado: boolean;
+    enArchivo: boolean;
     alVolver: Accion;
     alResponder: Accion;
     alReenviar: Accion;
@@ -304,7 +307,7 @@ function CabeceraDelCorreo({
     exportando: boolean;
 }) {
     const remitente = correo ? correo.de || correo.deDireccion || "(sin remitente)" : fallo ?? "Abriendo…";
-    const mando = (etiqueta: string, icono: React.ReactNode, alPulsar: Accion, extra?: string, marcado?: boolean) => (
+    const mando = (cual: MandoDelCorreo, etiqueta: string, icono: React.ReactNode, alPulsar: Accion, marcado?: boolean) => (
         <Button
             type="button"
             variant="ghost"
@@ -314,7 +317,8 @@ function CabeceraDelCorreo({
             title={etiqueta}
             onClick={alPulsar}
             disabled={!correo}
-            className={cn(MANDO, extra)}
+            data-mando-del-correo={cual}
+            className={cn(MANDO, TONO_DEL_MANDO[cual])}
         >
             {icono}
         </Button>
@@ -322,14 +326,14 @@ function CabeceraDelCorreo({
     return (
         <div data-cabecera-del-correo className={CABECERA_DEL_PANEL}>
             <div className={FILA_1_DEL_PANEL}>
-                <Button variant="ghost" size="icon" className={cn(MANDO, "md:hidden")} aria-label="Volver" onClick={alVolver}>
+                <Button variant="ghost" size="icon" className={cn(VOLVER, "md:hidden")} aria-label="Volver" onClick={alVolver}>
                     <ArrowLeft className={GLIFO_DE_CONTROL} />
                 </Button>
                 <span
                     aria-hidden
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
                 >
-                    {correo ? lasIniciales(correo.de || correo.deDireccion) : <Mail className={GLIFO_DE_CONTROL} />}
+                    {correo ? lasInicialesDelRemitente(correo.de || correo.deDireccion) : <Mail className={GLIFO_DE_CONTROL} />}
                 </span>
                 <div data-remitente-del-correo className="flex min-w-0 flex-1 flex-col justify-center">
                     <span className={cn(TIPOGRAFIA_DEL_NOMBRE, RECORTE_A_LO_ANCHO, LINEA_DEL_NOMBRE, "!normal-case text-sm")} title={remitente}>
@@ -342,32 +346,38 @@ function CabeceraDelCorreo({
                     ) : null}
                 </div>
                 <div data-mandos-del-correo className={cn("flex shrink-0 items-center", CLASE_HUECO_ENTRE_CONTROLES)}>
-                    {mando("Responder", <Reply className={GLIFO_DE_CONTROL} />, alResponder)}
-                    {mando("Reenviar", <Forward className={GLIFO_DE_CONTROL} />, alReenviar)}
-                    {mando("Marcar como no leído", <Mail className={GLIFO_DE_CONTROL} />, alMarcarNoLeido)}
+                    {mando("responder", "Responder", <Reply className={GLIFO_DE_CONTROL} />, alResponder)}
+                    {mando("reenviar", "Reenviar", <Forward className={GLIFO_DE_CONTROL} />, alReenviar)}
+                    {mando("noLeido", "Marcar como no leído", <Mail className={GLIFO_DE_CONTROL} />, alMarcarNoLeido)}
                     {mando(
+                        "destacar",
                         destacado ? "Quitar destacado" : "Destacar",
                         <Star className={cn(GLIFO_DE_CONTROL, destacado && "fill-amber-400 text-amber-500")} />,
                         alDestacar,
-                        undefined,
                         destacado,
                     )}
-                    {mando("Eliminar este correo", <Trash2 className={GLIFO_DE_CONTROL} />, alEliminar, "hover:text-destructive")}
+                    {mando("eliminar", "Eliminar este correo", <Trash2 className={GLIFO_DE_CONTROL} />, alEliminar)}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button type="button" variant="ghost" size="icon" aria-label="Más acciones del correo" title="Más" disabled={!correo} className={MANDO}>
+                            <Button type="button" variant="ghost" size="icon" aria-label="Más acciones del correo" title="Más" disabled={!correo} data-mando-del-correo="mas" className={cn(MANDO, TONO_DEL_MANDO.mas)}>
                                 <MoreHorizontal className={GLIFO_DE_CONTROL} />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={alAnclar}>
-                                {anclado ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}
-                                {anclado ? "Desanclar" : "Anclar arriba"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={alArchivar}>
-                                <Archive className="mr-2 h-4 w-4" />
-                                Archivar
-                            </DropdownMenuItem>
+                            {/* Lo archivado no está en la bandeja de entrada: ni se
+                                ancla arriba de ella ni se vuelve a archivar. */}
+                            {!enArchivo || anclado ? (
+                                <DropdownMenuItem onSelect={alAnclar}>
+                                    {anclado ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}
+                                    {anclado ? "Desanclar" : "Anclar arriba"}
+                                </DropdownMenuItem>
+                            ) : null}
+                            {!enArchivo ? (
+                                <DropdownMenuItem onSelect={alArchivar}>
+                                    <Archive className="mr-2 h-4 w-4" />
+                                    Archivar
+                                </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuItem disabled={exportando} onSelect={alExportar}>
                                 <Download className="mr-2 h-4 w-4" />
                                 {exportando ? "Exportando…" : "Exportar este correo"}
@@ -417,7 +427,6 @@ function BarraDeResponder({
     const [sugiriendo, setSugiriendo] = useState(false);
     const [motivoSinSugerencia, setMotivoSinSugerencia] = useState<string | null>(null);
     const { compacta, medir } = useBarraCompacta();
-    const dictado = useSpeechDictation();
 
     // La caja crece con el texto hasta su tope EN LÍNEAS, con el mismo gancho
     // que Chats y el chat de equipo: es la misma barra de escribir.
@@ -477,7 +486,6 @@ function BarraDeResponder({
 
     async function enviar() {
         if (!hayAlgoQueEnviar || enviando) return;
-        if (dictado.listening) dictado.stop();
         setEnviando(true);
         const archivos = adjuntos.map((a) => ({ nombre: a.fileName, tipo: a.mimeType, base64: a.dataUrl }));
         try {
@@ -520,10 +528,13 @@ function BarraDeResponder({
 
     const estadoDeLaDerecha = {
         compacta,
-        conVoz: true,
+        // Sin voz: ni nota ni dictado —no aplican a un correo—. A la derecha
+        // hay UN botón, la flecha, siempre a la vista (con la caja vacía, apagada
+        // pero con su azul entero: `disabled:opacity-100`).
+        conVoz: false,
         conNota: false,
-        hayDictado: dictado.supported,
-        dictando: dictado.listening,
+        hayDictado: false,
+        dictando: false,
         grabando: false,
         hayAlgoQueEnviar,
     };
@@ -641,25 +652,13 @@ function BarraDeResponder({
                         {...estadoDeLaDerecha}
                         menuAbierto={false}
                         alAlternarMenu={() => {}}
-                        dictado={
-                            dictado.supported
-                                ? {
-                                      alPulsar: () => dictado.toggle(texto, setTexto),
-                                      deshabilitado: enviando,
-                                      marcado: dictado.listening,
-                                      etiqueta: dictado.listening ? "Detener dictado" : "Dictar por voz",
-                                      titulo: dictado.listening ? "Detener dictado" : "Dictar por voz (escribe lo que hablas)",
-                                      clase: dictado.listening ? `${BOTON_REDONDO_GRABANDO} animate-pulse` : undefined,
-                                      icono: <AudioLines className={cn("h-3.5 w-3.5", dictado.listening ? "text-white" : "text-black dark:text-white")} />,
-                                  }
-                                : null
-                        }
+                        dictado={null}
                         enviar={{
                             alPulsar: () => void enviar(),
                             deshabilitado: !hayAlgoQueEnviar || enviando,
                             etiqueta: modo === "reenviar" ? "Reenviar correo" : "Enviar respuesta",
                             titulo: modo === "reenviar" ? "Reenviar (Ctrl+Enter)" : "Enviar respuesta (Ctrl+Enter)",
-                            clase: BOTON_DE_ENVIAR,
+                            clase: cn(BOTON_DE_ENVIAR, "disabled:opacity-100"),
                             icono: enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-white" /> : <SendIcon className="h-3.5 w-3.5 text-white" />,
                         }}
                     />

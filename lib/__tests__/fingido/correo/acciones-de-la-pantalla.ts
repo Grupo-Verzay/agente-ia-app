@@ -59,8 +59,15 @@ export async function totalesDeLosBuzonesAction() {
         ],
     };
 }
-export async function bandejaUnificadaAction(cursores?: Record<string, string>) {
-    apuntar("unificada", { cursores: cursores ?? null });
+/** Lo archivado: otra carpeta del proveedor, con sus propios correos. */
+const ARCHIVADOS = [
+    { id: "a1", de: "Archivo", deDireccion: "x@archivo.com", asunto: "Viejo archivado", fragmento: "ya atendido", fecha: "2026-07-01T10:00:00Z", sinLeer: false, conAdjuntos: false },
+];
+export async function bandejaUnificadaAction(cursores?: Record<string, string>, carpeta?: unknown) {
+    apuntar("unificada", { cursores: cursores ?? null, carpeta: carpeta ?? "entrada" });
+    if (carpeta === "archivo") {
+        return { success: true, porBuzon: [BUZON, BUZON2].map((b) => ({ buzonId: b.id, ok: true, correos: b.id === "bz1" ? ARCHIVADOS.map((c) => ({ ...c, buzonId: b.id })) : [], siguiente: null })) };
+    }
     const conBuzon = (id: string, lista: any[]) => lista.map((c) => ({ ...c, buzonId: id }));
     const todos = [
         { id: "bz1", correos: [...CORREOS, MAS_DE_BZ1], siguiente: null as string | null },
@@ -76,8 +83,9 @@ export async function bandejaUnificadaAction(cursores?: Record<string, string>) 
         }),
     };
 }
-export async function bandejaAction(buzonId: unknown, cursor: unknown) {
-    apuntar("bandeja", { buzonId, cursor });
+export async function bandejaAction(buzonId: unknown, cursor: unknown, carpeta?: unknown) {
+    apuntar("bandeja", { buzonId, cursor, carpeta: carpeta ?? "entrada" });
+    if (carpeta === "archivo") return { success: true, correos: buzonId === "bz1" ? ARCHIVADOS : [], siguiente: null };
     return { success: true, correos: buzonId === "bz2" ? DE_BZ2 : CORREOS, siguiente: null };
 }
 export async function leerCorreoAction(buzonId: unknown, correoId: unknown, estabaSinLeer?: unknown) {
@@ -158,4 +166,17 @@ export async function conectarImapAction(raw: unknown) {
 export async function desconectarCorreoAction(buzonId: unknown) {
     apuntar("desconectar", { buzonId });
     return { success: true, quitado: true };
+}
+/** Varios a la vez: con `window.__falla` rebota el primero, los demás salen. */
+export async function correosEnLoteAction(accion: unknown, lote: any[]) {
+    apuntar("lote", { accion, lote });
+    await new Promise((r) => setTimeout(r, 120));
+    const lista = Array.isArray(lote) ? lote : [];
+    const falla = w.__falla ? lista.slice(0, 1) : [];
+    return {
+        success: true,
+        hechos: lista.slice(falla.length),
+        fallidos: falla.map((c) => ({ ...c, motivo: "Google no contestó." })),
+        sinPapelera: 0,
+    };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
-import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck, Download, Loader2 } from "lucide-react";
+import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck, Star, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,6 +44,23 @@ type BulkActionBarProps = {
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
   allTags?: SimpleTag[];
+  /**
+   * De qué se habla: «chat» en Chats, «correo» en Correo. La barra es LA
+   * MISMA en las dos pantallas —la de Correo es un clon de esta, no una
+   * parecida—; lo único que cambia es la palabra de los rótulos.
+   */
+  sustantivo?: { uno: string; varios: string };
+  /**
+   * Destacar o quitar el destacado. En Chats no se usa (ver el comentario de
+   * «Resolver»); en Correo sí, porque ahí destacar es la marca del PROVEEDOR
+   * —la estrella de Gmail— y se pone de a varios igual que en Gmail.
+   */
+  onStar?: (star: boolean) => void;
+  /**
+   * Archivar SIN la opción de desarchivar: un botón y no un menú. En Correo
+   * archivar saca de la bandeja y no hay «desarchivar» que ofrecer.
+   */
+  onArchivar?: () => void;
 };
 
 const PALETTE = [
@@ -73,7 +90,12 @@ export function BulkActionBar({
   advisors,
   advisorRole,
   allTags,
+  sustantivo = { uno: "chat", varios: "chats" },
+  onStar,
+  onArchivar,
 }: BulkActionBarProps) {
+  const cual = (n: number) => (n === 1 ? sustantivo.uno : sustantivo.varios);
+  const VARIOS = sustantivo.varios.toUpperCase();
   const isOwnerOrAdmin = advisorRole !== "agente";
   const allSelected = count === totalCount && totalCount > 0;
 
@@ -95,7 +117,7 @@ export function BulkActionBar({
 
       <span
         className="inline-grid h-6 min-w-[1.5rem] shrink-0 place-items-center rounded-full bg-primary px-1.5 text-xs font-bold tabular-nums text-primary-foreground"
-        title={`${count} chat${count !== 1 ? "s" : ""} seleccionado${count !== 1 ? "s" : ""}`}
+        title={`${count} ${cual(count)} seleccionado${count !== 1 ? "s" : ""}`}
       >
         {count}
       </span>
@@ -130,7 +152,7 @@ export function BulkActionBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-44", PANEL_QUE_SE_DESPLAZA)}>
               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                MARCAR CHATS
+                MARCAR {VARIOS}
               </p>
               <DropdownMenuItem onSelect={() => onMarkRead(true)}>
                 <MailOpen className="h-3.5 w-3.5" />
@@ -169,12 +191,54 @@ export function BulkActionBar({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            title="Exportar conversaciones"
-            aria-label="Exportar conversaciones"
+            title={`Exportar ${sustantivo.varios}`}
+            aria-label={`Exportar ${sustantivo.varios}`}
             disabled={exporting}
             onClick={onExport}
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          </Button>
+        )}
+
+        {onStar && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Destacar / Quitar destacado"
+                aria-label="Destacar"
+              >
+                <Star className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent {...suelto("menu", "bottom", "end")} className={cn("w-44", PANEL_QUE_SE_DESPLAZA)}>
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                DESTACAR {VARIOS}
+              </p>
+              <DropdownMenuItem onSelect={() => onStar(true)}>
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                Destacar
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onStar(false)}>
+                <Star className="h-3.5 w-3.5 opacity-40" />
+                Quitar destacado
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {onArchivar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={`Archivar ${sustantivo.varios}`}
+            aria-label={`Archivar ${sustantivo.varios}`}
+            onClick={onArchivar}
+          >
+            <Archive className="h-4 w-4" />
           </Button>
         )}
 
@@ -307,7 +371,8 @@ export function BulkActionBar({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
-              title="Eliminar chats"
+              title={`Eliminar ${sustantivo.varios}`}
+              aria-label={`Eliminar ${sustantivo.varios}`}
               onClick={onDelete}
             >
               <Trash2 className="h-4 w-4" />

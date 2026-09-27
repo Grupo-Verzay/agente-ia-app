@@ -9,6 +9,7 @@ import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
 import { lanzarElBarridoDeCalidad } from "@/lib/calidad-runner.server";
+import { barrerElSentimientoDeLaPlataforma } from "@/lib/sentimiento-runner.server";
 import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
@@ -157,6 +158,16 @@ export async function POST(request: Request) {
     purgaDeChats = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // El sentimiento de lo que entro sin nadie con Chats abierto: la bandeja lo
+  // analiza en vivo, y esto recoge el resto para que el reporte del CRM cuente
+  // tambien esas caidas. En su propio `try`, acotado, como los demas.
+  let sentimiento: unknown = null;
+  try {
+    sentimiento = await barrerElSentimientoDeLaPlataforma();
+  } catch (e) {
+    sentimiento = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   // El QA automático de las conversaciones (CRM › Calidad). Va DE FONDO y sin
   // esperar: son llamadas a la IA cuenta por cuenta y tardan minutos, y esta
   // ruta no puede quedarse abierta tanto. Si un despliegue se lleva el
@@ -181,6 +192,7 @@ export async function POST(request: Request) {
       llamadas,
       papeleraDeEmbudos,
       purgaDeChats,
+      sentimiento,
       calidad,
     },
     { status: result.success ? 200 : 500 },

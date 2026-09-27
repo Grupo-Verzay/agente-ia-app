@@ -39,6 +39,7 @@ import { pedirSinCola } from "@/lib/pedir-sin-cola";
 import { expandirSesiones } from "@/lib/sesiones-por-el-cable";
 import type { RespuestaDeLasSesiones } from "@/app/api/chats/sesiones/route";
 import type { RespuestaDeLaLista } from "@/app/api/chats/lista/route";
+import { elSentimientoDe, llaveDelSentimiento, mismosSentimientos, type SentimientoDeLaConversacion } from "@/lib/sentimiento";
 import type { RespuestaDePrecarga } from "@/lib/precarga-de-chats";
 import type { MedicionDeUnaCarga } from "@/lib/vigilancia-de-chats";
 import { mencionaUnaPromesa } from "@/lib/promesa-del-cliente";
@@ -1121,6 +1122,12 @@ export function ChatsClient({
    * identidad que trae el aviso, para que la barra lateral y la cabecera la
    * encuentren sin buscar.
    */
+  /**
+   * El sentimiento de las conversaciones no neutras, `linea::jid`. Viaja con la
+   * lista de chats (cada 20 s) y pinta el aro del avatar y la franja de alerta.
+   * Solo se reemplaza si cambio algo: ver `mismosSentimientos`.
+   */
+  const [sentimientos, setSentimientos] = useState<Record<string, SentimientoDeLaConversacion>>({});
   const [presencias, setPresencias] = useState<Record<string, { estado: PresenciaContacto; hasta: number }>>({});
   useEffect(() => {
     if (!Object.keys(presencias).length) return;
@@ -2252,6 +2259,10 @@ export function ChatsClient({
     // El servidor devuelve una entrada por linea pedida, pero una respuesta que
     // no llego trae la lista vacia: se rellena para que el aviso de abajo diga
     // que falto, en vez de callarse.
+    if (respuesta.sentimientos) {
+      const nuevos = respuesta.sentimientos;
+      setSentimientos((previos) => (mismosSentimientos(previos, nuevos) ? previos : nuevos));
+    }
     const porLinea = new Map(respuesta.lineas.map((l) => [l.instanceName, l]));
     const results: Array<{ instanceName: string; resultado: FetchChatsResult }> = pedidas.map(
       (instanceName) => ({
@@ -5479,6 +5490,7 @@ export function ChatsClient({
           allTags={allTags}
           etiquetasDelFiltro={etiquetasParaFiltrar}
           presencias={presenciasVisibles}
+          sentimientos={sentimientos}
           chatPreferences={chatPreferences}
           chatSessions={chatSessions}
           onArchiveChat={handleArchiveChat}
@@ -5545,6 +5557,12 @@ export function ChatsClient({
                 ? presenciasVisibles[`${currentContact?.instanceName ?? selectedInstanceName ?? ""}::${currentContact?.remoteJid ?? selectedJid}`] ?? null
                 : null
             }
+            sentimiento={
+              selectedJid
+                ? elSentimientoDe(sentimientos, currentContact?.instanceName ?? selectedInstanceName, [currentContact?.remoteJid, selectedJid])
+                : null
+            }
+            llaveDeLaConversacion={llaveDelSentimiento(currentContact?.instanceName ?? selectedInstanceName, currentContact?.remoteJid ?? selectedJid)}
             conexion={
               selectedJid
                 ? conexiones[`${currentContact?.instanceName ?? selectedInstanceName ?? ""}::${currentContact?.remoteJid ?? selectedJid}`] ?? null

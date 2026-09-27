@@ -1,5 +1,6 @@
 "use client";
 
+import { elSentimientoDe, type SentimientoDeLaConversacion } from "@/lib/sentimiento";
 import { claveEnLaLista, ordenDeLaLista } from "./lo-que-ve-todos";
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -278,6 +279,8 @@ type ChatSidebarProps = {
   onCompose?: () => void;
   /** Presencia por fila (`linea::jid`): escribiendo / grabando. */
   presencias?: Record<string, PresenciaContacto>;
+  /** El sentimiento de cada conversación no neutra (`linea::jid`): tiñe el aro del avatar. */
+  sentimientos?: Record<string, SentimientoDeLaConversacion>;
   // Cada chat marcado viaja con SU linea: un mismo numero puede estar
   // seleccionado en una linea y no en otra, y la accion tiene que caer solo en
   // la que se marco.
@@ -340,6 +343,7 @@ export function ChatSidebar({
   isRefreshing,
   onCompose,
   presencias,
+  sentimientos,
   onBulkArchive,
   onBulkDelete,
   onContarParaBorrar,
@@ -1874,6 +1878,7 @@ export function ChatSidebar({
                 key={`${contact.instanceName ?? ""}::${contact.id}`}
                 contact={contact}
                 presencia={presencias?.[`${contact.instanceName ?? ""}::${contact.id}`] ?? null}
+                sentimiento={elSentimientoDe(sentimientos, contact.instanceName, [contact.id])?.sentimiento ?? null}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
                 onPrefetch={handlePrefetchJid}

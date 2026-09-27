@@ -3,8 +3,11 @@
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import {
+    comoAccionEnLote,
     comoAdjuntosParaEnviar,
+    comoCarpeta,
     comoDatosDeImap,
+    comoLoteDeCorreos,
     comoDestinatarios,
     comoFirma,
     comoTextoDeLaRespuesta,
@@ -12,6 +15,7 @@ import {
     elTextoParaLaIa,
     hayLlavesDe,
     laFotoDelAnclado,
+    type AccionEnLote,
     type CorreoAnclado,
     type CorreoCompleto,
     type CorreoDeLaBandeja,
@@ -115,14 +119,19 @@ async function elMio(buzonId: unknown) {
     return { buzon };
 }
 
-export async function bandejaAction(buzonId: unknown, cursor: unknown): Promise<Resultado<Pagina>> {
+/**
+ * Una página de la bandeja de UN buzón. `carpeta` es «entrada» (lo de
+ * siempre) o «archivo» —la pastilla «Archivados»—; lo que no se entienda es
+ * «entrada».
+ */
+export async function bandejaAction(buzonId: unknown, cursor: unknown, carpeta?: unknown): Promise<Resultado<Pagina>> {
     try {
         const r = await elMio(buzonId);
         if ("error" in r) return { success: false, message: r.error! };
         if (r.buzon.estado === "reconectar") {
             return { success: false, message: r.buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true };
         }
-        const pagina = await elProveedorDe(r.buzon).bandeja(r.buzon, typeof cursor === "string" && cursor ? cursor : null);
+        const pagina = await elProveedorDe(r.buzon).bandeja(r.buzon, typeof cursor === "string" && cursor ? cursor : null, comoCarpeta(carpeta));
         return { success: true, ...pagina };
     } catch (error) {
         return fallo(error, "no se pudo leer la bandeja");
@@ -147,8 +156,9 @@ export type LoDeUnBuzon =
  * - Cada correo sale con su `buzonId`: la pantalla lo necesita para abrirlo,
  *   responderlo y eliminarlo en SU buzón, y para pintar de cuál llegó.
  */
-export async function bandejaUnificadaAction(cursores?: unknown): Promise<Resultado<{ porBuzon: LoDeUnBuzon[] }>> {
+export async function bandejaUnificadaAction(cursores?: unknown, carpeta?: unknown): Promise<Resultado<{ porBuzon: LoDeUnBuzon[] }>> {
     try {
+        const deDonde = comoCarpeta(carpeta);
         const persona = await laPersona();
         if (!persona) return { success: false, message: "No autorizado." };
         const mios = await losBuzonesDe(persona.id);
@@ -169,7 +179,7 @@ export async function bandejaUnificadaAction(cursores?: unknown): Promise<Result
                 }
                 const buzon = await elBuzonDe(persona.id, visible.id);
                 if (!buzon) return { buzonId: visible.id, ok: false, message: "Ese correo no está conectado.", reconectar: false };
-                const pagina = await elProveedorDe(buzon).bandeja(buzon, cursorDe(visible.id));
+                const pagina = await elProveedorDe(buzon).bandeja(buzon, cursorDe(visible.id), deDonde);
                 return {
                     buzonId: visible.id,
                     ok: true,
@@ -468,6 +478,82 @@ export async function desanclarCorreoAction(buzonId: unknown, correoId: unknown)
         return { success: true, desanclado: true };
     } catch (error) {
         return fallo(error, "no se pudo desanclar el correo");
+    }
+}
+
+/** Lo que devuelve un lote: lo que salió y lo que no, con su motivo. */
+export type ResumenDelLote = {
+    hechos: { buzonId: string; id: string }[];
+    fallidos: { buzonId: string; id: string; motivo: string }[];
+    /** Solo en «eliminar»: si algún servidor IMAP no tenía papelera y lo borró del todo. */
+    sinPapelera: boolean;
+};
+
+/**
+ * Hacer lo MISMO a varios correos a la vez: la barra de la selección múltiple,
+ * como la de Chats (leído, no leído, destacar, archivar, eliminar).
+ *
+ * **Una acción de servidor con la lista entera, no N llamadas**: Next pone en
+ * fila las acciones de una misma página, así que veinte llamadas sueltas son
+ * veinte idas y vueltas en fila india. Y dentro va **en serie**: son veinte
+ * peticiones al proveedor del mismo buzón, y en paralelo es justo lo que un
+ * proveedor frena.
+ *
+ * - La lista se sanea (`comoLoteDeCorreos`: pares de verdad, sin repetir, con
+ *   tope) y **cada buzón se busca con la persona en el `WHERE`**: un par con el
+ *   buzón de otro sale en `fallidos` diciendo «no está», igual que uno
+ *   inventado.
+ * - **Lo que no se pudo se CUENTA y se dice**, correo a correo: un «listo»
+ *   sobre veinte de los que salieron dieciocho es peor que un error.
+ * - Archivar y eliminar desanclan, como sus hermanas de uno en uno.
+ */
+export async function correosEnLoteAction(accion: unknown, lote: unknown): Promise<Resultado<ResumenDelLote>> {
+    try {
+        const persona = await laPersona();
+        if (!persona) return { success: false, message: "No autorizado." };
+        const que: AccionEnLote | null = comoAccionEnLote(accion);
+        if (!que) return { success: false, message: "No se entendió qué hacer con los correos." };
+        const lista = comoLoteDeCorreos(lote);
+        if (!lista.length) return { success: false, message: "No hay correos seleccionados." };
+
+        const buzones = new Map<string, Awaited<ReturnType<typeof elBuzonDe>>>();
+        const resumen: ResumenDelLote = { hechos: [], fallidos: [], sinPapelera: false };
+        for (const item of lista) {
+            if (!buzones.has(item.buzonId)) buzones.set(item.buzonId, await elBuzonDe(persona.id, item.buzonId));
+            const buzon = buzones.get(item.buzonId);
+            if (!buzon) {
+                resumen.fallidos.push({ ...item, motivo: "Ese correo no está conectado." });
+                continue;
+            }
+            if (buzon.estado === "reconectar") {
+                resumen.fallidos.push({ ...item, motivo: buzon.ultimoError || "Vuelve a conectar este correo." });
+                continue;
+            }
+            const proveedor = elProveedorDe(buzon);
+            try {
+                if (que === "leido") await proveedor.marcarComoLeido(buzon, item.id);
+                else if (que === "noLeido") await proveedor.marcarComoNoLeido(buzon, item.id);
+                else if (que === "destacar") await proveedor.destacar(buzon, item.id, true);
+                else if (que === "quitarDestacado") await proveedor.destacar(buzon, item.id, false);
+                else if (que === "archivar") await proveedor.archivar(buzon, item.id);
+                else {
+                    const { aLaPapelera } = await proveedor.eliminar(buzon, item.id);
+                    if (!aLaPapelera) resumen.sinPapelera = true;
+                }
+                if (que === "archivar" || que === "eliminar") {
+                    await desanclarElCorreo(buzon.personaId, buzon.id, item.id).catch((error) =>
+                        console.warn("[correo] hecho en lote, pero no se pudo quitar el anclado", error instanceof Error ? error.message : error),
+                    );
+                }
+                resumen.hechos.push(item);
+            } catch (error) {
+                const f = fallo(error, `no se pudo ${que} en lote`);
+                resumen.fallidos.push({ ...item, motivo: f.message });
+            }
+        }
+        return { success: true, ...resumen };
+    } catch (error) {
+        return fallo(error, "no se pudo hacer la acción en lote");
     }
 }
 

@@ -376,48 +376,252 @@ export function laPalabraDelBuzon(direccion: string, todas: string[]): string {
     return miDominio && conMiDominio.length <= 1 ? miDominio : direccion;
 }
 
-/* ── El filtro de leído ───────────────────────────────────────────────────── */
+/* ── Los filtros de la bandeja ─────────────────────────────────────────────── */
 
-export const FILTROS_DE_LEIDO = ["todos", "sinLeer", "leidos"] as const;
-export type FiltroDeLeido = (typeof FILTROS_DE_LEIDO)[number];
+/**
+ * Las pastillas de la barra, en este orden: Destacados, Todos, Sin leer y
+ * Archivados — con el mismo estilo, tamaño y espaciado que las de Chats (el
+ * mismo componente, `PastillaDeFiltro`). Detrás, la flecha «⌄» con lo que se
+ * usa menos: los filtros de `FILTROS_EN_LA_FLECHA`.
+ *
+ * **Archivados no filtra lo cargado: es OTRA carpeta** (`laCarpetaDelFiltro`).
+ * Lo archivado ya no está en la bandeja de entrada, así que no hay nada que
+ * filtrar ahí: se pide al proveedor su carpeta de archivo. Los otros filtran
+ * lo que ya se trajo, como en Chats.
+ */
+export const FILTROS_EN_PASTILLA = ["destacados", "todos", "sinLeer", "archivados"] as const;
+export const FILTROS_EN_LA_FLECHA = ["leidos", "conAdjuntos", "anclados"] as const;
+export const FILTROS_DE_CORREO = [...FILTROS_EN_PASTILLA, ...FILTROS_EN_LA_FLECHA] as const;
+export type FiltroDeCorreo = (typeof FILTROS_DE_CORREO)[number];
 
-export const NOMBRE_DEL_FILTRO: Record<FiltroDeLeido, string> = {
+export const NOMBRE_DEL_FILTRO: Record<FiltroDeCorreo, string> = {
+    destacados: "Destacados",
     todos: "Todos",
     sinLeer: "Sin leer",
+    archivados: "Archivados",
     leidos: "Leídos",
+    conAdjuntos: "Con adjuntos",
+    anclados: "Anclados",
 };
 
 /** Lo que no se reconozca es «todos»: un filtro raro no puede dejar la bandeja vacía. */
-export function comoFiltroDeLeido(valor: unknown): FiltroDeLeido {
-    return typeof valor === "string" && (FILTROS_DE_LEIDO as readonly string[]).includes(valor) ? (valor as FiltroDeLeido) : "todos";
+export function comoFiltroDeCorreo(valor: unknown): FiltroDeCorreo {
+    return typeof valor === "string" && (FILTROS_DE_CORREO as readonly string[]).includes(valor) ? (valor as FiltroDeCorreo) : "todos";
 }
 
-export function pasaElFiltroDeLeido(c: { sinLeer: boolean }, filtro: FiltroDeLeido): boolean {
-    if (filtro === "sinLeer") return c.sinLeer;
-    if (filtro === "leidos") return !c.sinLeer;
-    return true;
+/** El filtro puesto vive en la flecha: la flecha se pinta encendida, como en Chats. */
+export function esFiltroDeLaFlecha(filtro: FiltroDeCorreo): boolean {
+    return (FILTROS_EN_LA_FLECHA as readonly string[]).includes(filtro);
+}
+
+/** De qué carpeta del proveedor sale la lista. */
+export const CARPETAS_DE_CORREO = ["entrada", "archivo"] as const;
+export type CarpetaDeCorreo = (typeof CARPETAS_DE_CORREO)[number];
+
+export function comoCarpeta(valor: unknown): CarpetaDeCorreo {
+    return valor === "archivo" ? "archivo" : "entrada";
+}
+
+export function laCarpetaDelFiltro(filtro: FiltroDeCorreo): CarpetaDeCorreo {
+    return filtro === "archivados" ? "archivo" : "entrada";
 }
 
 /**
- * Los números de las tres pastillas del filtro, sobre lo CARGADO.
+ * Si un correo YA CARGADO pasa el filtro. `anclado` lo dice quien tiene la
+ * lista de anclados (la pantalla): el resumen del proveedor no lo sabe.
+ * «Archivados» deja pasar todo, porque su lista ya es la carpeta de archivo.
+ */
+export function pasaElFiltroDeCorreo(
+    c: { sinLeer: boolean; destacado?: boolean; conAdjuntos?: boolean },
+    filtro: FiltroDeCorreo,
+    anclado = false,
+): boolean {
+    switch (filtro) {
+        case "destacados":
+            return Boolean(c.destacado);
+        case "sinLeer":
+            return c.sinLeer;
+        case "leidos":
+            return !c.sinLeer;
+        case "conAdjuntos":
+            return Boolean(c.conAdjuntos);
+        case "anclados":
+            return anclado;
+        default:
+            return true;
+    }
+}
+
+/**
+ * Los números de los filtros, sobre lo CARGADO.
  *
  * Un contador es un `COUNT`, no un `length` — y aquí no hay `COUNT`: el
- * proveedor no dice cuántos correos hay en total. Así que cuando quedan
- * páginas sin traer (`hayMas`) el número lleva un «+» detrás: dice «al menos
- * esto», que es lo cierto. Por encima de 99, «99+», como «Sin leer» en Chats.
- * En cero no hay número (la pastilla no pinta insignia en cero).
+ * proveedor no dice cuántos hay de cada clase. Así que cuando quedan páginas
+ * sin traer (`hayMas`) el número lleva un «+» detrás: dice «al menos esto»,
+ * que es lo cierto. Por encima de 99, «99+», como «Sin leer» en Chats. En cero
+ * no hay número (la pastilla no pinta insignia en cero).
+ *
+ * Los de la bandeja de entrada salen de lo cargado de ella; el de Archivados,
+ * de lo cargado de la carpeta de archivo, y **sin número mientras no se haya
+ * abierto**: «no se sabe» no es un cero.
  */
 export function losNumerosDelFiltro(
-    correos: { sinLeer: boolean }[],
-    hayMas: boolean,
-): Record<FiltroDeLeido, string | undefined> {
-    const sinLeer = correos.filter((c) => c.sinLeer).length;
-    const numero = (n: number): string | undefined => {
+    entrada: { correos: { sinLeer: boolean; destacado?: boolean; conAdjuntos?: boolean }[]; hayMas: boolean },
+    archivo: { correos: unknown[]; hayMas: boolean } | null = null,
+    anclados = 0,
+): Record<FiltroDeCorreo, string | undefined> {
+    const numero = (n: number, hayMas: boolean): string | undefined => {
         if (n <= 0) return undefined;
         if (n > 99) return "99+";
         return hayMas ? `${n}+` : String(n);
     };
-    return { todos: numero(correos.length), sinLeer: numero(sinLeer), leidos: numero(correos.length - sinLeer) };
+    const { correos, hayMas } = entrada;
+    const sinLeer = correos.filter((c) => c.sinLeer).length;
+    return {
+        destacados: numero(correos.filter((c) => c.destacado).length, hayMas),
+        todos: numero(correos.length, hayMas),
+        sinLeer: numero(sinLeer, hayMas),
+        archivados: archivo ? numero(archivo.correos.length, archivo.hayMas) : undefined,
+        leidos: numero(correos.length - sinLeer, hayMas),
+        conAdjuntos: numero(correos.filter((c) => c.conAdjuntos).length, hayMas),
+        // Los anclados se conocen enteros (viajan con los buzones): sin «+».
+        anclados: numero(anclados, false),
+    };
+}
+
+/* ── Un correo del archivo en IMAP ────────────────────────────────────────── */
+
+/**
+ * En Gmail y Outlook el id de un correo vale en cualquier carpeta. En IMAP
+ * NO: un UID es de SU carpeta, y el «7» de la bandeja y el «7» del archivo son
+ * dos correos distintos. Así que un correo sacado del archivo lleva la carpeta
+ * dentro del id —`archivo:7`— y todo lo que lo abre, lo marca o lo elimina
+ * abre esa carpeta y no `INBOX`. Una sola función decide cómo se parte.
+ */
+export const PREFIJO_DEL_ARCHIVO_IMAP = "archivo:";
+
+export function idImapDelArchivo(uid: string | number): string {
+    return `${PREFIJO_DEL_ARCHIVO_IMAP}${uid}`;
+}
+
+export function partirIdImap(id: string): { enArchivo: boolean; uid: string } {
+    return id.startsWith(PREFIJO_DEL_ARCHIVO_IMAP)
+        ? { enArchivo: true, uid: id.slice(PREFIJO_DEL_ARCHIVO_IMAP.length) }
+        : { enArchivo: false, uid: id };
+}
+
+/* ── «Nuevo» en la fila ───────────────────────────────────────────────────── */
+
+/** Cuánto dura «Nuevo»: lo que llegó en el último día y nadie ha abierto. */
+export const HORAS_DE_NUEVO = 24;
+
+/**
+ * La etiqueta «Nuevo» de la fila: sin leer Y recién llegado. Las dos cosas:
+ * un correo de hace un mes que sigue sin abrir no es nuevo (ya lo dice el
+ * punto de «sin leer»), y uno de hace un minuto que ya se leyó tampoco. Una
+ * fecha que no se entiende no es nueva: se ve de menos, nunca de más.
+ */
+export function esCorreoNuevo(c: { sinLeer: boolean; fecha: string | null }, ahora = Date.now()): boolean {
+    if (!c.sinLeer || !c.fecha) return false;
+    const t = Date.parse(c.fecha);
+    if (!Number.isFinite(t)) return false;
+    const edad = ahora - t;
+    // Un reloj del remitente un poco adelantado no deja de ser «ahora».
+    return edad > -10 * 60_000 && edad < HORAS_DE_NUEVO * 3_600_000;
+}
+
+/** Las iniciales del remitente, para su círculo: como el avatar de un contacto sin foto en Chats. */
+export function lasInicialesDelRemitente(nombre: string | null | undefined): string {
+    const partes = String(nombre ?? "").replace(/[<>"@].*$/, "").trim().split(/\s+/).filter(Boolean);
+    const letras = (partes.length > 1 ? partes[0][0] + partes[partes.length - 1][0] : (partes[0] ?? "?").slice(0, 2)) || "?";
+    return letras.toUpperCase();
+}
+
+/* ── La selección múltiple y las acciones en lote ─────────────────────────── */
+
+/** Lo que se le puede hacer a varios correos a la vez, como la barra de Chats. */
+export const ACCIONES_EN_LOTE = ["leido", "noLeido", "destacar", "quitarDestacado", "archivar", "eliminar"] as const;
+export type AccionEnLote = (typeof ACCIONES_EN_LOTE)[number];
+
+export function comoAccionEnLote(valor: unknown): AccionEnLote | null {
+    return typeof valor === "string" && (ACCIONES_EN_LOTE as readonly string[]).includes(valor) ? (valor as AccionEnLote) : null;
+}
+
+/**
+ * Cómo queda la lista al hacer una acción en lote, AL MOMENTO —antes de que
+ * conteste el proveedor, como al eliminar un chat—: leído y no leído mueven el
+ * punto, destacar la estrella, y archivar y eliminar sacan las filas.
+ */
+export function conElLote<T extends ResumenDeCorreo & { buzonId?: string }>(correos: T[], llaves: ReadonlySet<string>, accion: AccionEnLote): T[] {
+    if (accion === "archivar" || accion === "eliminar") return correos.filter((c) => !llaves.has(laLlaveDelCorreo(c)));
+    return correos.map((c) => {
+        if (!llaves.has(laLlaveDelCorreo(c))) return c;
+        if (accion === "leido") return c.sinLeer ? { ...c, sinLeer: false } : c;
+        if (accion === "noLeido") return c.sinLeer ? c : { ...c, sinLeer: true };
+        const destacado = accion === "destacar";
+        return Boolean(c.destacado) === destacado ? c : { ...c, destacado };
+    });
+}
+
+/**
+ * Lo que el proveedor dijo que NO, de vuelta a como estaba: cada correo fallido
+ * vuelve con los datos de `antes` —y a SU sitio si se había quitado—. Lo que
+ * sí salió se queda como quedó. Un «listo» que se deshace entero por uno que
+ * falló sería mentir por el otro lado.
+ */
+export function devolverLosDelLote<T extends ResumenDeCorreo & { buzonId?: string }>(actual: T[], antes: T[], llaves: ReadonlySet<string>): T[] {
+    let lista = actual;
+    antes.forEach((c, posicion) => {
+        const llave = laLlaveDelCorreo(c);
+        if (!llaves.has(llave)) return;
+        const i = lista.findIndex((x) => laLlaveDelCorreo(x) === llave);
+        lista = i >= 0 ? [...lista.slice(0, i), c, ...lista.slice(i + 1)] : devolverElCorreo(lista, c, posicion);
+    });
+    return lista;
+}
+
+/** Cuántos correos admite un lote. Sin tope, una lista de fuera serían mil viajes al proveedor. */
+export const TOPE_DEL_LOTE = 100;
+
+/**
+ * La lista que llega del navegador, saneada: pares `{ buzonId, id }` de verdad,
+ * sin repetir y con tope. Lo que no sea un par de cadenas se descarta. De quién
+ * es cada buzón lo comprueba la acción; aquí solo se limpia la forma.
+ */
+export function comoLoteDeCorreos(valor: unknown): { buzonId: string; id: string }[] {
+    if (!Array.isArray(valor)) return [];
+    const vistos = new Set<string>();
+    const lista: { buzonId: string; id: string }[] = [];
+    for (const v of valor) {
+        if (!v || typeof v !== "object") continue;
+        const { buzonId, id } = v as { buzonId?: unknown; id?: unknown };
+        if (typeof buzonId !== "string" || !buzonId || typeof id !== "string" || !id) continue;
+        const llave = laLlaveDelCorreo({ buzonId, id });
+        if (vistos.has(llave)) continue;
+        vistos.add(llave);
+        lista.push({ buzonId, id });
+        if (lista.length >= TOPE_DEL_LOTE) break;
+    }
+    return lista;
+}
+
+/** Marcar o desmarcar una llave en la selección, sin tocar el conjunto de antes. */
+export function alternarEnLaSeleccion(seleccion: ReadonlySet<string>, llave: string): Set<string> {
+    const nueva = new Set(seleccion);
+    if (nueva.has(llave)) nueva.delete(llave);
+    else nueva.add(llave);
+    return nueva;
+}
+
+/**
+ * La selección acotada a lo que SE VE: lo marcado que ya no está —se archivó,
+ * se eliminó o lo escondió un filtro— deja de contar. Es la regla de la
+ * selección múltiple de la plataforma: la barra diría «eliminar 5» y se
+ * llevaría por delante uno que quien mira no tiene enfrente.
+ */
+export function laSeleccionVisible(seleccion: ReadonlySet<string>, visibles: { id: string; buzonId: string }[]): Set<string> {
+    const hay = new Set(visibles.map(laLlaveDelCorreo));
+    return new Set([...seleccion].filter((l) => hay.has(l)));
 }
 
 /**

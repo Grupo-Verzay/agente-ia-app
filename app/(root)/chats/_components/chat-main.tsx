@@ -1,5 +1,7 @@
 'use client';
 
+import { FranjaDeSentimiento } from "@/components/chats/FranjaDeSentimiento";
+import type { SentimientoDeLaConversacion } from "@/lib/sentimiento";
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, {
   useCallback,
@@ -95,6 +97,10 @@ type ChatMainProps = {
   presencia?: PresenciaContacto | null;
   /** Si el contacto esta conectado, y cuando se vio por ultima vez. */
   conexion?: { estado: ConexionContacto; lastSeen: number | null } | null;
+  /** El sentimiento más reciente del cliente: con negativo sale la franja de alerta. */
+  sentimiento?: SentimientoDeLaConversacion | null;
+  /** `linea::jid` de esta conversación: la llave con la que se recuerda la franja cerrada. */
+  llaveDeLaConversacion?: string;
   loading?: boolean;
   onSend: (payload: OutgoingMessagePayload) => void | Promise<void>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
@@ -151,6 +157,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   info,
   presencia,
   conexion,
+  sentimiento,
+  llaveDeLaConversacion,
   loading,
   onSend,
   onSendQuickReply,
@@ -1373,6 +1381,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           setSuggestionError(false);
           setIsGeneratingSuggestion(false);
         }}
+      />
+
+      <FranjaDeSentimiento
+        sentimiento={sentimiento}
+        llaveDeLaConversacion={llaveDeLaConversacion ?? ""}
       />
 
       <ChatInputBar
