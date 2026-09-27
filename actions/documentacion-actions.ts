@@ -27,7 +27,9 @@ import {
     comoNombreDeCarpeta,
     type Carpeta,
 } from "@/lib/carpetas-de-documentacion";
+import { canManageWorkspace } from "@/lib/workspace-roles";
 import {
+    comoObjetoTipoDePermiso,
     comoPermiso,
     comoSujeto,
     comoVisibilidad,
@@ -35,11 +37,13 @@ import {
     puedeMandarEnElArbol,
     puedeMandarEnElEspacio,
     type Acceso,
+    type ObjetoDePermiso,
     type Permiso,
     type SujetoDePermiso,
     type VisibilidadDeEspacio,
 } from "@/lib/documentacion-permisos";
 import {
+    accesoAEstaCarpeta,
     accesoAEsteDocumento,
     accesoAEsteEspacio,
     losEspaciosQueAlcanza,
@@ -178,6 +182,15 @@ export type ArbolDeDocumentacion = {
      * accidental, no la petición.
      */
     puedeMandarEnElArbol: boolean;
+    /**
+     * Si quien mira puede **compartir una carpeta entera**.
+     *
+     * Es `canManageWorkspace`, la misma puerta que ya decide `puedeGestionar`
+     * en cada espacio: repartir permisos es cosa de quien manda, no de quien
+     * solo coloca. Vale para TODAS las carpetas de esta respuesta porque
+     * `carpetas` son siempre las de la cuenta propia —nunca una recibida—.
+     */
+    puedeCompartirCarpetas: boolean;
 };
 
 export async function leerElArbolAction(input?: {
@@ -212,6 +225,7 @@ export async function leerElArbolAction(input?: {
             carpetas,
             enCarpeta,
             puedeMandarEnElArbol: puedeMandar,
+            puedeCompartirCarpetas: canManageWorkspace(quien.user),
         };
     }
 
@@ -272,6 +286,7 @@ export async function leerElArbolAction(input?: {
         carpetas,
         enCarpeta,
         puedeMandarEnElArbol: puedeMandar,
+        puedeCompartirCarpetas: canManageWorkspace(quien.user),
     };
 }
 
@@ -947,6 +962,25 @@ export async function restringirDocumentoAction(input: {
 
 /* ────────────────────────────── Los permisos ────────────────────────────── */
 
+/**
+ * La puerta de UN objeto que se puede repartir: espacio, documento o carpeta.
+ *
+ * Las seis acciones de esta sección preguntan lo mismo —¿alcanza este objeto,
+ * y con qué puede hacer con él?—, y escribirlo seis veces es garantizar que la
+ * séptima diga otra cosa. Devuelve el `Acceso`, que es lo único que las seis
+ * miran (`.puedeGestionar`); nunca el espacio, documento o carpeta de dentro,
+ * que ninguna de las seis necesita.
+ */
+async function accesoAlObjetoDePermiso(
+    user: Parameters<typeof accesoAEsteEspacio>[0],
+    objetoTipo: ObjetoDePermiso,
+    objetoId: string,
+): Promise<Acceso | null> {
+    if (objetoTipo === "espacio") return (await accesoAEsteEspacio(user, objetoId))?.acceso ?? null;
+    if (objetoTipo === "documento") return (await accesoAEsteDocumento(user, objetoId))?.acceso ?? null;
+    return (await accesoAEstaCarpeta(user, objetoId))?.acceso ?? null;
+}
+
 export type PermisoConNombre = {
     sujetoTipo: SujetoDePermiso;
     sujetoId: string;
@@ -961,16 +995,13 @@ export async function leerLosPermisosAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     if (!objetoId) return NO("Falta el objeto.");
 
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes ver sus permisos.");
+    if (!acceso.puedeGestionar) return NO("No puedes ver sus permisos.");
 
     const filas = await losPermisosDe({ objetoTipo, objetoId });
     const ids = Array.from(new Set(filas.map((f) => f.sujetoId)));
@@ -1071,19 +1102,16 @@ export async function loQueSePuedeCompartirAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     if (!objetoId) return NO("Falta el objeto.");
 
     // La lista va detrás de la MISMA puerta que repartir. Ofrecer las cuentas
     // de la plataforma a quien no puede compartir nada sería enseñar de balde
     // quién hay dentro.
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+    if (!acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
     try {
         return { success: true, data: await losQueSePuedeCompartir(quien.cuenta) };
@@ -1108,19 +1136,16 @@ export async function ponerPermisoAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     const sujetoTipo = comoSujeto(input.sujetoTipo);
     const sujetoId = comoId(input.sujetoId);
     const permiso = comoPermiso(input.permiso);
     if (!objetoId || !sujetoTipo || !sujetoId || !permiso) return NO("Faltan datos.");
 
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+    if (!acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
     // El sujeto tiene que estar en la lista que el selector OFRECE, no solo
     // existir. Comprobando solo que exista, una petición a mano le daba acceso
@@ -1188,18 +1213,15 @@ export async function lasCuentasParaCompartirAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     if (!objetoId) return NO("Falta el objeto.");
 
     // La MISMA puerta que repartir. Enseñar la lista de cuentas de la
     // plataforma a quien no puede compartir nada es decir de balde quién hay.
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+    if (!acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
     try {
         const { cuentasParaCompartir } = await import("@/lib/cuentas-cliente");
@@ -1238,16 +1260,13 @@ export async function compartirConCuentasAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     if (!objetoId) return NO("Falta el objeto.");
 
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+    if (!acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
     const crudos = Array.isArray(input.destinos) ? input.destinos : [];
     const pedidos: Array<{ cuentaId: string; permiso: Permiso }> = [];
@@ -1296,18 +1315,15 @@ export async function quitarPermisoAction(input: {
     const quien = await quienLlama();
     if (!quien) return NO("No autorizado.");
 
-    const objetoTipo = input.objetoTipo === "documento" ? "documento" : "espacio";
+    const objetoTipo = comoObjetoTipoDePermiso(input.objetoTipo);
     const objetoId = comoId(input.objetoId);
     const sujetoTipo = comoSujeto(input.sujetoTipo);
     const sujetoId = comoId(input.sujetoId);
     if (!objetoId || !sujetoTipo || !sujetoId) return NO("Faltan datos.");
 
-    const acceso =
-        objetoTipo === "espacio"
-            ? await accesoAEsteEspacio(quien.user, objetoId)
-            : await accesoAEsteDocumento(quien.user, objetoId);
+    const acceso = await accesoAlObjetoDePermiso(quien.user, objetoTipo, objetoId);
     if (!acceso) return NO("No autorizado.");
-    if (!acceso.acceso.puedeGestionar) return NO("No puedes repartir esto.");
+    if (!acceso.puedeGestionar) return NO("No puedes repartir esto.");
 
     try {
         await quitarPermiso({ objetoTipo, objetoId, sujetoTipo, sujetoId });

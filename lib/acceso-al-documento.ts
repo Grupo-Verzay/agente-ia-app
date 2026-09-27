@@ -1,12 +1,15 @@
 import {
     elDocumento,
     elEspacio,
+    laCarpeta,
     losEspaciosCandidatos,
     losPermisosDe,
+    losPermisosDelEspacioConSuCarpeta,
     type Documento,
     type Espacio,
 } from "@/lib/documentacion-db";
 import {
+    accesoALaCarpeta,
     accesoAlDocumento,
     accesoAlEspacio,
     laCuentaDeQuienMira,
@@ -14,6 +17,7 @@ import {
     type FilaDePermiso,
     type QuienMira,
 } from "@/lib/documentacion-permisos";
+import type { Carpeta } from "@/lib/carpetas-de-documentacion";
 
 /**
  * La puerta de la documentación, resuelta contra la base.
@@ -102,13 +106,15 @@ export async function accesoAEsteDocumento(
 
     const espacio = await elEspacio(documento.espacioId);
 
-    // Las filas que le tocan a quien mira, de este documento y de su espacio.
-    // Se piden juntas: son dos consultas pequeñas y la decisión las necesita a
-    // la vez, porque el documento solo puede AÑADIR sobre lo que da el espacio.
+    // Las filas que le tocan a quien mira, de este documento y de su espacio
+    // —con las de su carpeta ya convertidas en filas de espacio, si la
+    // hay—. Se piden juntas: son consultas pequeñas y la decisión las
+    // necesita a la vez, porque el documento solo puede AÑADIR sobre lo que
+    // da el espacio.
     const [delDocumento, delEspacio] = await Promise.all([
         losPermisosDe({ objetoTipo: "documento", objetoId: documento.id }),
         espacio
-            ? losPermisosDe({ objetoTipo: "espacio", objetoId: espacio.id })
+            ? losPermisosDelEspacioConSuCarpeta(espacio)
             : Promise.resolve([] as FilaDePermiso[]),
     ]);
 
@@ -129,11 +135,37 @@ export async function accesoAEsteEspacio(
     const espacio = await elEspacio(espacioId);
     if (!espacio) return null;
 
-    const permisos = await losPermisosDe({ objetoTipo: "espacio", objetoId: espacio.id });
+    const permisos = await losPermisosDelEspacioConSuCarpeta(espacio);
     const acceso = accesoAlEspacio(user, espacio, permisos);
     if (!acceso) return null;
 
     return { espacio, acceso };
+}
+
+export type CarpetaConAcceso = { carpeta: Carpeta; acceso: Acceso };
+
+/**
+ * `null` si no lo alcanza — y eso incluye «no existe». Igual que un espacio o
+ * un documento ajenos.
+ *
+ * A diferencia de esos dos, una carpeta nunca se «recibe»: lo que llega
+ * compartido son los espacios que agrupa, vía `accesoAEsteEspacio` con las
+ * filas sintéticas de `lib/documentacion-db.ts`. Esto es solo la puerta de la
+ * FICHA —renombrarla, borrarla, decidir con quién se comparte—, y por eso no
+ * hace falta traer ninguna fila de permiso: `accesoALaCarpeta` es pura
+ * propiedad, no reparto.
+ */
+export async function accesoAEstaCarpeta(
+    user: QuienMira,
+    carpetaId: string,
+): Promise<CarpetaConAcceso | null> {
+    const carpeta = await laCarpeta(carpetaId);
+    if (!carpeta) return null;
+
+    const acceso = accesoALaCarpeta(user, carpeta);
+    if (!acceso) return null;
+
+    return { carpeta, acceso };
 }
 
 /**

@@ -971,6 +971,7 @@ export function DocumentacionClient({
                                     cuantosEspacios={dentro.length}
                                     plegado={carpetasPlegadas.has(carpeta.id)}
                                     puedeMandar={arbol.puedeMandarEnElArbol}
+                                    puedeCompartir={arbol.puedeCompartirCarpetas}
                                     esLaPrimera={i === 0}
                                     esLaUltima={i === agrupado.carpetas.length - 1}
                                     alAlternar={() => alternarPlegado("carpetas", carpeta.id)}
