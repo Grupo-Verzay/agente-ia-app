@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { PASTILLAS_DE_LA_COLUMNA } from "@/lib/cabeceras-de-chats";
 import { PastillaDeFiltro, TONO_EN_ESPERA, TONO_MIAS, TONO_SIN_LEER, TONO_TODOS } from "@/components/shared/PastillaDeFiltro";
 import { MARCA_DE_LAS_PASTILLAS, usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
@@ -107,7 +108,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
        una pastilla se corte es que los huecos de dentro cedan. */
     <div
       {...{ [MARCA_DE_LAS_PASTILLAS]: "" }}
-      className="flex w-full items-center justify-between gap-1 overflow-hidden"
+      className={PASTILLAS_DE_LA_COLUMNA}
     >
       {visibleTabs.map(renderTab)}
 

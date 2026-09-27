@@ -3,7 +3,12 @@
 import * as React from "react";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CONTROL_DE_ICONO, GLIFO_DE_CONTROL } from "@/lib/cabeceras-de-chats";
+import {
+    BOTON_DE_LA_COLUMNA,
+    BOTON_DE_LA_COLUMNA_ACTIVO,
+    BOTON_DE_LA_COLUMNA_INACTIVO,
+    GLIFO_DE_CONTROL,
+} from "@/lib/cabeceras-de-chats";
 
 /**
  * Los dos botones de la derecha de la barra de Chats.
@@ -38,11 +43,8 @@ export const BotonDeAsesores = React.forwardRef<HTMLButtonElement, PropsDeAsesor
                 type="button"
                 title="Filtrar por asesor"
                 className={cn(
-                    "relative inline-flex shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors",
-                    CONTROL_DE_ICONO,
-                    activo
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    BOTON_DE_LA_COLUMNA,
+                    activo ? BOTON_DE_LA_COLUMNA_ACTIVO : BOTON_DE_LA_COLUMNA_INACTIVO,
                     className,
                 )}
                 {...resto}
@@ -85,11 +87,8 @@ export const BotonDeGrupos = React.forwardRef<HTMLButtonElement, PropsDeGrupos>(
                 title="Solo grupos"
                 aria-pressed={activo}
                 className={cn(
-                    "relative inline-flex shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors",
-                    CONTROL_DE_ICONO,
-                    activo
-                        ? "border-emerald-600 bg-emerald-600 text-white"
-                        : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    BOTON_DE_LA_COLUMNA,
+                    activo ? "border-emerald-600 bg-emerald-600 text-white" : BOTON_DE_LA_COLUMNA_INACTIVO,
                     className,
                 )}
                 {...resto}
