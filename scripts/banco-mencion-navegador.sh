@@ -58,9 +58,13 @@ const db = new PrismaClient();
 })();
 '
 
-if ! curl -sf -o /dev/null "http://localhost:$APP/login"; then
-  setsid npx next start -p "$APP" >/tmp/banco-mencion-next.log 2>&1 </dev/null &
-  for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$APP/login" && break; sleep 1; done
-fi
+# Un servidor FRESCO en cada vuelta: uno que siguiera vivo de la anterior
+# serviría otro build y recordaría columnas que `db push` acaba de quitar.
+# (`[n]ext`: sin los corchetes, pkill se encuentra a sí mismo y se mata.)
+pkill -f "[n]ext start -p $APP" 2>/dev/null || true
+sleep 1
+setsid npx next start -p "$APP" >/tmp/banco-mencion-next.log 2>&1 </dev/null &
+for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APP/login" && break; sleep 1; done
+trap 'pkill -f "[n]ext start -p $APP" 2>/dev/null || true' EXIT
 
 node scripts/probar-mencion-en-chats.mjs
