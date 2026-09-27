@@ -55,21 +55,35 @@ function asegurarLaTabla(): Promise<void> {
     return tablaLista;
 }
 
-/** En una consulta en crudo el `42P01` de Postgres viaja en `meta.code`. */
-function esTablaQueFalta(error: unknown): boolean {
+/** En una consulta en crudo el código de Postgres viaja en `meta.code`. */
+function codigoDePostgres(error: unknown): string {
     const e = error as { code?: string; meta?: { code?: string }; message?: string };
-    return e?.meta?.code === "42P01" || e?.code === "42P01" || Boolean(e?.message?.includes("42P01"));
+    const codigo = e?.meta?.code ?? e?.code ?? "";
+    if (codigo === "42P01" || codigo === "42703") return codigo;
+    const texto = String(e?.message ?? "");
+    return texto.includes("42P01") ? "42P01" : texto.includes("42703") ? "42703" : codigo;
 }
 
+/**
+ * Reintenta UNA vez si falta la tabla (`42P01`) o la columna `resolved_at`
+ * (`42703`). Los dos recuerdos —«ya creé la tabla», «ya puse la columna»— son
+ * del proceso, no de la base: si alguien los quita por debajo, sin esto cada
+ * consulta fallaría hasta reiniciar, y la puerta del invitado se cerraría sola.
+ */
 async function conLaTabla<T>(hacer: () => Promise<T>): Promise<T> {
     await asegurarLaTabla();
     try {
         return await hacer();
     } catch (error) {
-        if (!esTablaQueFalta(error)) throw error;
-        // El recuerdo de «ya la creé» es del proceso, no de la base.
-        tablaLista = null;
-        await asegurarLaTabla();
+        const codigo = codigoDePostgres(error);
+        if (codigo === "42P01") {
+            tablaLista = null;
+            await asegurarLaTabla();
+        } else if (codigo === "42703") {
+            await db.$executeRawUnsafe('ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP(3)');
+        } else {
+            throw error;
+        }
         return hacer();
     }
 }

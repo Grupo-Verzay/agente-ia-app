@@ -45,6 +45,17 @@ async function entrar(navegador, usuario) {
     return pagina;
 }
 
+/** La «Guía rápida» del copiloto se abre sola y su velo se come los clics. */
+async function apartarLoQueTapa(pagina) {
+    for (let i = 0; i < 8; i += 1) {
+        if (!(await pagina.$('div[data-state="open"].fixed.inset-0'))) return;
+        const cerrar = pagina.locator('[role="dialog"] button:has-text("Close")').first();
+        if (await cerrar.count()) await cerrar.click({ force: true }).catch(() => {});
+        else await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(400);
+    }
+}
+
 /** Cuántas filas de la LISTA tienen este contacto. */
 const filasDeLaLista = (pagina) =>
     pagina.evaluate((jid) => document.querySelectorAll(`[data-chat-id*="${jid.split("@")[0]}"]`).length, JID);
@@ -60,6 +71,7 @@ try {
     const deAna = await entrar(navegador, "ana@banco.test");
     await deAna.goto(`${BASE}/chats`, { waitUntil: "domcontentloaded" });
     await deAna.waitForTimeout(6000);
+    await apartarLoQueTapa(deAna);
     exigir((await filasDeLaLista(deAna)) === 0, "Ana no ve la conversación en su lista");
 
     // ── 2. El jefe la menciona desde el compositor ────────────────────
@@ -68,6 +80,10 @@ try {
     const caja = delJefe.locator("[data-barra=\"escribir\"] textarea").first();
     await caja.waitFor({ timeout: 30000 });
     await delJefe.waitForTimeout(2000);
+    await apartarLoQueTapa(delJefe);
+    // Que el conteo de la lista mide de verdad: al jefe SÍ le sale. Sin esto,
+    // «Ana no la ve» pasaría aunque el selector no encontrara ninguna fila.
+    exigir((await filasDeLaLista(delJefe)) > 0, "al jefe sí le sale en la lista (el conteo mide)");
     await caja.click();
     await caja.pressSequentially("Ana mira esto @An", { delay: 30 });
     const opcion = delJefe.getByRole("button", { name: /Ana Agente/ }).first();
@@ -95,7 +111,8 @@ try {
     exigir(despues.assignedAdvisorId === sesion.assignedAdvisorId, "la conversación no cambió de dueño");
 
     // ── 3. La ficha del jefe ──────────────────────────────────────────
-    await delJefe.locator('button[title="Ver ficha del contacto"]').first().click();
+    await apartarLoQueTapa(delJefe);
+    await delJefe.locator('button[title="Ver ficha del contacto"]:visible').first().click();
     const enLaFicha = delJefe.locator(`[data-accesos-por-mencion] [data-acceso="${ana.id}"]`);
     await enLaFicha.waitFor({ timeout: 15000 }).catch(() => {});
     exigir((await enLaFicha.count()) === 1, "la ficha enseña a Ana en «Por mención»");
@@ -106,6 +123,7 @@ try {
     await deAna.goto(`${BASE}${enlace}`, { waitUntil: "domcontentloaded" });
     const franja = deAna.locator("[data-aviso-de-invitado]");
     await franja.waitFor({ timeout: 30000 }).catch(() => {});
+    await apartarLoQueTapa(deAna);
     exigir((await franja.count()) === 1, "Ana entra como invitada, con la franja que lo dice");
     exigir(/Carlos Jefe te mencionó/.test((await franja.textContent()) ?? ""), "la franja nombra a quien la mencionó");
     await deAna.waitForTimeout(3000);

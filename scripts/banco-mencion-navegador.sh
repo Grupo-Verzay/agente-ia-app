@@ -31,7 +31,12 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
        NEXT_TELEMETRY_DISABLED=1 BASE="http://localhost:$APP"
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
-psql "$DATABASE_URL" -c 'ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT;' >/dev/null
+# Columnas que en PRODUCCIÓN existen por un ALTER en caliente y no están en el
+# esquema de Prisma: `db push` las quita en cada vuelta, y un servidor que siga
+# vivo de la vuelta anterior ya no las vuelve a crear.
+psql "$DATABASE_URL" -c 'ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT;' \
+  -c 'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP(3);' \
+  -c 'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMP(3);' >/dev/null
 node scripts/sembrar-barra.mjs >/dev/null
 
 # Ana: AGENTE del equipo, sin permiso de tomar de la bolsa. La conversación es
