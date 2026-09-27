@@ -18373,6 +18373,60 @@ pastillas, y que el panel se despliega hacia abajo colgado de su botón.
 `MODO=roto` lee Correo de un commit pinchado (`ANTES_DE_LOS_MANDOS`) y afirma
 el `<select>` y el grupo de botones.
 
+### Tan completo como Chats: la cabecera, anclar, destacar, archivar, reenviar y la barra de Chats
+
+Correo pasó a tener lo que un buzón necesita a diario, con **las piezas de
+Chats y no unas parecidas**, y solo los mandos que tienen sentido en un correo.
+
+| qué | dónde vive | de quién es la marca |
+| --- | --- | --- |
+| marcar como **no leído** | el propio buzón (`UNREAD`, `isRead:false`, quitar `\Seen`) | del proveedor |
+| **destacar** | la estrella de Gmail, la bandera de Outlook, `\Flagged` | del proveedor: se ve igual en el móvil |
+| **archivar** | Gmail quita `INBOX`; Outlook mueve a `archive`; IMAP a `\Archive` (y la crea si falta) | del proveedor. **Nunca borra** |
+| **anclar** arriba | `correo_anclados`, tabla de la App | de la PERSONA: ningún proveedor ancla |
+| **reenviar** | `forward` en Outlook; en Gmail e IMAP se compone con los archivos del original | — |
+| la **firma** | `correo_cuentas.firma` + `firmaActiva`, por buzón | de la persona, y la pone el servidor |
+| la **sugerencia de la IA** | `lib/sugerencia-de-correo.server.ts`, la IA de la cuenta, como en Chats | — |
+
+Seis cosas que hay que mantener:
+
+1. **La lectura es `LecturaDelCorreo.tsx`, con la cabecera de los paneles de
+   Chats** (`CABECERA_DEL_PANEL`, 78 px, controles de 28): remitente y asunto,
+   y Responder · Reenviar · No leído · Destacar · Eliminar, con Anclar y
+   Archivar en el «⋯». La fila de la bandeja lleva Archivar, Eliminar y el
+   mismo «⋯» al pasar el ratón; en un teléfono todo está en la cabecera.
+2. **La barra de responder es la de Chats** (`MARCO_DE_LA_BARRA`,
+   `ZonaDeHerramientas`, `BotonesDeLaDerecha` con `conNota: false`,
+   `useAltoDeLaCaja`, `useSpeechDictation`, `AttachmentMenu` y
+   `SuggestedReplyBar`, que se mudó a `components/shared/`). **Fuera** lo que
+   es de WhatsApp: emojis, formato, notas de voz, respuestas rápidas, notas
+   internas y macros. En un correo Enter es un salto de línea: se manda con
+   Ctrl+Enter.
+3. **Anclar guarda una FOTO que sale del proveedor**, no del navegador, y la
+   lista la pinta arriba aunque ese correo no esté en la página cargada
+   (`conLosAncladosArriba`); si está cargado manda lo cargado. Archivar o
+   eliminar lo desanclan. Toda consulta de `correo_anclados` lleva el
+   `personaId` (el barrido lo exige, como en `correo_cuentas`).
+4. **Reenviar es lo único donde el destinatario llega del navegador**, y se
+   valida en el servidor (`comoDestinatarios`: direcciones de verdad, sin
+   repetir, tope 20). Responder sigue sin aceptarlo. El original se vuelve a
+   leer del proveedor, con sus archivos, y va debajo de lo escrito.
+5. **Los archivos que se mandan** pasan por `comoAdjuntosParaEnviar` (base64 de
+   verdad, 10 como mucho, 25 MB entre todos contando los del original). Se
+   adjuntan con el clip o **pegando** en la caja.
+6. **Lo que se hace sobre una fila se pinta al momento** y vuelve si el
+   proveedor dice que no: destacar, no leído, archivar y eliminar, como borrar
+   un chat. Y el buscador tiene **campo** —todo, remitente o asunto—, que se lee
+   en el propio `placeholder` (`pasaLaBusqueda`, sin acentos).
+
+La etiqueta de buzón en la bandeja unificada ya existía y no cambió.
+
+Lo prueba `scripts/banco-correo.sh`: las reglas y el barrido, las acciones de
+los tres proveedores contra Postgres (otra persona no marca, no destaca, no
+archiva, no reenvía, no ancla ni cambia la firma de un buzón ajeno) y la
+pantalla en Chromium a 1440/1280/1024/390. `MODO=roto` lee el Correo de un
+commit pinchado (`ANTES_DE_LO_COMPLETO`) y afirma que nada de esto existía.
+
 ## Borrar los seguimientos de un número es borrarlos en SU cuenta
 
 Marcar un lead como Descartado —desde la pantalla o con la herramienta

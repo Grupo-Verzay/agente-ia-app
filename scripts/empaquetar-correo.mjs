@@ -32,6 +32,8 @@ const exactos = {
     "@/lib/auth": f("auth-de-documentos.ts"),
     "next/cache": f("next-cache.ts"),
     "server-only": f("correo/server-only.ts"),
+    // La IA de la sugerencia: la de Chats, fingida para no arrastrar los clientes de OpenAI y Google.
+    "@/lib/sugerencia-de-correo.server": f("correo/sugerencia.ts"),
 };
 await build({
     entryPoints: [f("correo/entrada.ts")],

@@ -3,15 +3,33 @@
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import {
+    comoAdjuntosParaEnviar,
     comoDatosDeImap,
+    comoDestinatarios,
+    comoFirma,
     comoTextoDeLaRespuesta,
+    conLaFirma,
+    elTextoParaLaIa,
     hayLlavesDe,
+    laFotoDelAnclado,
+    type CorreoAnclado,
     type CorreoCompleto,
     type CorreoDeLaBandeja,
     type ProveedorConBoton,
 } from "@/lib/correo";
-import { elBuzonDe, guardarElBuzon, losBuzonesDe, quitarElBuzon, type BuzonVisible } from "@/lib/correo-db";
+import {
+    anclarElCorreo,
+    desanclarElCorreo,
+    elBuzonDe,
+    guardarElBuzon,
+    guardarLaFirma,
+    losAncladosDe,
+    losBuzonesDe,
+    quitarElBuzon,
+    type BuzonVisible,
+} from "@/lib/correo-db";
 import { elProveedorDe, ErrorDeCorreo, probarImap, type Pagina } from "@/lib/correo-proveedores.server";
+import { pedirSugerenciaALaIa } from "@/lib/sugerencia-de-correo.server";
 
 /**
  * Las acciones de Correo.
@@ -58,15 +76,25 @@ function fallo(error: unknown, contexto: string): { success: false; message: str
 }
 
 export async function misBuzonesAction(): Promise<
-    Resultado<{ buzones: BuzonVisible[]; conBoton: Record<ProveedorConBoton, boolean> }>
+    Resultado<{ buzones: BuzonVisible[]; conBoton: Record<ProveedorConBoton, boolean>; anclados: CorreoAnclado[] }>
 > {
     try {
         const persona = await laPersona();
         if (!persona) return { success: false, message: "No autorizado." };
+        const buzones = await losBuzonesDe(persona.id);
+        // Los anclados viajan con los buzones: una vuelta y no dos. Y que falle
+        // su lectura no deja sin bandeja: se ve sin anclados, y se dice.
+        let anclados: CorreoAnclado[] = [];
+        try {
+            anclados = buzones.length ? await losAncladosDe(persona.id) : [];
+        } catch (error) {
+            console.warn("[correo] no se pudieron leer los anclados", error instanceof Error ? error.message : error);
+        }
         return {
             success: true,
-            buzones: await losBuzonesDe(persona.id),
+            buzones,
             conBoton: { gmail: hayLlavesDe("gmail", process.env), outlook: hayLlavesDe("outlook", process.env) },
+            anclados,
         };
     } catch (error) {
         return fallo(error, "no se pudieron leer los buzones");
@@ -216,6 +244,10 @@ export async function eliminarCorreoAction(
         }
         if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
         const { aLaPapelera } = await elProveedorDe(r.buzon).eliminar(r.buzon, correoId);
+        // Lo que se va a la papelera no puede quedarse anclado arriba.
+        await desanclarElCorreo(r.buzon.personaId, r.buzon.id, correoId).catch((error) =>
+            console.warn("[correo] eliminado, pero no se pudo quitar el anclado", error instanceof Error ? error.message : error),
+        );
         return { success: true, eliminado: true, aLaPapelera };
     } catch (error) {
         return fallo(error, "no se pudo eliminar el correo");
@@ -224,14 +256,18 @@ export async function eliminarCorreoAction(
 
 /**
  * Responder. A quién y con qué asunto lo decide el SERVIDOR leyendo el
- * original: el navegador manda el texto y el id, nunca el destinatario. Si no,
- * «responder» sería una forma de mandar correo a quien uno quiera desde el
- * buzón conectado.
+ * original: el navegador manda el texto, el id y los archivos, nunca el
+ * destinatario. Si no, «responder» sería una forma de mandar correo a quien uno
+ * quiera desde el buzón conectado.
+ *
+ * La FIRMA la pone el servidor, la del buzón y solo si está activa
+ * (`conLaFirma`): el navegador no puede mandar otra.
  */
 export async function responderCorreoAction(
     buzonId: unknown,
     correoId: unknown,
     texto: unknown,
+    adjuntos?: unknown,
 ): Promise<Resultado<{ enviado: true }>> {
     try {
         const r = await elMio(buzonId);
@@ -239,13 +275,207 @@ export async function responderCorreoAction(
         const cuerpo = comoTextoDeLaRespuesta(texto);
         if (!cuerpo) return { success: false, message: "Escribe algo antes de responder." };
         if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
+        const archivos = comoAdjuntosParaEnviar(adjuntos);
+        if (!archivos.ok) return { success: false, message: archivos.motivo };
         const proveedor = elProveedorDe(r.buzon);
         const original = await proveedor.leer(r.buzon, correoId);
         if (!original.responderA) return { success: false, message: "Ese correo no dice a quién responder." };
-        await proveedor.responder(r.buzon, original, cuerpo);
+        await proveedor.responder(r.buzon, original, conLaFirma(cuerpo, r.buzon.firma, r.buzon.firmaActiva), archivos.lista);
         return { success: true, enviado: true };
     } catch (error) {
         return fallo(error, "no se pudo responder");
+    }
+}
+
+/**
+ * Reenviar. Aquí el destinatario SÍ llega del navegador —reenviar es elegir a
+ * quién—, y por eso se valida en el servidor (`comoDestinatarios`: direcciones
+ * de verdad, sin repetir y con tope). Lo que no llega de fuera es el correo: se
+ * vuelve a leer del proveedor, con sus archivos, y va debajo de lo escrito.
+ */
+export async function reenviarCorreoAction(
+    buzonId: unknown,
+    correoId: unknown,
+    para: unknown,
+    texto: unknown,
+    adjuntos?: unknown,
+): Promise<Resultado<{ enviado: true; para: string[] }>> {
+    try {
+        const r = await elMio(buzonId);
+        if ("error" in r) return { success: false, message: r.error! };
+        if (r.buzon.estado === "reconectar") {
+            return { success: false, message: r.buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true };
+        }
+        if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
+        const destinatarios = comoDestinatarios(para);
+        if (!destinatarios.ok) return { success: false, message: destinatarios.motivo };
+        const archivos = comoAdjuntosParaEnviar(adjuntos);
+        if (!archivos.ok) return { success: false, message: archivos.motivo };
+        // Un reenvío sin nada escrito es normal: solo el original.
+        const escrito = typeof texto === "string" ? texto.replace(/\r\n/g, "\n").trim().slice(0, 20_000) : "";
+        const proveedor = elProveedorDe(r.buzon);
+        const original = await proveedor.leer(r.buzon, correoId);
+        await proveedor.reenviar(
+            r.buzon,
+            original,
+            destinatarios.lista,
+            conLaFirma(escrito, r.buzon.firma, r.buzon.firmaActiva),
+            archivos.lista,
+        );
+        return { success: true, enviado: true, para: destinatarios.lista };
+    } catch (error) {
+        return fallo(error, "no se pudo reenviar");
+    }
+}
+
+/** Lo que tienen en común marcar como no leído, destacar y archivar: el buzón propio, conectado, y un id. */
+async function elMioConectado(buzonId: unknown, correoId: unknown) {
+    const r = await elMio(buzonId);
+    if ("error" in r) return { fallo: { success: false as const, message: r.error! } };
+    if (r.buzon.estado === "reconectar") {
+        return { fallo: { success: false as const, message: r.buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true } };
+    }
+    if (typeof correoId !== "string" || !correoId) return { fallo: { success: false as const, message: "Ese correo no existe." } };
+    return { buzon: r.buzon, correoId };
+}
+
+/**
+ * Marcar como NO leído: la otra mitad de abrir. En el propio buzón, igual en
+ * los tres (Gmail `UNREAD`, Outlook `isRead: false`, IMAP quita `\Seen`).
+ */
+export async function marcarNoLeidoAction(buzonId: unknown, correoId: unknown): Promise<Resultado<{ sinLeer: true }>> {
+    try {
+        const c = await elMioConectado(buzonId, correoId);
+        if ("fallo" in c) return c.fallo!;
+        await elProveedorDe(c.buzon).marcarComoNoLeido(c.buzon, c.correoId);
+        return { success: true, sinLeer: true };
+    } catch (error) {
+        return fallo(error, "no se pudo marcar como no leído");
+    }
+}
+
+/**
+ * Destacar (o quitarlo). Es la marca del PROVEEDOR —la estrella de Gmail, la
+ * bandera de Outlook, `\Flagged` en IMAP—, así que se ve igual en el móvil de
+ * la persona. `destacado` tiene que ser un booleano: lo demás no se adivina.
+ */
+export async function destacarCorreoAction(
+    buzonId: unknown,
+    correoId: unknown,
+    destacado: unknown,
+): Promise<Resultado<{ destacado: boolean }>> {
+    try {
+        if (typeof destacado !== "boolean") return { success: false, message: "No se entendió si destacar o quitar la marca." };
+        const c = await elMioConectado(buzonId, correoId);
+        if ("fallo" in c) return c.fallo!;
+        await elProveedorDe(c.buzon).destacar(c.buzon, c.correoId, destacado);
+        return { success: true, destacado };
+    } catch (error) {
+        return fallo(error, "no se pudo destacar el correo");
+    }
+}
+
+/**
+ * Archivar: sacarlo de la bandeja SIN borrarlo, en el propio buzón (ver
+ * `Archivado`). Si estaba anclado, deja de estarlo: lo que ya no está en la
+ * bandeja no puede quedarse arriba de ella.
+ */
+export async function archivarCorreoAction(buzonId: unknown, correoId: unknown): Promise<Resultado<{ carpeta: string }>> {
+    try {
+        const c = await elMioConectado(buzonId, correoId);
+        if ("fallo" in c) return c.fallo!;
+        const { carpeta } = await elProveedorDe(c.buzon).archivar(c.buzon, c.correoId);
+        await desanclarElCorreo(c.buzon.personaId, c.buzon.id, c.correoId).catch((error) =>
+            console.warn("[correo] archivado, pero no se pudo quitar el anclado", error instanceof Error ? error.message : error),
+        );
+        return { success: true, carpeta };
+    } catch (error) {
+        return fallo(error, "no se pudo archivar el correo");
+    }
+}
+
+/**
+ * Anclar un correo arriba de la lista. La foto que se guarda sale del
+ * PROVEEDOR (se lee el correo), no del navegador: así un anclado es siempre un
+ * correo que existe en ese buzón, y lo que se ve arriba es lo que dice.
+ */
+export async function anclarCorreoAction(buzonId: unknown, correoId: unknown): Promise<Resultado<{ anclado: CorreoAnclado }>> {
+    try {
+        const c = await elMioConectado(buzonId, correoId);
+        if ("fallo" in c) return c.fallo!;
+        const correo = await elProveedorDe(c.buzon).leer(c.buzon, c.correoId);
+        const anclado = laFotoDelAnclado(c.buzon.id, correo, Date.now());
+        await anclarElCorreo(c.buzon.personaId, anclado);
+        return { success: true, anclado };
+    } catch (error) {
+        return fallo(error, "no se pudo anclar el correo");
+    }
+}
+
+export async function desanclarCorreoAction(buzonId: unknown, correoId: unknown): Promise<Resultado<{ desanclado: true }>> {
+    try {
+        const r = await elMio(buzonId);
+        if ("error" in r) return { success: false, message: r.error! };
+        if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
+        await desanclarElCorreo(r.buzon.personaId, r.buzon.id, correoId);
+        return { success: true, desanclado: true };
+    } catch (error) {
+        return fallo(error, "no se pudo desanclar el correo");
+    }
+}
+
+/** Guardar la firma de un buzón y si va activa. Vacía es «sin firma». */
+export async function guardarFirmaAction(
+    buzonId: unknown,
+    firma: unknown,
+    activa: unknown,
+): Promise<Resultado<{ firma: string | null; firmaActiva: boolean }>> {
+    try {
+        const r = await elMio(buzonId);
+        if ("error" in r) return { success: false, message: r.error! };
+        const limpia = comoFirma(firma);
+        // Sin firma no hay nada que activar: un interruptor encendido sobre nada
+        // diría que las respuestas llevan firma y no la llevan.
+        const encendida = activa === true && Boolean(limpia);
+        const ok = await guardarLaFirma(r.buzon.personaId, r.buzon.id, limpia, encendida);
+        if (!ok) return { success: false, message: "Ese correo no está conectado." };
+        return { success: true, firma: limpia, firmaActiva: encendida };
+    } catch (error) {
+        return fallo(error, "no se pudo guardar la firma");
+    }
+}
+
+/**
+ * La SUGERENCIA de respuesta, con la IA de la cuenta por la que se trabaja. El
+ * correo se vuelve a leer del proveedor: no se le pasa a la IA lo que mande el
+ * navegador. `borrador` es lo que ya estaba escrito, para completarlo.
+ */
+export async function sugerirRespuestaDeCorreoAction(
+    buzonId: unknown,
+    correoId: unknown,
+    borrador?: unknown,
+): Promise<Resultado<{ sugerencia: string }>> {
+    try {
+        const persona = await laPersona();
+        if (!persona?.cuentaId) return { success: false, message: "No autorizado." };
+        const c = await elMioConectado(buzonId, correoId);
+        if ("fallo" in c) return c.fallo!;
+        const correo = await elProveedorDe(c.buzon).leer(c.buzon, c.correoId);
+        const texto = elTextoParaLaIa(correo);
+        if (!texto) return { success: false, message: "Este correo no tiene texto al que responder." };
+        const r = await pedirSugerenciaALaIa(
+            persona.cuentaId,
+            { de: correo.de || correo.deDireccion, asunto: correo.asunto, texto },
+            typeof borrador === "string" ? borrador.slice(0, 4000) : "",
+        );
+        if (!r.ok) {
+            // No es mudo: se ve como un botón que no hace nada.
+            console.warn("[correo] la IA no sugirió", r.motivo);
+            return { success: false, message: r.motivo };
+        }
+        return { success: true, sugerencia: r.texto };
+    } catch (error) {
+        return fallo(error, "no se pudo sugerir una respuesta");
     }
 }
 

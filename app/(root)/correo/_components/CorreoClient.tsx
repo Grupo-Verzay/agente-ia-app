@@ -3,20 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AlertTriangle,
-    ArrowLeft,
-    ArrowUp,
-    Download,
+    Archive,
+    Check,
+    ListFilter,
     Loader2,
+    Mail,
+    MailOpen,
     MoreHorizontal,
     Paperclip,
+    Pin,
+    PinOff,
     RefreshCw,
     Search,
+    Star,
     Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -38,6 +42,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -46,11 +51,19 @@ import { PastillaDeFiltro, TONO_LEIDOS, TONO_SIN_LEER, TONO_TODOS, type TonoDePa
 import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
 import { MARCA_DE_LA_CABECERA_DE_LA_COLUMNA, MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
-import { useAltoDeLaCaja } from "@/components/shared/BarraDeEscribir";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
     BANDEJA_UNIFICADA,
+    CAMPOS_DE_BUSQUEDA,
+    NOMBRE_DEL_CAMPO,
+    TEXTO_DEL_BUSCADOR,
+    conDestacado,
+    conElAnclado,
+    conLosAncladosArriba,
+    pasaLaBusqueda,
+    type CampoDeBusqueda,
+    type CorreoAnclado,
     FILTROS_DE_LEIDO,
     NOMBRE_DEL_FILTRO,
     conLeido,
@@ -63,32 +76,26 @@ import {
     type CorreoDeLaBandeja,
     type FiltroDeLeido,
     type LoCargadoDeUnBuzon,
-    elDocumentoDelCorreo,
-    elTamanoLegible,
     laAdvertenciaDeEliminar,
     sinElCorreo,
     NOMBRE_DEL_PROVEEDOR,
-    type CorreoCompleto,
     type ProveedorConBoton,
 } from "@/lib/correo";
 import type { BuzonVisible } from "@/lib/correo-db";
 import {
-    MARCO_DE_LA_BARRA,
-    FILA_DE_LA_BARRA,
-    BOTON_REDONDO,
-    BOTON_DE_ENVIAR,
-    rellenoDeLaCaja,
-} from "@/lib/barra-de-escribir";
-import {
+    anclarCorreoAction,
+    archivarCorreoAction,
     bandejaAction,
     bandejaUnificadaAction,
+    desanclarCorreoAction,
     desconectarCorreoAction,
+    destacarCorreoAction,
     eliminarCorreoAction,
-    leerCorreoAction,
+    marcarNoLeidoAction,
     misBuzonesAction,
-    responderCorreoAction,
 } from "@/actions/correo-actions";
 import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
+import { LecturaDelCorreo } from "./LecturaDelCorreo";
 
 /**
  * Lo último que se miró en ESTE navegador: el id de un buzón o
@@ -149,6 +156,8 @@ function laFechaCorta(iso: string | null): string {
 export function CorreoClient({ conectado, error }: { conectado: string | null; error: string | null }) {
     const [cargando, setCargando] = useState(true);
     const [buzones, setBuzones] = useState<BuzonVisible[]>([]);
+    // Los anclados de la persona: viajan con los buzones y se tocan en local.
+    const [anclados, setAnclados] = useState<CorreoAnclado[]>([]);
     const [conBoton, setConBoton] = useState<Record<ProveedorConBoton, boolean>>({ gmail: false, outlook: false });
     const [vista, setVista] = useState<string | null>(null);
     const [conectarAbierto, setConectarAbierto] = useState(false);
@@ -177,6 +186,7 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
             }
             setFalloDeCarga(null);
             setBuzones(r.buzones);
+            setAnclados(r.anclados ?? []);
             setConBoton(r.conBoton);
             const elegida = laVistaDeEntrada(r.buzones, preferido ?? leerVista());
             setVista(elegida);
@@ -235,6 +245,11 @@ export function CorreoClient({ conectado, error }: { conectado: string | null; e
                 key={vista!}
                 vista={vista!}
                 buzones={buzones}
+                anclados={anclados}
+                alCambiarAnclados={setAnclados}
+                alCambiarFirma={(buzonId, firma, firmaActiva) =>
+                    setBuzones((l) => l.map((b) => (b.id === buzonId ? { ...b, firma, firmaActiva } : b)))
+                }
                 alElegir={(id) => {
                     guardarVista(id);
                     setVista(id);
@@ -278,6 +293,9 @@ type AvisoDelBuzon = { texto: string; reconectar: boolean };
 function Bandeja({
     vista,
     buzones,
+    anclados,
+    alCambiarAnclados,
+    alCambiarFirma,
     alElegir,
     alConectarOtro,
     alDesconectar,
@@ -285,6 +303,9 @@ function Bandeja({
     /** El id de un buzón, o `BANDEJA_UNIFICADA`. */
     vista: string;
     buzones: BuzonVisible[];
+    anclados: CorreoAnclado[];
+    alCambiarAnclados: React.Dispatch<React.SetStateAction<CorreoAnclado[]>>;
+    alCambiarFirma: (buzonId: string, firma: string | null, activa: boolean) => void;
     alElegir: (id: string) => void;
     alConectarOtro: () => void;
     alDesconectar: (buzonId: string) => Promise<void>;
@@ -311,6 +332,7 @@ function Bandeja({
         ),
     );
     const [busqueda, setBusqueda] = useState("");
+    const [campo, setCampo] = useState<CampoDeBusqueda>("todo");
     const [filtro, setFiltro] = useState<FiltroDeLeido>("todos");
     const [abierto, setAbierto] = useState<{ llave: string; buzonId: string; id: string } | null>(null);
     // Si estaba sin leer AL ABRIRLO: se pinta leído al momento, y la acción
@@ -361,25 +383,133 @@ function Bandeja({
      * a SU sitio con su motivo. Un solo camino para la fila y para la lectura,
      * y siempre en el buzón DEL correo, no en el que se esté mirando.
      */
-    async function eliminar(c: CorreoDeLaBandeja) {
+    /**
+     * Sacar un correo de la lista —eliminar y archivar son eso para la
+     * bandeja—: la fila se quita y la lectura se cierra ANTES de preguntar al
+     * proveedor, como al eliminar un chat, y si dice que no, el correo vuelve
+     * a SU sitio con su motivo. Un anclado sale también de arriba, y vuelve con
+     * él. Un solo camino para los dos, y siempre en el buzón DEL correo.
+     */
+    async function sacarDeLaLista(
+        c: CorreoDeLaBandeja,
+        pedir: () => Promise<{ success: boolean; message?: string; reconectar?: boolean }>,
+        exito: (r: any) => string,
+        sinRed: string,
+    ) {
         const llave = laLlaveDelCorreo(c);
         const quitado = sinElCorreo(porBuzon[c.buzonId]?.correos ?? [], llave);
+        const suAnclado = anclados.find((a) => laLlaveDelCorreo(a) === llave) ?? null;
         cambiarEn(c.buzonId, (l) => sinElCorreo(l, llave).lista);
+        if (suAnclado) alCambiarAnclados((l) => conElAnclado(l, null, llave));
         if (abierto?.llave === llave) setAbierto(null);
-        const devolver = () =>
-            cambiarEn(c.buzonId, (l) => devolverElCorreo(l, quitado.quitado ?? c, Math.max(0, quitado.posicion)));
+        const devolver = () => {
+            // Solo vuelve a la lista lo que estaba en ella: un anclado que no
+            // estaba cargado vuelve arriba, no se cuela en la página.
+            if (quitado.quitado) cambiarEn(c.buzonId, (l) => devolverElCorreo(l, quitado.quitado!, Math.max(0, quitado.posicion)));
+            if (suAnclado) alCambiarAnclados((l) => conElAnclado(l, suAnclado, llave));
+        };
         try {
-            const r = await eliminarCorreoAction(c.buzonId, c.id);
+            const r = await pedir();
             if (!r.success) {
                 devolver();
                 toast.error(r.message);
-                if (r.reconectar) ponerAviso(c.buzonId, { texto: r.message, reconectar: true });
+                if (r.reconectar) ponerAviso(c.buzonId, { texto: r.message ?? "", reconectar: true });
                 return;
             }
-            toast.success(r.aLaPapelera ? "Correo movido a la papelera." : "Correo eliminado (tu servidor no tiene papelera).");
+            toast.success(exito(r));
         } catch {
             devolver();
-            toast.error("No se pudo eliminar. Revisa la conexión.");
+            toast.error(sinRed);
+        }
+    }
+
+    function eliminar(c: CorreoDeLaBandeja) {
+        return sacarDeLaLista(
+            c,
+            () => eliminarCorreoAction(c.buzonId, c.id),
+            (r) => (r.aLaPapelera ? "Correo movido a la papelera." : "Correo eliminado (tu servidor no tiene papelera)."),
+            "No se pudo eliminar. Revisa la conexión.",
+        );
+    }
+
+    function archivar(c: CorreoDeLaBandeja) {
+        return sacarDeLaLista(
+            c,
+            () => archivarCorreoAction(c.buzonId, c.id),
+            (r) => `Correo archivado en «${r.carpeta}».`,
+            "No se pudo archivar. Revisa la conexión.",
+        );
+    }
+
+    /**
+     * Marcar como NO leído: el punto vuelve al momento y, si el correo estaba
+     * abierto, se cierra —abierto se volvería a marcar como leído—. Si el
+     * proveedor dice que no, el punto se va otra vez.
+     */
+    async function marcarNoLeido(c: CorreoDeLaBandeja) {
+        const llave = laLlaveDelCorreo(c);
+        cambiarEn(c.buzonId, (l) => conLeido(l, llave, true));
+        if (abierto?.llave === llave) setAbierto(null);
+        try {
+            const r = await marcarNoLeidoAction(c.buzonId, c.id);
+            if (!r.success) {
+                cambiarEn(c.buzonId, (l) => conLeido(l, llave, false));
+                toast.error(r.message);
+                if (r.reconectar) ponerAviso(c.buzonId, { texto: r.message, reconectar: true });
+            }
+        } catch {
+            cambiarEn(c.buzonId, (l) => conLeido(l, llave, false));
+            toast.error("No se pudo marcar como no leído. Revisa la conexión.");
+        }
+    }
+
+    /** Destacar: la estrella se pinta al momento y se deshace si el proveedor dice que no. */
+    async function destacar(c: CorreoDeLaBandeja, valor: boolean) {
+        const llave = laLlaveDelCorreo(c);
+        cambiarEn(c.buzonId, (l) => conDestacado(l, llave, valor));
+        try {
+            const r = await destacarCorreoAction(c.buzonId, c.id, valor);
+            if (!r.success) {
+                cambiarEn(c.buzonId, (l) => conDestacado(l, llave, !valor));
+                toast.error(r.message);
+                if (r.reconectar) ponerAviso(c.buzonId, { texto: r.message, reconectar: true });
+            }
+        } catch {
+            cambiarEn(c.buzonId, (l) => conDestacado(l, llave, !valor));
+            toast.error("No se pudo destacar. Revisa la conexión.");
+        }
+    }
+
+    /**
+     * Anclar o desanclar: sube (o baja) al momento con lo que ya se sabe de la
+     * fila, y al volver del servidor se queda con SU foto —la del proveedor—.
+     * Si dice que no, vuelve a como estaba.
+     */
+    async function anclar(c: CorreoDeLaBandeja, valor: boolean) {
+        const llave = laLlaveDelCorreo(c);
+        const antes = anclados.find((a) => laLlaveDelCorreo(a) === llave) ?? null;
+        const provisional: CorreoAnclado = { ...c, buzonId: c.buzonId, ancladoEn: Date.now() };
+        alCambiarAnclados((l) => conElAnclado(l, valor ? provisional : null, llave));
+        const deshacer = () => alCambiarAnclados((l) => conElAnclado(l, antes, llave));
+        try {
+            if (valor) {
+                const r = await anclarCorreoAction(c.buzonId, c.id);
+                if (!r.success) {
+                    deshacer();
+                    toast.error(r.message);
+                    return;
+                }
+                alCambiarAnclados((l) => conElAnclado(l, r.anclado, llave));
+            } else {
+                const r = await desanclarCorreoAction(c.buzonId, c.id);
+                if (!r.success) {
+                    deshacer();
+                    toast.error(r.message);
+                }
+            }
+        } catch {
+            deshacer();
+            toast.error("No se pudo anclar. Revisa la conexión.");
         }
     }
 
@@ -464,14 +594,19 @@ function Bandeja({
     }, [vista]);
 
     const { visibles: correos, hayMas } = useMemo(() => laBandejaUnificada(porBuzon), [porBuzon]);
-    const visibles = useMemo(() => {
-        const q = busqueda.trim().toLowerCase();
-        return correos.filter(
-            (c) =>
-                pasaElFiltroDeLeido(c, filtro) &&
-                (!q || `${c.de} ${c.deDireccion} ${c.asunto} ${c.fragmento}`.toLowerCase().includes(q)),
-        );
-    }, [correos, busqueda, filtro]);
+    // Los anclados ARRIBA, como en Chats; el filtro y el buscador valen para
+    // todos, anclados incluidos: un filtro que deja fuera todo menos lo anclado
+    // se leería como que el filtro no funciona.
+    const { visibles, todas, ancladas } = useMemo(() => {
+        const { arriba, resto } = conLosAncladosArriba(correos, anclados, unificada ? null : vista);
+        const pasa = (c: CorreoDeLaBandeja) => pasaElFiltroDeLeido(c, filtro) && pasaLaBusqueda(c, busqueda, campo);
+        return {
+            visibles: [...arriba.filter(pasa), ...resto.filter(pasa)],
+            todas: [...arriba, ...resto],
+            ancladas: new Set(arriba.map(laLlaveDelCorreo)),
+        };
+    }, [correos, anclados, unificada, vista, busqueda, campo, filtro]);
+    const correoAbierto = abierto ? todas.find((x) => laLlaveDelCorreo(x) === abierto.llave) ?? null : null;
     const buzonDeLaVista = unificada ? null : deLaVista[0] ?? null;
     const avisosVisibles = deLaVista.filter((b) => avisos[b.id]).map((b) => ({ buzon: b, aviso: avisos[b.id] }));
     const buzonAEliminar = aEliminar ? porId.get(aEliminar.buzonId) ?? null : null;
@@ -540,10 +675,44 @@ function Bandeja({
                         <Input
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
-                            placeholder="Buscar en lo cargado"
-                            className="pl-8"
+                            // Dónde se busca se LEE en el placeholder: un campo
+                            // elegido que no se ve es un buscador que «a veces
+                            // no encuentra» lo que se tiene delante.
+                            placeholder={TEXTO_DEL_BUSCADOR[campo]}
+                            className="pl-8 pr-9"
                             aria-label="Buscar correo"
                         />
+                        {/* El campo va DENTRO del buscador, no en un segundo cuadro:
+                            dos cajas de búsqueda son una pregunta sobre cuál manda. */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
+                                    title={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
+                                    data-campo-de-busqueda={campo}
+                                    className={cn(
+                                        "absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2",
+                                        campo !== "todo" ? "text-primary" : "text-muted-foreground",
+                                    )}
+                                >
+                                    <ListFilter className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar en</DropdownMenuLabel>
+                                {CAMPOS_DE_BUSQUEDA.map((c) => (
+                                    // Cambiar de campo CONSERVA lo escrito: casi
+                                    // siempre es «esto que ya tecleé, búscalo por lo otro».
+                                    <DropdownMenuItem key={c} data-campo={c} onSelect={() => setCampo(c)}>
+                                        <Check className={cn("mr-2 h-4 w-4", campo === c ? "opacity-100" : "opacity-0")} />
+                                        {NOMBRE_DEL_CAMPO[c]}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                     </div>
                 }
@@ -628,10 +797,18 @@ function Bandeja({
                             visibles.map((c) => {
                                 const llave = laLlaveDelCorreo(c);
                                 const suBuzon = porId.get(c.buzonId);
+                                const estaAnclado = ancladas.has(llave);
                                 return (
-                                    // La fila es un grupo: abrir y eliminar son dos
-                                    // botones HERMANOS (un botón no va dentro de otro).
-                                    <div key={llave} data-correo-fila={c.id} data-buzon={c.buzonId} className="group relative border-b border-border">
+                                    // La fila es un grupo: abrir y sus acciones son botones
+                                    // HERMANOS (un botón no va dentro de otro).
+                                    <div
+                                        key={llave}
+                                        data-correo-fila={c.id}
+                                        data-buzon={c.buzonId}
+                                        data-anclado={estaAnclado ? "" : undefined}
+                                        data-destacado={c.destacado ? "" : undefined}
+                                        className="group relative border-b border-border"
+                                    >
                                         <button
                                             type="button"
                                             onClick={() => abrir(c)}
@@ -655,6 +832,12 @@ function Bandeja({
                                                         palabra={laPalabraDelBuzon(suBuzon.direccion, direcciones)}
                                                     />
                                                 ) : null}
+                                                {/* Anclado y destacado son MARCAS, no botones: se
+                                                    cambian desde el «⋯» y desde la cabecera del correo. */}
+                                                {estaAnclado ? <Pin data-marca-anclado className="h-3.5 w-3.5 shrink-0 rotate-45 text-primary" aria-label="Anclado" /> : null}
+                                                {c.destacado ? (
+                                                    <Star data-marca-destacado className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Destacado" />
+                                                ) : null}
                                                 {c.conAdjuntos ? <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Con adjuntos" /> : null}
                                                 <span className="shrink-0 text-xs text-muted-foreground">{laFechaCorta(c.fecha)}</span>
                                             </div>
@@ -663,18 +846,64 @@ function Bandeja({
                                             </span>
                                             {c.fragmento ? <span className="truncate text-xs text-muted-foreground">{c.fragmento}</span> : null}
                                         </button>
-                                        {/* Sale al pasar el ratón o con el foco; en un teléfono se elimina desde la lectura. */}
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label="Eliminar correo"
-                                            title="Eliminar"
-                                            onClick={() => setAEliminar(c)}
-                                            className="absolute right-2 top-1.5 h-7 w-7 bg-muted opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                                        {/* Salen al pasar el ratón o con el foco, y se quedan mientras
+                                            su menú esté abierto; en un teléfono todo está en la
+                                            cabecera del correo abierto. */}
+                                        <div
+                                            data-acciones-de-la-fila
+                                            className="absolute right-2 top-1.5 flex items-center gap-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100"
                                         >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Archivar correo"
+                                                title="Archivar"
+                                                onClick={() => void archivar(c)}
+                                                className="h-7 w-7 bg-muted"
+                                            >
+                                                <Archive className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Eliminar correo"
+                                                title="Eliminar"
+                                                onClick={() => setAEliminar(c)}
+                                                className="h-7 w-7 bg-muted hover:text-destructive"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button type="button" variant="ghost" size="icon" aria-label="Más acciones de este correo" title="Más" className="h-7 w-7 bg-muted">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onSelect={() => void anclar(c, !estaAnclado)}>
+                                                        {estaAnclado ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}
+                                                        {estaAnclado ? "Desanclar" : "Anclar arriba"}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onSelect={() => void destacar(c, !c.destacado)}>
+                                                        <Star className={cn("mr-2 h-4 w-4", c.destacado && "fill-amber-400 text-amber-500")} />
+                                                        {c.destacado ? "Quitar destacado" : "Destacar"}
+                                                    </DropdownMenuItem>
+                                                    {!c.sinLeer ? (
+                                                        <DropdownMenuItem onSelect={() => void marcarNoLeido(c)}>
+                                                            <Mail className="mr-2 h-4 w-4" />
+                                                            Marcar como no leído
+                                                        </DropdownMenuItem>
+                                                    ) : (
+                                                        <DropdownMenuItem onSelect={() => abrir(c)}>
+                                                            <MailOpen className="mr-2 h-4 w-4" />
+                                                            Abrir y marcar como leído
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     </div>
                                 );
                             })
@@ -690,18 +919,32 @@ function Bandeja({
                     </div>
                 </div>
                 <div className={cn("min-h-0 min-w-0 flex-1", !abierto && "hidden md:flex")}>
-                    {abierto ? (
-                        <Lectura
+                    {abierto && porId.get(abierto.buzonId) ? (
+                        <LecturaDelCorreo
                             key={abierto.llave}
-                            buzonId={abierto.buzonId}
+                            buzon={porId.get(abierto.buzonId)!}
                             correoId={abierto.id}
                             estabaSinLeer={abiertoSinLeer}
+                            destacado={Boolean(correoAbierto?.destacado)}
+                            anclado={ancladas.has(abierto.llave)}
                             alVolver={() => setAbierto(null)}
                             alMarcar={(id, r) => alMarcar(abierto.buzonId, id, r)}
                             alEliminar={() => {
-                                const c = correos.find((x) => laLlaveDelCorreo(x) === abierto.llave);
-                                if (c) setAEliminar(c);
+                                if (correoAbierto) setAEliminar(correoAbierto);
                             }}
+                            alArchivar={() => {
+                                if (correoAbierto) void archivar(correoAbierto);
+                            }}
+                            alMarcarNoLeido={() => {
+                                if (correoAbierto) void marcarNoLeido(correoAbierto);
+                            }}
+                            alDestacar={(v) => {
+                                if (correoAbierto) void destacar(correoAbierto, v);
+                            }}
+                            alAnclar={(v) => {
+                                if (correoAbierto) void anclar(correoAbierto, v);
+                            }}
+                            alCambiarFirma={(firma, activa) => alCambiarFirma(abierto.buzonId, firma, activa)}
                         />
                     ) : (
                         <div className="flex h-full w-full items-center justify-center p-6 text-sm text-muted-foreground">
@@ -736,175 +979,6 @@ function Bandeja({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
-    );
-}
-
-function Lectura({
-    buzonId,
-    correoId,
-    estabaSinLeer,
-    alVolver,
-    alMarcar,
-    alEliminar,
-}: {
-    buzonId: string;
-    correoId: string;
-    estabaSinLeer: boolean;
-    alVolver: () => void;
-    alMarcar: (id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => void;
-    alEliminar: () => void;
-}) {
-    const [correo, setCorreo] = useState<CorreoCompleto | null>(null);
-    const [fallo, setFallo] = useState<string | null>(null);
-    const [texto, setTexto] = useState("");
-    const [enviando, setEnviando] = useState(false);
-    // La caja crece con el texto hasta su tope EN LÍNEAS, con el mismo gancho
-    // que Chats y el chat de equipo: es la misma barra de escribir.
-    const caja = useRef<HTMLTextAreaElement>(null);
-    useAltoDeLaCaja({ ref: caja, texto, reiniciarCon: correoId });
-
-    useEffect(() => {
-        let vivo = true;
-        // La marca sale del estado de la fila AL ABRIRLA, no de cada repintado:
-        // se lee una vez, con el valor de ese momento.
-        leerCorreoAction(buzonId, correoId, estabaSinLeer)
-            .then((r) => {
-                if (r.success) {
-                    // La marca de leído se aplica aunque ya se haya cambiado de
-                    // correo: es del buzón, no de esta lectura.
-                    alMarcar(correoId, { leido: r.leido, motivo: r.motivoSinMarcar, reconectar: r.reconectar });
-                    if (vivo) setCorreo(r.correo);
-                } else {
-                    if (estabaSinLeer) alMarcar(correoId, { leido: false, motivo: null, reconectar: false });
-                    if (vivo) setFallo(r.message);
-                }
-            })
-            .catch(() => {
-                if (estabaSinLeer) alMarcar(correoId, { leido: false, motivo: null, reconectar: false });
-                if (vivo) setFallo("No se pudo abrir el correo. Revisa la conexión.");
-            });
-        return () => {
-            vivo = false;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [buzonId, correoId]);
-
-    const documento = useMemo(() => (correo ? elDocumentoDelCorreo(correo) : ""), [correo]);
-
-    async function responder() {
-        if (!texto.trim() || enviando) return;
-        setEnviando(true);
-        try {
-            const r = await responderCorreoAction(buzonId, correoId, texto);
-            if (!r.success) {
-                toast.error(r.message);
-                return;
-            }
-            toast.success("Respuesta enviada.");
-            setTexto("");
-        } catch {
-            toast.error("No se pudo enviar. Revisa la conexión.");
-        } finally {
-            setEnviando(false);
-        }
-    }
-
-    return (
-        <div data-lectura-de-correo className="flex h-full min-h-0 w-full flex-col">
-            <div className="flex shrink-0 items-start gap-2 border-b border-border p-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:hidden" aria-label="Volver" onClick={alVolver}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                {correo ? (
-                    <div className="min-w-0 flex-1">
-                        <h2 className="break-words text-base font-semibold">{correo.asunto || "(sin asunto)"}</h2>
-                        <p className="truncate text-sm" title={correo.deDireccion}>
-                            {correo.de} {correo.deDireccion && correo.deDireccion !== correo.de ? <span className="text-muted-foreground">&lt;{correo.deDireccion}&gt;</span> : null}
-                        </p>
-                        {correo.para ? <p className="truncate text-xs text-muted-foreground">Para: {correo.para}</p> : null}
-                        {correo.cc ? <p className="truncate text-xs text-muted-foreground">Cc: {correo.cc}</p> : null}
-                        {correo.fecha ? <p className="text-xs text-muted-foreground">{new Date(correo.fecha).toLocaleString("es")}</p> : null}
-                    </div>
-                ) : (
-                    <div className="flex-1 text-sm text-muted-foreground">{fallo ?? "Abriendo…"}</div>
-                )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 hover:text-destructive"
-                    aria-label="Eliminar este correo"
-                    title="Eliminar"
-                    onClick={alEliminar}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
-            </div>
-            {correo?.adjuntos.length ? (
-                <div data-adjuntos-del-correo className="flex shrink-0 flex-wrap gap-2 border-b border-border p-3">
-                    {correo.adjuntos.map((a) => (
-                        <a
-                            key={a.id}
-                            href={`/api/correo/adjunto?buzon=${encodeURIComponent(buzonId)}&correo=${encodeURIComponent(correoId)}&adjunto=${encodeURIComponent(a.id)}`}
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
-                            title={a.nombre}
-                        >
-                            <Download className="h-3.5 w-3.5 shrink-0" />
-                            <span className="max-w-[14rem] truncate">{a.nombre}</span>
-                            {a.tamano ? <span className="shrink-0 text-muted-foreground">{elTamanoLegible(a.tamano)}</span> : null}
-                        </a>
-                    ))}
-                </div>
-            ) : null}
-            <div className="min-h-0 flex-1">
-                {correo ? (
-                    // Dos cerrojos: el `sandbox` sin `allow-scripts` y la CSP de
-                    // dentro del documento. Un correo no ejecuta nada aquí.
-                    <iframe
-                        data-cuerpo-del-correo
-                        title="Contenido del correo"
-                        sandbox="allow-popups allow-popups-to-escape-sandbox"
-                        srcDoc={documento}
-                        className="h-full w-full border-0 bg-white"
-                    />
-                ) : fallo ? null : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                    </div>
-                )}
-            </div>
-            {correo ? (
-                <div className={MARCO_DE_LA_BARRA}>
-                    <div className={FILA_DE_LA_BARRA}>
-                        <Textarea
-                            ref={caja}
-                            value={texto}
-                            onChange={(e) => setTexto(e.target.value)}
-                            placeholder={`Responder a ${correo.de || correo.deDireccion}`}
-                            aria-label="Respuesta"
-                            className={cn("min-h-10 w-full resize-none overflow-y-auto", rellenoDeLaCaja(1))}
-                            rows={1}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                    e.preventDefault();
-                                    void responder();
-                                }
-                            }}
-                        />
-                        <Button
-                            type="button"
-                            size="icon"
-                            aria-label="Enviar respuesta"
-                            title="Enviar respuesta (Ctrl+Enter)"
-                            disabled={!texto.trim() || enviando}
-                            onClick={() => void responder()}
-                            className={cn(BOTON_REDONDO, BOTON_DE_ENVIAR, "absolute bottom-1.5 right-1.5 text-white")}
-                        >
-                            {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                </div>
-            ) : null}
         </div>
     );
 }

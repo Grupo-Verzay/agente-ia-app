@@ -34,7 +34,7 @@ export class ImapFlow {
             if (!uids.includes(m.uid)) continue;
             yield {
                 uid: m.uid,
-                flags: new Set(m.leido ? ["\\Seen"] : []),
+                flags: new Set([...(m.leido ? ["\\Seen"] : []), ...(m.destacado ? ["\\Flagged"] : [])]),
                 envelope: m.envelope,
                 bodyStructure: m.conAdjunto ? { childNodes: [{ disposition: "attachment" }] } : { type: "text/plain" },
             };
@@ -48,7 +48,20 @@ export class ImapFlow {
         (g.__imap.marcas ??= []).push({ uid: String(uid), flags });
         const m = g.__imap.mensajes.find((x: any) => String(x.uid) === String(uid));
         if (m && flags.includes("\\Seen")) m.leido = true;
+        if (m && flags.includes("\\Flagged")) m.destacado = true;
         return true;
+    }
+    async messageFlagsRemove(uid: string, flags: string[]) {
+        (g.__imap.quitadas ??= []).push({ uid: String(uid), flags });
+        const m = g.__imap.mensajes.find((x: any) => String(x.uid) === String(uid));
+        if (m && flags.includes("\\Seen")) m.leido = false;
+        if (m && flags.includes("\\Flagged")) m.destacado = false;
+        return true;
+    }
+    async mailboxCreate(ruta: string) {
+        (g.__imap.creadas ??= []).push(ruta);
+        g.__imap.carpetas = [...(g.__imap.carpetas ?? [{ path: "INBOX", specialUse: "\\Inbox" }]), { path: ruta }];
+        return { path: ruta, created: true };
     }
     async list() {
         return g.__imap.carpetas ?? [{ path: "INBOX", specialUse: "\\Inbox" }, { path: "Papelera", specialUse: "\\Trash" }];

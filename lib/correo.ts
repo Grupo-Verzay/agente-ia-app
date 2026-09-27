@@ -214,6 +214,14 @@ export interface ResumenDeCorreo {
     fecha: string | null;
     sinLeer: boolean;
     conAdjuntos: boolean;
+    /**
+     * Destacado en el PROPIO buzón: la estrella de Gmail (`STARRED`), la
+     * bandera de Outlook (`flag.flagStatus`) y `\Flagged` en IMAP. Es del
+     * proveedor y no de la plataforma: marcarlo aquí se ve igual en el móvil de
+     * la persona, y al revés. Opcional por los resúmenes de antes: sin el campo
+     * es `false`.
+     */
+    destacado?: boolean;
 }
 
 export interface AdjuntoDeCorreo {
@@ -559,4 +567,302 @@ export function elMotivoLegible(proveedor: ProveedorConBoton, motivo: string): s
         return `${quien} rechazó las credenciales de la plataforma. Quien administra la plataforma tiene que revisarlas.`;
     }
     return m || "No se pudo conectar el correo.";
+}
+
+/* ── Lo que se le hace a UN correo ────────────────────────────────────────── */
+
+/**
+ * Cómo queda la lista al DESTACAR (o quitar la marca) un correo. Se pinta al
+ * momento y, si el proveedor dice que no, se deshace con el valor contrario —
+ * la misma regla que marcar como leído.
+ */
+export function conDestacado<T extends ResumenDeCorreo & { buzonId?: string }>(correos: T[], llave: string, destacado: boolean): T[] {
+    return correos.map((c) => (laLlaveDelCorreo(c) === llave && Boolean(c.destacado) !== destacado ? { ...c, destacado } : c));
+}
+
+/**
+ * Un correo ANCLADO: lo que la persona quiere tener arriba de la lista.
+ *
+ * Ningún proveedor tiene esto —Gmail tiene estrella, Outlook bandera, IMAP
+ * `\Flagged`, y eso es «Destacar»—, así que vive en la plataforma
+ * (`correo_anclados`, de la PERSONA). Y guarda **una foto** del correo al
+ * anclarlo: un anclado tiene que salir arriba aunque sea de hace un mes y no
+ * esté en la página cargada, que es justo para lo que se ancla.
+ */
+export interface CorreoAnclado {
+    buzonId: string;
+    id: string;
+    de: string;
+    deDireccion: string;
+    asunto: string;
+    fragmento: string;
+    fecha: string | null;
+    conAdjuntos: boolean;
+    /** Milisegundos. El último anclado va el primero. */
+    ancladoEn: number;
+}
+
+/**
+ * La lista con los ANCLADOS ARRIBA, como en Chats.
+ *
+ * - El anclado que también está en lo cargado se pinta con los datos DE LO
+ *   CARGADO (si está sin leer, si está destacado), no con la foto: la foto es
+ *   para cuando no está.
+ * - Y no sale dos veces: arriba, y quitado de su sitio de abajo.
+ * - `soloDe`: en la vista de UN buzón solo sus anclados; en la unificada, todos.
+ */
+export function conLosAncladosArriba(
+    correos: CorreoDeLaBandeja[],
+    anclados: CorreoAnclado[],
+    soloDe: string | null,
+): { arriba: CorreoDeLaBandeja[]; resto: CorreoDeLaBandeja[] } {
+    const deLaVista = anclados.filter((a) => !soloDe || a.buzonId === soloDe).sort((a, b) => b.ancladoEn - a.ancladoEn);
+    const porLlave = new Map(correos.map((c) => [laLlaveDelCorreo(c), c]));
+    const llaves = new Set<string>();
+    const arriba: CorreoDeLaBandeja[] = [];
+    for (const a of deLaVista) {
+        const llave = laLlaveDelCorreo(a);
+        if (llaves.has(llave)) continue;
+        llaves.add(llave);
+        const cargado = porLlave.get(llave);
+        arriba.push(
+            cargado ?? {
+                id: a.id,
+                buzonId: a.buzonId,
+                de: a.de,
+                deDireccion: a.deDireccion,
+                asunto: a.asunto,
+                fragmento: a.fragmento,
+                fecha: a.fecha,
+                conAdjuntos: a.conAdjuntos,
+                // De la foto no se sabe: se enseña como leído, que es lo que no llama la atención de más.
+                sinLeer: false,
+            },
+        );
+    }
+    return { arriba, resto: correos.filter((c) => !llaves.has(laLlaveDelCorreo(c))) };
+}
+
+/** Anclar o desanclar en la lista de anclados, al momento. */
+export function conElAnclado(anclados: CorreoAnclado[], correo: CorreoAnclado | null, llave: string): CorreoAnclado[] {
+    const sin = anclados.filter((a) => laLlaveDelCorreo(a) !== llave);
+    return correo ? [correo, ...sin] : sin;
+}
+
+/** La foto que se guarda al anclar, sacada del correo YA leído del proveedor. */
+export function laFotoDelAnclado(
+    buzonId: string,
+    c: { id: string; de: string; deDireccion: string; asunto: string; fecha: string | null; texto?: string | null; fragmento?: string | null; adjuntos?: unknown[]; conAdjuntos?: boolean },
+    ahora: number,
+): CorreoAnclado {
+    const fragmento = (c.fragmento ?? c.texto ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+    return {
+        buzonId,
+        id: String(c.id),
+        de: (c.de ?? "").slice(0, 200),
+        deDireccion: (c.deDireccion ?? "").slice(0, 320),
+        asunto: (c.asunto ?? "").slice(0, 300),
+        fragmento,
+        fecha: c.fecha ?? null,
+        conAdjuntos: Boolean(c.conAdjuntos ?? (Array.isArray(c.adjuntos) && c.adjuntos.length > 0)),
+        ancladoEn: ahora,
+    };
+}
+
+/* ── El buscador por campo ────────────────────────────────────────────────── */
+
+/**
+ * El buscador de la barra busca en TODO lo que se ve de un correo, y se le
+ * puede decir que mire solo el REMITENTE (nombre y dirección) o solo el
+ * ASUNTO. Es el mismo buscador con un campo elegido —como el de Clientes—, no
+ * un segundo cuadro: dos cajas de búsqueda una al lado de otra son una
+ * pregunta sobre cuál manda.
+ */
+export const CAMPOS_DE_BUSQUEDA = ["todo", "remitente", "asunto"] as const;
+export type CampoDeBusqueda = (typeof CAMPOS_DE_BUSQUEDA)[number];
+
+export const NOMBRE_DEL_CAMPO: Record<CampoDeBusqueda, string> = {
+    todo: "Todo",
+    remitente: "Remitente",
+    asunto: "Asunto",
+};
+
+/** El `placeholder` dice dónde se está buscando: un campo escondido que no se ve es un buscador que «a veces no encuentra». */
+export const TEXTO_DEL_BUSCADOR: Record<CampoDeBusqueda, string> = {
+    todo: "Buscar en lo cargado",
+    remitente: "Buscar por remitente",
+    asunto: "Buscar por asunto",
+};
+
+export function comoCampoDeBusqueda(valor: unknown): CampoDeBusqueda {
+    return typeof valor === "string" && (CAMPOS_DE_BUSQUEDA as readonly string[]).includes(valor) ? (valor as CampoDeBusqueda) : "todo";
+}
+
+/** Sin acentos y sin mayúsculas: quien teclea «cotizacion» tiene que encontrar «Cotización». */
+function plano(s: string): string {
+    return (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+export function pasaLaBusqueda(
+    c: { de: string; deDireccion: string; asunto: string; fragmento: string },
+    texto: string,
+    campo: CampoDeBusqueda,
+): boolean {
+    const q = plano(texto.trim());
+    if (!q) return true;
+    const donde =
+        campo === "remitente" ? `${c.de} ${c.deDireccion}` : campo === "asunto" ? c.asunto : `${c.de} ${c.deDireccion} ${c.asunto} ${c.fragmento}`;
+    return plano(donde).includes(q);
+}
+
+/* ── Reenviar ─────────────────────────────────────────────────────────────── */
+
+export const TOPE_DE_DESTINATARIOS = 20;
+
+/**
+ * A quién se reenvía. Aquí SÍ llega del navegador —reenviar es elegir a quién—,
+ * así que se valida en el servidor: direcciones de verdad, sin repetir y con
+ * tope. Separadas por coma, punto y coma o espacio.
+ */
+export function comoDestinatarios(valor: unknown): { ok: true; lista: string[] } | { ok: false; motivo: string } {
+    const crudo = Array.isArray(valor) ? valor.join(",") : typeof valor === "string" ? valor : "";
+    const partes = crudo
+        .split(/[\s,;]+/)
+        .map((p) => p.trim().replace(/^<|>$/g, "").toLowerCase())
+        .filter(Boolean);
+    if (!partes.length) return { ok: false, motivo: "Escribe a quién reenviarlo." };
+    const malas = partes.filter((p) => !CORREO_VALIDO.test(p));
+    if (malas.length) return { ok: false, motivo: `No es una dirección válida: ${malas[0]}` };
+    const lista = [...new Set(partes)];
+    if (lista.length > TOPE_DE_DESTINATARIOS) return { ok: false, motivo: `Como mucho ${TOPE_DE_DESTINATARIOS} destinatarios.` };
+    return { ok: true, lista };
+}
+
+/** «Fwd: » delante, una sola vez: la misma regla que el «Re:» de una respuesta. */
+export function elAsuntoDelReenvio(asunto: string | null | undefined): string {
+    let base = (asunto ?? "").trim();
+    const prefijo = /^(re|rv|aw|fw|fwd)\s*:\s*/i;
+    while (prefijo.test(base)) base = base.replace(prefijo, "");
+    return base ? `Fwd: ${base}` : "Fwd:";
+}
+
+/**
+ * El cuerpo de un reenvío: lo que escribió la persona, y debajo el original con
+ * su cabecera («De», «Fecha», «Asunto», «Para»), como lo hacen Gmail y Outlook.
+ * El texto de la persona se ESCAPA; el HTML del original va tal cual, porque se
+ * manda a otro buzón, no se pinta aquí.
+ */
+export function elCuerpoDelReenvio(
+    original: { de: string; deDireccion: string; para: string; asunto: string; fecha: string | null; html: string | null; texto: string | null },
+    escrito: string,
+): { texto: string; html: string } {
+    const de = original.de && original.de !== original.deDireccion ? `${original.de} <${original.deDireccion}>` : original.deDireccion || original.de;
+    const fecha = original.fecha ? new Date(original.fecha).toUTCString() : "";
+    const cabecera = [
+        "---------- Mensaje reenviado ----------",
+        `De: ${de}`,
+        fecha ? `Fecha: ${fecha}` : "",
+        `Asunto: ${original.asunto}`,
+        original.para ? `Para: ${original.para}` : "",
+    ].filter(Boolean);
+    const cuerpoTexto = original.texto ?? (original.html ? original.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
+    const texto = [escrito.trim(), "", ...cabecera, "", cuerpoTexto].join("\n").replace(/^\n+/, "");
+    const html = [
+        escrito.trim() ? `<div>${elHtmlDeUnTexto(escrito.trim())}</div><br>` : "",
+        `<div>${cabecera.map(escaparHtml).join("<br>")}</div><br>`,
+        original.html?.trim() ? original.html : `<pre style="white-space:pre-wrap">${escaparHtml(original.texto ?? "")}</pre>`,
+    ].join("");
+    return { texto, html };
+}
+
+/* ── Adjuntar a una respuesta o a un reenvío ──────────────────────────────── */
+
+/** El tope de lo que viaja en un correo: el de Gmail y Outlook, 25 MB. */
+export const TOPE_DE_BYTES_DEL_ENVIO = 25 * 1024 * 1024;
+export const TOPE_DE_ADJUNTOS = 10;
+
+export interface AdjuntoParaEnviar {
+    nombre: string;
+    tipo: string;
+    /** Base64 sin el prefijo `data:`. */
+    base64: string;
+}
+
+/** Los bytes que ocupa un base64 una vez decodificado, sin decodificarlo. */
+export function losBytesDeUnBase64(b64: string): number {
+    const limpio = b64.replace(/\s+/g, "");
+    const relleno = limpio.endsWith("==") ? 2 : limpio.endsWith("=") ? 1 : 0;
+    return Math.max(0, Math.floor((limpio.length * 3) / 4) - relleno);
+}
+
+/**
+ * Los archivos que se adjuntan, validados EN EL SERVIDOR: una lista, cada uno
+ * con su nombre seguro, base64 de verdad, y el total por debajo del tope. Lo
+ * que no cumple **no se manda a medias**: se dice por qué.
+ */
+export function comoAdjuntosParaEnviar(
+    valor: unknown,
+    yaOcupado = 0,
+): { ok: true; lista: AdjuntoParaEnviar[]; bytes: number } | { ok: false; motivo: string } {
+    if (valor === undefined || valor === null) return { ok: true, lista: [], bytes: 0 };
+    if (!Array.isArray(valor)) return { ok: false, motivo: "Los adjuntos no llegaron bien." };
+    if (valor.length > TOPE_DE_ADJUNTOS) return { ok: false, motivo: `Como mucho ${TOPE_DE_ADJUNTOS} archivos por correo.` };
+    const lista: AdjuntoParaEnviar[] = [];
+    let bytes = yaOcupado;
+    for (const a of valor) {
+        const x = (a ?? {}) as Record<string, unknown>;
+        let base64 = typeof x.base64 === "string" ? x.base64 : typeof x.dataUrl === "string" ? x.dataUrl : "";
+        base64 = base64.replace(/^data:[^;,]*;base64,/, "");
+        if (!base64 || !/^[A-Za-z0-9+/=\s]+$/.test(base64)) return { ok: false, motivo: "Un adjunto no llegó bien." };
+        bytes += losBytesDeUnBase64(base64);
+        if (bytes > TOPE_DE_BYTES_DEL_ENVIO) return { ok: false, motivo: "Los adjuntos pasan de 25 MB: es el tope de un correo." };
+        const tipo = typeof x.tipo === "string" && /^[\w.+-]+\/[\w.+-]+$/.test(x.tipo) ? x.tipo : "application/octet-stream";
+        lista.push({ nombre: elNombreSeguroDelAdjunto(typeof x.nombre === "string" ? x.nombre : null), tipo, base64 });
+    }
+    return { ok: true, lista, bytes };
+}
+
+/* ── La firma ─────────────────────────────────────────────────────────────── */
+
+export const TOPE_DE_LA_FIRMA = 1000;
+
+/** La firma de un buzón. En blanco es «sin firma»: `null`, nunca una cadena vacía guardada. */
+export function comoFirma(valor: unknown): string | null {
+    if (typeof valor !== "string") return null;
+    const f = valor.replace(/\r\n/g, "\n").trim();
+    return f ? f.slice(0, TOPE_DE_LA_FIRMA) : null;
+}
+
+/**
+ * La firma se añade AL FINAL de lo que se manda, con el separador estándar
+ * de los correos («-- » y salto): los clientes de correo lo reconocen y la
+ * pliegan en las respuestas. Sin firma, el texto va tal cual. La añade el
+ * SERVIDOR al enviar, leyendo la del buzón: así el navegador no puede mandar
+ * una firma que no es la guardada, y se aplica igual al responder y al
+ * reenviar.
+ */
+export function conLaFirma(texto: string, firma: string | null | undefined, activa: boolean): string {
+    const f = activa ? comoFirma(firma) : null;
+    if (!f) return texto;
+    return `${texto.replace(/\s+$/, "")}\n\n-- \n${f}`;
+}
+
+/* ── La sugerencia de la IA ───────────────────────────────────────────────── */
+
+export const TOPE_DEL_CORREO_PARA_LA_IA = 6000;
+
+/** El texto del correo que se le pasa a la IA: sin etiquetas y recortado. */
+export function elTextoParaLaIa(c: { texto: string | null; html: string | null }): string {
+    const base = c.texto?.trim()
+        ? c.texto
+        : (c.html ?? "")
+              .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+              .replace(/<br\s*\/?>/gi, "\n")
+              .replace(/<\/p>/gi, "\n")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&nbsp;/g, " ")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">");
+    return base.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, TOPE_DEL_CORREO_PARA_LA_IA);
 }
