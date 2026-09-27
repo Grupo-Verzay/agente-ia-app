@@ -55,19 +55,45 @@ export function hayLlavesDe(
 }
 
 /**
- * Los permisos que se piden, y ni uno más: leer y enviar. `gmail.readonly` no
- * deja borrar ni mover nada, y en Microsoft `Mail.Read` + `Mail.Send` es lo
- * mismo. Pedir de más es lo que hace que la pantalla de consentimiento asuste.
+ * Los permisos que se piden: leer, organizar (marcar como leído y mover a la
+ * papelera) y enviar. Ni uno más.
+ *
+ * - Gmail: `gmail.modify` es el MÁS ESTRECHO que deja quitar la etiqueta
+ *   «sin leer» y mandar a la papelera. **No** es `mail.google.com`, que deja
+ *   borrar para siempre sin pasar por la papelera: eso no se pide.
+ * - Microsoft: `Mail.ReadWrite` es lo mismo del otro lado (`isRead` y mover a
+ *   «Elementos eliminados»).
+ *
+ * Un buzón conectado cuando se pedía solo leer sigue leyendo y respondiendo;
+ * marcar y eliminar le contestan con `MOTIVO_SIN_PERMISO_PARA_ORGANIZAR`, que
+ * dice qué hacer (volver a conectar), en vez de fallar callado.
  */
 export const PERMISOS_DEL_PROVEEDOR: Record<ProveedorConBoton, string[]> = {
     gmail: [
         "openid",
         "email",
-        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.send",
     ],
-    outlook: ["openid", "email", "offline_access", "User.Read", "Mail.Read", "Mail.Send"],
+    outlook: ["openid", "email", "offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send"],
 };
+
+/** Los de Microsoft que se repiten al renovar el token: los mismos, sin los de identidad. */
+export function losPermisosAlRenovar(proveedor: ProveedorConBoton): string {
+    return PERMISOS_DEL_PROVEEDOR[proveedor].filter((p) => p !== "openid" && p !== "email").join(" ");
+}
+
+/**
+ * ¿El proveedor dijo «a este token le falta permiso»? Google lo dice con
+ * `insufficient authentication scopes` / `ACCESS_TOKEN_SCOPE_INSUFFICIENT`, y
+ * Microsoft con `ErrorAccessDenied` / «Access is denied».
+ */
+export function esFaltaDePermiso(motivo: string | null | undefined): boolean {
+    return /insufficient.*(scope|permission)|ACCESS_TOKEN_SCOPE_INSUFFICIENT|ErrorAccessDenied|Access is denied/i.test(motivo ?? "");
+}
+
+export const MOTIVO_SIN_PERMISO_PARA_ORGANIZAR =
+    "Este correo se conectó cuando la plataforma solo pedía permiso para leer. Vuelve a conectarlo para poder marcar como leído y eliminar correos.";
 
 /** Adónde vuelve el proveedor. Tiene que coincidir CARÁCTER A CARÁCTER con la registrada. */
 export function laDireccionDeVuelta(origen: string, proveedor: ProveedorConBoton): string {
@@ -218,6 +244,39 @@ export interface CorreoCompleto {
 
 export const TAMANO_DE_PAGINA = 25;
 
+/**
+ * Cómo queda la lista al ABRIR un correo: sin el punto de «sin leer». Se pinta
+ * al momento, antes de que el proveedor conteste, y si contesta que no se pudo
+ * se deshace con `conSinLeer` — la misma regla que al eliminar un chat.
+ */
+export function conLeido(correos: ResumenDeCorreo[], id: string, sinLeer = false): ResumenDeCorreo[] {
+    return correos.map((c) => (c.id === id && c.sinLeer !== sinLeer ? { ...c, sinLeer } : c));
+}
+
+/** La lista sin un correo, y dónde estaba: para devolverlo a SU sitio si el proveedor dice que no. */
+export function sinElCorreo(
+    correos: ResumenDeCorreo[],
+    id: string,
+): { lista: ResumenDeCorreo[]; quitado: ResumenDeCorreo | null; posicion: number } {
+    const posicion = correos.findIndex((c) => c.id === id);
+    if (posicion < 0) return { lista: correos, quitado: null, posicion: -1 };
+    return { lista: [...correos.slice(0, posicion), ...correos.slice(posicion + 1)], quitado: correos[posicion], posicion };
+}
+
+/** Devolver un correo a la posición de la que se quitó (acotada, por si la lista cambió mientras). */
+export function devolverElCorreo(correos: ResumenDeCorreo[], correo: ResumenDeCorreo, posicion: number): ResumenDeCorreo[] {
+    if (correos.some((c) => c.id === correo.id)) return correos;
+    const i = Math.max(0, Math.min(posicion, correos.length));
+    return [...correos.slice(0, i), correo, ...correos.slice(i)];
+}
+
+/** Qué dice la confirmación de eliminar, según adónde va el correo en cada proveedor. */
+export function laAdvertenciaDeEliminar(proveedor: ProveedorDeCorreo): string {
+    if (proveedor === "gmail") return "Se mueve a la papelera de Gmail. Desde ahí se puede recuperar durante 30 días.";
+    if (proveedor === "outlook") return "Se mueve a «Elementos eliminados» de Outlook. Desde ahí se puede recuperar.";
+    return "Se mueve a la papelera de tu servidor de correo. Si tu servidor no tiene papelera, se elimina definitivamente.";
+}
+
 /** «Ana Pérez <ana@x.com>» → { nombre, direccion }. Un nombre vacío cae en la dirección. */
 export function partirRemitente(valor: string | null | undefined): { nombre: string; direccion: string } {
     const v = (valor ?? "").trim();
@@ -349,7 +408,7 @@ export function elMotivoLegible(proveedor: ProveedorConBoton, motivo: string): s
         }; después, vuelve a pulsar «Conectar».`;
     }
     if (/insufficient.*(scope|permission)|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
-        return `No se concedieron los permisos de leer y enviar correo. Vuelve a pulsar «Conectar» y, en la pantalla de ${quien}, marca las casillas de correo.`;
+        return `No se concedieron los permisos de correo (leer, organizar y enviar). Vuelve a pulsar «Conectar» y, en la pantalla de ${quien}, marca las casillas de correo.`;
     }
     if (/redirect_uri_mismatch/i.test(m)) {
         return `La dirección de vuelta no está registrada en ${quien}. Quien administra la plataforma tiene que añadirla.`;

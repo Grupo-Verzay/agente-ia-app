@@ -4,8 +4,9 @@
  * cabeceras de la respuesta— es el código de producción. Lo único fingido es el
  * socket.
  *
- * Apunta si la bandeja se abrió en solo lectura: leer en la plataforma no puede
- * marcar nada como leído en el buzón.
+ * Apunta si la bandeja se abrió en solo lectura, qué marcas se pusieron y
+ * adónde se movió un correo: traer no marca nada; marcar y eliminar sí, y son
+ * los únicos que abren con escritura.
  */
 const g = globalThis as any;
 export class ImapFlow {
@@ -42,6 +43,25 @@ export class ImapFlow {
     async fetchOne(uid: string) {
         const m = g.__imap.mensajes.find((x: any) => String(x.uid) === String(uid));
         return m ? { uid: m.uid, source: Buffer.from(m.fuente) } : false;
+    }
+    async messageFlagsAdd(uid: string, flags: string[]) {
+        (g.__imap.marcas ??= []).push({ uid: String(uid), flags });
+        const m = g.__imap.mensajes.find((x: any) => String(x.uid) === String(uid));
+        if (m && flags.includes("\\Seen")) m.leido = true;
+        return true;
+    }
+    async list() {
+        return g.__imap.carpetas ?? [{ path: "INBOX", specialUse: "\\Inbox" }, { path: "Papelera", specialUse: "\\Trash" }];
+    }
+    async messageMove(uid: string, destino: string) {
+        (g.__imap.movidos ??= []).push({ uid: String(uid), destino });
+        g.__imap.mensajes = g.__imap.mensajes.filter((x: any) => String(x.uid) !== String(uid));
+        return { destination: destino };
+    }
+    async messageDelete(uid: string) {
+        (g.__imap.borrados ??= []).push(String(uid));
+        g.__imap.mensajes = g.__imap.mensajes.filter((x: any) => String(x.uid) !== String(uid));
+        return true;
     }
     async logout() {}
     close() {}

@@ -11,6 +11,7 @@ import {
     Paperclip,
     RefreshCw,
     Search,
+    Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,16 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -34,8 +45,12 @@ import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
 import { useAltoDeLaCaja } from "@/components/shared/BarraDeEscribir";
 import { cn } from "@/lib/utils";
 import {
+    conLeido,
+    devolverElCorreo,
     elDocumentoDelCorreo,
     elTamanoLegible,
+    laAdvertenciaDeEliminar,
+    sinElCorreo,
     NOMBRE_DEL_PROVEEDOR,
     type CorreoCompleto,
     type ProveedorConBoton,
@@ -52,6 +67,7 @@ import {
 import {
     bandejaAction,
     desconectarCorreoAction,
+    eliminarCorreoAction,
     leerCorreoAction,
     misBuzonesAction,
     responderCorreoAction,
@@ -235,7 +251,53 @@ function Bandeja({
     const [busqueda, setBusqueda] = useState("");
     const [soloSinLeer, setSoloSinLeer] = useState(false);
     const [abierto, setAbierto] = useState<string | null>(null);
+    // Si estaba sin leer AL ABRIRLO: se pinta leído al momento, y la acción
+    // solo pide marcar cuando hace falta.
+    const [abiertoSinLeer, setAbiertoSinLeer] = useState(false);
+    const [aEliminar, setAEliminar] = useState<ResumenDeCorreo | null>(null);
     const vuelta = useRef(0);
+
+    function abrir(c: ResumenDeCorreo) {
+        setAbiertoSinLeer(c.sinLeer);
+        setAbierto(c.id);
+        // Se pinta leído YA; si el proveedor dice que no, `alMarcar` lo devuelve.
+        if (c.sinLeer) setCorreos((antes) => conLeido(antes, c.id));
+    }
+
+    const alMarcar = useCallback(
+        (id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => {
+            if (r.leido) return;
+            setCorreos((antes) => conLeido(antes, id, true));
+            if (r.motivo) setAviso({ texto: r.motivo, reconectar: r.reconectar });
+        },
+        [],
+    );
+
+    /**
+     * Eliminar: la fila se quita y la lectura se cierra ANTES de preguntar al
+     * proveedor —como al eliminar un chat—, y si dice que no, el correo vuelve
+     * a SU sitio con su motivo. Un solo camino para la fila y para la lectura.
+     */
+    async function eliminar(c: ResumenDeCorreo) {
+        const quitado = sinElCorreo(correos, c.id);
+        setCorreos(quitado.lista);
+        if (abierto === c.id) setAbierto(null);
+        const devolver = () =>
+            setCorreos((antes) => devolverElCorreo(antes, quitado.quitado ?? c, Math.max(0, quitado.posicion)));
+        try {
+            const r = await eliminarCorreoAction(buzon.id, c.id);
+            if (!r.success) {
+                devolver();
+                toast.error(r.message);
+                if (r.reconectar) setAviso({ texto: r.message, reconectar: true });
+                return;
+            }
+            toast.success(r.aLaPapelera ? "Correo movido a la papelera." : "Correo eliminado (tu servidor no tiene papelera).");
+        } catch {
+            devolver();
+            toast.error("No se pudo eliminar. Revisa la conexión.");
+        }
+    }
 
     const traer = useCallback(
         async (cursor: string | null) => {
@@ -382,29 +444,43 @@ function Bandeja({
                             </p>
                         ) : (
                             visibles.map((c) => (
-                                <button
-                                    key={c.id}
-                                    type="button"
-                                    data-correo-fila={c.id}
-                                    onClick={() => setAbierto(c.id)}
-                                    className={cn(
-                                        "flex w-full flex-col gap-0.5 border-b border-border px-3 py-2 text-left hover:bg-muted",
-                                        abierto === c.id && "bg-muted",
-                                    )}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        {c.sinLeer ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Sin leer" /> : null}
-                                        <span className={cn("min-w-0 flex-1 truncate text-sm", c.sinLeer && "font-semibold")} title={c.deDireccion}>
-                                            {c.de || c.deDireccion || "(sin remitente)"}
+                                // La fila es un grupo: abrir y eliminar son dos
+                                // botones HERMANOS (un botón no va dentro de otro).
+                                <div key={c.id} data-correo-fila={c.id} className="group relative border-b border-border">
+                                    <button
+                                        type="button"
+                                        onClick={() => abrir(c)}
+                                        className={cn(
+                                            "flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-muted",
+                                            abierto === c.id && "bg-muted",
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {c.sinLeer ? <span data-sin-leer className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Sin leer" /> : null}
+                                            <span className={cn("min-w-0 flex-1 truncate text-sm", c.sinLeer && "font-semibold")} title={c.deDireccion}>
+                                                {c.de || c.deDireccion || "(sin remitente)"}
+                                            </span>
+                                            {c.conAdjuntos ? <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Con adjuntos" /> : null}
+                                            <span className="shrink-0 text-xs text-muted-foreground">{laFechaCorta(c.fecha)}</span>
+                                        </div>
+                                        <span className={cn("truncate text-sm", c.sinLeer ? "text-foreground" : "text-muted-foreground")}>
+                                            {c.asunto || "(sin asunto)"}
                                         </span>
-                                        {c.conAdjuntos ? <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Con adjuntos" /> : null}
-                                        <span className="shrink-0 text-xs text-muted-foreground">{laFechaCorta(c.fecha)}</span>
-                                    </div>
-                                    <span className={cn("truncate text-sm", c.sinLeer ? "text-foreground" : "text-muted-foreground")}>
-                                        {c.asunto || "(sin asunto)"}
-                                    </span>
-                                    {c.fragmento ? <span className="truncate text-xs text-muted-foreground">{c.fragmento}</span> : null}
-                                </button>
+                                        {c.fragmento ? <span className="truncate text-xs text-muted-foreground">{c.fragmento}</span> : null}
+                                    </button>
+                                    {/* Sale al pasar el ratón o con el foco; en un teléfono se elimina desde la lectura. */}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="Eliminar correo"
+                                        title="Eliminar"
+                                        onClick={() => setAEliminar(c)}
+                                        className="absolute right-2 top-1.5 h-7 w-7 bg-muted opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             ))
                         )}
                         {siguiente && !cargando ? (
@@ -419,7 +495,18 @@ function Bandeja({
                 </div>
                 <div className={cn("min-h-0 min-w-0 flex-1", !abierto && "hidden md:flex")}>
                     {abierto ? (
-                        <Lectura key={abierto} buzonId={buzon.id} correoId={abierto} alVolver={() => setAbierto(null)} />
+                        <Lectura
+                            key={abierto}
+                            buzonId={buzon.id}
+                            correoId={abierto}
+                            estabaSinLeer={abiertoSinLeer}
+                            alVolver={() => setAbierto(null)}
+                            alMarcar={alMarcar}
+                            alEliminar={() => {
+                                const c = correos.find((x) => x.id === abierto);
+                                if (c) setAEliminar(c);
+                            }}
+                        />
                     ) : (
                         <div className="flex h-full w-full items-center justify-center p-6 text-sm text-muted-foreground">
                             Elige un correo para leerlo.
@@ -427,11 +514,51 @@ function Bandeja({
                     )}
                 </div>
             </div>
+
+            <AlertDialog open={Boolean(aEliminar)} onOpenChange={(v) => !v && setAEliminar(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar este correo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {aEliminar?.asunto ? `«${aEliminar.asunto}». ` : ""}
+                            {laAdvertenciaDeEliminar(buzon.proveedor)}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            data-confirmar-eliminar
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => {
+                                const c = aEliminar;
+                                setAEliminar(null);
+                                if (c) void eliminar(c);
+                            }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
 
-function Lectura({ buzonId, correoId, alVolver }: { buzonId: string; correoId: string; alVolver: () => void }) {
+function Lectura({
+    buzonId,
+    correoId,
+    estabaSinLeer,
+    alVolver,
+    alMarcar,
+    alEliminar,
+}: {
+    buzonId: string;
+    correoId: string;
+    estabaSinLeer: boolean;
+    alVolver: () => void;
+    alMarcar: (id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => void;
+    alEliminar: () => void;
+}) {
     const [correo, setCorreo] = useState<CorreoCompleto | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
     const [texto, setTexto] = useState("");
@@ -443,16 +570,28 @@ function Lectura({ buzonId, correoId, alVolver }: { buzonId: string; correoId: s
 
     useEffect(() => {
         let vivo = true;
-        leerCorreoAction(buzonId, correoId)
+        // La marca sale del estado de la fila AL ABRIRLA, no de cada repintado:
+        // se lee una vez, con el valor de ese momento.
+        leerCorreoAction(buzonId, correoId, estabaSinLeer)
             .then((r) => {
-                if (!vivo) return;
-                if (r.success) setCorreo(r.correo);
-                else setFallo(r.message);
+                if (r.success) {
+                    // La marca de leído se aplica aunque ya se haya cambiado de
+                    // correo: es del buzón, no de esta lectura.
+                    alMarcar(correoId, { leido: r.leido, motivo: r.motivoSinMarcar, reconectar: r.reconectar });
+                    if (vivo) setCorreo(r.correo);
+                } else {
+                    if (estabaSinLeer) alMarcar(correoId, { leido: false, motivo: null, reconectar: false });
+                    if (vivo) setFallo(r.message);
+                }
             })
-            .catch(() => vivo && setFallo("No se pudo abrir el correo. Revisa la conexión."));
+            .catch(() => {
+                if (estabaSinLeer) alMarcar(correoId, { leido: false, motivo: null, reconectar: false });
+                if (vivo) setFallo("No se pudo abrir el correo. Revisa la conexión.");
+            });
         return () => {
             vivo = false;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [buzonId, correoId]);
 
     const documento = useMemo(() => (correo ? elDocumentoDelCorreo(correo) : ""), [correo]);
@@ -494,6 +633,16 @@ function Lectura({ buzonId, correoId, alVolver }: { buzonId: string; correoId: s
                 ) : (
                     <div className="flex-1 text-sm text-muted-foreground">{fallo ?? "Abriendo…"}</div>
                 )}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 hover:text-destructive"
+                    aria-label="Eliminar este correo"
+                    title="Eliminar"
+                    onClick={alEliminar}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
             </div>
             {correo?.adjuntos.length ? (
                 <div data-adjuntos-del-correo className="flex shrink-0 flex-wrap gap-2 border-b border-border p-3">

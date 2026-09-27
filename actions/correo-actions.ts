@@ -95,15 +95,69 @@ export async function bandejaAction(buzonId: unknown, cursor: unknown): Promise<
     }
 }
 
-export async function leerCorreoAction(buzonId: unknown, correoId: unknown): Promise<Resultado<{ correo: CorreoCompleto }>> {
+/**
+ * Abrir un correo: traerlo Y marcarlo como leído en el buzón — igual en los
+ * tres proveedores. Son dos pasos y el segundo NO puede tumbar el primero: si
+ * el proveedor no deja marcar, el correo se enseña igual y la respuesta dice
+ * `leido: false` con su motivo, para que la pantalla le devuelva el punto de
+ * «sin leer» y, si falta permiso, ofrezca volver a conectar.
+ *
+ * `estabaSinLeer === false` (lo que la bandeja ya sabe) se salta la llamada:
+ * marcar un correo ya leído es una petición para no cambiar nada. No decide
+ * ningún acceso: en el peor caso, un correo se queda sin marcar.
+ */
+export async function leerCorreoAction(
+    buzonId: unknown,
+    correoId: unknown,
+    estabaSinLeer?: unknown,
+): Promise<Resultado<{ correo: CorreoCompleto; leido: boolean; motivoSinMarcar: string | null; reconectar: boolean }>> {
     try {
         const r = await elMio(buzonId);
         if ("error" in r) return { success: false, message: r.error! };
         if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
-        const correo = await elProveedorDe(r.buzon).leer(r.buzon, correoId);
-        return { success: true, correo };
+        const proveedor = elProveedorDe(r.buzon);
+        const correo = await proveedor.leer(r.buzon, correoId);
+        if (estabaSinLeer === false) return { success: true, correo, leido: true, motivoSinMarcar: null, reconectar: false };
+        try {
+            await proveedor.marcarComoLeido(r.buzon, correoId);
+            return { success: true, correo, leido: true, motivoSinMarcar: null, reconectar: false };
+        } catch (error) {
+            // No es mudo: se ve como un punto de «sin leer» que no se va.
+            console.warn("[correo] no se pudo marcar como leído", error instanceof Error ? error.message : error);
+            const conMotivo = error instanceof ErrorDeCorreo;
+            return {
+                success: true,
+                correo,
+                leido: false,
+                motivoSinMarcar: conMotivo ? error.message : "No se pudo marcar como leído en tu correo.",
+                reconectar: conMotivo && error.faltaPermiso,
+            };
+        }
     } catch (error) {
         return fallo(error, "no se pudo abrir el correo");
+    }
+}
+
+/**
+ * Eliminar: a la PAPELERA del propio buzón en los tres proveedores (se
+ * recupera desde ahí). Solo un servidor IMAP sin papelera lo borra del todo,
+ * y entonces `aLaPapelera: false` lo dice.
+ */
+export async function eliminarCorreoAction(
+    buzonId: unknown,
+    correoId: unknown,
+): Promise<Resultado<{ eliminado: true; aLaPapelera: boolean }>> {
+    try {
+        const r = await elMio(buzonId);
+        if ("error" in r) return { success: false, message: r.error! };
+        if (r.buzon.estado === "reconectar") {
+            return { success: false, message: r.buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true };
+        }
+        if (typeof correoId !== "string" || !correoId) return { success: false, message: "Ese correo no existe." };
+        const { aLaPapelera } = await elProveedorDe(r.buzon).eliminar(r.buzon, correoId);
+        return { success: true, eliminado: true, aLaPapelera };
+    } catch (error) {
+        return fallo(error, "no se pudo eliminar el correo");
     }
 }
 

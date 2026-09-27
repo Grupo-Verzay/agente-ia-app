@@ -1,6 +1,8 @@
 /**
  * Las acciones de Correo para la pantalla, **apuntando lo que se les pide**.
- * Con `window.__sinBuzones` la persona no tiene ningún correo conectado.
+ * Con `window.__sinBuzones` la persona no tiene ningún correo conectado; con
+ * `window.__sinPermiso` el buzón es de los permisos viejos (abre, no marca ni
+ * elimina); con `window.__falla` eliminar rebota.
  */
 const w = globalThis as any;
 const apuntar = (que: string, datos?: unknown) => (w.__correo ??= []).push({ que, datos });
@@ -19,10 +21,16 @@ export async function bandejaAction(buzonId: unknown, cursor: unknown) {
     apuntar("bandeja", { buzonId, cursor });
     return { success: true, correos: CORREOS, siguiente: null };
 }
-export async function leerCorreoAction(buzonId: unknown, correoId: unknown) {
-    apuntar("leer", { buzonId, correoId });
+export async function leerCorreoAction(buzonId: unknown, correoId: unknown, estabaSinLeer?: unknown) {
+    apuntar("leer", { buzonId, correoId, estabaSinLeer });
+    // Un poco de espera: la marca de la fila tiene que verse ANTES de la respuesta.
+    await new Promise((r) => setTimeout(r, 150));
+    const sinPermiso = Boolean(w.__sinPermiso) && estabaSinLeer !== false;
     return {
         success: true,
+        leido: !sinPermiso,
+        motivoSinMarcar: sinPermiso ? "Este correo se conectó cuando la plataforma solo pedía permiso para leer. Vuelve a conectarlo para poder marcar como leído y eliminar correos." : null,
+        reconectar: sinPermiso,
         correo: {
             id: correoId, de: "Cliente", deDireccion: "uno@cliente.com", para: "ana@gmail.com", cc: "", asunto: "Cotización",
             fecha: new Date().toISOString(), html: "<p>Hola <b>Ana</b></p><script>window.parent.__ejecutado = true</script>", texto: null,
@@ -34,6 +42,13 @@ export async function leerCorreoAction(buzonId: unknown, correoId: unknown) {
 export async function responderCorreoAction(buzonId: unknown, correoId: unknown, texto: unknown) {
     apuntar("responder", { buzonId, correoId, texto });
     return { success: true, enviado: true };
+}
+export async function eliminarCorreoAction(buzonId: unknown, correoId: unknown) {
+    apuntar("eliminar", { buzonId, correoId });
+    await new Promise((r) => setTimeout(r, 150));
+    if (w.__falla) return { success: false, message: "Google no contestó." };
+    if (w.__sinPermiso) return { success: false, message: "Vuelve a conectarlo para poder marcar como leído y eliminar correos.", reconectar: true };
+    return { success: true, eliminado: true, aLaPapelera: true };
 }
 export async function conectarImapAction(raw: unknown) {
     apuntar("imap", raw);
