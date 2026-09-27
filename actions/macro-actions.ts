@@ -10,7 +10,6 @@ import {
   sendManualWorkflowAction,
 } from "@/actions/chat-manual-actions";
 import { sendChannelTextAction, sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
-import { getApiKeyById } from "@/actions/api-action";
 import { assignTagToSessionAction, removeTagFromSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
 import { assignSessionToAdvisor, resolveSession } from "@/actions/advisor-assign-actions";
@@ -181,13 +180,11 @@ async function sendTextViaLine(
     return;
   }
 
-  // Evolution API: usa la API key de la cuenta dueña de ESA línea.
-  const owner = await db.user.findUnique({ where: { id: inst.userId }, select: { apiKeyId: true } });
-  const res = owner?.apiKeyId ? await getApiKeyById(owner.apiKeyId) : null;
-  const apiKey = res && res.success ? res.data : null;
-  if (!apiKey?.url || !apiKey?.key) throw new Error("No hay API key para enviar por esta línea.");
+  // Evolution API: la clave de la cuenta dueña de ESA línea la pone el
+  // servidor (`resolverContexto`), comprobando antes que quien corre la macro
+  // alcanza esa cuenta. Aquí solo se nombra la línea.
   await sendManualChatPayloadAction(
-    { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName },
+    { apiKeyData: null, instanceName },
     remoteJid,
     { kind: "text", text },
   );

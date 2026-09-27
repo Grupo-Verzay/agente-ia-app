@@ -1,4 +1,12 @@
-﻿'use server'
+import "server-only";
+
+/*
+ * Era `'use server'`: `sendingMessages({ url, apikey, … })` quedaba publicado
+ * como POST —«manda este texto con esta clave a este servidor»— y la página
+ * pública de agendar lo alcanzaba con la clave que le entregábamos. Todos sus
+ * llamadores son del servidor, así que `server-only` conserva lo que importaba
+ * (que no se empaquete hacia el navegador) y quita el endpoint.
+ */
 
 import {
     buildChatHistorySessionId,

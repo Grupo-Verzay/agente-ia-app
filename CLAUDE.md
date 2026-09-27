@@ -17916,6 +17916,59 @@ Tres cosas del arnés de navegador que costaron su vuelta:
    hosts de Google que la salida de este equipo deniega.
 
 
+## La clave del servidor de WhatsApp no viaja al navegador, nunca
+
+`ApiKey.key` es la clave **GLOBAL** de un servidor de Evolution: la comparten
+todas las cuentas que viven en él (`User.apiKeyId`). Filtrarla a una sola
+cuenta —o a quien abre la página pública de agendar— es entregar el WhatsApp de
+todas las demás. Y se filtraba por todas partes:
+
+| dónde | qué pasaba |
+| --- | --- |
+| la sesión (`currentUser`) | traía `apiKey.key`, así que llegaba a toda pantalla que recibiera el usuario |
+| la página pública de agendar | recibía la fila entera de `User` —clave y token de cada línea— y mandaba los mensajes DESDE el navegador de quien reservaba |
+| Recordatorios, Campañas, Mensajes | la clave viajaba en las filas, en campos ocultos del formulario y en los props |
+| la conversación de Chats | el contexto de cada línea (`.bind`) llevaba `{ url, key }`, y el servidor además **se fiaba** de la clave que le mandara el navegador |
+| Conexión | `obtenerApiKeys`, `getApiKeyById`, crear, editar y borrar servidores: **sin ninguna puerta** |
+| `chat-actions`, `sending-messages-actions` | ficheros `'use server'`: «manda esto a este servidor con esta clave» como POST abierto |
+| `createSeguimiento`, las funciones internas que crean y borran líneas, las copias de seguridad | sin comprobar de quién era la línea o la cuenta |
+
+> **La clave la pone el SERVIDOR, a partir de la línea o de la cuenta, después
+> de comprobar que quien pide la alcanza.** Lo que llegue del navegador en
+> `apikey`, `serverUrl` o `apiKeyData` se ignora. Al navegador solo le llega
+> que hay servidor (`elServidorSinClave`, `CLAVE_EN_EL_SERVIDOR`), nunca cuál es
+> la clave. Lo puro vive en `lib/clave-del-servidor.ts` y lo que lee la base en
+> `lib/clave-del-servidor.server.ts`.
+
+Seis cosas que hay que mantener:
+
+1. **Administrar servidores es de la casa** (`administraLosServidores`, la
+   misma puerta que Panel › Conexión). `getApiKeyById` ya no existe; quien solo
+   elige un servidor usa `losServidoresSinClave`.
+2. **Una línea se resuelve por su FILA** y pasa por `assertCanAccessTargetUser`
+   con su dueña (hacia abajo, nunca hacia arriba). `resolverContexto` de Chats
+   lo comprueba **antes** de mirar su caché.
+3. **La página pública de agendar solo manda el ID de la cita**
+   (`confirmarLaCitaPublicaAction`): recordatorios, aviso al dueño y
+   confirmación se arman en el servidor (`lib/cita-publica.server.ts`), **una
+   vez** y solo con una cita **recién creada**.
+4. **Lo que envía con url+clave sin sesión es `server-only`**, no una acción:
+   `chat-actions`, `sending-messages-actions` y `enviarConHistorial`. La acción
+   `sendMessageWithHistoryAction` que queda pide sesión y pone ella la clave.
+5. **Las funciones internas que crean o borran líneas comprueban el dueño**
+   (`puedeTocarLasLineasDe`) antes de hablar con Evolution.
+6. **Una copia de seguridad no lleva la clave** y al restaurar la cuenta
+   conserva SU servidor: crear uno con lo que traiga el fichero sería dejar que
+   quien la sube elija contra qué servidor habla la plataforma.
+
+Lo prueba `scripts/banco-clave-del-servidor.sh`: las reglas y un barrido del
+código, y las acciones de verdad contra Postgres con `currentUser()` real.
+`MODO=roto` empaqueta lo mismo contra `ANTES_REF` (7575f8a) y afirma cada fuga.
+
+Y una que no se arregla con código: **había una clave escrita a mano** en
+`app/schedule/helpers/testAPISendMessages.ts`. El fichero se fue, pero sigue en
+el historial de git: esa clave hay que **rotarla** en el servidor.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

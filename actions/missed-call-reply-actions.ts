@@ -2,7 +2,9 @@
 
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
-import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
+// El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
+// resuelta desde la base. La acción con puerta es para el navegador.
+import { enviarConHistorial as sendMessageWithHistoryAction } from '@/lib/envio-con-historial.server';
 import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { persistChatMessage } from '@/lib/chat-persistence';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';

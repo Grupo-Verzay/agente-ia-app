@@ -18,7 +18,12 @@ const USER_SELECT = {
     company: true,
     notificationNumber: true,
     apiUrl: true,
-    apiKey: true,
+    // El servidor de Evolution de la cuenta, SIN su clave. `currentUser()`
+    // viaja entero a decenas de pantallas de cliente (Mensajes lo pintaba tal
+    // cual), y `ApiKey.key` es la clave GLOBAL del servidor: abre el WhatsApp
+    // de todas las cuentas que viven en él. Quien necesite la clave la lee en
+    // el servidor con `lib/clave-del-servidor.server.ts`, que comprueba antes.
+    apiKey: { select: { id: true, url: true } },
     image: true,
     plan: true,
     webhookUrl: true,
@@ -338,7 +343,8 @@ async function resolverElUsuario(): Promise<CurrentUser | null> {
                     // dato sale gratis; se guarda aparte, sin pisar el de la
                     // persona.
                     role: true,
-                    apiKey: true,
+                    // Sin la clave, por lo mismo que arriba (USER_SELECT).
+                    apiKey: { select: { id: true, url: true } },
                     apiKeyId: true,
                     apiUrl: true,
                     webhookUrl: true,

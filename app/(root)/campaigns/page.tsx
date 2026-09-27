@@ -1,17 +1,13 @@
 ﻿import { currentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { getApiKeyById } from "@/actions/api-action"
-import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
+import { elServidorSinClave } from "@/lib/clave-del-servidor.server"
+import { Instancia, Reminders, Session, Workflow } from "@prisma/client"
 import { getCampaignsByUserId, getReminderDeliverySummaries } from "@/actions/reminders-actions"
 import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
 import { getInstancesByUserId } from "@/actions/instances-actions"
 import { MainReminders } from "../reminders/_components"
 import { UnderConstruction } from "@/components/custom/UnderConstruction";
-
-function hasApiKey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
-  return !!result.data
-}
 
 function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
   return !!result.data
@@ -39,8 +35,9 @@ const CampaignsPage = async () => {
   if (!user.apiKeyId) {
     return <strong className="text-red-500">No se encontró una API Key válida.</strong>
   }
-  const resApikey = await getApiKeyById(user.apiKeyId)
-  if (!resApikey.success || !hasApiKey(resApikey)) {
+  // Sin la clave: la pone `createReminder` en el servidor.
+  const servidor = await elServidorSinClave(user.apiKeyId)
+  if (!servidor) {
     console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")
     return <strong className="text-red-500">No se encontró una API Key válida.</strong>
   }
@@ -89,7 +86,7 @@ const CampaignsPage = async () => {
     <MainReminders
       isCampaignPage={isCampaignPage}
       user={user}
-      apiKey={resApikey.data}
+      apiKey={servidor}
       reminders={reminders}
       deliverySummaries={deliverySummaries}
       leads={sessions}

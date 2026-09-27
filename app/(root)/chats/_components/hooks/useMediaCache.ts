@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getMediaBase64FromMessage, type EvolutionMessage } from '@/actions/chat-actions';
+import type { EvolutionMessage } from '@/actions/chat-actions';
+import { mediaDeUnMensajeAction } from '@/actions/chat-manual-actions';
 
 type CacheEntry = { dataUrl: string; mime: string; length: number };
 type MediaCacheMap = Map<string, CacheEntry>;
@@ -101,7 +102,9 @@ export function useMediaCache({
     const downloadOne = async (messageId: string) => {
       try {
         globalMediaInflight.add(messageId);
-        const res = await getMediaBase64FromMessage(apiKeyData, instanceName, messageId);
+        // Solo se nombra la linea: la clave la pone el servidor (`apiKeyData`
+        // aqui es el marcador «esta linea habla con Evolution», no la clave).
+        const res = await mediaDeUnMensajeAction({ apiKeyData: null, instanceName }, messageId);
         if (!res || cancelled) return;
         if (res.success && res.data?.base64) {
           const dataUrl = `data:${res.data.mimetype || 'application/octet-stream'};base64,${res.data.base64}`;

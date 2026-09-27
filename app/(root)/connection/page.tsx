@@ -1,9 +1,8 @@
 ﻿import { UnderConstruction } from "@/components/custom/UnderConstruction"
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
+import { Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
-import { getApiKeyById } from "@/actions/api-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
 import { CallLinkCard } from "./_components/CallLinkCard";
@@ -21,9 +20,6 @@ import { isAdminLike } from "@/lib/rbac";
 // Adapta las funciones de tipo para manejar arrays
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
     return !!result.data && result.data.length > 0;
-}
-function hasApikey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
-    return !!result.data;
 }
 function hasPrompts(result: { data?: PromptInstance[] | null }): result is { data: PromptInstance[] } {
     return !!result.data && result.data.length > 0;
@@ -45,15 +41,13 @@ const Connection = async () => {
 
     const effectiveId = user.effectiveId ?? user.id;
 
-    // Obtener instancias, API key y prompts en paralelo
-    const [resInstancias, resApikey, resPrompts] = await Promise.all([
+    // Obtener instancias y prompts en paralelo (la clave del servidor ya no: no se usaba)
+    const [resInstancias, resPrompts] = await Promise.all([
         getInstancesByUserId(effectiveId),
-        getApiKeyById(user.apiKeyId ?? ''),
         getPromptsByUserId(effectiveId)
     ]);
 
     const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
-    const apiKey = hasApikey(resApikey) ? resApikey.data : null;
     const prompts = hasPrompts(resPrompts) ? resPrompts.data : [];
 
     // Estructura base para las instancias

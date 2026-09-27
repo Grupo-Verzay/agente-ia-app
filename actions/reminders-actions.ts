@@ -7,6 +7,8 @@ import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } fro
 import { Prisma, Reminders } from "@prisma/client"
 import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
+import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server"
+import { sinLaClaveDeLaFila } from "@/lib/clave-del-servidor"
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —que
@@ -16,6 +18,13 @@ import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
  * El peor era `getReminderFormDeps`: devolvía **la clave de Evolution** de la
  * cuenta que se le nombrara, con su servidor y sus leads. No es leer de más: es
  * entregar unas credenciales.
+ *
+ * **Y la clave del servidor no entra ni sale por el navegador.** `apikey` y
+ * `serverUrl` llegaban del formulario —la pantalla los recibía hechos, con la
+ * clave GLOBAL de Evolution dentro— y se guardaban tal cual. Ahora lo que
+ * mande el navegador en esos dos campos se IGNORA y se pone la de la cuenta
+ * del recordatorio (`laClaveDelServidorDeLaCuenta`), y todo lo que se devuelve
+ * pasa por `sinLaClaveDeLaFila`. Ver `lib/clave-del-servidor.ts`.
  *
  * **`getRemindersByUserId` se queda fuera a propósito**: la abre
  * `/schedule/[userId]`, una página pública —lo dice el middleware— donde no hay
@@ -103,17 +112,26 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
     const isCampaign = jids.length > 1;
     const seguimientoTipo = media ? `seguimiento-${mediaType ?? "image"}` : "text";
 
-    const serverurl = reminderData.serverUrl
-        ? (reminderData.serverUrl.startsWith("https://") ? reminderData.serverUrl : `https://${reminderData.serverUrl}`)
-        : "";
-
     try {
         const cuenta = await laCuentaDeLaAccion(reminderData.userId)
         if (!cuenta) return { success: false, message: "No autorizado." }
 
+        // La clave con la que el motor manda el mensaje sale de la CUENTA, no
+        // del formulario: lo que el navegador mande en `apikey`/`serverUrl` no
+        // decide contra qué servidor habla el nuestro.
+        const servidor = await laClaveDelServidorDeLaCuenta(cuenta)
+        const serverurl = servidor?.url ?? ""
+        const apikey = servidor?.key ?? ""
+
         // Crear 1 registro Reminders por campaña o recordatorio
         const reminder = await db.reminders.create({
-            data: { ...reminderData, userId: cuenta, isCampaign } as Prisma.RemindersCreateInput,
+            data: {
+                ...reminderData,
+                serverUrl: serverurl || null,
+                apikey: apikey || null,
+                userId: cuenta,
+                isCampaign,
+            } as Prisma.RemindersCreateInput,
         });
 
         if (!isCampaign) {
@@ -123,7 +141,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     idNodo:    `reminder-${reminder.id}`,
                     serverurl,
                     instancia: reminderData.instanceName ?? "",
-                    apikey:    reminderData.apikey ?? "",
+                    apikey,
                     remoteJid: reminderData.remoteJid ?? "",
                     mensaje:   baseMsg,
                     tipo:      seguimientoTipo,
@@ -137,7 +155,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             return {
                 success: true,
                 message: "Recordatorio creado exitosamente.",
-                data: reminder,
+                data: sinLaClaveDeLaFila(reminder),
             };
         }
 
@@ -158,7 +176,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     idNodo:    `camping-${reminder.id}-${i + 1}`,
                     serverurl,
                     instancia: reminderData.instanceName ?? "",
-                    apikey:    reminderData.apikey ?? "",
+                    apikey,
                     remoteJid: jid,
                     mensaje:   applyVariables(baseMsg, name, phone),
                     tipo:      seguimientoTipo,
@@ -173,7 +191,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         return {
             success: true,
             message: `Campaña creada: ${jids.length} mensajes programados.`,
-            data: reminder,
+            data: sinLaClaveDeLaFila(reminder),
         }
     } catch (error) {
         console.error("[CREATE_REMINDER]", error)
@@ -215,7 +233,9 @@ export async function getScheduleRemindersByUserId(
         return {
             success: true,
             message: "Recordatorios obtenidos correctamente.",
-            data: reminders,
+            // Esta es la que abre la página PÚBLICA: sin la clave, o se la
+            // entrega a cualquiera que pida una cita.
+            data: reminders.map((r) => sinLaClaveDeLaFila(r)),
         }
     } catch (error) {
         console.error("[GET_SCHEDULE_REMINDERS]", error)
@@ -254,7 +274,7 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
         return {
             success: true,
             message: "Recordatorios obtenidos correctamente.",
-            data: reminders,
+            data: reminders.map((r) => sinLaClaveDeLaFila(r)),
         }
     } catch (error) {
         console.error("[GET_REMINDERS]", error)
@@ -285,7 +305,7 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
         return {
             success: true,
             message: "Campañas obtenidas correctamente.",
-            data: campaigns,
+            data: campaigns.map((c) => sinLaClaveDeLaFila(c)),
         }
     } catch (error) {
         console.error("[GET_CAMPAIGNS]", error)
@@ -650,22 +670,28 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
         }
     }
 
-    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, userId: _userId, ...data } = parse.data
+    // `apikey` y `serverUrl` se descartan: los del navegador no deciden nada.
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, userId: _userId, apikey: _apikey, serverUrl: _serverUrl, ...data } = parse.data
 
     try {
-        if (!(await laCuentaDelRecordatorio(id))) {
+        const cuenta = await laCuentaDelRecordatorio(id)
+        if (!cuenta) {
             return { success: false, message: "No autorizado." }
         }
 
+        const servidor = await laClaveDelServidorDeLaCuenta(cuenta)
         const updated = await db.reminders.update({
             where: { id },
-            data: data as Prisma.RemindersUpdateInput,
+            data: {
+                ...data,
+                ...(servidor ? { serverUrl: servidor.url, apikey: servidor.key } : {}),
+            } as Prisma.RemindersUpdateInput,
         })
 
         return {
             success: true,
             message: "Recordatorio actualizado correctamente.",
-            data: updated,
+            data: sinLaClaveDeLaFila(updated),
         }
     } catch (error) {
         console.error("[UPDATE_REMINDER]", error)
@@ -694,8 +720,6 @@ export async function getReminderFormDeps(userId: string, instanceId: string): P
     success: boolean
     message?: string
     data?: {
-        apikey: string
-        serverUrl: string
         instanceName: string
         workflows: { id: string; name: string; userId: string; description: string | null; definition: string; status: string; createdAt: Date; updatedAt: Date; order: number }[]
         leads: { id: number; userId: string; remoteJid: string; pushName: string; instanceId: string; status: boolean; leadStatus: string | null }[]
@@ -705,15 +729,10 @@ export async function getReminderFormDeps(userId: string, instanceId: string): P
         const cuenta = await laCuentaDeLaAccion(userId)
         if (!cuenta) return { success: false, message: 'No autorizado.' }
 
-        const user = await db.user.findUnique({
-            where: { id: cuenta },
-            select: { apiKeyId: true },
-        })
-
-        const [apiKey, instances, workflows, leads] = await Promise.all([
-            user?.apiKeyId
-                ? db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
-                : null,
+        // Ya no devuelve la clave del servidor: el recordatorio la pone en el
+        // servidor al guardarse (`createReminder`), así que el formulario no
+        // tiene por qué tenerla.
+        const [instances, workflows, leads] = await Promise.all([
             db.instancia.findMany({ where: { userId: cuenta }, select: { instanceName: true, instanceId: true } }),
             db.workflow.findMany({ where: { userId: cuenta }, orderBy: { name: 'asc' } }),
             db.session.findMany({
@@ -729,8 +748,6 @@ export async function getReminderFormDeps(userId: string, instanceId: string): P
         return {
             success: true,
             data: {
-                apikey: apiKey?.key ?? '',
-                serverUrl: apiKey?.url ?? '',
                 instanceName: instance?.instanceName ?? instanceId,
                 workflows: workflows,
                 leads: leads,

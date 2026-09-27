@@ -34,8 +34,6 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
             repeatType: reminderData.repeatType || '',
             instanceName: reminderData.instanceName || '',
             pushName: reminderData.pushName || '',
-            serverUrl: apiKey?.url || '',
-            apikey: apiKey?.key || '',
             userId: reminderData.userId || '',
             workflowId: reminderData?.workflowId || '',
             remoteJid: reminderData.remoteJid || '',
@@ -78,8 +76,6 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                     <ReminderForm
                                         instanceNameReminder={instancia.instanceName}
                                         userId={user.id}
-                                        apikey={apiKey?.key ?? ''}
-                                        serverUrl={apiKey?.url ?? ''}
                                         leads={leads}
                                         workflows={workflows}
                                         initialData={transformedReminder}
