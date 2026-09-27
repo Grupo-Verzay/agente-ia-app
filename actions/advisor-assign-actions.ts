@@ -5,6 +5,8 @@ import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+import { esGenteQueAlcanzo, laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
@@ -110,6 +112,14 @@ export async function autoAssignUnassignedSessionsForOwner(
   ownerId: string,
   options: AutoAssignOptions,
 ): Promise<{ assigned: number; skippedReason?: string }> {
+  // Está exportada desde un fichero `'use server'`, así que ES un endpoint: con
+  // otro `ownerId` repartía las conversaciones de una cuenta ajena entre su
+  // equipo. Sus dos llamadores (`bulkAutoAssign` y el guardado de Equipo) ya
+  // pasan su propia cuenta, así que esto no les cambia nada.
+  if (!(await laCuentaDeLaAccion(ownerId))) {
+    return { assigned: 0, skippedReason: "not_authorized" };
+  }
+
   const settings = await db.$queryRaw<{
     auto_assign_enabled: boolean;
     auto_assign_max_chats: number;
@@ -288,6 +298,16 @@ export async function assignSessionToAdvisor(
   const auth = await requireOwnerOrAdmin();
   if (!auth) return { success: false, message: "No autorizado." };
 
+  // La conversación tiene que ser de una cuenta que se alcanza, y el asesor
+  // alguien de un equipo que se alcanza. Antes bastaba con ser dueño de
+  // CUALQUIER cuenta para colgarle a cualquier persona cualquier conversación.
+  if (!(await laCuentaDeLaConversacion(sessionId))) {
+    return { success: false, message: "Conversación no encontrada." };
+  }
+  if (advisorId && !(await esGenteQueAlcanzo(advisorId))) {
+    return { success: false, message: "Ese asesor no pertenece a tu equipo." };
+  }
+
   // Check limit if assigning (not releasing). El límite (max_chats) se configura
   // en el DUEÑO (auto_assign_max_chats), no en cada asesor; el conteo es de los
   // chats activos del asesor. Antes se leía max_chats del asesor (siempre el
@@ -338,6 +358,13 @@ export async function takeSession(sessionId: number): Promise<Result> {
   // y con el de quien mira para el filtro «Mías», así que escribir aquí el id
   // de la cuenta dejaba una conversación tomada que su propio dueño no veía.
   const yo = laPersona(user).id;
+
+  // Tomar solo lo que es de una cuenta que se alcanza. Sin esto, cualquier
+  // asesor de cualquier cuenta se quedaba con una conversación ajena nombrando
+  // su id.
+  if (!(await laCuentaDeLaConversacion(sessionId))) {
+    return { success: false, message: "Sesión no encontrada." };
+  }
 
   const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
     SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
@@ -420,6 +447,11 @@ export async function transferSession(
   if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
   if (rows[0].assigned_advisor_id !== yo) {
     return { success: false, message: "Solo puedes transferir tus propias conversaciones." };
+  }
+  // Y a quien se la pasa tiene que ser alguien de un equipo que se alcanza: el
+  // id llega del navegador y sin esto se le colgaba a cualquier usuario.
+  if (!(await esGenteQueAlcanzo(targetAdvisorId))) {
+    return { success: false, message: "Ese asesor no pertenece a tu equipo." };
   }
 
   await generateConversationIntelligence({
@@ -653,6 +685,8 @@ export async function quitarDeEsperaAction(sessionId: number): Promise<Result> {
 
 export async function getAssignmentHistory(sessionId: number): Promise<AssignmentLogEntry[]> {
   try {
+    // Quién tuvo cada conversación es un dato de su cuenta.
+    if (!(await laCuentaDeLaConversacion(sessionId))) return [];
     const rows = await db.$queryRaw<AssignmentLogEntry[]>`
       SELECT id, "advisorId", "assignedBy", action, "createdAt"
       FROM "AssignmentLog"

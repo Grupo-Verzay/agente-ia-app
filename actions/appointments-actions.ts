@@ -3,7 +3,11 @@
 import { db } from '@/lib/db';
 import { Appointment, AppointmentStatus } from '@prisma/client';
 import { addMinutes, parseISO, isBefore } from 'date-fns';
-import { registerSession } from './session-action';
+// El lead de una reserva pública se crea SIN puerta: quien reserva no tiene
+// cuenta. `registerSession` —la acción— ya pide sesión (ver
+// `lib/leads-sin-puerta.server.ts`).
+import { registrarLaSesion } from '@/lib/leads-sin-puerta.server';
+import { laCuentaDeLaConversacion } from '@/lib/dueno-del-dato.server';
 import { getAuditActorId, writeAuditLog } from './audit-log-actions';
 import {
     syncAppointmentToCalendar,
@@ -33,11 +37,8 @@ async function laCuentaDeLaCita(id: string) {
     return laCuentaDeLaAccion(suya.userId);
 }
 
-async function laCuentaDeLaConversacion(sessionId: number) {
-    const suya = await db.session.findUnique({ where: { id: sessionId }, select: { userId: true } });
-    if (!suya?.userId) return null;
-    return laCuentaDeLaAccion(suya.userId);
-}
+// La de la conversación es la compartida (`lib/dueno-del-dato.server.ts`): la
+// misma que usan las notas internas, los participantes y asignar un chat.
 
 /**
  * Las cuentas cuyas citas se leen en el tablero de Agenda.
@@ -215,7 +216,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
                 });
             }
         } else {
-            const register = await registerSession({
+            const register = await registrarLaSesion({
                 userId,
                 remoteJid: phone,
                 pushName: normalizedPushName,
