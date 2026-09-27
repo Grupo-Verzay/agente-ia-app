@@ -2,7 +2,11 @@ import "server-only";
 
 import {
     elAsuntoDeLaRespuesta,
+    elAsuntoDelReenvio,
+    elCuerpoDelReenvio,
     elHtmlDeUnTexto,
+    TOPE_DE_BYTES_DEL_ENVIO,
+    type AdjuntoParaEnviar,
     esFaltaDePermiso,
     lasReferenciasDeLaRespuesta,
     losPermisosAlRenovar,
@@ -70,6 +74,66 @@ export interface Pagina {
 /** Eliminar manda a la papelera en los tres; `false` solo si el servidor IMAP no tiene. */
 export interface Eliminado {
     aLaPapelera: boolean;
+}
+
+/**
+ * Archivar es SACARLO DE LA BANDEJA sin borrarlo, en los tres: Gmail le quita
+ * la etiqueta `INBOX` (queda en «Todos»), Outlook lo mueve a su carpeta
+ * «Archivo» (`archive`, la conocida), e IMAP a la carpeta marcada `\Archive`
+ * —o la que se llame así—, y si el servidor no tiene ninguna, **se crea
+ * «Archive»**, que es lo que hacen Thunderbird y Apple Mail. `carpeta` dice
+ * adónde fue, para decirlo en pantalla.
+ */
+export interface Archivado {
+    carpeta: string;
+}
+
+/** La carpeta de archivo de un servidor IMAP: la marcada `\Archive`, o la que se llame así. Pura. */
+export function elArchivoImap(carpetas: { path?: string; specialUse?: string }[]): string | null {
+    const marcada = carpetas.find((c) => c.specialUse === "\\Archive");
+    if (marcada?.path) return marcada.path;
+    const nombre = /^(inbox[./])?(archive|archives|archived|archivo|archivados|archivar)$/i;
+    return carpetas.find((c) => c.path && nombre.test(c.path))?.path ?? null;
+}
+
+/** Los archivos de una respuesta o un reenvío, listos para nodemailer (Gmail e IMAP). */
+function paraNodemailer(adjuntos: AdjuntoParaEnviar[]) {
+    return adjuntos.map((a) => ({ filename: a.nombre, contentType: a.tipo, content: Buffer.from(a.base64, "base64") }));
+}
+
+/** Los mismos, para Microsoft Graph. */
+function paraGraph(adjuntos: AdjuntoParaEnviar[]) {
+    return adjuntos.map((a) => ({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: a.nombre,
+        contentType: a.tipo,
+        contentBytes: a.base64.replace(/\s+/g, ""),
+    }));
+}
+
+/**
+ * Los adjuntos del ORIGINAL, bajados, para reenviarlos con él. Gmail e IMAP no
+ * tienen «reenviar» en su API: se compone un correo nuevo, y un reenvío sin
+ * los archivos del original es un reenvío a medias. Con tope: lo que pase de
+ * 25 MB no se manda recortado, se dice.
+ */
+async function losAdjuntosDelOriginal(
+    proveedor: { adjunto: (b: Buzon, id: string, adjuntoId: string) => Promise<AdjuntoDescargado> },
+    buzon: Buzon,
+    original: CorreoCompleto,
+    yaOcupado: number,
+): Promise<AdjuntoParaEnviar[]> {
+    const lista: AdjuntoParaEnviar[] = [];
+    let bytes = yaOcupado;
+    for (const a of original.adjuntos) {
+        const bajado = await proveedor.adjunto(buzon, original.id, a.id);
+        bytes += bajado.bytes.length;
+        if (bytes > TOPE_DE_BYTES_DEL_ENVIO) {
+            throw new ErrorDeCorreo("Con los archivos del correo original, el reenvío pasa de 25 MB: es el tope de un correo.");
+        }
+        lista.push({ nombre: bajado.nombre, tipo: bajado.tipo, base64: bajado.bytes.toString("base64") });
+    }
+    return lista;
 }
 
 /**
@@ -299,6 +363,7 @@ const gmail = {
                 fecha: fechaIso(m.internalDate ? Number(m.internalDate) : cabecera(m.payload?.headers, "Date")),
                 sinLeer: (m.labelIds ?? []).includes("UNREAD"),
                 conAdjuntos: /multipart\/mixed/i.test(cabecera(m.payload?.headers, "Content-Type")),
+                destacado: (m.labelIds ?? []).includes("STARRED"),
             });
         }
         return { correos, siguiente: lista.nextPageToken ?? null };
@@ -338,6 +403,30 @@ const gmail = {
         });
     },
 
+    async marcarComoNoLeido(buzon: Buzon, id: string): Promise<void> {
+        await gmail.etiquetas(buzon, id, { addLabelIds: ["UNREAD"] });
+    },
+
+    async destacar(buzon: Buzon, id: string, destacado: boolean): Promise<void> {
+        await gmail.etiquetas(buzon, id, destacado ? { addLabelIds: ["STARRED"] } : { removeLabelIds: ["STARRED"] });
+    },
+
+    async archivar(buzon: Buzon, id: string): Promise<Archivado> {
+        // Archivar en Gmail es quitarle `INBOX`: sigue en «Todos los mensajes».
+        await gmail.etiquetas(buzon, id, { removeLabelIds: ["INBOX"] });
+        return { carpeta: "Todos los mensajes" };
+    },
+
+    /** Las tres de arriba son la misma llamada: `modify` con lo que se pone o se quita. */
+    async etiquetas(buzon: Buzon, id: string, cambio: { addLabelIds?: string[]; removeLabelIds?: string[] }): Promise<void> {
+        const token = await elTokenVigente(buzon, "gmail");
+        await pedir(`${GMAIL}/messages/${encodeURIComponent(id)}/modify`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cambio),
+        });
+    },
+
     async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
         const token = await elTokenVigente(buzon, "gmail");
         // `trash`, nunca `delete`: se recupera desde la papelera de Gmail.
@@ -367,13 +456,25 @@ const gmail = {
         return { nombre: parte.filename || "adjunto", tipo: parte.mimeType || "application/octet-stream", bytes: deBase64Url(datos) };
     },
 
-    async responder(buzon: Buzon, original: CorreoCompleto, texto: string): Promise<void> {
+    async responder(buzon: Buzon, original: CorreoCompleto, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
         const token = await elTokenVigente(buzon, "gmail");
-        const crudo = await componerLaRespuesta(buzon.direccion, original, texto);
+        const crudo = await componerLaRespuesta(buzon.direccion, original, texto, adjuntos);
         await pedir(`${GMAIL}/messages/send`, token, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ raw: crudo.toString("base64url"), threadId: original.hilo ?? undefined }),
+        });
+    },
+
+    async reenviar(buzon: Buzon, original: CorreoCompleto, para: string[], texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        const token = await elTokenVigente(buzon, "gmail");
+        const ocupado = adjuntos.reduce((n, a) => n + Buffer.byteLength(a.base64, "base64"), 0);
+        const delOriginal = await losAdjuntosDelOriginal(gmail, buzon, original, ocupado);
+        const crudo = await componerElReenvio(buzon.direccion, original, para, texto, [...delOriginal, ...adjuntos]);
+        await pedir(`${GMAIL}/messages/send`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ raw: crudo.toString("base64url") }),
         });
     },
 };
@@ -394,7 +495,7 @@ const outlook = {
             $top: String(TAMANO_DE_PAGINA),
             $skip: String(salto),
             $orderby: "receivedDateTime desc",
-            $select: "id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments",
+            $select: "id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments,flag",
         });
         const r = await pedir<{ value?: any[]; "@odata.nextLink"?: string }>(`${GRAPH}/mailFolders/inbox/messages?${q}`, token);
         const correos: ResumenDeCorreo[] = (r.value ?? []).map((m) => ({
@@ -406,6 +507,7 @@ const outlook = {
             fecha: fechaIso(m.receivedDateTime),
             sinLeer: m.isRead === false,
             conAdjuntos: Boolean(m.hasAttachments),
+            destacado: m.flag?.flagStatus === "flagged",
         }));
         return { correos, siguiente: r["@odata.nextLink"] ? String(salto + correos.length) : null };
     },
@@ -456,6 +558,35 @@ const outlook = {
         });
     },
 
+    async marcarComoNoLeido(buzon: Buzon, id: string): Promise<void> {
+        await outlook.cambiar(buzon, id, { isRead: false });
+    },
+
+    async destacar(buzon: Buzon, id: string, destacado: boolean): Promise<void> {
+        // La «bandera» de Outlook es su destacado: la misma que se ve en su app.
+        await outlook.cambiar(buzon, id, { flag: { flagStatus: destacado ? "flagged" : "notFlagged" } });
+    },
+
+    async cambiar(buzon: Buzon, id: string, cambio: Record<string, unknown>): Promise<void> {
+        const token = await elTokenVigente(buzon, "outlook");
+        await pedir(`${GRAPH}/messages/${encodeURIComponent(id)}`, token, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cambio),
+        });
+    },
+
+    async archivar(buzon: Buzon, id: string): Promise<Archivado> {
+        const token = await elTokenVigente(buzon, "outlook");
+        // `archive` es la carpeta conocida de «Archivo»: la misma que su botón.
+        await pedir(`${GRAPH}/messages/${encodeURIComponent(id)}/move`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destinationId: "archive" }),
+        });
+        return { carpeta: "Archivo" };
+    },
+
     async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
         const token = await elTokenVigente(buzon, "outlook");
         // Mover a «Elementos eliminados», nunca DELETE: se recupera desde ahí.
@@ -477,14 +608,32 @@ const outlook = {
         return { nombre: a.name || "adjunto", tipo: a.contentType || "application/octet-stream", bytes: Buffer.from(a.contentBytes, "base64") };
     },
 
-    async responder(buzon: Buzon, original: CorreoCompleto, texto: string): Promise<void> {
+    async responder(buzon: Buzon, original: CorreoCompleto, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
         const token = await elTokenVigente(buzon, "outlook");
         // `reply` engancha la respuesta al hilo y la deja en Enviados: es lo
-        // mismo que hacen las cabeceras a mano en los otros dos.
+        // mismo que hacen las cabeceras a mano en los otros dos. Los archivos
+        // van en `message.attachments`, que `reply` admite junto al `comment`.
+        const cuerpo: Record<string, unknown> = { comment: elHtmlDeUnTexto(texto) };
+        if (adjuntos.length) cuerpo.message = { attachments: paraGraph(adjuntos) };
         await pedir(`${GRAPH}/messages/${encodeURIComponent(original.id)}/reply`, token, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ comment: elHtmlDeUnTexto(texto) }),
+            body: JSON.stringify(cuerpo),
+        });
+    },
+
+    async reenviar(buzon: Buzon, original: CorreoCompleto, para: string[], texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        const token = await elTokenVigente(buzon, "outlook");
+        // `forward` lleva solo los archivos del original: no hay que bajarlos.
+        const cuerpo: Record<string, unknown> = {
+            comment: elHtmlDeUnTexto(texto),
+            toRecipients: para.map((address) => ({ emailAddress: { address } })),
+        };
+        if (adjuntos.length) cuerpo.message = { attachments: paraGraph(adjuntos) };
+        await pedir(`${GRAPH}/messages/${encodeURIComponent(original.id)}/forward`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo),
         });
     },
 };
@@ -563,6 +712,7 @@ const imap = {
             const correos: ResumenDeCorreo[] = [];
             if (pagina.length) {
                 for await (const m of cliente.fetch(pagina.join(","), { uid: true, envelope: true, flags: true, bodyStructure: true }, { uid: true })) {
+                    const marcas: Set<string> = m.flags instanceof Set ? m.flags : new Set();
                     const f = m.envelope?.from?.[0];
                     correos.push({
                         id: String(m.uid),
@@ -571,8 +721,9 @@ const imap = {
                         asunto: m.envelope?.subject ?? "",
                         fragmento: "",
                         fecha: fechaIso(m.envelope?.date),
-                        sinLeer: !(m.flags instanceof Set ? m.flags.has("\\Seen") : false),
+                        sinLeer: !marcas.has("\\Seen"),
                         conAdjuntos: tieneAdjuntos(m.bodyStructure),
+                        destacado: marcas.has("\\Flagged"),
                     });
                 }
             }
@@ -620,6 +771,47 @@ const imap = {
         );
     },
 
+    async marcarComoNoLeido(buzon: Buzon, id: string): Promise<void> {
+        await conImap(
+            buzon,
+            async (cliente) => {
+                await cliente.messageFlagsRemove(id, ["\\Seen"], { uid: true });
+            },
+            { escribir: true },
+        );
+    },
+
+    async destacar(buzon: Buzon, id: string, destacado: boolean): Promise<void> {
+        await conImap(
+            buzon,
+            async (cliente) => {
+                if (destacado) await cliente.messageFlagsAdd(id, ["\\Flagged"], { uid: true });
+                else await cliente.messageFlagsRemove(id, ["\\Flagged"], { uid: true });
+            },
+            { escribir: true },
+        );
+    },
+
+    async archivar(buzon: Buzon, id: string): Promise<Archivado> {
+        return conImap(
+            buzon,
+            async (cliente) => {
+                const existe = await cliente.fetchOne(id, { uid: true }, { uid: true });
+                if (!existe) throw new ErrorDeCorreo("Ese correo ya no está en la bandeja.");
+                let archivo = elArchivoImap(await cliente.list().catch(() => []));
+                if (!archivo) {
+                    // Sin carpeta de archivo, se crea «Archive»: es lo que hacen
+                    // Thunderbird y Apple Mail, y así archivar nunca borra.
+                    await cliente.mailboxCreate("Archive");
+                    archivo = "Archive";
+                }
+                await cliente.messageMove(id, archivo, { uid: true });
+                return { carpeta: archivo };
+            },
+            { escribir: true },
+        );
+    },
+
     async eliminar(buzon: Buzon, id: string): Promise<Eliminado> {
         return conImap(
             buzon,
@@ -648,36 +840,57 @@ const imap = {
         });
     },
 
-    async responder(buzon: Buzon, original: CorreoCompleto, texto: string): Promise<void> {
-        const c = lasCredencialesImap(buzon);
-        const nodemailer = await import("nodemailer");
-        const transporte = nodemailer.createTransport({
-            host: c.smtpHost,
-            port: c.smtpPuerto,
-            secure: c.smtpSeguro,
-            auth: { user: c.usuario, pass: c.contrasena },
+    async responder(buzon: Buzon, original: CorreoCompleto, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        await enviarPorSmtp(buzon, {
+            to: original.responderA,
+            subject: elAsuntoDeLaRespuesta(original.asunto),
+            text: texto,
+            inReplyTo: original.idDeMensaje ?? undefined,
+            references: lasReferenciasDeLaRespuesta(original.referencias, original.idDeMensaje) ?? undefined,
+            attachments: paraNodemailer(adjuntos),
         });
-        try {
-            await transporte.sendMail({
-                from: buzon.nombre ? { name: buzon.nombre, address: buzon.direccion } : buzon.direccion,
-                to: original.responderA,
-                subject: elAsuntoDeLaRespuesta(original.asunto),
-                text: texto,
-                inReplyTo: original.idDeMensaje ?? undefined,
-                references: lasReferenciasDeLaRespuesta(original.referencias, original.idDeMensaje) ?? undefined,
-            });
-        } catch (error: any) {
-            if (error?.code === "EAUTH") {
-                await marcarParaReconectar(buzon.personaId, buzon.id, "El servidor de salida rechazó el usuario o la contraseña.");
-                throw new ErrorDeCorreo("El servidor de salida rechazó el usuario o la contraseña.", true);
-            }
-            throw new ErrorDeCorreo(`No se pudo enviar: ${error?.message ?? error}`);
-        }
+    },
+
+    async reenviar(buzon: Buzon, original: CorreoCompleto, para: string[], texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        const ocupado = adjuntos.reduce((n, a) => n + Buffer.byteLength(a.base64, "base64"), 0);
+        const delOriginal = await losAdjuntosDelOriginal(imap, buzon, original, ocupado);
+        const cuerpo = elCuerpoDelReenvio(original, texto);
+        await enviarPorSmtp(buzon, {
+            to: para.join(", "),
+            subject: elAsuntoDelReenvio(original.asunto),
+            text: cuerpo.texto,
+            html: cuerpo.html,
+            attachments: paraNodemailer([...delOriginal, ...adjuntos]),
+        });
     },
 };
 
+/** Mandar por el SMTP del buzón: responder y reenviar salen por aquí, con el mismo trato del error. */
+async function enviarPorSmtp(buzon: Buzon, mensaje: Record<string, unknown>): Promise<void> {
+    const c = lasCredencialesImap(buzon);
+    const nodemailer = await import("nodemailer");
+    const transporte = nodemailer.createTransport({
+        host: c.smtpHost,
+        port: c.smtpPuerto,
+        secure: c.smtpSeguro,
+        auth: { user: c.usuario, pass: c.contrasena },
+    });
+    try {
+        await transporte.sendMail({
+            from: buzon.nombre ? { name: buzon.nombre, address: buzon.direccion } : buzon.direccion,
+            ...mensaje,
+        });
+    } catch (error: any) {
+        if (error?.code === "EAUTH") {
+            await marcarParaReconectar(buzon.personaId, buzon.id, "El servidor de salida rechazó el usuario o la contraseña.");
+            throw new ErrorDeCorreo("El servidor de salida rechazó el usuario o la contraseña.", true);
+        }
+        throw new ErrorDeCorreo(`No se pudo enviar: ${error?.message ?? error}`);
+    }
+}
+
 /** El MIME de una respuesta, para Gmail. Lo arma nodemailer, que codifica bien los acentos del asunto. */
-async function componerLaRespuesta(desde: string, original: CorreoCompleto, texto: string): Promise<Buffer> {
+async function componerLaRespuesta(desde: string, original: CorreoCompleto, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<Buffer> {
     const { default: MailComposer } = (await import("nodemailer/lib/mail-composer")) as any;
     const mensaje = new MailComposer({
         from: desde,
@@ -686,6 +899,28 @@ async function componerLaRespuesta(desde: string, original: CorreoCompleto, text
         text: texto,
         inReplyTo: original.idDeMensaje ?? undefined,
         references: lasReferenciasDeLaRespuesta(original.referencias, original.idDeMensaje) ?? undefined,
+        attachments: paraNodemailer(adjuntos),
+    });
+    return mensaje.compile().build();
+}
+
+/** El MIME de un reenvío, para Gmail: el original debajo de lo escrito, con sus archivos. */
+async function componerElReenvio(
+    desde: string,
+    original: CorreoCompleto,
+    para: string[],
+    texto: string,
+    adjuntos: AdjuntoParaEnviar[],
+): Promise<Buffer> {
+    const { default: MailComposer } = (await import("nodemailer/lib/mail-composer")) as any;
+    const cuerpo = elCuerpoDelReenvio(original, texto);
+    const mensaje = new MailComposer({
+        from: desde,
+        to: para.join(", "),
+        subject: elAsuntoDelReenvio(original.asunto),
+        text: cuerpo.texto,
+        html: cuerpo.html,
+        attachments: paraNodemailer(adjuntos),
     });
     return mensaje.compile().build();
 }

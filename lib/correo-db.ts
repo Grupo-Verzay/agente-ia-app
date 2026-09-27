@@ -3,7 +3,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
-import { comoProveedor, type ProveedorDeCorreo } from "@/lib/correo";
+import { comoFirma, comoProveedor, type CorreoAnclado, type ProveedorDeCorreo } from "@/lib/correo";
 
 /**
  * Dónde vive un buzón conectado: `correo_cuentas`, tabla de la App con
@@ -67,6 +67,25 @@ function asegurarLaTabla(): Promise<void> {
             CREATE UNIQUE INDEX IF NOT EXISTS "correo_cuentas_persona_buzon_key"
             ON "correo_cuentas" ("personaId", "proveedor", "direccion")
         `);
+        // La firma del buzón. Con `ADD COLUMN IF NOT EXISTS` y no reescribiendo
+        // el `CREATE`: la tabla ya está en producción y un `CREATE TABLE IF NOT
+        // EXISTS` no toca una que ya existe. Las filas de antes quedan sin
+        // firma, que es exactamente lo que eran.
+        await ddl(() => db.$executeRaw`ALTER TABLE "correo_cuentas" ADD COLUMN IF NOT EXISTS "firma" TEXT`);
+        await ddl(() => db.$executeRaw`ALTER TABLE "correo_cuentas" ADD COLUMN IF NOT EXISTS "firmaActiva" BOOLEAN NOT NULL DEFAULT false`);
+        // Los ANCLADOS: de la persona, y con una foto del correo (ver
+        // `CorreoAnclado`). La clave lleva la persona delante: toda consulta
+        // entra por ella, y dos personas pueden anclar el mismo id.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "correo_anclados" (
+                "personaId" TEXT NOT NULL,
+                "buzonId" TEXT NOT NULL,
+                "correoId" TEXT NOT NULL,
+                "foto" JSONB NOT NULL,
+                "ancladoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("personaId", "buzonId", "correoId")
+            )
+        `);
     })().catch((error) => {
         tablaLista = null;
         throw error;
@@ -101,6 +120,9 @@ export interface BuzonVisible {
     nombre: string | null;
     estado: EstadoDelBuzon;
     ultimoError: string | null;
+    /** La firma que el SERVIDOR añade al responder y al reenviar, si está activa. */
+    firma: string | null;
+    firmaActiva: boolean;
 }
 
 export interface CredencialesOAuth {
@@ -140,6 +162,8 @@ type Fila = {
     credenciales: string;
     estado: string;
     ultimoError: string | null;
+    firma: string | null;
+    firmaActiva: boolean | null;
 };
 
 function comoVisible(f: Fila): BuzonVisible | null {
@@ -152,6 +176,8 @@ function comoVisible(f: Fila): BuzonVisible | null {
         nombre: f.nombre,
         estado: f.estado === "reconectar" ? "reconectar" : "conectada",
         ultimoError: f.ultimoError,
+        firma: comoFirma(f.firma),
+        firmaActiva: Boolean(f.firmaActiva),
     };
 }
 
@@ -159,7 +185,7 @@ export async function losBuzonesDe(personaId: string): Promise<BuzonVisible[]> {
     if (!personaId) return [];
     return conLaTabla(async () => {
         const filas = await db.$queryRaw<Fila[]>`
-            SELECT "id", "personaId", "proveedor", "direccion", "nombre", '' AS "credenciales", "estado", "ultimoError"
+            SELECT "id", "personaId", "proveedor", "direccion", "nombre", '' AS "credenciales", "estado", "ultimoError", "firma", "firmaActiva"
             FROM "correo_cuentas"
             WHERE "personaId" = ${personaId}
             ORDER BY "creadoEn" ASC
@@ -176,7 +202,7 @@ export async function elBuzonDe(personaId: string, buzonId: string): Promise<Buz
     if (!personaId || !buzonId || typeof buzonId !== "string") return null;
     return conLaTabla(async () => {
         const filas = await db.$queryRaw<Fila[]>`
-            SELECT "id", "personaId", "proveedor", "direccion", "nombre", "credenciales", "estado", "ultimoError"
+            SELECT "id", "personaId", "proveedor", "direccion", "nombre", "credenciales", "estado", "ultimoError", "firma", "firmaActiva"
             FROM "correo_cuentas"
             WHERE "id" = ${buzonId} AND "personaId" = ${personaId}
             LIMIT 1
@@ -251,6 +277,75 @@ export async function marcarParaReconectar(personaId: string, buzonId: string, m
 export async function quitarElBuzon(personaId: string, buzonId: string): Promise<boolean> {
     const tocadas = await conLaTabla(() => db.$executeRaw`
         DELETE FROM "correo_cuentas" WHERE "id" = ${buzonId} AND "personaId" = ${personaId}
+    `);
+    // Sus anclados se van con él: un anclado de un buzón que ya no está sería
+    // una fila arriba de la lista que al pulsarla dice «no está conectado».
+    if (Number(tocadas) > 0) {
+        await conLaTabla(() => db.$executeRaw`
+            DELETE FROM "correo_anclados" WHERE "personaId" = ${personaId} AND "buzonId" = ${buzonId}
+        `);
+    }
+    return Number(tocadas) > 0;
+}
+
+/** Guardar la firma de un buzón, **de esta persona**. Devuelve si tocó una fila. */
+export async function guardarLaFirma(personaId: string, buzonId: string, firma: string | null, activa: boolean): Promise<boolean> {
+    const tocadas = await conLaTabla(() => db.$executeRaw`
+        UPDATE "correo_cuentas"
+           SET "firma" = ${firma}, "firmaActiva" = ${activa}, "actualizadoEn" = CURRENT_TIMESTAMP
+         WHERE "id" = ${buzonId} AND "personaId" = ${personaId}
+    `);
+    return Number(tocadas) > 0;
+}
+
+/* ── Los anclados ─────────────────────────────────────────────────────────── */
+
+type FilaAnclado = { buzonId: string; correoId: string; foto: Partial<CorreoAnclado> | null; ancladoEn: Date };
+
+/** Los anclados de ESTA persona, solo de buzones suyos que sigan conectados. */
+export async function losAncladosDe(personaId: string): Promise<CorreoAnclado[]> {
+    if (!personaId) return [];
+    return conLaTabla(async () => {
+        const filas = await db.$queryRaw<FilaAnclado[]>`
+            SELECT a."buzonId", a."correoId", a."foto", a."ancladoEn"
+              FROM "correo_anclados" a
+              JOIN "correo_cuentas" c ON c."id" = a."buzonId" AND c."personaId" = a."personaId"
+             WHERE a."personaId" = ${personaId}
+             ORDER BY a."ancladoEn" DESC
+             LIMIT 200
+        `;
+        return filas.map((f) => {
+            const foto = f.foto ?? {};
+            return {
+                buzonId: f.buzonId,
+                id: f.correoId,
+                de: String(foto.de ?? ""),
+                deDireccion: String(foto.deDireccion ?? ""),
+                asunto: String(foto.asunto ?? ""),
+                fragmento: String(foto.fragmento ?? ""),
+                fecha: typeof foto.fecha === "string" ? foto.fecha : null,
+                conAdjuntos: Boolean(foto.conAdjuntos),
+                ancladoEn: new Date(f.ancladoEn).getTime(),
+            };
+        });
+    });
+}
+
+export async function anclarElCorreo(personaId: string, foto: CorreoAnclado): Promise<void> {
+    const { buzonId, id, ancladoEn: _a, ...resto } = foto;
+    await conLaTabla(() => db.$executeRaw`
+        INSERT INTO "correo_anclados" ("personaId", "buzonId", "correoId", "foto", "ancladoEn")
+        VALUES (${personaId}, ${buzonId}, ${id}, ${JSON.stringify(resto)}::jsonb, CURRENT_TIMESTAMP)
+        ON CONFLICT ("personaId", "buzonId", "correoId") DO UPDATE
+           SET "foto" = EXCLUDED."foto", "ancladoEn" = EXCLUDED."ancladoEn"
+    `);
+}
+
+/** Quitar un anclado. Se llama también al eliminar o archivar: lo que se va de la bandeja no puede quedarse arriba. */
+export async function desanclarElCorreo(personaId: string, buzonId: string, correoId: string): Promise<boolean> {
+    const tocadas = await conLaTabla(() => db.$executeRaw`
+        DELETE FROM "correo_anclados"
+         WHERE "personaId" = ${personaId} AND "buzonId" = ${buzonId} AND "correoId" = ${correoId}
     `);
     return Number(tocadas) > 0;
 }

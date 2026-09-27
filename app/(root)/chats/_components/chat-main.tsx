@@ -35,7 +35,7 @@ import { ChatInputBar } from './ChatInputBar';
 import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SuggestedReplyBar } from './SuggestedReplyBar';
+import { SuggestedReplyBar } from '@/components/shared/SuggestedReplyBar';
 import { ContactEditDialog } from './ContactEditDialog';
 import { ContactInfoPanel } from './ContactInfoPanel';
 import { TaskFormDialog } from './TaskFormDialog';

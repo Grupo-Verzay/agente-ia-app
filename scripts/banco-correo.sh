@@ -65,4 +65,4 @@ node scripts/empaquetar-con-acciones-mudas.mjs \
 TESTS="lib/__tests__/correo.test.mjs lib/__tests__/correo-db.test.mjs"
 # La pantalla es de hoy: no tiene «antes» que afirmar, así que solo corre en el modo bueno.
 [ "$MODO" = "roto" ] || TESTS="$TESTS lib/__tests__/correo-pantalla.test.mjs"
-node --test $TESTS "$@"
+if [ "$#" -gt 0 ]; then node --test "$@"; else node --test $TESTS; fi

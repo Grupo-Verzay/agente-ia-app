@@ -10,6 +10,6 @@ export { GET as conectarGET } from "@/app/api/correo/conectar/[proveedor]/route"
 export { GET as vueltaGET } from "@/app/api/correo/oauth/[proveedor]/route";
 export { GET as adjuntoGET } from "@/app/api/correo/adjunto/route";
 export { guardarElBuzon, elBuzonDe, losBuzonesDe } from "@/lib/correo-db";
-export { laPapeleraImap } from "@/lib/correo-proveedores.server";
+export { laPapeleraImap, elArchivoImap } from "@/lib/correo-proveedores.server";
 export { firmarElEstado } from "@/lib/correo-cifrado.server";
 export { db } from "@/lib/db";
