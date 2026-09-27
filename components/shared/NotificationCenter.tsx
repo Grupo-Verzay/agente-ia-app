@@ -1,5 +1,6 @@
 "use client";
 
+import { enlaceDeLaMencion } from "@/lib/acceso-por-mencion";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
@@ -202,10 +203,10 @@ export function NotificationCenter() {
           kind: "mention" as const,
           title:
             n.type === "mention"
-              ? `${n.actorName || "Un asesor"} te mencionó en una nota`
+              ? `${n.actorName || "Un asesor"} te mencionó en una conversación`
               : `${n.actorName || "Un asesor"} te agregó a una conversación`,
           description: n.content,
-          href: n.remoteJid ? `/chats?jid=${encodeURIComponent(n.remoteJid)}` : "/chats",
+          href: enlaceDeLaMencion({ remoteJid: n.remoteJid, sessionId: n.type === "mention" ? n.sessionId : null }),
           date: n.createdAt,
         }))
         .filter((i) => !dismissed.has(i.id));

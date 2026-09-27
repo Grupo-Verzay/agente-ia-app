@@ -21574,6 +21574,55 @@ y las acciones de verdad contra Postgres con la red a Evolution fingida.
 `MODO=roto` corre el `resolveSession` de `ANTES_REF` con la encuesta encendida y
 afirma que resolver no preguntaba nada.
 
+## Chats: mencionar a un compañero le ABRE esa conversación, y resolver se la cierra
+
+Una nota interna con `@Nombre` ya avisaba (campanita, «Menciones»), pero no
+daba nada más: un **agente** —que solo ve lo suyo— no tenía cómo entrar. Ahora
+mencionar hace tres cosas, y ninguna más:
+
+1. **Avisa** (la misma notificación de siempre), y el clic lleva a ESA
+   conversación: `enlaceDeLaMencion` (`lib/acceso-por-mencion.ts`) —
+   `/chats?jid=…&mencion=<id>`—, y la página saca la línea de la conversación
+   (`collab_notifications` no la guarda y es del backend). Las dos campanitas
+   usan la misma función.
+2. **Abre esa conversación al agente mencionado**: puede entrar y leerla con
+   una franja que dice por qué, **sin cambiar su dueño y sin salir en su
+   lista**. A quien no es agente no se le abre nada: ya la ve.
+3. **Dura mientras siga abierta**: la quita a mano el dueño (la asesora
+   asignada), quien administra la cuenta, quien la dio o el propio invitado,
+   desde la ficha (Participantes › «Por mención»); y **resolver la quita sola**.
+
+Es independiente de transferir, asignar y agregar participante: ninguno cambia.
+
+Cinco cosas que hay que mantener:
+
+1. **Es una tabla de la App, `acceso_por_mencion`, y NO `session_participants`.**
+   Un participante no caduca; esto se va al resolver. Mezclarlas haría que
+   resolver se llevara a los participantes de siempre.
+2. **La vigencia se mira AL LEER** (`laMencionSigueVigente`: vale si la
+   mención es posterior a `resolved_at`), además de borrarse en
+   `resolveSession`. La marca de resuelta la escriben otros caminos, y una
+   conversación cerrada no puede seguir abierta porque uno olvidó limpiar.
+   Mencionar en una ya resuelta sí abre: la mención es posterior.
+3. **La lista de gente manda, no el navegador.** Los mencionados se filtran
+   contra `elEquipoDeLaCuenta` —la MISMA lista con la que se agrega un
+   participante—; lo de fuera se ignora y se dice en la consola.
+4. **Una mención no cierra ninguna puerta que ya estuviera abierta.** Las
+   conversaciones de un agente se filtran en el navegador y muchos enlaces
+   (tareas, notas, búsqueda) lo llevan a chats ajenos: eso sigue igual. Lo único
+   que se cierra es lo que abrió una mención cuando ya no vale
+   (`laVistaDelInvitado`: «sin acceso» solo si entró por el aviso o ya la veía
+   como invitado). Un fallo de red al preguntar nunca cierra nada.
+5. **La `@` sale también escribiendo al cliente**, y elegir a alguien pasa el
+   compositor a **nota interna**, con aviso: un «@Nombre» no puede irse por
+   WhatsApp.
+
+Lo prueba `scripts/banco-mencion-en-chats.sh`: la regla y un barrido, y las
+acciones de verdad contra Postgres (aviso, acceso solo a ESA conversación, el
+dueño lo quita y otro agente no, resolver lo quita y no toca participantes).
+`MODO=roto` corre las acciones de `ANTES_REF` y afirma que mencionar no abría
+nada y se avisaba a gente de fuera del equipo.
+
 ## El menú lateral: el numerito de pendientes va por la RUTA, esté donde esté el apartado
 
 Al agrupar pantallas dentro de módulos (Bandeja, Contactos, Integraciones,

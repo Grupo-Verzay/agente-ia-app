@@ -41,6 +41,7 @@ import { toggleAgentDisabled } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import { ConversationParticipants } from './ConversationParticipants';
+import { AccesosPorMencion } from './AccesosPorMencion';
 import { PanelLateral } from '@/components/shared/PanelLateral';
 import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { AdvisorInfo } from '@/actions/team-actions';
@@ -584,6 +585,7 @@ function FichaDeContacto({
             advisors={advisors}
             currentUserId={userId}
           />
+          <AccesosPorMencion sessionId={session.id} />
         </Section>
 
         {/* Datos del cliente — secciones agrupadas */}

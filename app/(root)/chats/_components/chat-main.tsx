@@ -1,5 +1,6 @@
 'use client';
 
+import { EVENTO_ACCESOS_POR_MENCION } from './AccesosPorMencion';
 import { FranjaDeSentimiento } from "@/components/chats/FranjaDeSentimiento";
 import type { SentimientoDeLaConversacion } from "@/lib/sentimiento";
 import type { ConexionContacto, PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
@@ -815,6 +816,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         setInput('');
         setMentionIds(new Set());
         setMentionOpen(false);
+        // La ficha enseña quién entra por mención: que la lista se ponga al
+        // día sin esperar a volver a abrirla.
+        if (mentionedUserIds.length) window.dispatchEvent(new Event(EVENTO_ACCESOS_POR_MENCION));
       } else {
         toast.error(res.message);
       }
@@ -884,19 +888,22 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } else {
       setSlashOpen(false);
     }
-    // @menciones: solo en modo nota. Detecta un "@token" al final del texto.
-    if (noteMode) {
-      const m = value.match(/(?:^|\s)@([^\s@]*)$/);
-      if (m) {
-        setMentionQuery(m[1].toLowerCase());
-        setMentionOpen(true);
-      } else {
-        setMentionOpen(false);
-      }
+    // @menciones: detecta un "@token" al final del texto, en los DOS modos.
+    //
+    // Una mención solo existe dentro de una NOTA INTERNA —el cliente nunca la
+    // ve—, pero ofrecerla solo en modo nota la escondía: había que saber que
+    // existe un botón de nota antes de poder mencionar a nadie. Así que la
+    // lista sale también escribiendo al cliente, y elegir a alguien pasa el
+    // compositor a nota (`applyMentionSuggestion`). La arroba tiene que abrir
+    // palabra: `hola@verzay.com` no es una mención.
+    const m = value.match(/(?:^|\s)@([^\s@]*)$/);
+    if (m) {
+      setMentionQuery(m[1].toLowerCase());
+      setMentionOpen(true);
     } else if (mentionOpen) {
       setMentionOpen(false);
     }
-  }, [noteMode, mentionOpen]);
+  }, [mentionOpen]);
 
   const applySlashSuggestion = useCallback((message: string) => {
     setInput(message);
@@ -927,8 +934,15 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     );
     setMentionIds((prev) => new Set(prev).add(advisor.id));
     setMentionOpen(false);
+    // Mencionar es escribir una nota interna: el texto nunca sale al cliente.
+    // Si se estaba escribiendo al cliente, el compositor pasa a nota y se dice,
+    // para que nadie crea que el «@Nombre» se va por WhatsApp.
+    if (!noteMode) {
+      setNoteMode(true);
+      toast.info('Las menciones van en una nota interna: el cliente no la ve.');
+    }
     textareaRef.current?.focus();
-  }, []);
+  }, [noteMode]);
 
   /* ─── Message actions ─── */
   const handleCopyMessage = useCallback((bubble: UIBubble) => {

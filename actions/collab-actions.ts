@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
+import { elEquipoDeLaCuenta } from "@/lib/equipo-de-la-cuenta.server";
 
 /**
  * # `collab_notifications` es de la PERSONA por sus dos columnas
@@ -59,17 +60,7 @@ async function requireUser() {
 
 /** IDs de los miembros del equipo (dueño + asesores directos + linked_accounts). */
 async function getTeamMemberIds(ownerId: string): Promise<Set<string>> {
-  const rows = await db.$queryRaw<{ id: string }[]>`
-    SELECT u.id FROM "User" u
-      WHERE u.owner_id = ${ownerId} AND u.advisor_role IS NOT NULL
-    UNION
-    SELECT u.id FROM "linked_accounts" la
-      JOIN "User" u ON u.id = la."linked_user_id"
-      WHERE la."master_user_id" = ${ownerId}
-    UNION
-    SELECT ${ownerId} AS id
-  `;
-  return new Set(rows.map((r) => r.id));
+  return new Set((await elEquipoDeLaCuenta(ownerId)).keys());
 }
 
 /* ─────────────── PARTICIPANTES ─────────────── */

@@ -1,5 +1,6 @@
 "use server";
 
+import { olvidarLosAccesosDe } from "@/lib/acceso-por-mencion-db";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
@@ -535,6 +536,16 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   await marcarSesionResuelta(sessionId);
   await quitarSelloDeEscaladoPorSesion(sessionId);
   await logAssignment(sessionId, assignedAdvisorId, laPersona(user).id, "resolved");
+
+  // Resolver cierra la conversación a quien entró por una MENCIÓN. La lectura
+  // ya no los dejaría pasar (el acceso vale solo si es posterior a la marca de
+  // resuelta), así que esto es limpieza: que la lista de «Acceso por mención»
+  // no enseñe gente que ya no entra. Un fallo aquí no deshace el resolver.
+  try {
+    await olvidarLosAccesosDe(sessionId);
+  } catch (error) {
+    console.warn("[resolveSession] no se pudieron quitar los accesos por mención", { sessionId, error });
+  }
 
   // La encuesta de satisfacción, si la cuenta la tiene encendida. Va AQUÍ
   // porque esta es la única puerta de «resolver» —botón, fila, lote y macro—,
