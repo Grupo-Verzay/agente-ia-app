@@ -8,6 +8,7 @@ import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
+import { lanzarElBarridoDeCalidad } from "@/lib/calidad-runner.server";
 import { TOPE_EN_LA_VUELTA_DIARIA } from "@/lib/rescate-de-llamadas";
 import { NextResponse } from "next/server";
 
@@ -156,6 +157,18 @@ export async function POST(request: Request) {
     purgaDeChats = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // El QA automático de las conversaciones (CRM › Calidad). Va DE FONDO y sin
+  // esperar: son llamadas a la IA cuenta por cuenta y tardan minutos, y esta
+  // ruta no puede quedarse abierta tanto. Si un despliegue se lleva el
+  // proceso a mitad no se pierde nada: lo que no se evaluó sigue sin fila y la
+  // vuelta de mañana lo recoge. Aquí solo se dice si arrancó.
+  let calidad: unknown = null;
+  try {
+    calidad = lanzarElBarridoDeCalidad();
+  } catch (e) {
+    calidad = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
     {
       ...result,
@@ -168,6 +181,7 @@ export async function POST(request: Request) {
       llamadas,
       papeleraDeEmbudos,
       purgaDeChats,
+      calidad,
     },
     { status: result.success ? 200 : 500 },
   );

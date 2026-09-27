@@ -99,6 +99,7 @@ import { ChatContactItem } from "./ChatContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
+import { useExportarConversaciones } from "@/hooks/useExportarConversaciones";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { getInstanceDisplayName, getInstanceUiDisplayName } from "@/lib/instance-display-name";
 import {
@@ -1581,6 +1582,36 @@ export function ChatSidebar({
     clearSelection();
   }, [selectedChats, clearSelection, onResolucion]);
 
+  // Exportar en lote: el MISMO camino que «Exportar conversación» de la
+  // cabecera (`useExportarConversaciones`). Cada una va con TODAS sus
+  // identidades: el historial está guardado bajo la que devolvió el proveedor
+  // esa vuelta, y preguntar por una sola forma devuelve un archivo vacío.
+  const { exportando: exportandoLote, exportar: exportarLote } = useExportarConversaciones();
+  const handleBulkExport = useCallback(async () => {
+    if (selectedChats.length === 0) return;
+    // Las identidades salen del chat tal como llegó (`result.data`), que es el
+    // que las trae todas; la fila de la lista ya las ha resumido en su id.
+    const porClave = new Map(
+      (result.success ? result.data : []).map((c) => [claveDeChat(c.instanceName, c.remoteJid), c] as const),
+    );
+    const pedidos = selectedChats
+      .filter((sel) => sel.instanceName)
+      .map((sel) => {
+        const chat = porClave.get(claveDeChat(sel.instanceName ?? undefined, sel.remoteJid));
+        return {
+          instanceName: sel.instanceName as string,
+          remoteJid: sel.remoteJid,
+          aliases: chat ? getChatIdentityCandidates(chat) : [],
+        };
+      });
+    if (pedidos.length === 0) {
+      toast.error("No se sabe de qué línea son las conversaciones marcadas.");
+      return;
+    }
+    const ok = await exportarLote(pedidos);
+    if (ok) clearSelection();
+  }, [selectedChats, result, exportarLote, clearSelection]);
+
   // La sesion de SU linea, no la de la llave global: el mismo contacto puede
   // tener conversacion en Atencion y en Ventas, y cada una lleva sus propias
   // etiquetas. Con la global se etiquetaba la de la otra linea.
@@ -1815,6 +1846,8 @@ export function ChatSidebar({
               onDelete={canDeleteChats ? () => setBulkDeleteOpen(true) : undefined}
               onMarkRead={handleBulkMarkRead}
             onResolve={handleBulkResolve}
+              onExport={handleBulkExport}
+              exporting={exportandoLote}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
               onAddTag={onBulkAddTag && loteDeEtiquetas.etiquetas.length > 0 ? handleBulkAddTag : undefined}

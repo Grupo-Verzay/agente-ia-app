@@ -30,6 +30,11 @@ import {
 } from "@/lib/correo-db";
 import { elProveedorDe, ErrorDeCorreo, probarImap, type Pagina } from "@/lib/correo-proveedores.server";
 import { pedirSugerenciaALaIa } from "@/lib/sugerencia-de-correo.server";
+import {
+    elNombreDelArchivoDelCorreo,
+    formatearCorreo,
+    TOPE_DE_CONVERSACIONES_POR_LOTE,
+} from "@/lib/conversacion-legible";
 
 /**
  * Las acciones de Correo.
@@ -557,4 +562,65 @@ export async function desconectarCorreoAction(buzonId: unknown): Promise<Resulta
     } catch (error) {
         return fallo(error, "no se pudo desconectar el correo");
     }
+}
+
+/**
+ * Exportar correos a texto legible: uno (el «⋯» de la fila o del correo
+ * abierto) o los de la lista que se está mirando (el «⋯» de la barra). Es el
+ * MISMO formato que la exportación de Chats (`lib/conversacion-legible.ts`).
+ *
+ * La puerta es la de siempre de Correo: cada buzón se busca con la PERSONA en
+ * el `WHERE` (`elMio`), así que un id de otro buzón se contesta como uno que
+ * no existe y se cuenta en `omitidos`. Y **leer para exportar no marca como
+ * leído**: exportar es guardarse una copia, no abrirlo.
+ */
+export async function exportarCorreosAction(
+    raw: unknown,
+    zonaHoraria?: unknown,
+): Promise<Resultado<{ archivos: { nombre: string; contenido: string }[]; omitidos: number; message: string }>> {
+    const persona = await laPersona();
+    if (!persona) return { success: false, message: "No autorizado." };
+    const vistos = new Set<string>();
+    const pedidos: { buzonId: string; correoId: string }[] = [];
+    for (const p of Array.isArray(raw) ? raw : []) {
+        const buzonId = typeof p?.buzonId === "string" ? p.buzonId : "";
+        const correoId = typeof p?.correoId === "string" ? p.correoId : "";
+        if (!buzonId || !correoId || vistos.has(`${buzonId}::${correoId}`)) continue;
+        vistos.add(`${buzonId}::${correoId}`);
+        pedidos.push({ buzonId, correoId });
+    }
+    if (pedidos.length === 0) return { success: false, message: "No hay correos que exportar." };
+    const recortado = pedidos.length > TOPE_DE_CONVERSACIONES_POR_LOTE;
+    const zona = typeof zonaHoraria === "string" && zonaHoraria.length < 64 ? zonaHoraria : undefined;
+    const exportadaEn = new Date();
+    const archivos: { nombre: string; contenido: string }[] = [];
+    let omitidos = 0;
+    // En serie: son peticiones al proveedor de la persona, y varias a la vez
+    // contra el mismo buzón es lo que hace que Gmail o un IMAP cierren la puerta.
+    for (const p of pedidos.slice(0, TOPE_DE_CONVERSACIONES_POR_LOTE)) {
+        try {
+            const r = await elMio(p.buzonId);
+            if ("error" in r) {
+                omitidos++;
+                continue;
+            }
+            const correo = await elProveedorDe(r.buzon).leer(r.buzon, p.correoId);
+            archivos.push({
+                nombre: elNombreDelArchivoDelCorreo(correo.asunto, correo.fecha),
+                contenido: formatearCorreo(correo, { exportadaEn, zonaHoraria: zona }),
+            });
+        } catch (error) {
+            console.warn("[correo] no se pudo exportar un correo", error instanceof Error ? error.message : error);
+            omitidos++;
+        }
+    }
+    if (archivos.length === 0) return { success: false, message: "No se pudo exportar ninguno de los correos." };
+    const message = [
+        `${archivos.length} correo${archivos.length === 1 ? "" : "s"} exportado${archivos.length === 1 ? "" : "s"}.`,
+        omitidos ? `${omitidos} no se pudo${omitidos === 1 ? "" : "ieron"} exportar.` : "",
+        recortado ? `Se exportan como mucho ${TOPE_DE_CONVERSACIONES_POR_LOTE} por vez.` : "",
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return { success: true, archivos, omitidos, message };
 }

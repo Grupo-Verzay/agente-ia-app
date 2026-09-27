@@ -22,7 +22,7 @@ import { ESTADOS_POR_TIPO } from "@/types/registro";
 
 export type MainDashboardProps = {
   userId: string;
-  initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas";
+  initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas" | "calidad";
   /**
    * Las cuentas de la familia que el CRM esta mirando, ya resueltas en el
    * servidor (`resolverLasCuentasDelCrm`). Baja como dato y no se vuelve a

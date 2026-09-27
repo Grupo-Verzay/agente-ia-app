@@ -43,6 +43,8 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/crm/reportes" },
     { route: "/crm/rules" },
     { route: "/crm/llamadas" },
+    // CRM › Calidad: el QA automático de las conversaciones (Chats).
+    { route: "/crm/calidad" },
     // Los embudos por asesor. Va FUERA de `/crm` porque el layout del CRM saca a
     // los agentes, y este tablero es su pantalla de trabajo. No se monta en
     // ningun modulo: se asigna a mano en «Editar modulo», como `/cobros`, y la

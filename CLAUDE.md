@@ -18480,6 +18480,51 @@ por esa función.** Lo prueba `scripts/banco-seguimientos-de-la-cuenta.sh` en lo
 dos repositorios, contra Postgres y en dos modos: el roto corre el borrado viejo
 y afirma que cruzaba de cuenta.
 
+## Calidad de conversaciones (CRM › Calidad) y exportar conversaciones
+
+**La IA puntúa cada conversación en reposo** con una rúbrica de cinco criterios
+(saludo 15, primera respuesta 15, resolución 10, tono 25, si resolvió 35) y el
+CRM lo reparte por asesor: puntaje medio, tiempo medio de primera respuesta y
+de resolución, y las conversaciones por debajo de 60 marcadas como ejemplo de
+qué mejorar. La regla es pura en `lib/calidad-de-conversaciones.ts`; guarda
+`lib/calidad-db.ts` (tabla de la App `calidad_conversaciones`, UNA fila por
+conversación, sin copiar el texto) y corre `lib/calidad-runner.server.ts`.
+
+Seis cosas que hay que mantener:
+
+1. **Los tiempos se MIDEN, no se preguntan.** Primera respuesta y resolución
+   salen de las marcas de `chat_messages`; a la IA solo se le pide lo que no se
+   puede medir (saludo, tono, si resolvió). Un criterio que no se puede medir se
+   saca de la cuenta y el resto se repondera: nunca vale cero.
+2. **La primera respuesta es la de una PERSONA** cuando hay asesor; la de la IA
+   solo cuenta si la conversación es de la IA. Así «Agente IA» y cada asesor
+   tienen su propio número.
+3. **El runner NO es una acción**: `server-only`, lanzado de fondo desde el cron
+   diario (`/api/cron/billing`, en su `try`) y desde «Evaluar ahora», que
+   re-resuelve el alcance. Topes: 25 por cuenta y vuelta, 2 h de reposo, solo lo
+   que tiene mensajes nuevos, 30 min por barrido.
+4. **Paga la cuenta dueña, con la IA de la cuenta** (el mismo proveedor que el
+   motor) y solo si tiene créditos; se cobra después de guardar. Sin IA o sin
+   créditos no se evalúa y se dice.
+5. **Sin grupos, estados ni difusiones** (`sinGruposSql`), y la puerta es la del
+   CRM: `lasCuentasQueConsultaElCrm`, hacia abajo, y un `agente` no la ve.
+6. **Correo NO entra**: un correo es de la persona que lo conectó y de nadie más
+   (ni el dueño, ni un administrador), así que no puede aparecer en un tablero
+   del equipo.
+
+**Exportar** saca un `.txt` legible como el de WhatsApp Web («fecha - Quien:
+texto»); varias van en un `.zip` (`lib/zip-sencillo.ts`, sin dependencias). En
+Chats por UN camino (`useExportarConversaciones` → `exportarConversacionesAction`):
+Acciones de la cabecera, el lote y el CRM. Lee con TODAS las identidades del
+contacto, deja fuera las notas internas y **lo que no alcanza quien pide se
+cuenta como omitido**, nunca se exporta. En Correo, `exportarCorreosAction`, solo
+del propio buzón y sin marcarlo como leído.
+
+Lo prueba `scripts/banco-calidad-y-exportacion.sh`: reglas, zip abierto con
+Python y un barrido, y las acciones y el runner contra Postgres. `MODO=roto`
+afirma la lectura por una sola identidad (la conversación sale a medias) y la
+selección ingenua (grupos y conversaciones vivas pagadas).
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
