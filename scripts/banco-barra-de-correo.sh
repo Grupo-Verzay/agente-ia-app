@@ -28,7 +28,11 @@ if [ "$MODO" = "roto" ]; then
   # El CorreoClient de ANTES, con sus vecinos resueltos a los de hoy (esos no
   # son parte de la barra): así lo único que cambia entre los modos es la barra.
   git show "$ANTES_REF:app/(root)/correo/_components/CorreoClient.tsx" \
-    | sed 's#from "\./#from "@/app/(root)/correo/_components/#' > "$ANTES/CorreoClient.tsx"
+    | sed 's#from "\./#from "@/app/(root)/correo/_components/#' \
+    | sed 's#from "@/lib/correo"#from "./correo"#' > "$ANTES/CorreoClient.tsx"
+  # Y SUS reglas: las de hoy ya no exportan lo que ese CorreoClient pedía
+  # (el filtro de leído se volvió el de cuatro pastillas).
+  git show "$ANTES_REF:lib/correo.ts" > "$ANTES/correo.ts"
   node scripts/empaquetar-con-acciones-mudas.mjs \
     lib/__tests__/fingido/correo/entrada-pantalla.tsx lib/__tests__/.compilado/correo/barra-antes.js \
     --alias:@/actions/correo-actions=./lib/__tests__/fingido/correo/acciones-de-la-pantalla.ts \
