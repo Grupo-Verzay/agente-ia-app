@@ -21325,6 +21325,56 @@ Y se comprobó lo único que dice que un banco mira: quitándole el arreglo al m
 bueno se pone en rojo —el `-translate-y-1/2` de vuelta, el orden ingenuo al
 ascender, un `userId` en una acción y el volcado al cerrar el panel—.
 
+## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
+
+Al resolver una conversación —si la cuenta la tiene encendida en Perfil ›
+Comportamiento › **Encuesta de satisfacción**, apagada por defecto— el cliente
+recibe UNA pregunta: del 1 al 10, qué tan probable es que recomiende el
+negocio. Lo que conteste queda en su ficha de contacto y en Analíticas del CRM
+como NPS (promotores 9-10, pasivos 7-8, detractores 1-6), total y por asesor.
+
+Cinco cosas que hay que mantener:
+
+1. **Se engancha en `resolveSession` y en ningún otro sitio.** Es la única
+   puerta de «resolver» —botón, fila, lote y macro `RESOLVE` pasan por ella—.
+   Va en una **cola del proceso** (`encolarLaEncuestaDeSatisfaccion`): no hace
+   esperar a quien resuelve y un lote de cuarenta no manda cuarenta a la vez
+   por la misma línea. El asesor que cuenta es el que tenía la conversación AL
+   resolverla (`assignedAdvisorId`); sin asesor es «Sin asesor (IA)», que es
+   una fila más y no se esconde.
+2. **El interruptor es de la cuenta DUEÑA de la conversación**, no de quien
+   resuelve, y sale por la línea de la conversación (su fila de `Instancias`,
+   con la clave del servidor de su dueña). Solo WhatsApp (QR o Meta); nunca a
+   un grupo ni a una difusión. Una conversación no recibe otra en
+   `DIAS_ENTRE_ENCUESTAS` (candado por conversación en una transacción); una
+   `fallida` no cuenta y deja su motivo.
+3. **La App no recibe los webhooks**, así que la respuesta no llega: se va a
+   buscar en `chat_messages` (`recogerLasRespuestas`), por las TRES identidades
+   en tres ramas con `UNION ALL`. Se recoge al leer —el NPS del CRM y la
+   ficha— y en el barrido diario de `/api/cron/billing`, que cierra como
+   `sin_respuesta` lo que pasó de `DIAS_PARA_RESPONDER` o de los
+   `MENSAJES_QUE_SE_MIRAN` primeros mensajes sin una puntuación.
+4. **Qué es una puntuación lo decide `laPuntuacionDelTexto`, y es estricta**:
+   un solo número del 1 al 10 en un mensaje corto («8», «le doy un 9»,
+   «10/10»); en letra solo si es lo único que dice. Equivocarse hacia «no es»
+   cuesta una respuesta; hacia el otro lado mete un número falso en el NPS de
+   un asesor. Sin respuestas el NPS es `null`, nunca 0.
+5. **Dos tablas de la App** (`encuesta_satisfaccion_ajustes`,
+   `encuestas_satisfaccion`), sin clave foránea y ni una columna en `User` ni
+   en `Session` (#360). Las reglas viven en `lib/encuesta-de-satisfaccion.ts`
+   (pura) y las usan el envío, la ficha y el CRM: el color y la categoría son
+   los mismos en los dos sitios porque salen de ahí.
+
+Lo que se sabe y no se toca desde aquí: el «8» del cliente es un mensaje
+entrante como cualquier otro, así que reabre la conversación como cualquier
+mensaje en vivo, y si la IA está encendida puede contestarle (tiene la pregunta
+en su historial). Evitarlo es del backend.
+
+Lo prueba `scripts/banco-encuesta-de-satisfaccion.sh`: las reglas y un barrido,
+y las acciones de verdad contra Postgres con la red a Evolution fingida.
+`MODO=roto` corre el `resolveSession` de `ANTES_REF` con la encuesta encendida y
+afirma que resolver no preguntaba nada.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

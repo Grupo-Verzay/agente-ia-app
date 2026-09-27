@@ -46,6 +46,7 @@ import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
 import { OperatorContactsManager } from "./OperatorContactsManager";
 import { EscaladoCard } from "./EscaladoCard";
+import { EncuestaSatisfaccionCard } from "./EncuestaSatisfaccionCard";
 import { OwnerModeToggle } from "./OwnerModeToggle";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
@@ -880,6 +881,17 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             <Card className="border-border">
                                 <CardContent className="pt-4">
                                     <EscaladoCard readOnly={readOnly} />
+                                </CardContent>
+                            </Card>
+
+                            {/* Encuesta de satisfacción (NPS). Aquí, junto al
+                                escalado, porque es otro mensaje automático de la
+                                cuenta que depende de cómo se cierra una
+                                conversación. Misma forma que la tarjeta de arriba. */}
+                            <SectionTitle>Encuesta de satisfacción</SectionTitle>
+                            <Card className="border-border">
+                                <CardContent className="pt-4">
+                                    <EncuestaSatisfaccionCard readOnly={readOnly} />
                                 </CardContent>
                             </Card>
 
