@@ -8,7 +8,15 @@ import { ChatTabBar } from "./ChatTabBar";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
 import { cn } from "@/lib/utils";
-import { CABECERA_ESCRITORIO, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
+import {
+  ALTO_DE_LA_CABECERA_DE_LA_COLUMNA,
+  CABECERA_DE_LA_COLUMNA,
+  CABECERA_ESCRITORIO,
+  CLASE_FILA_1,
+  CLASE_FILA_2,
+  FILA_1_DE_LA_COLUMNA,
+  FILA_2_DE_LA_COLUMNA,
+} from "@/lib/cabeceras-de-chats";
 import { LISTA_DE_CHATS } from "@/lib/lista-de-chats";
 import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from "@/lib/nombre-del-contacto";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
@@ -95,12 +103,14 @@ export function CachedSidebar() {
             divisor no salte al cambiar el puente por ella. */}
         <div
           className={cn(
-            "pointer-events-none sticky top-0 z-10 flex h-[5.125rem] flex-col justify-center gap-1.5 overflow-hidden border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur sm:gap-2 sm:px-3",
+            "pointer-events-none",
+            CABECERA_DE_LA_COLUMNA,
+            ALTO_DE_LA_CABECERA_DE_LA_COLUMNA,
             CABECERA_ESCRITORIO,
           )}
           aria-hidden
         >
-          <div className={cn("grid shrink-0 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2", CLASE_FILA_1)}>
+          <div className={cn(FILA_1_DE_LA_COLUMNA, CLASE_FILA_1)}>
             <ChatSearchBar
               value=""
               onChange={nada}
@@ -132,7 +142,7 @@ export function CachedSidebar() {
             <BotonDeGrupos />
           </div>
 
-          <div className={cn("flex shrink-0 items-center", CLASE_FILA_2)}>
+          <div className={cn(FILA_2_DE_LA_COLUMNA, CLASE_FILA_2)}>
           <ChatTabBar
             tab="all"
             onTabChange={nada}

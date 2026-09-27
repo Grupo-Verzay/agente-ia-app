@@ -67,7 +67,17 @@ import { ChatTabBar } from "./ChatTabBar";
 import { MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
-import { CABECERA_ESCRITORIO, CABECERA_ESCRITORIO_MINIMA, CLASE_FILA_1, CLASE_FILA_2 } from "@/lib/cabeceras-de-chats";
+import {
+  ALTO_DE_LA_CABECERA_DE_LA_COLUMNA,
+  ALTO_MINIMO_DE_LA_CABECERA_DE_LA_COLUMNA,
+  CABECERA_DE_LA_COLUMNA,
+  CABECERA_ESCRITORIO,
+  CABECERA_ESCRITORIO_MINIMA,
+  CLASE_FILA_1,
+  CLASE_FILA_2,
+  FILA_1_DE_LA_COLUMNA,
+  FILA_2_DE_LA_COLUMNA,
+} from "@/lib/cabeceras-de-chats";
 import { LISTA_DE_CHATS } from "@/lib/lista-de-chats";
 
 const PALETTE = [
@@ -1647,15 +1657,15 @@ export function ChatSidebar({
         <div
           data-cabecera-de-la-columna
           className={cn(
-            "sticky top-0 z-10 flex flex-col justify-center gap-1.5 border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-2 sm:px-3",
-            haySeleccion ? "min-h-[5.125rem]" : "h-[5.125rem] overflow-hidden",
+            CABECERA_DE_LA_COLUMNA,
+            haySeleccion ? ALTO_MINIMO_DE_LA_CABECERA_DE_LA_COLUMNA : ALTO_DE_LA_CABECERA_DE_LA_COLUMNA,
             haySeleccion ? CABECERA_ESCRITORIO_MINIMA : CABECERA_ESCRITORIO,
           )}
         >
           {/* Arriba: QUIEN o QUE TIPO de chat es. Abajo: en que SITUACION esta.
               Tres iconos y ninguno mas —etiquetas, asesores, grupos—, y el
               buscador con todo el ancho que sobra. */}
-          <div className={cn("grid shrink-0 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2", CLASE_FILA_1)}>
+          <div className={cn(FILA_1_DE_LA_COLUMNA, CLASE_FILA_1)}>
             <ChatSearchBar
               value={q}
               onChange={setQ}
@@ -1771,7 +1781,7 @@ export function ChatSidebar({
 
           {/* La fila de pastillas mide lo MISMO que la de pestañas de la
               conversación: así las dos caen en la misma línea horizontal. */}
-          <div className={cn("flex shrink-0 items-center", CLASE_FILA_2)}>
+          <div className={cn(FILA_2_DE_LA_COLUMNA, CLASE_FILA_2)}>
           <ChatTabBar
             tab={tab}
             hayFiltroDeEstado={unreadOnly || enEsperaOnly}

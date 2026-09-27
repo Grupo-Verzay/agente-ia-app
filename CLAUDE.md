@@ -18381,6 +18381,27 @@ pastillas, y que el panel se despliega hacia abajo colgado de su botón.
 `MODO=roto` lee Correo de un commit pinchado (`ANTES_DE_LOS_MANDOS`) y afirma
 el `<select>` y el grupo de botones.
 
+### La barra de arriba ES la de Chats: va DENTRO de la columna
+
+Correo pintaba su barra con `BarraDeAcciones`, de lado a lado de la pantalla:
+el buscador salía estirado y el filtro («Buscar en») iba metido DENTRO del
+buscador, con otro tamaño y otro glifo. Chats la lleva en la cabecera de su
+COLUMNA, así que el buscador sale angosto y los iconos son cajas de 28 px.
+
+> **La cabecera de la lista va dentro de `[data-lista-de-correos]` y se pinta
+> con las MISMAS piezas que la de Chats**, todas en `lib/cabeceras-de-chats.ts`
+> y `components/shared/`: `CABECERA_DE_LA_COLUMNA` (82 px, 78 en computador:
+> la raya cae con la del correo abierto), `FILA_1_DE_LA_COLUMNA` (selector,
+> `BuscadorDeLaColumna` y los iconos), `FILTRO_DE_LA_COLUMNA` (el embudo
+> redondo, aquí «Buscar en»), `BOTON_DE_LA_COLUMNA` (actualizar y «⋯») y
+> `PASTILLAS_DE_LA_COLUMNA` (repartidas de borde a borde). Chats, su puente
+> (`CachedSidebar`) y Correo las importan: no hay copias que se queden atrás.
+
+Con un solo buzón el selector es el título «Correo», como «Chats» con una sola
+línea. Lo prueba `scripts/banco-barra-de-correo.sh`, en Chromium con las dos
+cabeceras pintadas en la misma página y comparadas pieza por pieza a
+1440/1280/1024/390; `MODO=roto` pinta la barra de `ANTES_REF` y afirma el fallo.
+
 ### Tan completo como Chats: la cabecera, anclar, destacar, archivar, reenviar y la barra de Chats
 
 Correo pasó a tener lo que un buzón necesita a diario, con **las piezas de

@@ -5,7 +5,7 @@ import {
     AlertTriangle,
     Archive,
     Check,
-    ListFilter,
+    Filter,
     Loader2,
     Mail,
     MailOpen,
@@ -14,13 +14,11 @@ import {
     Pin,
     PinOff,
     RefreshCw,
-    Search,
     Star,
     Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
     Dialog,
     DialogContent,
@@ -42,14 +40,32 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
+import { BuscadorDeLaColumna } from "@/components/shared/BuscadorDeLaColumna";
 import { PastillaDeFiltro, TONO_LEIDOS, TONO_SIN_LEER, TONO_TODOS, type TonoDePastilla } from "@/components/shared/PastillaDeFiltro";
 import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
-import { MARCA_DE_LA_CABECERA_DE_LA_COLUMNA, MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
+import { MARCA_DE_LA_CABECERA_DE_LA_COLUMNA, MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
+import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
+import {
+    ALTO_DE_LA_CABECERA_DE_LA_COLUMNA,
+    BOTON_DE_LA_COLUMNA,
+    BOTON_DE_LA_COLUMNA_INACTIVO,
+    CABECERA_DE_LA_COLUMNA,
+    CABECERA_ESCRITORIO,
+    CLASE_FILA_1,
+    CLASE_FILA_2,
+    FILA_1_DE_LA_COLUMNA,
+    FILA_2_DE_LA_COLUMNA,
+    FILTRO_DE_LA_COLUMNA,
+    FILTRO_DE_LA_COLUMNA_ACTIVO,
+    FILTRO_DE_LA_COLUMNA_INACTIVO,
+    GLIFO_DE_CONTROL,
+    GRUPO_DEL_BUSCADOR,
+    PASTILLAS_DE_LA_COLUMNA,
+    TITULO_DE_LA_COLUMNA,
+} from "@/lib/cabeceras-de-chats";
 import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 import { cn } from "@/lib/utils";
 import {
@@ -334,6 +350,10 @@ function Bandeja({
     const [busqueda, setBusqueda] = useState("");
     const [campo, setCampo] = useState<CampoDeBusqueda>("todo");
     const [filtro, setFiltro] = useState<FiltroDeLeido>("todos");
+    // Los dos menús de la fila de arriba nacen como los de Chats: colgados de
+    // su botón y justo debajo de la raya de la cabecera de la columna.
+    const panelDelCampo = usePanelFlotante("columnaAncha", "menu");
+    const panelDeAcciones = usePanelFlotante("columnaAncha", "menu");
     const [abierto, setAbierto] = useState<{ llave: string; buzonId: string; id: string } | null>(null);
     // Si estaba sin leer AL ABRIRLO: se pinta leído al momento, y la acción
     // solo pide marcar cuando hace falta.
@@ -660,13 +680,17 @@ function Bandeja({
                 valor={unificada ? null : vista}
                 alCambiar={(v) => alElegir(v ?? BANDEJA_UNIFICADA)}
             />
-        ) : buzonDeLaVista ? (
-            <span className="max-w-[10rem] shrink truncate text-sm text-muted-foreground" title={buzonDeLaVista.direccion}>
-                {buzonDeLaVista.direccion}
+        ) : (
+            // Con un solo buzón no hay nada que elegir: el título de la
+            // columna, como «Chats» con una sola línea. La dirección se lee al
+            // posarse, y en el «⋯».
+            <span className={TITULO_DE_LA_COLUMNA} title={buzonDeLaVista?.direccion}>
+                Correo
             </span>
-        ) : null;
+        );
+
     const pastillas = (
-        <div data-pastillas-de-correo className="flex items-center gap-1">
+        <div data-pastillas-de-correo className={PASTILLAS_DE_LA_COLUMNA}>
             {FILTROS_DE_LEIDO.map((f) => (
                 <PastillaDeFiltro
                     key={f}
@@ -683,108 +707,11 @@ function Bandeja({
     );
 
     return (
-        // `MARCA_DE_LA_COLUMNA` y la de su cabecera: son las que mide el panel
-        // del selector (`columnaAncha`) para nacer justo debajo de la barra y
-        // colgado de su botón, igual que el de canales en Chats.
         <div
             data-correo
             data-vista={unificada ? "unificada" : "buzon"}
-            {...{ [MARCA_DE_LA_COLUMNA]: "" }}
             className="flex h-full min-h-0 flex-col gap-2"
         >
-            <div {...{ [MARCA_DE_LA_CABECERA_DE_LA_COLUMNA]: "" }} className="flex shrink-0 flex-col gap-2">
-            <BarraDeAcciones
-                buscador={
-                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                    {selector}
-                    <div className="relative w-56 min-w-[36px] shrink sm:w-72">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={busqueda}
-                            onChange={(e) => setBusqueda(e.target.value)}
-                            // Dónde se busca se LEE en el placeholder: un campo
-                            // elegido que no se ve es un buscador que «a veces
-                            // no encuentra» lo que se tiene delante.
-                            placeholder={TEXTO_DEL_BUSCADOR[campo]}
-                            className="pl-8 pr-9"
-                            aria-label="Buscar correo"
-                        />
-                        {/* El campo va DENTRO del buscador, no en un segundo cuadro:
-                            dos cajas de búsqueda son una pregunta sobre cuál manda. */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
-                                    title={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
-                                    data-campo-de-busqueda={campo}
-                                    className={cn(
-                                        "absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2",
-                                        campo !== "todo" ? "text-primary" : "text-muted-foreground",
-                                    )}
-                                >
-                                    <ListFilter className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar en</DropdownMenuLabel>
-                                {CAMPOS_DE_BUSQUEDA.map((c) => (
-                                    // Cambiar de campo CONSERVA lo escrito: casi
-                                    // siempre es «esto que ya tecleé, búscalo por lo otro».
-                                    <DropdownMenuItem key={c} data-campo={c} onSelect={() => setCampo(c)}>
-                                        <Check className={cn("mr-2 h-4 w-4", campo === c ? "opacity-100" : "opacity-0")} />
-                                        {NOMBRE_DEL_CAMPO[c]}
-                                    </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                    </div>
-                }
-                secundarias={
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label="Actualizar"
-                        title="Actualizar"
-                        onClick={() => {
-                            void traer(false, {});
-                            void traerTotales();
-                        }}
-                        disabled={cargando}
-                    >
-                        <RefreshCw className={cn("h-4 w-4", cargando && "animate-spin")} />
-                    </Button>
-                }
-                acciones={
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Más acciones">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={alConectarOtro}>Conectar otro correo</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {deLaVista.map((b) => (
-                                <DropdownMenuItem key={b.id} className="text-destructive" onSelect={() => void alDesconectar(b.id)}>
-                                    Desconectar {b.direccion}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                }
-            />
-
-            {/* Las pastillas en SU fila, debajo del buscador, como en Chats: en
-                todas las anchuras, no solo en el teléfono. Se pintan UNA vez. */}
-            <div data-fila-de-filtros className="-mt-1 flex shrink-0 items-center gap-2 overflow-x-auto">
-                {pastillas}
-            </div>
-            </div>
-
             {avisosVisibles.map(({ buzon: b, aviso }) => (
                 <div key={b.id} data-aviso-correo={b.id} className={AVISO_DEL_CORREO}>
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -806,13 +733,117 @@ function Bandeja({
             ))}
 
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+                {/* La columna de la lista lleva su cabecera DENTRO, como la de
+                    Chats: mide el ancho de la columna —así el buscador sale
+                    angosto—, y su raya cae a la altura de la cabecera del correo
+                    abierto. `MARCA_DE_LA_COLUMNA` y la de su cabecera son las
+                    que mide el panel del selector (`columnaAncha`). */}
                 <div
                     data-lista-de-correos
+                    {...{ [MARCA_DE_LA_COLUMNA]: "" }}
                     className={cn(
                         "flex min-h-0 w-full flex-col border-border md:w-[var(--ancho-lateral)] md:shrink-0 md:border-r",
                         abierto && "hidden md:flex",
                     )}
                 >
+                    <div
+                        {...{ [MARCA_DE_LA_CABECERA_DE_LA_COLUMNA]: "" }}
+                        data-cabecera-de-la-bandeja
+                        className={cn(CABECERA_DE_LA_COLUMNA, ALTO_DE_LA_CABECERA_DE_LA_COLUMNA, CABECERA_ESCRITORIO)}
+                    >
+                        {/* Arriba, lo de Chats pieza por pieza: el selector, el
+                            buscador angosto y los iconos de 28 px. */}
+                        <div data-fila-del-buscador className={cn(FILA_1_DE_LA_COLUMNA, CLASE_FILA_1)}>
+                            <div className={GRUPO_DEL_BUSCADOR}>
+                                {selector}
+                                <BuscadorDeLaColumna
+                                    value={busqueda}
+                                    onChange={setBusqueda}
+                                    onClear={() => setBusqueda("")}
+                                    // Dónde se busca se LEE en el placeholder: un
+                                    // campo elegido que no se ve es un buscador
+                                    // que «a veces no encuentra».
+                                    placeholder={TEXTO_DEL_BUSCADOR[campo]}
+                                    ariaLabel="Buscar correo"
+                                />
+                            </div>
+                            {/* El filtro: dónde se busca. Redondo y del tamaño
+                                de los demás, fuera del buscador, como el embudo
+                                de Chats. */}
+                            <DropdownMenu onOpenChange={panelDelCampo.alAbrir}>
+                                <DropdownMenuTrigger asChild ref={panelDelCampo.disparador}>
+                                    <button
+                                        type="button"
+                                        aria-label={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
+                                        title={`Buscar en: ${NOMBRE_DEL_CAMPO[campo]}`}
+                                        data-campo-de-busqueda={campo}
+                                        className={cn(
+                                            FILTRO_DE_LA_COLUMNA,
+                                            campo !== "todo" ? FILTRO_DE_LA_COLUMNA_ACTIVO : FILTRO_DE_LA_COLUMNA_INACTIVO,
+                                        )}
+                                    >
+                                        <Filter className={GLIFO_DE_CONTROL} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent {...panelDelCampo.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
+                                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Buscar en</p>
+                                    {CAMPOS_DE_BUSQUEDA.map((c) => (
+                                        // Cambiar de campo CONSERVA lo escrito: casi
+                                        // siempre es «esto que ya tecleé, búscalo por lo otro».
+                                        <DropdownMenuItem
+                                            key={c}
+                                            data-campo={c}
+                                            onSelect={() => setCampo(c)}
+                                            className="flex cursor-pointer items-center justify-between gap-2"
+                                        >
+                                            <span className="text-sm">{NOMBRE_DEL_CAMPO[c]}</span>
+                                            {campo === c && <Check className="h-3.5 w-3.5 text-primary" />}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <button
+                                type="button"
+                                aria-label="Actualizar"
+                                title="Actualizar"
+                                className={cn(BOTON_DE_LA_COLUMNA, BOTON_DE_LA_COLUMNA_INACTIVO, "disabled:opacity-50")}
+                                onClick={() => {
+                                    void traer(false, {});
+                                    void traerTotales();
+                                }}
+                                disabled={cargando}
+                            >
+                                <RefreshCw className={cn(GLIFO_DE_CONTROL, "shrink-0", cargando && "animate-spin")} />
+                            </button>
+                            <DropdownMenu onOpenChange={panelDeAcciones.alAbrir}>
+                                <DropdownMenuTrigger asChild ref={panelDeAcciones.disparador}>
+                                    <button
+                                        type="button"
+                                        aria-label="Más acciones"
+                                        title="Más acciones"
+                                        className={cn(BOTON_DE_LA_COLUMNA, BOTON_DE_LA_COLUMNA_INACTIVO)}
+                                    >
+                                        <MoreHorizontal className={cn(GLIFO_DE_CONTROL, "shrink-0")} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent {...panelDeAcciones.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
+                                    <DropdownMenuItem onSelect={alConectarOtro}>Conectar otro correo</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    {deLaVista.map((b) => (
+                                        <DropdownMenuItem key={b.id} className="text-destructive" onSelect={() => void alDesconectar(b.id)}>
+                                            Desconectar {b.direccion}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+
+                        {/* Abajo, las pastillas en SU fila, repartidas como las
+                            de Chats. Se pintan UNA vez: dos copias serían dos filtros. */}
+                        <div data-fila-de-filtros className={cn(FILA_2_DE_LA_COLUMNA, CLASE_FILA_2)}>
+                            {pastillas}
+                        </div>
+                    </div>
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {cargando ? (
                             <div className="flex justify-center p-6 text-muted-foreground">

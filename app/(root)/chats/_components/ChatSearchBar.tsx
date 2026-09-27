@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { BuscadorDeLaColumna } from "@/components/shared/BuscadorDeLaColumna";
+import { GRUPO_DEL_BUSCADOR, TITULO_DE_LA_COLUMNA } from "@/lib/cabeceras-de-chats";
 import { SelectorDeCanal } from "@/components/shared/SelectorDeCanal";
 import { getInstanceUiDisplayName } from "@/lib/instance-display-name";
 
@@ -70,7 +70,7 @@ export function ChatSearchBar({
   }, [hasChannels, lineasSinFila, channelCounts, channels]);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
+    <div className={GRUPO_DEL_BUSCADOR}>
       {hasChannels ? (
         // El selector es el componente compartido con Correo: el botón, el
         // panel, su título, la fila de «Todos» y una por línea salen de un
@@ -103,29 +103,10 @@ export function ChatSearchBar({
           alCambiar={(v) => onChannelChange?.(v)}
         />
       ) : (
-        <span className="shrink-0 text-sm font-bold tracking-tight text-foreground">Chats</span>
+        <span className={TITULO_DE_LA_COLUMNA}>Chats</span>
       )}
 
-      <div className="relative min-w-[36px] flex-1">
-        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Buscar..."
-          className="h-7 rounded-full pl-7 pr-7 text-xs sm:text-sm"
-          aria-label="Buscar chats"
-        />
-        {value && (
-          <button
-            type="button"
-            aria-label="Limpiar busqueda"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            onClick={onClear}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      <BuscadorDeLaColumna value={value} onChange={onChange} onClear={onClear} ariaLabel="Buscar chats" />
     </div>
   );
 }

@@ -186,3 +186,57 @@ export const LETRA_DEL_ESTADO = 12;
 export const LINEA_DEL_ESTADO = "text-[0.75rem] leading-[0.875rem]";
 /** Lo que el lápiz sobresale de la línea del nombre, a cada lado: (28 − 18) / 2. */
 export const LAPIZ_SIN_ALTO = "-my-[0.3125rem]";
+
+/**
+ * La cabecera de una COLUMNA lateral —la lista de Chats y la de Correo—, y sus
+ * dos filas. Vivía escrita a mano dentro de `chat-sidebar`, y Correo se hizo
+ * la suya con `BarraDeAcciones`: una fila de lado a lado, con el buscador
+ * estirado y el filtro metido dentro de él con otro tamaño. Puestas una al
+ * lado de otra no se leían como la misma plataforma.
+ *
+ * Ahora las dos pintan con estas clases: la cabecera va DENTRO de la columna
+ * (así mide su ancho y el buscador sale angosto), con 82 px en un móvil y los
+ * 78 de `CABECERA_ESCRITORIO` en computador —los mismos que la cabecera de la
+ * conversación y la del correo abierto, así la raya cae en el mismo píxel—.
+ */
+export const CABECERA_DE_LA_COLUMNA =
+    "sticky top-0 z-10 flex flex-col justify-center gap-1.5 border-b-2 border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-2 sm:px-3";
+/** El alto fijo de esa cabecera (82 px; en computador lo baja `CABECERA_ESCRITORIO`). */
+export const ALTO_DE_LA_CABECERA_DE_LA_COLUMNA = "h-[5.125rem] overflow-hidden";
+/** El alto como MÍNIMO, para cuando debajo aparece una barra de acciones. */
+export const ALTO_MINIMO_DE_LA_CABECERA_DE_LA_COLUMNA = "min-h-[5.125rem]";
+
+/**
+ * La fila de arriba: el buscador se lleva lo que sobra y los iconos van
+ * detrás, cada uno lo que mide. Es una rejilla que crea una columna `auto` por
+ * icono (`grid-flow-col`), así vale con dos iconos o con cuatro sin dejar
+ * huecos: con las columnas escritas a mano, un icono que no se pinta dejaba
+ * su `gap` al final.
+ */
+export const FILA_1_DE_LA_COLUMNA =
+    "grid shrink-0 min-w-0 grid-flow-col grid-cols-[minmax(0,1fr)] auto-cols-auto items-center gap-2";
+/** La fila de abajo, la de las pastillas. */
+export const FILA_2_DE_LA_COLUMNA = "flex shrink-0 items-center";
+/**
+ * Las pastillas dentro de su fila: una sola fila, `justify-between` y el
+ * `gap-1` como mínimo. El porqué está escrito en `ChatTabBar`.
+ */
+export const PASTILLAS_DE_LA_COLUMNA = "flex w-full items-center justify-between gap-1 overflow-hidden";
+
+/** El selector y el buscador, juntos: se llevan lo que sobra de la fila. */
+export const GRUPO_DEL_BUSCADOR = "flex min-w-0 flex-1 items-center gap-1 sm:gap-2";
+/** El título de la columna cuando no hay selector («Chats», «Correo»). */
+export const TITULO_DE_LA_COLUMNA = "shrink-0 text-sm font-bold tracking-tight text-foreground";
+
+/** Un icono de la fila de arriba (asesores, grupos, actualizar, «⋯»). */
+export const BOTON_DE_LA_COLUMNA =
+    "relative inline-flex shrink-0 items-center justify-center gap-1 rounded-md border px-1.5 transition-colors h-7 min-w-7";
+export const BOTON_DE_LA_COLUMNA_INACTIVO =
+    "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground";
+export const BOTON_DE_LA_COLUMNA_ACTIVO = "border-primary bg-primary/10 text-primary";
+
+/** El FILTRO de la fila de arriba: el mismo tamaño, y redondo. */
+export const FILTRO_DE_LA_COLUMNA =
+    "relative flex shrink-0 items-center justify-center rounded-full border transition-colors h-7 min-w-7";
+export const FILTRO_DE_LA_COLUMNA_INACTIVO = "border-border text-muted-foreground hover:bg-accent hover:text-foreground";
+export const FILTRO_DE_LA_COLUMNA_ACTIVO = "border-primary bg-primary/10 text-primary";
