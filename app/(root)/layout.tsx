@@ -37,6 +37,7 @@ import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
 import { AnfitrionDeLlamada } from "@/components/chats/AnfitrionDeLlamada";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
+import { AvisoDeActualizacion } from "@/components/actualizaciones/AvisoDeActualizacion";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
@@ -538,6 +539,10 @@ export default async function RootGroupLayout({
                     <ReunionEnLaPlataforma />
                     <ChatOnboardingModal />
                     <TaskNotificationProvider />
+                    {/* La ultima actualizacion publicada desde Documentacion ›
+                      * Actualizaciones: salta UNA vez a cada persona, este
+                      * donde este. No pinta nada si no le toca ninguna. */}
+                    <AvisoDeActualizacion />
                 </SidebarInset>
             </SidebarProvider>
         </>
