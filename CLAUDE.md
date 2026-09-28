@@ -19101,6 +19101,52 @@ contra Postgres; `MODO=roto` afirma que en `8b1bdab` no existía) y el del mismo
 nombre en `api-webhook` (la herramienta contra Postgres; `MODO=roto` afirma que
 la vieja usaba los precios del modelo).
 
+## La campana: nueve pastillas, y tres fuentes nuevas que NO son un aviso nuevo
+
+La campana tenía seis pastillas. Ahora son nueve, en tres grupos de tres
+(`CHIPS_DE_LA_CAMPANA`, `lib/campana.ts`): **Chats, Correos, Citas · Menciones,
+Asignaciones, Mis tareas · Seguimientos, Errores, Créditos bajos**. Nueve son
+tres filas exactas, así que la rejilla es de tres columnas iguales y ya no hay
+reparto de «la última fila a medias».
+
+Las tres nuevas **no estrenan ningún registro**: leen lo que ya se escribe.
+
+| pastilla | de dónde sale | qué se enseña |
+| --- | --- | --- |
+| Correos | `correosSinLeerAction`, el contador del proveedor (el del menú) | el número, y UN aviso «Tienes N correos sin leer» |
+| Asignaciones | `AssignmentLog`, recorriendo la historia de cada conversación (`losCambiosDeAsignacion`) | te asignaron / te quitaron un chat, 7 días |
+| Créditos bajos | `ia_credit_alerts`, las filas con las que el motor no repite el WhatsApp (`elAvisoDeCreditos`) | el aviso más grave ya enviado que SIGUE siendo cierto |
+
+Cinco cosas que hay que mantener:
+
+1. **El registro no guarda a quién se le quitó un chat**: una transferencia
+   apunta solo a quien la recibe. Por eso se trae la historia ENTERA de las
+   conversaciones candidatas —también lo de antes de la ventana— y se compara
+   quién la llevaba antes y después de cada fila. `released` y
+   `returned_to_ai` la dejan sin nadie; `resolved` y `reopened` no la cambian
+   de manos. Lo que hace uno mismo no le avisa.
+2. **Créditos bajos refleja el aviso del WhatsApp, no inventa otro**: sin fila
+   en `ia_credit_alerts` no sale nada aunque el saldo ande bajo, y una cuenta
+   que ya recargó deja de verlo aunque la fila siga (el motor la borra solo al
+   renovar). Los umbrales son los de `creditFlags` del motor (50/25/5/0) y el
+   saldo se lee con `elSaldoDeLaFila`, la regla del motor.
+3. **Correos va aparte y sin esperar**: pregunta a Gmail/Outlook/IMAP, y un
+   buzón lento no puede retener la carga del resto. `null` («algún buzón no
+   contestó») se pinta «—», nunca 0. Como en Chats, el número es el del
+   proveedor: marcar leída la notificación no marca los correos.
+4. **Las cuentas se hacen con `losConteos`**, una sola función para las tres
+   veces que la campana recuenta.
+5. **Que el rótulo quepa se MIDE**: con «99+» en todas y a 390 px, «Créditos
+   bajos» se recortaba. El panel pasó a `w-[min(96vw,420px)]`, la pastilla a
+   `px-1 gap-0.5` y el número a `px-0.5`; con eso ningún rótulo se recorta en
+   ninguna de las cuatro anchuras.
+
+Lo prueba `scripts/banco-campana.sh`: la regla pura, la acción de verdad contra
+Postgres (asignada y quitada entre dos asesores, el 5 % con sus cifras, la
+cuenta que recargó) y la campana real en Chromium sobre el CSS del build a
+1440/1280/1024/390, con números normales y con «99+» en todas. `MODO=roto`
+corre todo contra `97ae916` y afirma seis pastillas y ninguna de las nuevas.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

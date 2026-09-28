@@ -9,6 +9,9 @@ import { avisosDeLaCampanita } from "@/lib/avisos-de-tarea";
 import { enlaceDeLaMencion } from "@/lib/acceso-por-mencion";
 import { elDestinatarioDeLosAvisos } from "@/lib/avisos-de-tarea-tipos";
 import { aDondeLleva } from "@/lib/avisos-de-tarea-tipos";
+import { pagaElClienteSuIa } from "@/lib/llaves-de-verzay";
+import { elSaldoDeLaFila } from "@/lib/saldo-de-la-cuenta";
+import { elAvisoDeCreditos, elTextoDelAvisoDeCreditos, losCambiosDeAsignacion } from "@/lib/campana";
 
 export type NotificationKind =
   | "task"
@@ -22,7 +25,13 @@ export type NotificationKind =
    * alguien comentó. Aparte de `task` —que son las vencidas— a propósito: una
    * es trabajo que se pasó de fecha y la otra es alguien hablándote.
    */
-  | "tarea";
+  | "tarea"
+  /** Correos sin leer: el número lo pide la campana aparte (`correosSinLeerAction`). */
+  | "correo"
+  /** Te asignaron o te quitaron una conversación (`AssignmentLog`). */
+  | "asignacion"
+  /** El mismo aviso de créditos bajos que el motor manda por WhatsApp. */
+  | "creditos";
 
 export type NotificationCenterItem = {
   id: string;
@@ -47,9 +56,134 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
   mention: 0,
   followup: 0,
   tarea: 0,
+  correo: 0,
+  asignacion: 0,
+  creditos: 0,
 };
 
 const ITEMS_PER_KIND_LIMIT = 50;
+
+/** Cuántos días atrás se miran las asignaciones. Más viejo que esto no es un aviso. */
+const DIAS_DE_ASIGNACIONES = 7;
+/** Tope de conversaciones cuya historia se recorre en una vuelta. */
+const TOPE_DE_CONVERSACIONES = 200;
+
+/** La tabla es del motor; sin ella (42P01) no hay avisos, y no es un error. */
+function faltaLaTabla(error: unknown): boolean {
+  const e = error as { code?: string; meta?: { code?: string }; message?: string };
+  return e?.meta?.code === "42P01" || e?.code === "42P01" || /does not exist|no existe/i.test(e?.message ?? "");
+}
+
+/**
+ * El aviso de créditos bajos de la cuenta, leído de las MISMAS filas con las
+ * que el motor decide no repetir el WhatsApp (`ia_credit_alerts`). Lo que
+ * decide cuál enseñar es `elAvisoDeCreditos`, puro.
+ */
+async function losAvisosDeCreditos(cuenta: string): Promise<NotificationCenterItem[]> {
+  let enviados: { umbral: number; enviadoEn: string }[] = [];
+  try {
+    const filas = await db.$queryRaw<{ threshold: number; createdAt: Date }[]>`
+      SELECT "threshold", "createdAt" FROM "ia_credit_alerts" WHERE "userId" = ${cuenta}
+    `;
+    enviados = filas.map((f) => ({ umbral: Number(f.threshold), enviadoEn: new Date(f.createdAt).toISOString() }));
+  } catch (error) {
+    if (!faltaLaTabla(error)) console.warn("[notification-center] avisos de créditos", error);
+    return [];
+  }
+  if (enviados.length === 0) return [];
+
+  const [pagaSuIa, fila] = await Promise.all([
+    pagaElClienteSuIa(cuenta),
+    db.iaCredit.findUnique({ where: { userId: cuenta }, select: { total: true, used: true } }),
+  ]);
+  const saldo = elSaldoDeLaFila({ fila, pagaSuIa });
+  const aviso = elAvisoDeCreditos(
+    enviados,
+    saldo.estado === "quedan"
+      ? { estado: "quedan", disponibles: saldo.creditos, total: fila?.total ?? 0 }
+      : saldo,
+  );
+  if (!aviso) return [];
+  const texto = elTextoDelAvisoDeCreditos(aviso);
+  return [
+    {
+      // El umbral y la fecha van en el id: marcado como leído, un umbral NUEVO
+      // —o el mismo en el ciclo siguiente— vuelve a salir.
+      id: `creditos:${aviso.umbral}:${aviso.enviadoEn}`,
+      kind: "creditos",
+      title: texto.titulo,
+      description: texto.descripcion,
+      href: "/profile",
+      date: aviso.enviadoEn,
+    },
+  ];
+}
+
+/**
+ * Las conversaciones que le asignaron o le quitaron a la PERSONA en los
+ * últimos días. La historia de cada conversación se trae entera —también lo
+ * de antes de la ventana— porque sin ella no se sabe quién la llevaba al
+ * empezar (ver `losCambiosDeAsignacion`).
+ */
+async function losAvisosDeAsignacion(persona: string): Promise<NotificationCenterItem[]> {
+  const desde = new Date(Date.now() - DIAS_DE_ASIGNACIONES * 24 * 60 * 60 * 1000);
+  const filas = await db.$queryRaw<
+    { id: number; sessionId: number; advisorId: string | null; assignedBy: string | null; action: string; createdAt: Date }[]
+  >`
+    WITH candidatas AS (
+      SELECT DISTINCT r."sessionId"
+      FROM "AssignmentLog" r
+      WHERE r."createdAt" >= ${desde}
+        AND EXISTS (
+          SELECT 1 FROM "AssignmentLog" x
+          WHERE x."sessionId" = r."sessionId" AND x."advisorId" = ${persona}
+        )
+      LIMIT ${TOPE_DE_CONVERSACIONES}
+    )
+    SELECT al.id, al."sessionId", al."advisorId", al."assignedBy", al.action, al."createdAt"
+    FROM "AssignmentLog" al
+    WHERE al."sessionId" IN (SELECT "sessionId" FROM candidatas)
+  `;
+  const cambios = losCambiosDeAsignacion(
+    filas.map((f) => ({ ...f, id: Number(f.id), sessionId: Number(f.sessionId), createdAt: new Date(f.createdAt).toISOString() })),
+    persona,
+    desde.toISOString(),
+  ).slice(0, ITEMS_PER_KIND_LIMIT);
+  if (cambios.length === 0) return [];
+
+  const sesionIds = Array.from(new Set(cambios.map((c) => c.sessionId)));
+  const quienes = Array.from(new Set(cambios.map((c) => c.porQuien).filter(Boolean))) as string[];
+  const [sesiones, gente] = await Promise.all([
+    db.session.findMany({
+      where: { id: { in: sesionIds } },
+      select: { id: true, pushName: true, customName: true, remoteJid: true },
+    }),
+    quienes.length
+      ? db.user.findMany({ where: { id: { in: quienes } }, select: { id: true, name: true } })
+      : Promise.resolve([] as { id: string; name: string | null }[]),
+  ]);
+  const sesion = new Map(sesiones.map((s) => [s.id, s]));
+  const nombre = new Map(gente.map((g) => [g.id, g.name]));
+
+  return cambios.flatMap((c) => {
+    const s = sesion.get(c.sessionId);
+    if (!s) return [];
+    const contacto = s.customName || s.pushName || cleanJidNumber(s.remoteJid);
+    const quien = c.porQuien ? nombre.get(c.porQuien) || "Un asesor" : "El reparto automático";
+    return [
+      {
+        id: `asignacion:${c.id}`,
+        kind: "asignacion" as const,
+        title: c.tipo === "asignada" ? `Te asignaron el chat con ${contacto}` : `Te quitaron el chat con ${contacto}`,
+        description: c.tipo === "asignada" ? `${quien} te lo asignó.` : `${quien} lo movió.`,
+        // Asignada: lleva a ESA conversación. Quitada: ya no es suya, así que a
+        // la bandeja.
+        href: c.tipo === "asignada" ? `/chats?jid=${encodeURIComponent(s.remoteJid)}` : "/chats",
+        date: c.en,
+      },
+    ];
+  });
+}
 
 /** Número limpio de un JID (sin @s.whatsapp.net ni sufijo :dispositivo). */
 const cleanJidNumber = (jid?: string | null) => {
@@ -253,6 +387,21 @@ export async function getNotificationCenterData(): Promise<{
       console.warn("[notification-center] avisos de tarea", e);
     }
 
+    // Asignaciones y créditos bajos: cada uno en su `try`, como los de arriba.
+    // Un fallo de uno no puede dejar la campana sin chats ni citas, pero
+    // tampoco es mudo.
+    const persona = elDestinatarioDeLosAvisos(user) ?? user.id;
+    const [asignacionItems, creditosItems] = await Promise.all([
+      losAvisosDeAsignacion(persona).catch((e) => {
+        console.warn("[notification-center] asignaciones", e);
+        return [] as NotificationCenterItem[];
+      }),
+      losAvisosDeCreditos(ownerId).catch((e) => {
+        console.warn("[notification-center] créditos", e);
+        return [] as NotificationCenterItem[];
+      }),
+    ]);
+
     const connectionItems: NotificationCenterItem[] = [];
     if (instances.length === 0) {
       connectionItems.push({
@@ -275,6 +424,8 @@ export async function getNotificationCenterData(): Promise<{
     const items: NotificationCenterItem[] = [
       ...avisosDeTareas,
       ...collabItems,
+      ...asignacionItems,
+      ...creditosItems,
       ...connectionItems,
       ...unreadChats.map((chat) => ({
         // El último mensaje va dentro del identificador a propósito. La campanita
@@ -325,6 +476,11 @@ export async function getNotificationCenterData(): Promise<{
       mention: collabItems.length,
       followup: followupCount,
       tarea: avisosDeTareas.length,
+      // El número de correos lo pide la campana aparte: pregunta a Gmail,
+      // Outlook o IMAP, y un buzón lento no puede retener todo lo demás.
+      correo: 0,
+      asignacion: asignacionItems.length,
+      creditos: creditosItems.length,
     };
 
     return {
