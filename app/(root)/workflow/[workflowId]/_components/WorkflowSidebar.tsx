@@ -18,6 +18,7 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 
+import { PALETA_DEL_FLUJO } from '@/lib/paleta-del-flujo';
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import type { Action, PropsWorkflowSidebar } from '@/types/workflow-node';
 import { baseActions, nodeActions, accionActions, seguimientoActions, automationActions } from '@/types/workflow-node';
@@ -158,7 +159,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode, lo
             side="right"
             variant="sidebar"
             collapsible="offcanvas"
-            className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-l border-zinc-200 dark:border-gray-800"
+            className={PALETA_DEL_FLUJO}
         >
             <SidebarHeader className="p-4 pb-3">
                 <p className="text-sm font-bold text-foreground">Selecciona una acción</p>

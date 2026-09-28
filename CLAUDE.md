@@ -17464,6 +17464,25 @@ sin hueco ni solape, el filo derecho sigue a la vista y vuelve al cerrar), que
 Chats no cambió y que a 900 no se reserva. `MODO=roto BUILD_ANTES=<.next de
 626a48c>` afirma que antes el panel tapaba el contenido.
 
+### Y lo que vive DENTRO de una pantalla no puede estar pegado a la ventana
+
+En el creador de flujos, la paleta «Selecciona una acción» es el `Sidebar` de
+shadcn con `side="right"`, que nace `fixed inset-y-0 right-0 h-svh`: pegado a
+la VENTANA. Con un panel del borde abierto el contenido se estrechaba y la
+paleta se quedaba clavada al borde, DEBAJO del panel: se veía su cabecera
+—que además tapaba la barra de arriba— y el resto en blanco.
+
+> **Se ancla a su contenedor** (`PALETA_DEL_FLUJO`, `lib/paleta-del-flujo.ts`:
+> `absolute h-full`, que pisan `fixed` y `h-svh` al pasar por `cn`; y el
+> `SidebarProvider` de la página en `relative h-full min-h-0`). Es una columna
+> del contenido: el panel la corre con lo demás y queda como tercera columna.
+> **Si otra pantalla monta un `Sidebar` de shadcn dentro del contenido, va
+> igual.**
+
+Lo prueba `scripts/banco-paleta-del-flujo.sh` sobre la página servida, a
+1440/1280/1024 con los tres paneles; `MODO=roto BUILD_ANTES=<.next de d76c6ff>`
+afirma la paleta tapada y encima de la barra.
+
 ### El chat del equipo: UNA vista por vez
 
 Enseñaba a la vez la lista de canales —desplegada con «Cambiar», topada a
