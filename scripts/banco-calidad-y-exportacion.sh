@@ -46,7 +46,7 @@ npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
 npx esbuild lib/__tests__/fingido/entrada-de-calidad.ts --bundle \
   --platform=node --format=esm --outdir="$OUT" \
-  --external:@prisma/client --external:server-only --external:openai --external:@google/genai \
+  --external:@prisma/client --external:server-only --external:openai --external:@google/genai --external:sharp \
   --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
   --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
   --alias:react=./lib/__tests__/fingido/react-cache.ts \

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { exportarConversacionesAction, type PedidoDeExportacion } from "@/actions/exportar-conversaciones-actions";
 import { descargarExportacion, laZonaDeQuienMira } from "@/lib/descargar-exportacion";
+import type { FormatoDeExportacion } from "@/lib/formatos-de-exportacion";
 
 /**
  * Exportar conversaciones de Chats, desde donde sea: el menú «Acciones» de la
@@ -14,6 +15,9 @@ import { descargarExportacion, laZonaDeQuienMira } from "@/lib/descargar-exporta
  * cuántas no se pudieron exportar, y un «listo» sobre diez de las que salieron
  * ocho es peor que un error.
  *
+ * El formato lo elige quien pulsa (PDF o texto plano); sin decirlo es texto,
+ * que es lo que se exportaba siempre.
+ *
  * Mientras exporta, `exportando` es cierto y una segunda pulsación no hace
  * nada: que se vea que se pulsó, y que pulsar cinco veces no baje cinco zips.
  */
@@ -21,15 +25,15 @@ export function useExportarConversaciones() {
     const [exportando, setExportando] = useState(false);
     const enCurso = useRef(false);
 
-    const exportar = useCallback(async (pedidos: PedidoDeExportacion[]): Promise<boolean> => {
+    const exportar = useCallback(async (pedidos: PedidoDeExportacion[], formato: FormatoDeExportacion = "txt"): Promise<boolean> => {
         if (enCurso.current || pedidos.length === 0) return false;
         enCurso.current = true;
         setExportando(true);
         const aviso = toast.loading(
-            pedidos.length === 1 ? "Exportando la conversación…" : `Exportando ${pedidos.length} conversaciones…`,
+            `${pedidos.length === 1 ? "Exportando la conversación" : `Exportando ${pedidos.length} conversaciones`}${formato === "pdf" ? " en PDF" : ""}…`,
         );
         try {
-            const r = await exportarConversacionesAction(pedidos, laZonaDeQuienMira());
+            const r = await exportarConversacionesAction(pedidos, laZonaDeQuienMira(), formato);
             if (!r.success) {
                 toast.error(r.message, { id: aviso });
                 return false;

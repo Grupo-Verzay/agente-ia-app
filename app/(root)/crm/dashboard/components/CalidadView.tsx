@@ -15,6 +15,8 @@ import { laInsigniaDeLaFila } from "@/lib/agenda-de-la-familia";
 import { calidadDelCrmAction, evaluarCalidadAhoraAction, type CalidadDelCrm } from "@/actions/calidad-actions";
 import { laDuracionLegible, laClaveDelAsesor, UMBRAL_A_MEJORAR } from "@/lib/calidad-de-conversaciones";
 import { useExportarConversaciones } from "@/hooks/useExportarConversaciones";
+import { MenuDeExportar } from "@/components/shared/MenuDeExportar";
+import type { FormatoDeExportacion } from "@/lib/formatos-de-exportacion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -109,8 +111,11 @@ export function CalidadView({
     }, [conversaciones, soloAMejorar, asesor, busqueda]);
     const asesorElegido = datos?.asesores.find((a) => a.clave === asesor) ?? null;
 
-    const exportarLasDeLaLista = () =>
-        void exportar(visibles.map((c) => ({ instanceName: c.instanceName, remoteJid: c.remoteJid })));
+    const exportarLasDeLaLista = (formato: FormatoDeExportacion) =>
+        void exportar(
+            visibles.map((c) => ({ instanceName: c.instanceName, remoteJid: c.remoteJid })),
+            formato,
+        );
 
     return (
         <div data-vista-calidad className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -173,17 +178,18 @@ export function CalidadView({
                 }
                 secundarias={
                     <>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="Exportar las conversaciones de la lista"
-                            title="Exportar las conversaciones de la lista"
-                            disabled={exportando || visibles.length === 0}
-                            onClick={exportarLasDeLaLista}
-                        >
-                            {exportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        </Button>
+                        <MenuDeExportar onElegir={exportarLasDeLaLista}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                aria-label="Exportar las conversaciones de la lista"
+                                title="Exportar las conversaciones de la lista"
+                                disabled={exportando || visibles.length === 0}
+                            >
+                                {exportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            </Button>
+                        </MenuDeExportar>
                         <Button
                             type="button"
                             variant="outline"
@@ -307,18 +313,23 @@ export function CalidadView({
                                                             <MessageSquare className="h-4 w-4" />
                                                         </Link>
                                                     </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7"
-                                                        title="Exportar la conversación"
-                                                        aria-label="Exportar la conversación"
-                                                        disabled={exportando}
-                                                        onClick={() => void exportar([{ instanceName: c.instanceName, remoteJid: c.remoteJid }])}
+                                                    <MenuDeExportar
+                                                        onElegir={(formato) =>
+                                                            void exportar([{ instanceName: c.instanceName, remoteJid: c.remoteJid }], formato)
+                                                        }
                                                     >
-                                                        <Download className="h-4 w-4" />
-                                                    </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7"
+                                                            title="Exportar la conversación"
+                                                            aria-label="Exportar la conversación"
+                                                            disabled={exportando}
+                                                        >
+                                                            <Download className="h-4 w-4" />
+                                                        </Button>
+                                                    </MenuDeExportar>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

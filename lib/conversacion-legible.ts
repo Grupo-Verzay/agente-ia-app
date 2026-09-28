@@ -43,6 +43,8 @@ export interface MensajeLegible {
     notaInterna?: boolean;
     /** Nombre del documento, cuando el adjunto trae uno. */
     nombreDelArchivo?: string | null;
+    /** Duración de una nota de voz, en segundos, cuando se sabe. */
+    segundos?: number | null;
     /**
      * Quién lo escribió cuando no basta con «el contacto»: en un grupo cada
      * mensaje entrante es de una persona distinta.
@@ -80,6 +82,10 @@ export function aMensajeLegible(ev: any, opciones?: { esGrupo?: boolean }): Mens
             cuerpo.documentMessage?.fileName ||
             cuerpo.documentWithCaptionMessage?.message?.documentMessage?.fileName ||
             null,
+        segundos:
+            typeof ev?.audioSegundos === "number" && Number.isFinite(ev.audioSegundos) && ev.audioSegundos > 0
+                ? Math.round(ev.audioSegundos)
+                : null,
         autor: opciones?.esGrupo && !fromMe && typeof ev?.pushName === "string" ? ev.pushName : null,
     };
 }
@@ -90,7 +96,7 @@ export const TOPE_DE_MENSAJES_POR_CONVERSACION = 10_000;
 /** El tope de conversaciones en un lote. Por encima se recortan y se dice. */
 export const TOPE_DE_CONVERSACIONES_POR_LOTE = 50;
 
-const NOMBRE_DEL_TIPO: Record<string, string> = {
+export const NOMBRE_DEL_TIPO: Record<string, string> = {
     imageMessage: "Imagen",
     videoMessage: "Video",
     audioMessage: "Nota de voz",
@@ -105,7 +111,7 @@ const NOMBRE_DEL_TIPO: Record<string, string> = {
     call: "Llamada",
 };
 
-const TIPOS_DE_TEXTO = new Set(["conversation", "extendedTextMessage", "text", ""]);
+export const TIPOS_DE_TEXTO = new Set(["conversation", "extendedTextMessage", "text", ""]);
 
 /** Quién firma cada línea. */
 export function nombreDeQuienHabla(

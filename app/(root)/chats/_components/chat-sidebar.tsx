@@ -101,6 +101,7 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
 import { useExportarConversaciones } from "@/hooks/useExportarConversaciones";
+import type { FormatoDeExportacion } from "@/lib/formatos-de-exportacion";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { getInstanceDisplayName, getInstanceUiDisplayName } from "@/lib/instance-display-name";
 import {
@@ -1592,7 +1593,7 @@ export function ChatSidebar({
   // identidades: el historial está guardado bajo la que devolvió el proveedor
   // esa vuelta, y preguntar por una sola forma devuelve un archivo vacío.
   const { exportando: exportandoLote, exportar: exportarLote } = useExportarConversaciones();
-  const handleBulkExport = useCallback(async () => {
+  const handleBulkExport = useCallback(async (formato?: FormatoDeExportacion) => {
     if (selectedChats.length === 0) return;
     // Las identidades salen del chat tal como llegó (`result.data`), que es el
     // que las trae todas; la fila de la lista ya las ha resumido en su id.
@@ -1613,7 +1614,7 @@ export function ChatSidebar({
       toast.error("No se sabe de qué línea son las conversaciones marcadas.");
       return;
     }
-    const ok = await exportarLote(pedidos);
+    const ok = await exportarLote(pedidos, formato);
     if (ok) clearSelection();
   }, [selectedChats, result, exportarLote, clearSelection]);
 
@@ -1852,6 +1853,7 @@ export function ChatSidebar({
               onMarkRead={handleBulkMarkRead}
             onResolve={handleBulkResolve}
               onExport={handleBulkExport}
+              exportaEnFormatos
               exporting={exportandoLote}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}

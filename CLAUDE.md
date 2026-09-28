@@ -18732,6 +18732,47 @@ Python y un barrido, y las acciones y el runner contra Postgres. `MODO=roto`
 afirma la lectura por una sola identidad (la conversación sale a medias) y la
 selección ingenua (grupos pagados).
 
+### Exportar: PDF o texto plano, y los dos salen de la MISMA lectura
+
+Exportar una conversación de Chats ofrece dos formatos, en los TRES sitios que
+exportan —el submenú «Exportar conversación» de Acciones, la barra en lote y
+CRM › Calidad—: **Como PDF** (burbujas tipo WhatsApp, con el logo y el nombre
+del negocio en la cabecera) y **Como texto plano** (el `.txt` de siempre, sin
+tocar). La lista es una (`lib/formatos-de-exportacion.ts`) y las opciones se
+pintan con una pieza (`components/shared/MenuDeExportar.tsx`). Correo sigue
+exportando solo texto: su barra no pasa `exportaEnFormatos`.
+
+> **El PDF no tiene filtro propio.** Pasa por `losMensajesQueSeExportan`, la
+> misma función del `.txt` (sin notas internas, sin vacíos, por fecha), y firma
+> con `nombreDeQuienHabla`. Lo genera `lib/conversacion-en-pdf.ts` con
+> `pdf-lib`, en la MISMA acción y con la MISMA puerta que el texto.
+
+Cinco cosas que hay que mantener:
+
+1. **La marca es de la cuenta DUEÑA de la línea**, no de quien exporta
+   (`laMarcaDelNegocio`): `brandName`, si no `nombreDeLaCuenta`; el logo es
+   `User.image` (el de Perfil). Sin logo, las iniciales.
+2. **Solo se descarga lo de NUESTRO almacenamiento** (`seDejaIncrustar`: el
+   mismo origen que `S3_PUBLIC_URL`), el logo incluido. La dirección de un
+   adjunto la escribió alguien de fuera: pedirla sería mandar al servidor a
+   donde diga. Las imágenes se reducen con sharp a JPEG y van en una cola de 4,
+   con tope por conversación (60) y por lote (200); lo demás sale como tarjeta.
+3. **Nada se esconde**: video, nota de voz (duración y transcripción),
+   documento, ubicación, contacto, sticker y llamada van como tarjeta con su
+   icono y su enlace pulsable; lo eliminado, en cursiva.
+4. **Las fuentes estándar solo saben WinAnsi**: `aTextoImprimible` quita los
+   emojis antes de medir, o `pdf-lib` lanza y no sale el PDF. Un mensaje que era
+   solo emoji dice «(emoji)».
+5. **El PDF viaja en base64** (`formato: "pdf"`) y `descargarExportacion` lo
+   baja con sus bytes tal cual: el BOM de texto delante lo rompería.
+
+Lo prueba `scripts/banco-exportar-pdf.sh`: las reglas y el PDF leído con pdf.js
+(todos los tipos, lados, enlaces, imágenes, el `.txt` idéntico a `ANTES_REF`),
+el PDF renderizado en Chromium con el color de cada burbuja medido en píxeles y
+el menú real de la barra, y la acción contra Postgres (la marca de la hija, la
+foto incrustada y la dirección de fuera sin pedir). `MODO=roto` afirma que en
+`ANTES_REF` no había PDF.
+
 ### Cuándo corre: a pedido y en el corte del reporte, nunca solo
 
 Evaluaba cada día, desde el cron de facturación, toda conversación con **dos
