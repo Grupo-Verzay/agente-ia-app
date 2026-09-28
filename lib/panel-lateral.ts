@@ -292,3 +292,62 @@ export function laFranjaDeLaBandeja(
         derecha: Math.max(0, anchoDeLaVentana - caja.right),
     };
 }
+
+/*
+ * FUERA de Chats, el panel también EMPUJA el contenido.
+ *
+ * Hasta ahora solo Chats y Correo reservaban la franja: sus bandejas llevan
+ * `data-chat-view` y la regla de CSS estaba acotada a esa marca. En Agenda, el
+ * Panel o cualquier otra pantalla el panel se abría ENCIMA y tapaba la parte
+ * derecha del contenido.
+ *
+ * Ahora la reserva es de la plataforma: la envoltura del contenido del layout
+ * (`data-contenido-de-la-app`, la que lleva el `sm:p-1` alrededor de la caja
+ * del módulo) gana `padding-right` con un panel abierto, así que la caja
+ * (`.app-module-content`) se estrecha y todo lo de dentro se corre a la
+ * izquierda. La reserva va en la ENVOLTURA y no en la caja: la caja es la que
+ * desplaza, y con el relleno dentro su barra de desplazamiento quedaría debajo
+ * del panel.
+ *
+ * Y la franja se pone JUNTO a la caja, con su mismo borde de arriba y su mismo
+ * alto, continuando su marco: borde arriba, a la derecha y abajo del mismo
+ * color, las esquinas derechas con el radio de la caja, y como separador el
+ * borde derecho de la propia caja (1 px). O sea, se lee como en Chats: una sola
+ * pieza con el panel de tercera columna.
+ *
+ * Se MIDE, como la bandeja de Chats (`MedidaDelContenido`). La caja y la
+ * envoltura no cambian de arriba ni de alto al abrir el panel, y la envoltura
+ * tampoco de ancho, así que lo medido no se mueve durante el deslizamiento.
+ *
+ * Donde hay `data-chat-view` manda la regla de Chats y esta no aplica (lo
+ * decide `:has()` en el CSS): reservar en los dos sitios dejaría el hueco dos
+ * veces.
+ */
+
+/** La envoltura que reserva la franja. La leen el CSS, la medida y el banco. */
+export const MARCA_DEL_CONTENIDO = "data-contenido-de-la-app";
+/** La caja del módulo, la que se estrecha. */
+export const MARCA_DE_LA_CAJA = "data-caja-del-contenido";
+
+/**
+ * De lo medido a los tres números de la franja fuera de Chats.
+ *
+ * `relleno` es el relleno de la envoltura (el `sm:p-1`), leído del lado
+ * IZQUIERDO, que no cambia al abrir el panel. Con el panel abierto el relleno
+ * derecho es `ancho + relleno`, así que el borde derecho de la caja cae en
+ * `envoltura.right - relleno - ancho` y la franja, a `relleno` del borde de la
+ * envoltura, empieza justo ahí: pegada a la caja, sin hueco ni solape.
+ */
+export function laFranjaDelContenido(
+    caja: { top: number; height: number },
+    envoltura: { right: number },
+    relleno: number,
+    anchoDeLaVentana: number,
+): MedidaDeLaBandeja {
+    const r = Number.isFinite(relleno) && relleno > 0 ? relleno : 0;
+    return {
+        arriba: caja.top,
+        alto: caja.height,
+        derecha: Math.max(0, anchoDeLaVentana - envoltura.right + r),
+    };
+}
