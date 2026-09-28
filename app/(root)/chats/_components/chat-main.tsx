@@ -29,7 +29,9 @@ import {
   deleteInternalNoteAction,
   getInternalNotesBySessionAction,
   type InternalNoteData,
+  mencionablesDeLaMadreAction,
 } from '@/actions/internal-notes-actions';
+import { losMencionables, type Mencionable } from '@/lib/menciones-de-la-madre';
 import { executeMacroAction } from '@/actions/macro-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
@@ -231,6 +233,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionIds, setMentionIds] = useState<Set<string>>(new Set());
+  // Los administradores de la cuenta MADRE, que también se pueden mencionar.
+  // Se piden la primera vez que se abre el selector de @, no al cargar Chats.
+  const [deLaMadre, setDeLaMadre] = useState<Mencionable[] | null>(null);
   const [composeMediaList, setComposeMediaList] = useState<ComposeMedia[]>([]);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -516,9 +521,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   /* ─── Convert notes to UIBubbles and merge with messages ─── */
   const advisorNameById = useMemo(() => {
     const map = new Map<string, string>();
+    for (const a of deLaMadre ?? []) if (a.name) map.set(a.id, a.name);
     for (const a of advisors ?? []) if (a.name) map.set(a.id, a.name);
     return map;
-  }, [advisors]);
+  }, [advisors, deLaMadre]);
 
   const noteBubbles = useMemo<UIBubble[]>(
     () =>
@@ -826,9 +832,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     async (content: string) => {
       if (!session?.id) return;
       // Solo cuentan los asesores elegidos cuyo "@Nombre" siga en el texto.
-      const mentionedUserIds = (advisors ?? [])
+      // Los de la madre cuentan igual: el servidor decide qué hace con cada uno.
+      const mentionedUserIds = [...(advisors ?? []), ...(deLaMadre ?? [])]
         .filter((a) => mentionIds.has(a.id) && a.name && content.includes(`@${a.name}`))
-        .map((a) => a.id);
+        .map((a) => a.id)
+        .filter((id, i, todos) => todos.indexOf(id) === i);
       const res = await createInternalNoteAction({
         sessionId: session.id,
         content,
@@ -846,7 +854,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         toast.error(res.message);
       }
     },
-    [session?.id, advisors, mentionIds],
+    [session?.id, advisors, deLaMadre, mentionIds],
   );
 
   const handleDeleteNote = useCallback(async (noteId: number) => {
@@ -939,17 +947,28 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     return quickReplies.filter((qr) => qr.name && qr.name.toLowerCase().startsWith(slashQuery));
   }, [slashOpen, slashQuery, quickReplies]);
 
+  useEffect(() => {
+    if (!mentionOpen || deLaMadre !== null) return;
+    let cancelado = false;
+    void mencionablesDeLaMadreAction()
+      .then((lista) => {
+        if (!cancelado) setDeLaMadre(lista);
+      })
+      .catch((error) => {
+        console.warn('[chats] no se pudieron leer los administradores de la cuenta madre', error);
+        if (!cancelado) setDeLaMadre([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [mentionOpen, deLaMadre]);
+
+  // La gente de la cuenta y, detrás, los administradores de la madre: la
+  // MISMA fila y el MISMO filtro para los dos (`losMencionables`).
   const mentionSuggestions = useMemo(() => {
-    if (!mentionOpen || !advisors?.length) return [];
-    const q = mentionQuery;
-    return advisors
-      .filter(
-        (a) =>
-          a.name &&
-          (a.name.toLowerCase().includes(q) || (a.email ?? '').toLowerCase().includes(q)),
-      )
-      .slice(0, 6);
-  }, [mentionOpen, mentionQuery, advisors]);
+    if (!mentionOpen) return [];
+    return losMencionables(advisors ?? [], deLaMadre ?? [], mentionQuery);
+  }, [mentionOpen, mentionQuery, advisors, deLaMadre]);
 
   const applyMentionSuggestion = useCallback((advisor: { id: string; name: string | null }) => {
     setInput((prev) =>

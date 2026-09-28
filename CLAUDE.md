@@ -22306,6 +22306,42 @@ dueño lo quita y otro agente no, resolver lo quita y no toca participantes).
 `MODO=roto` corre las acciones de `ANTES_REF` y afirma que mencionar no abría
 nada y se avisaba a gente de fuera del equipo.
 
+## Notas internas: una hija puede mencionar a los administradores de su MADRE, solo para avisar
+
+En la nota interna de una conversación, la `@` de una cuenta HIJA ofrece,
+detrás de la gente de su propia cuenta, a los **administradores de su cuenta
+madre** —el dueño de la madre y quien tiene papel de `administrador` en ella—
+por su **nombre real**. Mencionar a uno le saca **la misma ventana que
+interrumpe** de una mención del chat de equipo (`task_alerts`, tipo `mencion`)
+con **la nota entera** dentro (en esa ventana una mención ya no se recorta a
+tres líneas).
+
+> **Solo avisa.** No hay acceso por mención, ni campanita de colaboración, ni
+> participante, ni ningún alcance nuevo: los vínculos siguen yendo solo de
+> madre a hija. Por eso van en una lista APARTE de `elEquipoDeLaCuenta` —ahí
+> serían asignables y participantes—.
+
+Cuatro cosas que hay que mantener:
+
+1. **Quién es la madre lo decide `lasMadresDe`** (`lib/menciones-de-la-madre.ts`,
+   pura): la que vinculó a la hija (`de → a`); la raíz de la familia no tiene
+   madre, y una pareja recíproca entre hermanas no es madre e hija (salvo que
+   una sea la raíz: la malla de producción tiene enlaces de vuelta hacia la
+   madre). Solo la madre DIRECTA.
+2. **La lista la lee `losAdministradoresDeLaMadre`** (`.server.ts`) y se pide al
+   ABRIR el selector (`mencionablesDeLaMadreAction`), no al cargar Chats. Un
+   `agente` de la madre no entra.
+3. **El servidor re-resuelve la lista**: `separarLasMenciones` reparte lo que
+   llega en equipo (camino de siempre), madre (solo el aviso) y descartados.
+   El navegador no decide a quién se avisa.
+4. **La pantalla usa la MISMA fila y el MISMO filtro** para los dos
+   (`losMencionables`).
+
+Lo prueba `scripts/banco-mencion-a-la-madre.sh`: la regla, un barrido y las
+acciones contra Postgres con la malla real (madre, dos hijas, enlace de vuelta).
+`MODO=roto` corre `createInternalNoteAction` de `f3f296c` y afirma que la
+mención a la madre se descartaba y no saltaba nada.
+
 ## El menú lateral: el numerito de pendientes va por la RUTA, esté donde esté el apartado
 
 Al agrupar pantallas dentro de módulos (Bandeja, Contactos, Integraciones,

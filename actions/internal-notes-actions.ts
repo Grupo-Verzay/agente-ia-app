@@ -7,7 +7,15 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 import { elEquipoDeLaCuenta } from "@/lib/equipo-de-la-cuenta.server";
 import { darAccesoPorMencion } from "@/lib/acceso-por-mencion-db";
-import { quienesRecibenAcceso, quienesRecibenElAviso } from "@/lib/acceso-por-mencion";
+import { enlaceDeLaMencion, quienesRecibenAcceso } from "@/lib/acceso-por-mencion";
+import { randomUUID } from "crypto";
+import { crearLosAvisos } from "@/lib/avisos-de-tarea";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
+import { separarLasMenciones, tituloDeLaMencionEnNota } from "@/lib/menciones-de-la-madre";
+import {
+  losAdministradoresDeLaMadre,
+  type AdministradorDeLaMadre,
+} from "@/lib/administradores-de-la-madre.server";
 
 /**
  * # Quién firma una nota interna, y quién la puede borrar
@@ -86,9 +94,21 @@ export async function createInternalNoteAction(
     // la forma de abrírsela a cualquiera. Es la MISMA lista con la que se
     // agrega un participante (`elEquipoDeLaCuenta`), con el alcance de la
     // cuenta por la que se actúa (`ownerId ?? id`).
-    const equipo = await elEquipoDeLaCuenta((user as any).ownerId ?? user.id);
-    const mentioned = quienesRecibenElAviso(parsed.mentionedUserIds, equipo, yo);
-    const descartados = parsed.mentionedUserIds.filter((id) => id && id !== yo && !equipo.has(id));
+    const cuentaPropia: string = (user as any).ownerId ?? user.id;
+    const equipo = await elEquipoDeLaCuenta(cuentaPropia);
+    // Los administradores de la cuenta MADRE se piden solo si hace falta: si
+    // todo lo mencionado es del equipo no hay nada que preguntar.
+    const faltan = parsed.mentionedUserIds.some((id) => id && id !== yo && !equipo.has(id));
+    const deLaMadre = faltan ? await losAdministradoresDeLaMadre(cuentaPropia) : [];
+    const reparto = separarLasMenciones(
+      parsed.mentionedUserIds,
+      equipo,
+      new Set(deLaMadre.map((a) => a.id)),
+      yo,
+    );
+    // Lo guardado en la nota son TODOS los mencionados: la burbuja los nombra.
+    const mentioned = [...reparto.delEquipo, ...reparto.deLaMadre];
+    const descartados = reparto.descartados;
     if (descartados.length) {
       console.warn("[notas internas] menciones fuera del equipo, se ignoran", {
         sessionId: parsed.sessionId,
@@ -110,7 +130,9 @@ export async function createInternalNoteAction(
     // tiene que encontrar la puerta abierta. Solo a los agentes —los demás ya
     // ven la conversación—, y un fallo aquí no tumba la nota, pero se dice:
     // un acceso que no se dio se ve como «me mencionaron y no puedo entrar».
-    const conAcceso = quienesRecibenAcceso(mentioned, equipo, yo);
+    // Solo los del EQUIPO: una mención a un administrador de la madre avisa y
+    // nada más, no abre ninguna conversación.
+    const conAcceso = quienesRecibenAcceso(reparto.delEquipo, equipo, yo);
     if (conAcceso.length) {
       try {
         await darAccesoPorMencion(parsed.sessionId, conAcceso, yo);
@@ -124,11 +146,11 @@ export async function createInternalNoteAction(
     }
 
     // Notificación por mención (campanita) para cada asesor mencionado.
-    if (mentioned.length > 0) {
+    if (reparto.delEquipo.length > 0) {
       try {
         const preview = parsed.content.slice(0, 140);
         await (db as any).collabNotification.createMany({
-          data: mentioned.map((recipientId) => ({
+          data: reparto.delEquipo.map((recipientId) => ({
             recipientId,
             actorId: yo,
             type: "mention",
@@ -141,6 +163,22 @@ export async function createInternalNoteAction(
       } catch (notifErr) {
         console.error("[createInternalNoteAction] notif menciones falló", notifErr);
       }
+    }
+
+    // Y a los administradores de la cuenta MADRE, la MISMA ventana que
+    // interrumpe de una mención del chat de equipo (`task_alerts`, tipo
+    // `mencion`), con la nota ENTERA dentro. Solo el aviso: ni acceso por
+    // mención ni campanita de colaboración. `crearLosAvisos` no lanza y no es
+    // mudo.
+    if (reparto.deLaMadre.length > 0) {
+      await avisarALaMadre({
+        destinatarios: reparto.deLaMadre,
+        autor: laPersonaQueActua(user),
+        cuentaDeLaConversacion: session.userId,
+        sessionId: parsed.sessionId,
+        remoteJid: session.remoteJid,
+        contenido: parsed.content,
+      });
     }
 
     return {
@@ -228,5 +266,61 @@ export async function deleteInternalNoteAction(
   } catch (error) {
     console.error("[deleteInternalNoteAction]", error);
     return { success: false, message: "Error al eliminar la nota." };
+  }
+}
+
+/**
+ * Los administradores de la cuenta MADRE a los que se puede mencionar desde
+ * una nota interna. Vacío si la cuenta no tiene madre. Se pide al abrir el
+ * selector de `@`, no al cargar Chats.
+ */
+export async function mencionablesDeLaMadreAction(): Promise<AdministradorDeLaMadre[]> {
+  try {
+    const user = await assertAuthorized();
+    const lista = await losAdministradoresDeLaMadre((user as any).ownerId ?? user.id);
+    // Uno mismo no se menciona.
+    const yo = laPersonaQueActua(user).id;
+    return lista.filter((a) => a.id !== yo);
+  } catch (error) {
+    console.warn("[notas internas] no se pudieron leer los mencionables de la madre", error);
+    return [];
+  }
+}
+
+async function avisarALaMadre(x: {
+  destinatarios: string[];
+  autor: { id: string; nombre: string | null };
+  cuentaDeLaConversacion: string;
+  sessionId: number;
+  remoteJid: string | null;
+  contenido: string;
+}): Promise<void> {
+  try {
+    const hija = await db.user.findUnique({
+      where: { id: x.cuentaDeLaConversacion },
+      select: { name: true, company: true, email: true },
+    });
+    const titulo = tituloDeLaMencionEnNota(x.autor.nombre, hija ? nombreDeLaCuenta(hija) : null);
+    await crearLosAvisos(
+      x.destinatarios.map((destinatarioId) => ({
+        id: randomUUID(),
+        taskId: null,
+        projectId: null,
+        ownerId: x.cuentaDeLaConversacion,
+        destinatarioId,
+        actorId: x.autor.id,
+        actorNombre: x.autor.nombre,
+        tipo: "mencion" as const,
+        titulo,
+        texto: x.contenido,
+        enlace: enlaceDeLaMencion({ remoteJid: x.remoteJid, sessionId: x.sessionId }),
+      })),
+    );
+  } catch (error) {
+    console.error("[createInternalNoteAction] no se pudo avisar a la cuenta madre", {
+      sessionId: x.sessionId,
+      destinatarios: x.destinatarios,
+      error,
+    });
   }
 }

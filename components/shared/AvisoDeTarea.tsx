@@ -240,7 +240,17 @@ export function AvisoDeTareaEmergente() {
                       {aviso.texto && (
                         // `whitespace-pre-wrap`: un comentario se escribe en un
                         // textarea y puede traer saltos de línea.
-                        <span className="mt-1 block whitespace-pre-wrap break-words text-xs text-muted-foreground line-clamp-3">
+                        //
+                        // Una MENCIÓN se lee entera —del chat de equipo o de
+                        // una nota interna—: es lo que alguien te quiso decir,
+                        // y la lista ya se desplaza sola si no cabe. El resto
+                        // se recorta a tres líneas, como siempre.
+                        <span
+                          data-texto-del-aviso
+                          className={`mt-1 block whitespace-pre-wrap break-words text-xs text-muted-foreground ${
+                            aviso.tipo === "mencion" ? "" : "line-clamp-3"
+                          }`}
+                        >
                           {aviso.texto}
                         </span>
                       )}
