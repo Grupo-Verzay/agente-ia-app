@@ -1,5 +1,6 @@
 'use client';
 
+import { GrabadorDeAudio } from '@/components/shared/GrabadorDeAudio';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
@@ -890,6 +891,11 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                               <span className="truncate text-xs text-muted-foreground">{a.config.fileName}</span>
                             )}
                           </div>
+                          {/* O grabarlo aquí mismo: entra por el MISMO camino que elegir archivo. */}
+                          <GrabadorDeAudio
+                            disabled={uploadingIdx === i}
+                            onGrabado={(f) => uploadFileForAction(i, f)}
+                          />
                           <Textarea
                             value={a.config?.caption ?? ''}
                             onChange={(e) => setActionConfig(i, { caption: e.target.value })}

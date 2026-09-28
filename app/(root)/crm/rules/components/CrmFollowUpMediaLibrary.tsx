@@ -1,5 +1,6 @@
 "use client";
 
+import { GrabadorDeAudio } from "@/components/shared/GrabadorDeAudio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, FileImage, FileText, Film, Loader2, Music, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
@@ -106,6 +107,11 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        usarArchivo(file);
+    };
+
+    // Elegido del dispositivo o grabado aquí: el MISMO camino para los dos.
+    const usarArchivo = (file: File) => {
         setPendingFile(file);
         if (!pendingName)
             setPendingName(file.name.replace(/\.[^/.]+$/, "").replaceAll("_", " ").replaceAll("-", " "));
@@ -237,6 +243,7 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                             </>
                         )}
                     </div>
+                    <GrabadorDeAudio disabled={isFormDisabled} onGrabado={usarArchivo} />
                 </div>
 
                 <div className="space-y-1.5">
