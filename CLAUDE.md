@@ -18897,6 +18897,33 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Dos PR que compilan por separado pueden no compilar juntos
+
+El #1000 (el panel lateral que empuja el contenido) salió rojo en
+`docker-publish` y **no tenía la culpa**. El #998 (reagendar) importaba
+`losRecordatoriosDeLaCita` de `@/lib/cita-publica`; el #999 —fusionado un
+minuto después— la había mudado a `@/lib/recordatorios-de-la-cita` con otra
+firma. Cada uno pasaba solo; juntos, `next build` se caía en «Checking validity
+of types» y la imagen no se publicaba. El #999 y el #1000 heredaron el rojo, y
+**nada del #1000 llegó a producción** hasta arreglarlo.
+
+> **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
+> culpar al último PR**: el fallo puede venir de la combinación de dos
+> anteriores. Y un PR que mueve o renombra una función exportada busca antes a
+> TODOS sus importadores en `origin/main`, no en su rama.
+
+El arreglo no fue volver a apuntar el import: reagendar pasó a la MISMA regla
+que agendar (`lib/recordatorios-de-la-cita.ts`: zona de la cuenta, llave única
+`appt-reminder:{cita}:{plantilla}` y las credenciales de
+`lasCredencialesDeLaLinea`), y editar la hora desde la ficha reprograma **una
+vez** (había quedado con los dos caminos: el de #998 y el de #999). Las
+plantillas con `isCampaign` nulo entran en los dos.
+
+Lo caza `scripts/banco-importaciones.sh` en segundos, sin esperar al build: lee
+el código con el compilador de TypeScript y exige que cada `import { … }` entre
+ficheros del repo esté exportado donde se importa. `MODO=roto` lee el árbol de
+`0583de4` (pinchado) y afirma el import roto.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

@@ -77,7 +77,9 @@ export async function programarLosRecordatoriosDeLaCita(
         }
 
         const plantillas = await db.reminders.findMany({
-            where: { userId: cita.userId, isCampaign: false, isSchedule: true },
+            // `isCampaign` admite nulo: las plantillas viejas lo traen así y son de
+            // agenda igual. Es la misma condición que reagendar.
+            where: { userId: cita.userId, isSchedule: true, OR: [{ isCampaign: false }, { isCampaign: null }] },
             select: { id: true, time: true, description: true, title: true },
             orderBy: { id: "asc" },
         });

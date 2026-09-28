@@ -1,10 +1,14 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
-import { getTimezoneFromPhone } from "@/lib/timezones";
-import { elDiaElegido, losRecordatoriosDeLaCita, type DatosDeLaCita } from "@/lib/cita-publica";
-import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
+import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
+import {
+    elNodoDelRecordatorio,
+    laLlaveDelRecordatorio,
+    losRecordatoriosDeLaCita,
+} from "@/lib/recordatorios-de-la-cita";
+import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
+import { losNumerosDelCliente } from "@/lib/reagendar-cita";
 
 /**
  * Rehace los recordatorios de una cita a partir de su hora ACTUAL: borra los
@@ -29,6 +33,12 @@ import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } f
  * 3. **El número se busca en todas sus formas** (`losNumerosDelCliente`): la
  *    ruta del agente lo guarda como se lo dieron, a veces solo dígitos.
  * 4. **Solo se programan los que todavía no han pasado.**
+ *
+ * Y lo que se programa sale de la MISMA regla que al agendar
+ * (`lib/recordatorios-de-la-cita.ts`): la hora del texto en la zona de la
+ * CUENTA, el instante en ISO, el `idNodo` `appt-reminder-{plantilla}` y la
+ * llave única `appt-reminder:{cita}:{plantilla}`. Con una copia aquí, una cita
+ * reagendada recibiría recordatorios distintos de una recién agendada.
  */
 export type ResultadoDeReprogramar = {
     borrados: number;
@@ -48,9 +58,9 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             userId: true,
             clientName: true,
             startTime: true,
-            endTime: true,
             status: true,
-            service: { select: { name: true, messageText: true } },
+            timezone: true,
+            service: { select: { name: true } },
             session: { select: { remoteJid: true, remoteJidAlt: true, instanceId: true, pushName: true } },
             user: { select: { timezone: true, meetingDuration: true } },
         },
@@ -99,47 +109,25 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
-    const zonaDelDueno = cita.user?.timezone || "America/Bogota";
-    const telefono = remoteJid.replace(/@.*/, "").replace(/\D/g, "");
-    const datos: DatosDeLaCita = {
-        nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
-        telefonoDelCliente: telefono,
-        inicio: cita.startTime,
-        fin: cita.endTime,
-        diaElegido: elDiaElegido(null, cita.startTime, zonaDelDueno),
-        zonaDelDueno,
-        zonaDelCliente: telefono ? getTimezoneFromPhone(telefono, zonaDelDueno) : zonaDelDueno,
-        duracionMinutos: cita.user?.meetingDuration || 60,
-        servicio: cita.service,
-    };
-
-    // Una por plantilla, para saber de cuál sale cada una (su `idNodo`).
-    const calculados = plantillas.flatMap((p) =>
-        losRecordatoriosDeLaCita([p], datos).map((r) => ({ ...r, plantillaId: p.id })),
+    // La MISMA regla que al agendar: zona de la cuenta, y solo lo que no pasó.
+    const programados = losRecordatoriosDeLaCita(
+        plantillas.map((p) => ({ id: String(p.id), time: p.time, description: p.description })),
+        {
+            nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
+            inicio: cita.startTime,
+            zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
+            duracionMinutos: cita.user?.meetingDuration || 60,
+            servicio: cita.service?.name ?? "",
+        },
+        ahora,
     );
-    const programados = losQueTodaviaNoPasan(calculados, ahora);
 
-    // La línea y la clave salen de la base, como al agendar: Meta usa su
-    // número y su token; el resto, el servidor de la cuenta dueña.
-    let serverurl = "";
-    let apikey = "";
-    if (programados.length) {
-        const instancia = await db.instancia.findFirst({
-            where: { userId: cita.userId, instanceName: linea },
-            select: { instanceId: true, instanceType: true, metaPhoneNumberId: true, metaAccessToken: true },
-        });
-        const esMeta = String(instancia?.instanceType ?? "").toLowerCase() === "meta";
-        const servidor = await laClaveDelServidorDeLaCuenta(cita.userId);
-        if (esMeta) {
-            serverurl = instancia?.metaPhoneNumberId || instancia?.instanceId || "";
-            apikey = instancia?.metaAccessToken || servidor?.key || instancia?.instanceId || "";
-        } else {
-            serverurl = servidor?.url ?? "";
-            apikey = servidor?.key ?? instancia?.instanceId ?? "";
-        }
-    }
+    // La línea y la clave salen de la base, con la misma función que al agendar.
+    const { serverurl, apikey } = programados.length
+        ? await lasCredencialesDeLaLinea(cita.userId, linea)
+        : { serverurl: "", apikey: "" };
 
-    const [borrados, creados] = await db.$transaction([
+    const [borradosPorNumero, borradosPorLlave, creados] = await db.$transaction([
         db.seguimiento.deleteMany({
             where: {
                 instancia: linea,
@@ -152,9 +140,15 @@ export async function reprogramarLosRecordatoriosDeLaCita(
                 ],
             },
         }),
+        // Los de ESTA cita por su llave, estén bajo el número que estén: la llave
+        // es única y un resto la dejaría sin poder volver a programarse.
+        db.seguimiento.deleteMany({
+            where: { idempotencyKey: { startsWith: `appt-reminder:${cita.id}:` } },
+        }),
         db.seguimiento.createMany({
             data: programados.map((r) => ({
-                idNodo: elIdNodoDelRecordatorio(r.plantillaId),
+                idNodo: elNodoDelRecordatorio(r.plantillaId),
+                idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
                 serverurl,
                 instancia: linea,
                 apikey,
@@ -165,13 +159,14 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             })),
         }),
     ]);
+    const borrados = { count: borradosPorNumero.count + borradosPorLlave.count };
 
     console.info("[reagendar] recordatorios de la cita reprogramados", {
         appointmentId,
         borrados: borrados.count,
         creados: creados.count,
         plantillas: plantillas.length,
-        pasados: calculados.length - programados.length,
+        pasados: plantillas.length - programados.length,
     });
 
     return {
