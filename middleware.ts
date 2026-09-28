@@ -153,7 +153,12 @@ export default auth((req) => {
     // qué bandeja cae el ticket, y eso lo resuelve el servidor contra el
     // código. Del otro lado no se lee nada: ni los tickets de la cuenta, ni sus
     // contactos, ni el nombre de quien escribió antes desde ese mismo número.
-    currentPath.startsWith("/t/");
+    currentPath.startsWith("/t/") ||
+    // Propuesta comercial (/propuesta/<token>): una cuenta se la manda a su
+    // cliente por WhatsApp, y ese cliente no tiene cuenta. El token (192 bits)
+    // es la única puerta y lo que se enseña se elige campo por campo en
+    // `laPropuestaPublica`. No se indexa (metadata y `X-Robots-Tag`).
+    currentPath.startsWith("/propuesta/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {
