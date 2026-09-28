@@ -37,6 +37,7 @@ import { CustomEdge, CustomNode } from '.';
 import { WorkflowAddNodeProvider, AddNodeFn } from './WorkflowAddNodeContext';
 import { WorkflowNodesSidebarTrigger } from './WorkflowNodesSidebarTrigger';
 import { InlineAddNode } from './InlineAddNode';
+import { conectoresDeSalida } from '@/lib/workflow-menu';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -249,12 +250,12 @@ export function WorkflowCanvas({
     pending.current[id] = t;
   }, [setNodes]);
 
-  // elige un sourceHandle libre (intention: yes/no, otros: out)
+  // elige un sourceHandle libre (intention: yes/no; los dos menus: sus
+  // opciones opt-N y, si sigue por rama, "no"; otros: out). Con "out" en un
+  // menu la conexion quedaba en un conector que el menu no dibuja ni sigue.
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
     const node = nodesRef.current.find((n) => n.id === sourceId);
-    const tipo = (node?.data?.nodeDB?.tipo ?? '').toLowerCase();
-
-    const candidates = tipo === 'intention' ? ['yes', 'no'] : ['out'];
+    const candidates = conectoresDeSalida(node?.data?.nodeDB as never);
 
     for (const h of candidates) {
       const occupied = edgesRef.current.some(

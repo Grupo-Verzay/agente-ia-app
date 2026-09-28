@@ -18897,6 +18897,58 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Flujos: el «Menú con botones» es el MISMO paso que el de texto, entregado de otra forma
+
+«Menú de opciones» manda las opciones numeradas en texto; **«Menú con botones»**
+(`menu-interactivo`) manda las mismas opciones como **lista desplegable** de
+WhatsApp —o como hasta 3 botones— y el cliente elige tocando. Todo lo demás es
+común: la pregunta, las opciones (una por línea, tope 10, que es también el
+máximo de filas de una lista), las ramas `opt-N`, los **reintentos** (0 a 5) con
+su aviso, y qué pasa al agotarlos: **seguir por la rama «No eligió»** o **pasar
+a la IA**. Los dos se editan con el mismo bloque (`MenuNodeFields`).
+
+Cinco cosas que hay que mantener:
+
+1. **La regla es una, escrita dos veces a propósito**: `lib/workflow-menu.ts`
+   aquí y `src/modules/workflow/menu-de-opciones.ts` en el backend. Rótulos,
+   topes de WhatsApp (fila 24, botón 20), forma y conectores tienen que decir lo
+   mismo: la vista previa es lo que le llega al cliente, y el conector que se
+   dibuja es la rama que el motor sigue. El banco compila las dos y las compara.
+2. **Las columnas nuevas (`menu_style`, `menu_list_button`, `menu_fallback`)
+   son del BACKEND** y la App las lee y escribe en SQL crudo
+   (`lib/menu-interactivo-db.ts`), tolerando que falten (#360).
+3. **Solo WAHA manda la lista**, y su motor GOWS **no implementa botones**: el
+   motor prueba botones, cae a lista y, si nada sale, al menú numerado en texto.
+   El cliente siempre recibe algo, y el menú queda escrito en la conversación
+   (antes el menú de texto por Waha no se guardaba).
+4. **El cliente puede tocar o escribir**: vale el número, el id de la fila o el
+   texto de la opción. Lo que no case cuenta como reintento. Pasar a la IA
+   termina el paso y le deja a la IA una nota de qué se preguntó.
+5. **«Pasar a la IA» no dibuja la rama «No eligió»**, y al elegirlo se borra la
+   conexión que colgaba de ella. Un menú nuevo se conecta por su primer conector
+   libre (`conectoresDeSalida`), no por `out`.
+
+Lo prueba `scripts/banco-menu-interactivo.sh` aquí (regla, barrido y comparación
+con el backend; `MODO=roto` afirma que antes no existía) y el del mismo nombre
+en `api-webhook` (el motor contra Postgres, con su modo roto).
+
+## Un `import` que no existe se caza sin esperar al build
+
+Es la otra mitad de *dos PR verdes por separado pueden tumbar el despliegue
+juntos*: `comprobar-tipos-de-reagendar.sh` vigila ese choque concreto; esto
+vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
+con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
+del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
+los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
+sigue la cadena): mejor callar que cantar un fallo que no existe.
+
+> **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
+> culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
+> no tenía nada que ver.
+
+`MODO=roto` lee el árbol de `0583de4` (pinchado) y afirma el import roto; sobre
+`aa92189`, que sí compilaba, no encuentra nada.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
@@ -21408,17 +21460,39 @@ recordatorios los rehace `reprogramarLosRecordatoriosDeLaCita`
 6. **Editar la hora por el lápiz del CRM rehace los recordatorios igual**
    (`updateAppointmentDetails` llama a la misma función): dos caminos que mueven
    una cita, una sola reprogramación.
-7. **El texto y la hora salen de `lib/recordatorios-de-la-cita.ts`**, la misma
-   regla que al agendar (zona de la CUENTA, solo `unidad-valor`), y cada fila
-   lleva su `idempotencyKey`. Reagendar (#998) y los recordatorios de cita
-   (#999) se fusionaron cada uno con su copia y `main` dejó de compilar; y el
-   lápiz del CRM llamaba a las dos, así que programaba cada recordatorio dos
-   veces. Una sola reprogramación.
 
 Lo prueba `scripts/banco-reagendar-cita.sh`: la regla y un barrido de los
 cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
 `ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
 recordatorios viejos.
+
+### Dos PR verdes por separado pueden tumbar el despliegue juntos
+
+#998 (Reagendar) y #999 (recordatorios a su hora) se fusionaron con minutos de
+diferencia, cada uno con su banco en verde. Juntos, `next build` no compilaba:
+Reagendar importaba `losRecordatoriosDeLaCita` de `lib/cita-publica`, y #999 la
+había movido a `lib/recordatorios-de-la-cita`. El despliegue de #999 **y el de
+#1000 detrás** fallaron, así que producción se quedó en #998 sin que nada lo
+dijera fuera de la pestaña Actions.
+
+Y debajo del error de compilación había dos más, del mismo choque: al editar la
+hora de una cita corrían **dos** reprogramaciones (la de Reagendar, sin llave, y
+la de #999, con llave), así que al cliente le llegaba cada recordatorio dos
+veces; y agendar dejaba fuera las plantillas viejas con `isCampaign` nulo, que
+Reagendar sí contaba.
+
+Tres cosas que hay que mantener:
+
+1. **Reagendar calcula con `losRecordatoriosDeLaCita` de
+   `lib/recordatorios-de-la-cita.ts`** —la zona de la cuenta y la hora
+   estricta— y escribe **con la misma llave** (`appt-reminder:<cita>:<plantilla>`).
+   Es la única reprogramación: editar la hora ya no lleva una segunda.
+2. **Las plantillas de agenda se leen con `isCampaign` falso O nulo**, en los
+   dos sitios.
+3. **Después de fusionar, se mira que el despliegue salió.** Un banco que
+   empaqueta con esbuild no comprueba tipos: `scripts/comprobar-tipos-de-reagendar.sh`
+   pasa `tsc` por esos ficheros, y su `MODO=roto` (contra `0583de4`) afirma el
+   error exacto que tumbó el build. Lo corre `banco-reagendar-cita.sh`.
 
 ## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
 

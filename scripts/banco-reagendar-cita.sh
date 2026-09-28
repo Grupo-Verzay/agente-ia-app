@@ -39,6 +39,11 @@ export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
        CRM_FOLLOW_UP_RUNNER_KEY=banco S3_ACCESS_KEY=banco S3_SECRET_KEY=banco \
        S3_ENDPOINT=http://localhost S3_PUBLIC_URL=http://localhost GEMINI_API_KEY=banco
 
+# Que compile junto a los recordatorios de #999: eso es lo que tumbó el despliegue.
+echo "── Tipos de Reagendar + recordatorios ──"
+scripts/comprobar-tipos-de-reagendar.sh
+MODO=roto scripts/comprobar-tipos-de-reagendar.sh
+
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
 OUT=lib/__tests__/.compilado/reagendar
