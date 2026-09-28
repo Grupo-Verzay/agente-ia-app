@@ -3,7 +3,8 @@
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from 'next/navigation';
 import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones, updateNodeNotifyText, updateNodeMenuOptions } from "@/actions/workflow-node-action";
-import { MAX_OPCIONES_MENU, buildMenuPreview, parseMenuOptions } from "@/lib/workflow-menu";
+import { esNodoDeMenu } from "@/lib/workflow-menu";
+import { MenuNodeFields } from "./MenuNodeFields";
 import { ACCEPT_TYPES, getAcceptTypeString, optimizeFile, validateFileType } from "../helpers";
 import { NodeActions } from "./NodeActions";
 import { Card, CardHeader, CardFooter, CardContent } from "@/components/ui/card";
@@ -61,7 +62,8 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const isIntention = nodeType === 'intention';
   const isPauseNode = nodeType === 'node_pause';
   const isNotifyNode = nodeType === 'nodo-notify';
-  const isMenuNode = nodeType === 'menu';
+  // Los dos menús —el de texto y el de botones— comparten editor y reglas.
+  const isMenuNode = esNodoDeMenu(nodeType);
   const isAutomationNode = isAutomationNodeType(nodeType);
   const hasContent = nodeType === 'text' ? !!message : !!nodes.url;
   const currentAction = ACTIONS.find((a) => a.type === nodeType);
@@ -444,50 +446,16 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
     }
 
     if (isMenuNode) {
-      const opciones = parseMenuOptions(opcionesMenu);
       return (
-        <div className="nodrag flex flex-col gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Pregunta</Label>
-            <Input
-              value={message}
-              onChange={alEscribirPreguntaMenu}
-              onBlur={() => handleSave()}
-              placeholder="Ej: ¿En qué te podemos ayudar?"
-              className="h-8 text-sm"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Opciones — una por línea</Label>
-            <textarea
-              value={opcionesMenu}
-              onChange={(e) => setOpcionesMenu(e.target.value)}
-              onBlur={guardarOpcionesMenu}
-              rows={4}
-              placeholder={'Ventas\nSoporte\nHorarios'}
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-primary"
-            />
-            {/* La numeracion la pone el sistema, no se escribe: asi el numero
-                que ve el cliente y el conector del nodo son siempre el mismo. */}
-            <p className="text-[11px] text-muted-foreground">
-              {opciones.length === 0
-                ? 'Sin opciones el menú no puede ramificar.'
-                : `${opciones.length} de ${MAX_OPCIONES_MENU}. El número lo pone el sistema.`}
-            </p>
-          </div>
-
-          {opciones.length > 0 && (
-            <div className="rounded-md border border-dashed border-border bg-muted/40 p-2">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Así lo recibe el cliente
-              </p>
-              <p className="whitespace-pre-wrap text-xs text-foreground">
-                {buildMenuPreview(message ?? '', opciones)}
-              </p>
-            </div>
-          )}
-        </div>
+        <MenuNodeFields
+          nodo={nodes}
+          pregunta={message ?? ''}
+          alEscribirPregunta={alEscribirPreguntaMenu}
+          alGuardarPregunta={() => handleSave()}
+          opcionesMenu={opcionesMenu}
+          setOpcionesMenu={setOpcionesMenu}
+          alGuardarOpciones={guardarOpcionesMenu}
+        />
       );
     }
 

@@ -38,6 +38,8 @@ export const WORKFLOW_FEATURES: WorkflowFeature[] = [
   { key: "nodo-notify", label: "Notificar", group: "Acciones" },
   { key: "intention", label: "Intención", group: "Acciones" },
   { key: "guardar-ficha", label: "Guardar ficha", group: "Acciones" },
+  { key: "menu", label: "Menú de opciones", group: "Acciones" },
+  { key: "menu-interactivo", label: "Menú con botones", group: "Acciones" },
   // Automatizaciones
   { key: "tag-add", label: "Agregar tag", group: "Automatizaciones" },
   { key: "tag-remove", label: "Quitar tag", group: "Automatizaciones" },

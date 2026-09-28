@@ -2,8 +2,8 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
-import { getTimezoneFromPhone } from "@/lib/timezones";
-import { elDiaElegido, losRecordatoriosDeLaCita, type DatosDeLaCita } from "@/lib/cita-publica";
+import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
+import { laLlaveDelRecordatorio, losRecordatoriosDeLaCita, type DatosDelRecordatorio } from "@/lib/recordatorios-de-la-cita";
 import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
 
 /**
@@ -99,24 +99,19 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
-    const zonaDelDueno = cita.user?.timezone || "America/Bogota";
-    const telefono = remoteJid.replace(/@.*/, "").replace(/\D/g, "");
-    const datos: DatosDeLaCita = {
+    // La hora del texto va en la zona de la CUENTA, nunca en la del teléfono
+    // del cliente: es la misma regla con la que se programan al agendar.
+    const datos: DatosDelRecordatorio = {
         nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
-        telefonoDelCliente: telefono,
         inicio: cita.startTime,
-        fin: cita.endTime,
-        diaElegido: elDiaElegido(null, cita.startTime, zonaDelDueno),
-        zonaDelDueno,
-        zonaDelCliente: telefono ? getTimezoneFromPhone(telefono, zonaDelDueno) : zonaDelDueno,
+        zona: laZonaDeLaCuenta(cita.user?.timezone),
         duracionMinutos: cita.user?.meetingDuration || 60,
-        servicio: cita.service,
+        servicio: cita.service?.name ?? "",
     };
 
-    // Una por plantilla, para saber de cuál sale cada una (su `idNodo`).
-    const calculados = plantillas.flatMap((p) =>
-        losRecordatoriosDeLaCita([p], datos).map((r) => ({ ...r, plantillaId: p.id })),
-    );
+    // Se calculan todos (desde el origen de los tiempos) para poder contar en
+    // la consola cuántos se saltan por haber pasado ya.
+    const calculados = losRecordatoriosDeLaCita(plantillas, datos, new Date(0));
     const programados = losQueTodaviaNoPasan(calculados, ahora);
 
     // La línea y la clave salen de la base, como al agendar: Meta usa su
@@ -155,6 +150,10 @@ export async function reprogramarLosRecordatoriosDeLaCita(
         db.seguimiento.createMany({
             data: programados.map((r) => ({
                 idNodo: elIdNodoDelRecordatorio(r.plantillaId),
+                // La MISMA llave con la que los programa agendar: así este
+                // camino y `programarLosRecordatoriosDeLaCita` no pueden dejar
+                // dos copias del mismo recordatorio.
+                idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
                 serverurl,
                 instancia: linea,
                 apikey,
@@ -163,6 +162,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
                 tipo: "text",
                 time: r.cuando,
             })),
+            skipDuplicates: true,
         }),
     ]);
 

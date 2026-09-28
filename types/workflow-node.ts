@@ -21,6 +21,7 @@ import {
   Webhook,
   Phone,
   ListOrdered,
+  MousePointerClick,
 } from "lucide-react";
 
 import { LucideIcon } from "lucide-react";
@@ -35,6 +36,7 @@ export type WorkflowNodeType =
   | "node_pause"
   | "nodo-notify"
   | "menu"
+  | "menu-interactivo"
   | "intention"
   | "guardar-ficha"
   | AutomationActionType
@@ -136,7 +138,7 @@ export const PALETTE: PaletteItem[] = [
 ];
 
 // Tipos base (acciones generales)
-export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention" | "menu" | "guardar-ficha" | AutomationActionType;
+export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention" | "menu" | "menu-interactivo" | "guardar-ficha" | AutomationActionType;
 
 // Tipos de seguimiento (prefijo "seguimiento-")
 export type SeguimientoActionType =
@@ -180,6 +182,7 @@ export const baseActions: Action[] = [
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, iconClassName: `text-yellow-500` },
   { type: "intention", label: "Intención", icon: Brain, iconClassName: "text-cyan-500" },
   { type: "menu", label: "Menú de opciones", icon: ListOrdered, iconClassName: "text-orange-500" },
+  { type: "menu-interactivo", label: "Menú con botones", icon: MousePointerClick, iconClassName: "text-orange-500", keywords: "botones lista desplegable interactivo tocar" },
   { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, iconClassName: "text-teal-600" },
 ];
 
@@ -213,7 +216,7 @@ export const nodeActions: Action[] = baseActions.filter((a) =>
 // El orden de la lista manda: `filter` conservaba el de baseActions, así que
 // mover una acción en el panel obligaba a moverla también allí, donde el orden
 // no significa nada.
-const ORDEN_ACCIONES = ['node_pause', 'nodo-notify', 'intention', 'guardar-ficha', 'menu'] as const;
+const ORDEN_ACCIONES = ['node_pause', 'nodo-notify', 'intention', 'guardar-ficha', 'menu', 'menu-interactivo'] as const;
 export const accionActions: Action[] = ORDEN_ACCIONES
   .map((type) => baseActions.find((a) => a.type === type))
   .filter((a): a is Action => !!a);
@@ -228,6 +231,7 @@ export const cardBaseActions: Action[] = [
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, bg: "bg-yellow-500", iconClassName: "h-4 w-4 text-white" },
   { type: "intention", label: "Intención", icon: Brain, bg: "bg-black", iconClassName: "h-4 w-4 text-white" },
   { type: "menu", label: "Menú de opciones", icon: ListOrdered, bg: "bg-orange-500", iconClassName: "h-4 w-4 text-white" },
+  { type: "menu-interactivo", label: "Menú con botones", icon: MousePointerClick, bg: "bg-orange-500", iconClassName: "h-4 w-4 text-white" },
   { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, bg: "bg-teal-600", iconClassName: "h-4 w-4 text-white" },
 ];
 
