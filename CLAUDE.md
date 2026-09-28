@@ -21926,6 +21926,41 @@ Y se comprobó lo único que dice que un banco mira: quitándole el arreglo al m
 bueno se pone en rojo —el `-translate-y-1/2` de vuelta, el orden ingenuo al
 ascender, un `userId` en una acción y el volcado al cerrar el panel—.
 
+## Chats y Correos: el panel vacío es UNO, y una barrita arriba alterna entre las dos
+
+Correo sin correo abierto decía «Elige un correo para leerlo» en gris; Chats
+sin conversación tiene su icono grande, título, frase y tres tarjetas. Ahora
+los dos son **la misma pieza**, `components/shared/PanelSinSeleccion.tsx`: lo
+único propio de cada pantalla es qué dice y qué filtra cada tarjeta (Chats en
+`PanelSinChat.tsx`: Mías, Todos, Sin leer; Correo: Destacados, Todos, Sin
+leer, cada una con `setFiltro` de SU pastilla). Destacados va en el ámbar de su
+pastilla, como «Mías» lleva el violeta de la suya.
+
+Y arriba, en la barra de la plataforma, la barrita **Chats ⇄ Correos**
+(`components/shared/AlternarBandeja.tsx`, regla pura en
+`lib/alternar-bandejas.ts`). Cuatro cosas que hay que mantener:
+
+1. **Sale solo en /chats y /correo, y solo si las DOS están en el menú** de
+   quien mira: ofrecer Correos a quien no lo tiene es un enlace a una puerta
+   cerrada.
+2. **Va anclada a la izquierda, justo después del botón del menú**, no
+   centrada ni detrás de las migas. Medido: centrada, a 1024 y 1280 con
+   «Ver tutoriales» el buscador le pasa por encima; detrás de las migas se
+   corre, porque «chats» y «correo» no miden lo mismo.
+3. **Los dos botones tienen ancho fijo** (`sm:w-[6.5rem]`, iconos solos en un
+   teléfono): con el suyo propio, la activa en negrita ensancharía su mitad y
+   la barrita se movería al cambiar de pantalla.
+4. **Mide 28 px, lo mismo que el botón del menú**, y con ella puesta las migas
+   no se parten (`flex-nowrap`): con 34 px la barra crecía 6 px, y partidas en
+   un teléfono crecía una línea entera.
+
+Lo prueba `scripts/banco-bandejas-simetricas.sh`: la regla y un barrido, y en
+Chromium sobre el CSS del build el panel de Chats de hoy contra el de antes
+(sacado de git), el de Correo —con su componente real— contra el de Chats, las
+tarjetas que filtran y la barra de arriba real en /chats y /correo a
+1440/1280/1024/390, con y sin tutoriales. `MODO=roto` lo corre contra
+`ANTES_REF` y afirma que no había panel ni barrita.
+
 ## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
 
 Al resolver una conversación —si la cuenta la tiene encendida en Perfil ›

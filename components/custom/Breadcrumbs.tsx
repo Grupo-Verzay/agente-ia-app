@@ -1,5 +1,6 @@
 'use client';
 
+import { AlternarBandeja, useSeVeLaBarritaDeBandejas } from "@/components/shared/AlternarBandeja";
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { HomeIcon } from '@heroicons/react/24/solid';
@@ -70,6 +71,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
   );
 
   const laBarra = useRef<HTMLDivElement>(null);
+  const conBarrita = useSeVeLaBarritaDeBandejas();
   const [guides, setGuides] = useState<GuideUrl[]>([]);
   const [workflowName, setWorkflowName] = useState<string | null>(null);
   const [formName, setFormName] = useState<string | null>(null);
@@ -147,11 +149,18 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
             className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white"
           >
             <Breadcrumb className="py-3 flex flex-row flex-1 overflow-hidden dark:bg-gray-900 dark:text-white">
-              <BreadcrumbList>
+              {/* Con la barrita de Chats ⇄ Correos las migas no se parten en
+                  dos líneas en un teléfono: se recortan (la caja ya es
+                  `overflow-hidden`). Partidas, la barra crecía de alto. */}
+              <BreadcrumbList className={conBarrita ? "flex-nowrap" : undefined}>
                 {!isFlow && (
                   <>
                     <SidebarTrigger className="-ml-1" />
                     <Separator orientation="vertical" className="mr-2 h-4" />
+                    {/* Chats ⇄ Correos: justo después del menú, el mismo
+                        sitio en las dos pantallas. Fuera de ellas no pinta
+                        nada. */}
+                    <AlternarBandeja />
                   </>
                 )}
 
