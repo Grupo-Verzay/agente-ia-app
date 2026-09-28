@@ -24,8 +24,15 @@
  *    carácter fuera de esa tabla haría que `pdf-lib` lance y el PDF entero no
  *    saliera. `aTextoImprimible` los quita antes de medir y de dibujar; un
  *    mensaje que solo era emoji dice «(emoji)», nunca sale vacío.
- * 3. **Una burbuja más alta que una página se PARTE**, no se corta: sus
- *    líneas siguen en la página siguiente con la misma forma.
+ * 3. **El contenido fluye seguido y un mensaje no se parte por la mitad**
+ *    (`elCorteDeLaBurbuja`). Un mensaje corto que no cabe al final de la
+ *    hoja pasa entero a la siguiente —el hueco que deja es como mucho su
+ *    propio alto—. Uno largo (desde `LINEAS_PARA_PARTIR` líneas) se parte
+ *    por sus LÍNEAS, nunca por el medio de una, con al menos
+ *    `LINEAS_MINIMAS_POR_TROZO` a cada lado y «continúa» donde iría la hora.
+ *    Mandarlo entero a la hoja siguiente es lo que dejaba media página en
+ *    blanco, como si hubiera un salto de página forzado. Y el separador de
+ *    día nunca se queda solo al final de una hoja: va con su mensaje.
  */
 import {
     PDFDocument,
@@ -63,7 +70,20 @@ const TAMANO_DEL_TEXTO = 10;
 const INTERLINEADO = 13;
 const TAMANO_PEQUENO = 7.5;
 const ALTO_DEL_PIE = 22;
+/**
+ * La línea de «Página N de M». Va a MARGEN del borde de abajo, lo mismo que
+ * el contenido deja arriba y a los lados: la hoja queda simétrica.
+ */
+export const Y_DEL_PIE = MARGEN;
 const ALTO_DE_LA_CABECERA = 86;
+/** El aire entre dos burbujas, el mismo siempre. */
+export const ESPACIO_ENTRE_BURBUJAS = 6;
+/** Lo que ocupa el separador de día (su caja más su aire). */
+export const ALTO_DEL_SEPARADOR = 26;
+/** Un mensaje partido deja al menos estas líneas en cada página. */
+export const LINEAS_MINIMAS_POR_TROZO = 3;
+/** Desde cuántas líneas un mensaje se puede partir entre dos páginas. */
+export const LINEAS_PARA_PARTIR = 2 * LINEAS_MINIMAS_POR_TROZO + 1;
 /** Lo más alto que se pinta una imagen dentro de una burbuja. */
 export const ALTO_MAXIMO_DE_IMAGEN = 220;
 
@@ -351,6 +371,43 @@ interface Fuentes {
     cursiva: PDFFont;
 }
 
+/**
+ * Cuántas líneas de una burbuja van en ESTA página, o si hay que pasar a la
+ * siguiente. Pura, para poder probarla sin dibujar nada.
+ *
+ * - Cabe entera: va entera.
+ * - No cabe y es corta (menos de `LINEAS_PARA_PARTIR` líneas): pasa ENTERA a
+ *   la hoja siguiente. No se parte: el hueco que deja es su propio alto.
+ * - No cabe y es larga: se parte por sus líneas, con al menos
+ *   `LINEAS_MINIMAS_POR_TROZO` aquí y otras tantas para después. Si aquí no
+ *   caben ni esas, pasa a la siguiente.
+ * - En una hoja recién empezada no se salta nunca (sería un bucle): va lo que
+ *   quepa, dejando las mínimas para la siguiente.
+ */
+export function elCorteDeLaBurbuja(a: {
+    queda: number;
+    paginaVacia: boolean;
+    altoFijo: number;
+    lineas: number;
+    interlineado?: number;
+}): { saltarAntes: boolean; lineasAqui: number } {
+    const inter = a.interlineado ?? INTERLINEADO;
+    const n = Math.max(0, Math.floor(a.lineas));
+    const libre = a.queda - ESPACIO_ENTRE_BURBUJAS - a.altoFijo;
+    const cabenAqui = Math.floor(libre / inter);
+    if (cabenAqui >= n) return { saltarAntes: false, lineasAqui: n };
+    if (a.paginaVacia) {
+        if (n === 0) return { saltarAntes: false, lineasAqui: 0 };
+        const dejar = n > LINEAS_MINIMAS_POR_TROZO ? LINEAS_MINIMAS_POR_TROZO : 1;
+        return { saltarAntes: false, lineasAqui: Math.max(1, Math.min(cabenAqui, n - dejar)) };
+    }
+    if (n >= LINEAS_PARA_PARTIR) {
+        const aqui = Math.min(cabenAqui, n - LINEAS_MINIMAS_POR_TROZO);
+        if (aqui >= LINEAS_MINIMAS_POR_TROZO) return { saltarAntes: false, lineasAqui: aqui };
+    }
+    return { saltarAntes: true, lineasAqui: 0 };
+}
+
 class Lienzo {
     paginas: PDFPage[] = [];
     pagina!: PDFPage;
@@ -360,6 +417,13 @@ class Lienzo {
         readonly doc: PDFDocument,
         readonly fuentes: Fuentes,
     ) {}
+
+    /** La coordenada donde empieza una hoja nueva: si `y` sigue ahí, está vacía. */
+    readonly arriba = ALTO_DE_PAGINA - MARGEN;
+
+    vacia(): boolean {
+        return this.y >= this.arriba;
+    }
 
     nueva(): void {
         this.pagina = this.doc.addPage([ANCHO_DE_PAGINA, ALTO_DE_PAGINA]);
@@ -593,15 +657,8 @@ export async function conversacionEnPdf(
 
     for (const m of mensajes) {
         const dia = elDia(m.ts, zona);
-        if (dia && dia !== diaAnterior) {
-            diaAnterior = dia;
-            const w = fuentes.negrita.widthOfTextAtSize(dia, 8) + 20;
-            lienzo.asegurar(34);
-            const yP = lienzo.y - 18;
-            caja(lienzo.pagina, (ANCHO_DE_PAGINA - w) / 2, yP, w, 16, 6, hex(COLORES.separador));
-            lienzo.pagina.drawText(dia, { x: (ANCHO_DE_PAGINA - w) / 2 + 10, y: yP + 5, size: 8, font: fuentes.negrita, color: hex("#54656F") });
-            lienzo.y = yP - 8;
-        }
+        const llevaSeparador = Boolean(dia) && dia !== diaAnterior;
+        if (llevaSeparador) diaAnterior = dia;
 
         const { lado, color } = elLadoYElColor(m.quien);
         const firma = aTextoImprimible(
@@ -648,33 +705,50 @@ export async function conversacionEnPdf(
         const altoTarjeta = tarjeta ? Math.max(34, 12 + lineasDeLaTarjeta * 11) + 4 : 0;
         const altoTranscripcion = transcripcion.length ? transcripcion.length * 11 + 4 : 0;
         // La hora va en el ÚLTIMO trozo de una burbuja partida, como en un chat:
-        // repetida en cada trozo, un mensaje largo parecería varios.
-        const altoPieFinal = 12;
-        const altoPieIntermedio = 4;
+        // repetida en cada trozo, un mensaje largo parecería varios. Los trozos
+        // de en medio llevan «continúa» en su sitio, con el MISMO pie: así todas
+        // las burbujas tienen el mismo aire abajo.
+        const altoPie = 12;
+        const altoCabezaCompleta = altoFirma + altoImagen + altoTarjeta + altoTranscripcion;
 
-        // Una burbuja que no cabe en una página entera se parte por sus líneas.
+        // El separador de día va pegado a su mensaje: si detrás de él no cabe
+        // ni el primer trozo, los dos pasan a la hoja siguiente.
+        if (llevaSeparador) {
+            const conSeparador = elCorteDeLaBurbuja({
+                queda: lienzo.queda() - ALTO_DEL_SEPARADOR,
+                paginaVacia: false,
+                altoFijo: 2 * RELLENO + altoCabezaCompleta + altoPie,
+                lineas: lineasTexto.length,
+            });
+            if (conSeparador.saltarAntes && !lienzo.vacia()) lienzo.nueva();
+            const w = fuentes.negrita.widthOfTextAtSize(dia, 8) + 20;
+            const yP = lienzo.y - 18;
+            caja(lienzo.pagina, (ANCHO_DE_PAGINA - w) / 2, yP, w, 16, 6, hex(COLORES.separador));
+            lienzo.pagina.drawText(dia, { x: (ANCHO_DE_PAGINA - w) / 2 + 10, y: yP + 5, size: 8, font: fuentes.negrita, color: hex("#54656F") });
+            lienzo.y = lienzo.y - ALTO_DEL_SEPARADOR;
+        }
+
+        // El contenido fluye seguido: se parte por líneas solo si el mensaje es
+        // largo, y nunca por el medio de una (ver `elCorteDeLaBurbuja`).
         let lineasPendientes = lineasTexto;
         let primeraParte = true;
         for (;;) {
-            const altoCabeza = primeraParte ? altoFirma + altoImagen + altoTarjeta + altoTranscripcion : 0;
-            const altoPie = altoPieFinal;
-            const disponibleEnBlanco = ALTO_DE_PAGINA - 2 * MARGEN - ALTO_DEL_PIE - 2 * RELLENO - altoPie - altoCabeza - 6;
-            const maxLineas = Math.max(1, Math.floor(disponibleEnBlanco / INTERLINEADO));
-            let estas = lineasPendientes.slice(0, maxLineas);
-            let alto = 2 * RELLENO + altoCabeza + estas.length * INTERLINEADO + altoPie;
-            if (lienzo.queda() < alto + 6) {
-                // ¿Caben al menos unas líneas aquí? Si la burbuja es larga, se parte ya.
-                const cabenAqui = Math.floor((lienzo.queda() - 6 - 2 * RELLENO - altoCabeza - altoPie) / INTERLINEADO);
-                if (lineasPendientes.length > maxLineas && cabenAqui >= 3) {
-                    estas = lineasPendientes.slice(0, cabenAqui);
-                    alto = 2 * RELLENO + altoCabeza + estas.length * INTERLINEADO + altoPie;
-                } else {
-                    lienzo.nueva();
-                }
+            const altoCabeza = primeraParte ? altoCabezaCompleta : 0;
+            const altoFijo = 2 * RELLENO + altoCabeza + altoPie;
+            let corte = elCorteDeLaBurbuja({
+                queda: lienzo.queda(),
+                paginaVacia: lienzo.vacia(),
+                altoFijo,
+                lineas: lineasPendientes.length,
+            });
+            if (corte.saltarAntes) {
+                lienzo.nueva();
+                corte = elCorteDeLaBurbuja({ queda: lienzo.queda(), paginaVacia: true, altoFijo, lineas: lineasPendientes.length });
             }
+            const estas = lineasPendientes.slice(0, corte.lineasAqui);
+            const alto = altoFijo + estas.length * INTERLINEADO;
             lineasPendientes = lineasPendientes.slice(estas.length);
             const esElUltimo = lineasPendientes.length === 0;
-            if (!esElUltimo) alto -= altoPieFinal - altoPieIntermedio;
 
             // Ancho: lo que pida el contenido, sin pasar del máximo.
             const anchoContenido = Math.max(
@@ -684,6 +758,7 @@ export async function conversacionEnPdf(
                 primeraParte && imagen ? anchoImagen : 0,
                 primeraParte && tarjeta ? anchoInterior : 0,
                 fuentes.normal.widthOfTextAtSize(hora, TAMANO_PEQUENO) + 30,
+                esElUltimo ? 0 : fuentes.cursiva.widthOfTextAtSize("continúa", TAMANO_PEQUENO) + 30,
             );
             const w = Math.min(anchoBurbuja, anchoContenido + 2 * RELLENO);
             const x = lado === "izquierda" ? MARGEN : ANCHO_DE_PAGINA - MARGEN - w;
@@ -752,17 +827,19 @@ export async function conversacionEnPdf(
                 });
                 cursor -= INTERLINEADO;
             }
-            if (esElUltimo) {
-                const wh = fuentes.normal.widthOfTextAtSize(hora, TAMANO_PEQUENO);
-                page.drawText(hora, {
+            {
+                const pie = esElUltimo ? hora : "continúa";
+                const fuentePie = esElUltimo ? fuentes.normal : fuentes.cursiva;
+                const wh = fuentePie.widthOfTextAtSize(pie, TAMANO_PEQUENO);
+                page.drawText(pie, {
                     x: x + w - RELLENO - wh,
                     y: yAbajo + 5,
                     size: TAMANO_PEQUENO,
-                    font: fuentes.normal,
+                    font: fuentePie,
                     color: hex(COLORES.tenue),
                 });
             }
-            lienzo.y = yAbajo - 6;
+            lienzo.y = yAbajo - ESPACIO_ENTRE_BURBUJAS;
             primeraParte = false;
             if (lineasPendientes.length === 0) break;
         }
@@ -773,7 +850,7 @@ export async function conversacionEnPdf(
     lienzo.paginas.forEach((p, i) => {
         const texto = aTextoImprimible(`${nombreDelNegocio}  ·  Página ${i + 1} de ${total}`);
         const w = fuentes.normal.widthOfTextAtSize(texto, 7.5);
-        p.drawText(texto, { x: (ANCHO_DE_PAGINA - w) / 2, y: MARGEN - 4, size: 7.5, font: fuentes.normal, color: hex(COLORES.tenue) });
+        p.drawText(texto, { x: (ANCHO_DE_PAGINA - w) / 2, y: Y_DEL_PIE, size: 7.5, font: fuentes.normal, color: hex(COLORES.tenue) });
     });
 
     return doc.save();
