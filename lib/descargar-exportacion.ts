@@ -12,22 +12,44 @@ import { sinNombresRepetidos } from "@/lib/conversacion-legible";
  *
  * El `.txt` lleva la marca BOM de UTF-8 delante: sin ella el Bloc de notas de
  * Windows viejo abre los acentos rotos, y es justo donde la gente abre esto.
+ *
+ * Un PDF llega en base64 (`formato: "pdf"`, una acción de servidor devuelve
+ * JSON) y se baja con sus bytes tal cual: con BOM delante dejaría de ser un
+ * PDF. Varios PDF van en el mismo `.zip`, igual que varios `.txt`.
  */
 const BOM = "﻿";
 
-export function descargarExportacion(
-    archivos: { nombre: string; contenido: string }[],
-    nombreDelLote: string,
-): void {
+export interface ArchivoParaDescargar {
+    nombre: string;
+    contenido: string;
+    /** Sin él, texto: así sigue funcionando lo que ya lo llamaba (Correo). */
+    formato?: "txt" | "pdf";
+}
+
+/** Los bytes de un archivo tal como van al disco. Puro, para el banco. */
+export function losBytesDelArchivo(a: ArchivoParaDescargar): Uint8Array | string {
+    if (a.formato === "pdf") {
+        const binario = atob(a.contenido);
+        const bytes = new Uint8Array(binario.length);
+        for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+        return bytes;
+    }
+    return BOM + a.contenido;
+}
+
+export function descargarExportacion(archivos: ArchivoParaDescargar[], nombreDelLote: string): void {
     if (archivos.length === 0) return;
     let blob: Blob;
     let nombre: string;
     if (archivos.length === 1) {
-        blob = new Blob([BOM + archivos[0].contenido], { type: "text/plain;charset=utf-8" });
-        nombre = archivos[0].nombre;
+        const a = archivos[0];
+        blob = new Blob([losBytesDelArchivo(a) as BlobPart], {
+            type: a.formato === "pdf" ? "application/pdf" : "text/plain;charset=utf-8",
+        });
+        nombre = a.nombre;
     } else {
         const zip = crearZip(
-            sinNombresRepetidos(archivos).map((a) => ({ nombre: a.nombre, contenido: BOM + a.contenido })),
+            sinNombresRepetidos(archivos).map((a) => ({ nombre: a.nombre, contenido: losBytesDelArchivo(a) })),
         );
         blob = new Blob([zip as BlobPart], { type: "application/zip" });
         nombre = nombreDelLote.endsWith(".zip") ? nombreDelLote : `${nombreDelLote}.zip`;

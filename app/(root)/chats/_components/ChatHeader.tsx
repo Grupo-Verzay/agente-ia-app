@@ -47,6 +47,7 @@ import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU, deSubmenu } from '@/lib/panele
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { useExportarConversaciones } from '@/hooks/useExportarConversaciones';
+import { OpcionesDeExportar } from '@/components/shared/MenuDeExportar';
 
 /*
  * El margen de la cabecera (16 px a los cuatro lados), el alto (110 px) y el de
@@ -518,21 +519,38 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </DropdownMenuItem>
         )}
 
-        {/* Exportar esta conversación a un .txt legible, como «Exportar chat»
-          * de WhatsApp. Al lado de «Enviar al equipo» porque las dos se llevan
-          * la conversación a otro sitio. Es el mismo camino que el lote de la
-          * lista (`useExportarConversaciones`). */}
+        {/* Exportar esta conversación: como PDF (burbujas de chat con el logo
+          * del negocio) o como texto plano, igual que «Exportar chat» de
+          * WhatsApp. Al lado de «Enviar al equipo» porque las dos se llevan la
+          * conversación a otro sitio. Va en un submenú con los mismos formatos
+          * que el lote de la lista y que CRM › Calidad (`OpcionesDeExportar`),
+          * por el mismo camino (`useExportarConversaciones`). */}
         {puedeExportar && (
-          <DropdownMenuItem
-            disabled={exportando}
-            onSelect={() =>
-              void exportar([{ instanceName: instanceName!, remoteJid: remoteJid!, aliases: identidadesDelChat ?? [] }])
-            }
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 shrink-0" />
-            {exportando ? "Exportando…" : "Exportar conversación"}
-          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              disabled={exportando}
+              data-exportar-conversacion
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              {exportando ? "Exportando…" : "Exportar conversación"}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent
+                {...deSubmenu()}
+                className={cn('w-60', RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}
+              >
+                <OpcionesDeExportar
+                  onElegir={(formato) =>
+                    void exportar(
+                      [{ instanceName: instanceName!, remoteJid: remoteJid!, aliases: identidadesDelChat ?? [] }],
+                      formato,
+                    )
+                  }
+                />
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
         )}
 
         {/* Transferir — solo para agentes con sesión propia */}

@@ -1,5 +1,7 @@
 "use client";
 
+import { MenuDeExportar } from "@/components/shared/MenuDeExportar";
+import type { FormatoDeExportacion } from "@/lib/formatos-de-exportacion";
 import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX, CheckCheck, Star, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,10 +35,15 @@ type BulkActionBarProps = {
    */
   onResolve?: () => void;
   /**
-   * Exportar las conversaciones marcadas a texto legible (un .zip con un .txt
-   * por conversación). Omitir para esconder la acción.
+   * Exportar lo marcado. Omitir para esconder la acción.
+   *
+   * Con `exportaEnFormatos` (Chats) el botón abre el menú de formatos —PDF o
+   * texto plano, `MenuDeExportar`, el mismo de la cabecera y de CRM › Calidad—
+   * y llama con el elegido. Sin él (Correo) exporta directo a texto, como
+   * siempre.
    */
-  onExport?: () => void;
+  onExport?: (formato?: FormatoDeExportacion) => void;
+  exportaEnFormatos?: boolean;
   /** Mientras exporta: el botón gira y una segunda pulsación no hace nada. */
   exporting?: boolean;
   onAssignAdvisor?: (advisorId: string | null) => void;
@@ -84,6 +91,7 @@ export function BulkActionBar({
   onMarkRead,
   onResolve,
   onExport,
+  exportaEnFormatos = false,
   exporting,
   onAssignAdvisor,
   onAddTag,
@@ -186,19 +194,26 @@ export function BulkActionBar({
 
         {/* Exportar: justo detrás de resolver, que es cuando se guarda una
             conversación terminada. Botón suelto y no menú: no tiene variantes. */}
-        {onExport && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title={`Exportar ${sustantivo.varios}`}
-            aria-label={`Exportar ${sustantivo.varios}`}
-            disabled={exporting}
-            onClick={onExport}
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          </Button>
-        )}
+        {onExport && (() => {
+          const boton = (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={`Exportar ${sustantivo.varios}`}
+              aria-label={`Exportar ${sustantivo.varios}`}
+              disabled={exporting}
+              onClick={exportaEnFormatos ? undefined : () => onExport()}
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            </Button>
+          );
+          return exportaEnFormatos ? (
+            <MenuDeExportar onElegir={(formato) => onExport(formato)}>{boton}</MenuDeExportar>
+          ) : (
+            boton
+          );
+        })()}
 
         {onStar && (
           <DropdownMenu>
