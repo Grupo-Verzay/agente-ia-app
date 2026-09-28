@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# El banco de «la llamada con IA deja Transcripción y Resumen».
+# El banco de «la llamada y su transcripción las paga la MISMA cuenta».
 #
 # Postgres de usar y tirar + el esquema REAL de Prisma (`db push`): lo que se
 # prueba son las acciones, y esas escriben en `chat_messages` y descuentan de
 # `ia_credits` — dos tablas de verdad, con una familia de `linked_accounts`
-# sembrada dentro para poder afirmar a QUIÉN se le cobra.
+# sembrada dentro para poder afirmar a QUIÉN se le cobra — y dos cuentas
+# compartiendo el mismo número de llamadas, que es el caso que lo rompía.
 #
-#   MODO=roto scripts/banco-grabacion-de-llamada.sh   <- afirma el fallo
+#   MODO=roto scripts/banco-quien-paga-la-llamada.sh   <- afirma el fallo
 set -euo pipefail
 cd /home/user/agente-ia-app
 
 export PATH="/usr/lib/postgresql/16/bin:/opt/node22/bin:$PATH"
-PGDIR=/tmp/pggrabacion
-PORT=55451
+PGDIR=/tmp/pgquienpaga
+PORT=55537
 
 if [ ! -d "$PGDIR" ]; then
   rm -rf "$PGDIR"
@@ -67,4 +68,4 @@ npx esbuild lib/__tests__/fingido/entrada-de-grabacion.ts --bundle \
   --log-level=error
 sed -i '/server-only/d' lib/__tests__/.compilado/grabacion/entrada-de-grabacion.js
 
-node --test lib/__tests__/grabacion-de-llamada.test.mjs "$@"
+node --test lib/__tests__/quien-paga-la-llamada.test.mjs "$@"

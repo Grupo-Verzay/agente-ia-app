@@ -22,7 +22,7 @@ export const laIa = {
      */
     resultado: "interesado",
     /** Para poder afirmar que de verdad se le pidió, y con qué. */
-    pedidos: [] as { que: "transcribir" | "resumir" | "clasificar"; modelo: string; pista?: string }[],
+    pedidos: [] as { que: "transcribir" | "resumir" | "clasificar"; modelo: string; pista?: string; clave?: string }[],
 };
 
 export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: string; resultado?: string }): void {
@@ -31,7 +31,7 @@ export function ponerLoQueDiceLaIa(input: { transcripcion?: string; resumen?: st
     if (input.resultado !== undefined) laIa.resultado = input.resultado;
 }
 
-export function loQueSeLePidioALaIa(): { que: string; modelo: string; pista?: string }[] {
+export function loQueSeLePidioALaIa(): { que: string; modelo: string; pista?: string; clave?: string }[] {
     return laIa.pedidos.slice();
 }
 

@@ -51,7 +51,7 @@ npx esbuild lib/__tests__/fingido/entrada-de-rescate.ts --bundle \
   --external:@prisma/client --external:server-only --external:minio \
   --banner:js='import{createRequire as __cr}from "module";const require=__cr(import.meta.url);' \
   --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-llamadas.ts \
-  --alias:openai=./lib/__tests__/fingido/openai-de-mentira.ts \
+  --alias:openai=./lib/__tests__/fingido/openai-de-las-llamadas.ts \
   --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
   --alias:next/server=./lib/__tests__/fingido/next-server.ts \
   --alias:react=./lib/__tests__/fingido/react-cache.ts \

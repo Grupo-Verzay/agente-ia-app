@@ -19641,7 +19641,10 @@ Cuatro cosas que hay que mantener:
    (`laCuentaDeLaFilaDeLlamada`), no por `effectiveId`. La fila está escrita
    bajo la cuenta de la conversación; con la de quien mira, `(id, userId)` no
    la encuentra.
-3. **La transcripción la paga la cuenta de la fila**, no la raíz de la familia.
+3. **La transcripción la paga la MISMA cuenta que pagó la llamada**, no la raíz
+   de la familia: la dueña del `astraSid` con el desempate del backend (ver
+   *La llamada y su transcripción: UNA cuenta, la del sid*). En el caso normal
+   es la cuenta de la fila.
 4. **La fila del CRM lleva su `instanceName`** (`CallRow`), y volver a llamar
    desde una fila sale por esa línea. Sin eso, relanzar desde el CRM unificado
    de la madre volvía a salir por la madre.
@@ -19652,6 +19655,43 @@ de Ventas, se registra y se cobra en Ventas, y aparece en el CRM de Ventas;
 desde Pruebas —sin número— no se llama; y una hija no llama desde la línea de
 su madre. Corre dos veces, y la segunda empaqueta el mismo fichero contra un
 commit pinchado (`ANTES_REF`) y **afirma** los fallos.
+
+### La llamada y su transcripción: UNA cuenta, la del sid
+
+«No hay créditos suficientes: hacen falta 14 y quedan 0» sobre una cuenta que
+sí tenía créditos. El backend (`api-webhook`, `VoicebotService`) cobra la
+llamada a la cuenta dueña del **sid** de la sesión de llamadas, y
+`User.astra_calls_sid` **no es única**: con dos cuentas compartiendo sid elige
+la de `id` menor (`ORDER BY "id" ASC LIMIT 1`, api-webhook#182, en sus cuatro
+consultas). La App leía el saldo —y cobraba— la cuenta de la FILA. Con un sid
+compartido, la llamada salía de una bolsa y la transcripción miraba otra.
+
+> **La transcripción se cobra, su saldo se lee y su clave de IA sale de la
+> MISMA cuenta que cobró la llamada**: `laCuentaQuePagaLaLlamada`
+> (`lib/cuenta-que-paga-la-llamada.server.ts`), con la misma consulta y el
+> mismo desempate que el backend; la regla pura en
+> `lib/cuenta-que-paga-la-llamada.ts`. **Si se cambia el criterio, se cambia
+> en los dos repositorios**: es una sola pregunta.
+
+Tres cosas que hay que mantener:
+
+1. **El sid sale de la FILA**, nunca del navegador: lo escribió este servidor
+   al lanzar la llamada.
+2. **Sin sid (Meta) o con un sid que ya no es de nadie, paga la fila.** Y
+   cuando paga otra cuenta que la de la fila, se dice en la consola: es la
+   señal de un sid compartido.
+3. **La columna sigue sin índice único**, y no se le pone desde aquí: `User`
+   es del backend y con duplicados la migración fallaría.
+
+Lo prueba `scripts/banco-quien-paga-la-llamada.sh`, contra Postgres: dos
+cuentas con el mismo sid, la de la fila a cero; la transcripción se cobra en
+la que devuelve la consulta del backend (escrita literal), con su clave, y
+nada en la de la fila. `MODO=roto` lee el saldo como antes y afirma «cuesta 14
+y quedan 0» sobre una llamada que el backend cobró a otra cuenta.
+
+Y los bancos de llamadas usan su propio doble de OpenAI
+(`fingido/openai-de-las-llamadas.ts`): compartían `openai-de-mentira.ts` con el
+del cobro de IA, que el #993 reescribió sin `audio.transcriptions`.
 
 ### Y el marcador de CRM › Llamadas elige la cuenta con un «Vía:»
 
@@ -21368,6 +21408,12 @@ recordatorios los rehace `reprogramarLosRecordatoriosDeLaCita`
 6. **Editar la hora por el lápiz del CRM rehace los recordatorios igual**
    (`updateAppointmentDetails` llama a la misma función): dos caminos que mueven
    una cita, una sola reprogramación.
+7. **El texto y la hora salen de `lib/recordatorios-de-la-cita.ts`**, la misma
+   regla que al agendar (zona de la CUENTA, solo `unidad-valor`), y cada fila
+   lleva su `idempotencyKey`. Reagendar (#998) y los recordatorios de cita
+   (#999) se fusionaron cada uno con su copia y `main` dejó de compilar; y el
+   lápiz del CRM llamaba a las dos, así que programaba cada recordatorio dos
+   veces. Una sola reprogramación.
 
 Lo prueba `scripts/banco-reagendar-cita.sh`: la regla y un barrido de los
 cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre

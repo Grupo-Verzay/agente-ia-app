@@ -2,9 +2,13 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
-import { getTimezoneFromPhone } from "@/lib/timezones";
-import { elDiaElegido, losRecordatoriosDeLaCita, type DatosDeLaCita } from "@/lib/cita-publica";
-import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
+import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
+import {
+    elNodoDelRecordatorio,
+    laLlaveDelRecordatorio,
+    losRecordatoriosDeLaCita,
+} from "@/lib/recordatorios-de-la-cita";
+import { losNumerosDelCliente } from "@/lib/reagendar-cita";
 
 /**
  * Rehace los recordatorios de una cita a partir de su hora ACTUAL: borra los
@@ -50,6 +54,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             startTime: true,
             endTime: true,
             status: true,
+            timezone: true,
             service: { select: { name: true, messageText: true } },
             session: { select: { remoteJid: true, remoteJidAlt: true, instanceId: true, pushName: true } },
             user: { select: { timezone: true, meetingDuration: true } },
@@ -99,25 +104,20 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
-    const zonaDelDueno = cita.user?.timezone || "America/Bogota";
-    const telefono = remoteJid.replace(/@.*/, "").replace(/\D/g, "");
-    const datos: DatosDeLaCita = {
-        nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
-        telefonoDelCliente: telefono,
-        inicio: cita.startTime,
-        fin: cita.endTime,
-        diaElegido: elDiaElegido(null, cita.startTime, zonaDelDueno),
-        zonaDelDueno,
-        zonaDelCliente: telefono ? getTimezoneFromPhone(telefono, zonaDelDueno) : zonaDelDueno,
-        duracionMinutos: cita.user?.meetingDuration || 60,
-        servicio: cita.service,
-    };
-
-    // Una por plantilla, para saber de cuál sale cada una (su `idNodo`).
-    const calculados = plantillas.flatMap((p) =>
-        losRecordatoriosDeLaCita([p], datos).map((r) => ({ ...r, plantillaId: p.id })),
+    // La MISMA regla que al agendar (`lib/recordatorios-de-la-cita.ts`): el
+    // texto y la hora en la zona de la CUENTA, y solo `unidad-valor`. Con una
+    // copia aquí, al mover una cita saldrían los recordatorios con otra zona.
+    const programados = losRecordatoriosDeLaCita(
+        plantillas,
+        {
+            nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
+            inicio: cita.startTime,
+            zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
+            duracionMinutos: cita.user?.meetingDuration || 60,
+            servicio: cita.service?.name ?? "",
+        },
+        ahora,
     );
-    const programados = losQueTodaviaNoPasan(calculados, ahora);
 
     // La línea y la clave salen de la base, como al agendar: Meta usa su
     // número y su token; el resto, el servidor de la cuenta dueña.
@@ -154,7 +154,10 @@ export async function reprogramarLosRecordatoriosDeLaCita(
         }),
         db.seguimiento.createMany({
             data: programados.map((r) => ({
-                idNodo: elIdNodoDelRecordatorio(r.plantillaId),
+                idNodo: elNodoDelRecordatorio(r.plantillaId),
+                // La MISMA llave que al agendar: así programar la misma cita
+                // otra vez no duplica nada.
+                idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
                 serverurl,
                 instancia: linea,
                 apikey,
@@ -163,6 +166,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
                 tipo: "text",
                 time: r.cuando,
             })),
+            skipDuplicates: true,
         }),
     ]);
 
@@ -171,8 +175,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
         borrados: borrados.count,
         creados: creados.count,
         plantillas: plantillas.length,
-        pasados: calculados.length - programados.length,
-    });
+            });
 
     return {
         borrados: borrados.count,

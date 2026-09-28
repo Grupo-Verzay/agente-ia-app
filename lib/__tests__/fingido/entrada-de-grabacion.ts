@@ -85,3 +85,8 @@ export { setCallDisposition, getCallDetailAction } from "@/actions/calls-crm-act
 export { getDispositionMeta, CALL_DISPOSITIONS } from "@/lib/call-dispositions";
 
 export { db } from "@/lib/db";
+
+// Quién paga la llamada —y su transcripción—: la dueña del sid con el MISMO
+// desempate que el backend. Ver `lib/cuenta-que-paga-la-llamada.ts`.
+export { laCuentaDelSid, laCuentaQuePaga } from "@/lib/cuenta-que-paga-la-llamada";
+export { elDuenoDelSid, laCuentaQuePagaLaLlamada } from "@/lib/cuenta-que-paga-la-llamada.server";
