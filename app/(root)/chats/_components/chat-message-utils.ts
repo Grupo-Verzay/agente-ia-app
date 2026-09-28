@@ -3,6 +3,7 @@ import { idDeWhatsapp } from '@/lib/id-de-whatsapp';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { miniaturaDelAnuncio } from '@/lib/miniatura-del-anuncio';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
+import { comoTraduccion, type Traduccion } from '@/lib/traduccion-de-chats';
 import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
@@ -1166,6 +1167,22 @@ export function toUIMessages(
       if (dato.texto) b.transcripcion = dato.texto;
       if (dato.motivo) b.transcripcionMotivo = dato.motivo;
       if (dato.segundos !== undefined) b.audioSegundos = dato.segundos;
+    }
+  }
+
+  // La traducción, colgada del mensaje igual que la transcripción: viaja en
+  // `raw` y se pega a su burbuja aquí. Se lee con `comoTraduccion`, la misma
+  // función que la guarda, así que lo que no encaje no se pinta.
+  const traducidos = new Map<string, Traduccion>();
+  for (const m of messages) {
+    const id = m.key?.id ?? '';
+    const t = id ? comoTraduccion((m as { traduccion?: unknown }).traduccion) : null;
+    if (t) traducidos.set(id, t);
+  }
+  if (traducidos.size) {
+    for (const b of result) {
+      const t = traducidos.get(b.id);
+      if (t) b.traduccion = t;
     }
   }
   return result;

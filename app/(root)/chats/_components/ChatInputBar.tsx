@@ -100,6 +100,11 @@ interface ChatInputBarProps {
   noteMode?: boolean;
   onToggleNoteMode?: () => void;
   onSendNote?: (content: string) => Promise<void>;
+  /**
+   * Lo que dice la caja cuando lo escrito se va a traducir al idioma del
+   * cliente («Escribe en español: se enviará en inglés»). Sin él, lo de siempre.
+   */
+  avisoDeTraduccion?: string | null;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
@@ -138,6 +143,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendTemplate,
   onSessionMutate,
   onSessionStatusChange,
+  avisoDeTraduccion,
   onGenerateSuggestion,
   noteMode = false,
   onToggleNoteMode,
@@ -760,7 +766,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               ? 'Pie de foto (opcional)...'
               : noteMode
                 ? 'Nota interna (solo visible para el equipo)...'
-                : isCompactToolbar
+                : avisoDeTraduccion
+                  ? avisoDeTraduccion
+                  : isCompactToolbar
                   ? '/atajos'
                   : 'Escribe... (/ atajos)'
           }

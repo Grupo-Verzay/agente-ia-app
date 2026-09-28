@@ -1,5 +1,6 @@
 'use client';
 
+import { seOfreceTraducir } from '@/lib/traduccion-de-chats';
 import { Mic } from "lucide-react";
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -127,6 +128,8 @@ interface MessageRowProps {
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
   onEditMessage?: (bubble: UIBubble) => void;
+  /** «Traducir» del menú: el respaldo manual. Solo se ofrece donde `seOfreceTraducir` deja. */
+  onTranslateMessage?: (messageId: string) => void;
   onDeleteNote?: (noteId: number) => Promise<void>;
 }
 
@@ -145,6 +148,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   onReactMessage,
   onDeleteMessage,
   onEditMessage,
+  onTranslateMessage,
   onDeleteNote,
 }) => {
   const wrapperClass = cn(
@@ -198,6 +202,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           reaction={message.reaction}
           transcripcion={message.transcripcion}
           transcripcionMotivo={message.transcripcionMotivo}
+          traduccion={message.traduccion}
           messageId={message.id}
           audioSegundos={message.audioSegundos}
           callPhone={callPhone}
@@ -214,6 +219,14 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           }
           onReact={onReactMessage ? (emoji) => onReactMessage(message, emoji) : undefined}
           onEdit={onEditMessage ? () => onEditMessage(message) : undefined}
+          onTranslate={
+            onTranslateMessage &&
+            !message.kind &&
+            !message.id.startsWith('local-') &&
+            seOfreceTraducir({ texto: message.content ?? '', traduccion: message.traduccion ?? null })
+              ? () => onTranslateMessage(message.id)
+              : undefined
+          }
           onDelete={onDeleteMessage ? () => onDeleteMessage(message) : undefined}
         />
       )}
@@ -229,6 +242,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     prev.onReactMessage !== next.onReactMessage ||
     prev.onDeleteMessage !== next.onDeleteMessage ||
     prev.onEditMessage !== next.onEditMessage ||
+    prev.onTranslateMessage !== next.onTranslateMessage ||
     prev.onDeleteNote !== next.onDeleteNote ||
     prev.advisorName !== next.advisorName ||
     prev.callPhone !== next.callPhone ||
@@ -264,6 +278,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     a.sender === b.sender &&
     a.kind === b.kind &&
     a.reaction === b.reaction &&
+    a.traduccion === b.traduccion &&
     a.sentByAi === b.sentByAi &&
     a.avatarSrc === b.avatarSrc &&
     a.isNote === b.isNote &&
@@ -318,6 +333,7 @@ interface ChatMessageListProps {
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
   onEditMessage?: (bubble: UIBubble) => void;
+  onTranslateMessage?: (messageId: string) => void;
   onDeleteNote?: (noteId: number) => Promise<void>;
   onLoadOlderMessages?: () => Promise<void>;
   canLoadOlderMessages?: boolean;
@@ -362,6 +378,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   onReactMessage,
   onDeleteMessage,
   onEditMessage,
+  onTranslateMessage,
   onDeleteNote,
   onLoadOlderMessages,
   canLoadOlderMessages,
@@ -605,6 +622,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               onReactMessage={onReactMessage}
               onDeleteMessage={onDeleteMessage}
               onEditMessage={onEditMessage}
+              onTranslateMessage={onTranslateMessage}
               onDeleteNote={onDeleteNote}
             />
           );

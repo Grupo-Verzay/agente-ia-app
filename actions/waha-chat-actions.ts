@@ -8,6 +8,7 @@ import { currentUser } from '@/lib/auth';
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
 import { anteponerFirmaDelAsesor } from '@/lib/firma-del-asesor';
+import { laTraduccionDelEnvio } from '@/lib/traduccion-de-chats';
 import {
   ensureWahaSessionEvents,
   etiquetaDeMediaWaha,
@@ -66,17 +67,24 @@ type OutgoingPayload = {
 const TIPOS_DE_MEDIA: ReadonlySet<string> = new Set(['image', 'video', 'audio', 'document']);
 
 /**
- * El snapshot compartido (`lib/waha.ts`), con el tipo que pide Prisma.
+ * El snapshot compartido (`lib/waha.ts`), con el tipo que pide Prisma, y CON la
+ * traducción que traiga el envío: el original en español de lo que salió
+ * traducido (`laTraduccionDelEnvio`, la misma línea que guardan los otros dos
+ * caminos de envío).
  *
  * La funcion vive en el lib porque la usa tambien el despachador de
  * notificaciones, que no puede importar de un fichero `'use server'`; los
  * `undefined` los descarta `JSON.stringify` al guardar y el tipo de Prisma no
  * los contempla, de ahi el cast.
  */
-function snapshotDeSaliente(
+function conLaTraduccion(
+  payload: OutgoingPayload,
   params: Parameters<typeof snapshotDeSalienteWaha>[0],
 ): Prisma.InputJsonValue {
-  return snapshotDeSalienteWaha(params) as unknown as Prisma.InputJsonValue;
+  return {
+    ...snapshotDeSalienteWaha(params),
+    ...laTraduccionDelEnvio(payload),
+  } as unknown as Prisma.InputJsonValue;
 }
 
 async function lineaWahaAutorizada(instanceName: string): Promise<
@@ -181,7 +189,7 @@ export async function sendWahaTextAction(
         messageType: `${mediatype}Message`,
         content: texto,
         mediaUrl,
-        raw: snapshotDeSaliente({
+        raw: conLaTraduccion(payload, {
           messageId: envio.messageId,
           remoteJid,
           messageType: `${mediatype}Message`,
@@ -238,7 +246,7 @@ export async function sendWahaTextAction(
       messageId: envio.messageId,
       messageType: 'conversation',
       content: text,
-      raw: snapshotDeSaliente({
+      raw: conLaTraduccion(payload, {
         messageId: envio.messageId,
         remoteJid,
         messageType: 'conversation',

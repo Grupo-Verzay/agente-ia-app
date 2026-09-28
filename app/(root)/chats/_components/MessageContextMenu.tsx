@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Copy, Forward, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Forward, Languages, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -21,6 +21,11 @@ interface MessageContextMenuProps {
   onForward?: () => void;
   onReact: (emoji: string) => void;
   onEdit?: () => void;
+  /**
+   * «Traducir»: el respaldo manual de la traducción automática. Solo llega
+   * cuando el mensaje tiene texto, no está traducido y no está en español.
+   */
+  onTranslate?: () => void;
   onDelete?: () => void;
 }
 
@@ -40,6 +45,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   onForward,
   onReact,
   onEdit,
+  onTranslate,
   onDelete,
 }) => {
   const panel = usePanelFlotante('enElHilo', 'menu', isUserMessage ? 'end' : 'start');
@@ -100,6 +106,19 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
           >
             <Forward className="w-3.5 h-3.5 text-muted-foreground" />
             Reenviar
+          </DropdownMenuItem>
+        )}
+
+        {/* Traducir: al español, por si la automática no se disparó. Vale
+            para los dos lados de la conversación, como Copiar y Reenviar. */}
+        {onTranslate && (
+          <DropdownMenuItem
+            onSelect={() => onTranslate()}
+            data-traducir-del-menu=""
+            className="w-full flex items-center gap-2 rounded-none px-3 py-2 text-sm cursor-pointer"
+          >
+            <Languages className="w-3.5 h-3.5 text-muted-foreground" />
+            Traducir
           </DropdownMenuItem>
         )}
 
