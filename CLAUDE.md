@@ -21374,6 +21374,34 @@ cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
 `ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
 recordatorios viejos.
 
+### Dos PR verdes por separado pueden tumbar el despliegue juntos
+
+#998 (Reagendar) y #999 (recordatorios a su hora) se fusionaron con minutos de
+diferencia, cada uno con su banco en verde. Juntos, `next build` no compilaba:
+Reagendar importaba `losRecordatoriosDeLaCita` de `lib/cita-publica`, y #999 la
+había movido a `lib/recordatorios-de-la-cita`. El despliegue de #999 **y el de
+#1000 detrás** fallaron, así que producción se quedó en #998 sin que nada lo
+dijera fuera de la pestaña Actions.
+
+Y debajo del error de compilación había dos más, del mismo choque: al editar la
+hora de una cita corrían **dos** reprogramaciones (la de Reagendar, sin llave, y
+la de #999, con llave), así que al cliente le llegaba cada recordatorio dos
+veces; y agendar dejaba fuera las plantillas viejas con `isCampaign` nulo, que
+Reagendar sí contaba.
+
+Tres cosas que hay que mantener:
+
+1. **Reagendar calcula con `losRecordatoriosDeLaCita` de
+   `lib/recordatorios-de-la-cita.ts`** —la zona de la cuenta y la hora
+   estricta— y escribe **con la misma llave** (`appt-reminder:<cita>:<plantilla>`).
+   Es la única reprogramación: editar la hora ya no lleva una segunda.
+2. **Las plantillas de agenda se leen con `isCampaign` falso O nulo**, en los
+   dos sitios.
+3. **Después de fusionar, se mira que el despliegue salió.** Un banco que
+   empaqueta con esbuild no comprueba tipos: `scripts/comprobar-tipos-de-reagendar.sh`
+   pasa `tsc` por esos ficheros, y su `MODO=roto` (contra `0583de4`) afirma el
+   error exacto que tumbó el build. Lo corre `banco-reagendar-cita.sh`.
+
 ## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
 
 Dos fallos de la misma cabecera, reportados juntos: el botón de la **etapa del

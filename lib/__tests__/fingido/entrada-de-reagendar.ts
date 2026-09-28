@@ -10,3 +10,5 @@ export {
     updateAppointmentStatus,
 } from "@/actions/appointments-actions";
 export { db } from "@/lib/db";
+export { programarLosRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita.server";
+export { elTextoDelRecordatorio, laLlaveDelRecordatorio } from "@/lib/recordatorios-de-la-cita";
