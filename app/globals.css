@@ -432,3 +432,49 @@
     border-color: hsl(var(--border));
   }
 }
+
+/* FUERA de Chats, el panel también EMPUJA el contenido.
+
+   La envoltura del contenido (`data-contenido-de-la-app`) reserva la franja con
+   un panel abierto; la caja del módulo se estrecha y lo de dentro se corre a la
+   izquierda. En la envoltura y no en la caja, que es la que desplaza: con el
+   relleno dentro, su barra quedaría debajo del panel.
+
+   `:not(:has([data-chat-view]))`: en Chats y Correo reserva su bandeja, con la
+   regla de arriba. Reservar en los dos sitios dejaría el hueco dos veces.
+
+   Y la franja se pone junto a la caja (`MedidaDelContenido`), continuando su
+   marco: arriba, a la derecha y abajo el borde de la caja, las esquinas
+   derechas con su radio, y de separador el borde derecho de la propia caja.
+   Se lee como Chats: una sola pieza con el panel de tercera columna.
+
+   El mismo punto de corte que Chats (`lg`), por el mismo motivo: por debajo no
+   cabe, y el panel se abre encima. */
+[data-contenido-de-la-app] {
+  transition: padding-right 500ms cubic-bezier(0.17, 0.61, 0.54, 0.9);
+}
+@media (min-width: 1024px) {
+  :root[data-panel-lateral="abierto"] [data-contenido-de-la-app]:not(:has([data-chat-view])) {
+    padding-right: calc(var(--ancho-lateral) + var(--contenido-relleno, 0.25rem));
+  }
+  :root[data-panel-lateral="abierto"] [data-contenido-de-la-app]:not(:has([data-chat-view])) > [data-caja-del-contenido] {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  :root[data-contenido-medido]:not([data-chats-medidos]) [data-franja-lateral] {
+    top: var(--contenido-arriba);
+    bottom: auto;
+    height: var(--contenido-alto);
+    right: var(--contenido-derecha);
+    overflow: hidden;
+    border-top-right-radius: calc(var(--radius) - 2px);
+    border-bottom-right-radius: calc(var(--radius) - 2px);
+  }
+  :root[data-contenido-medido]:not([data-chats-medidos]) [data-franja-lateral] > [data-hoja-lateral] {
+    border-radius: 0 calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0;
+    box-shadow: none;
+    border-style: solid;
+    border-width: 1px 1px 1px 0;
+    border-color: hsl(var(--border) / 0.7);
+  }
+}

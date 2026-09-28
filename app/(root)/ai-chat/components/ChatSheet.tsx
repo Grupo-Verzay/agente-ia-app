@@ -42,8 +42,9 @@ export function ChatSheet({
     const mobilePanelId = "ai-chat-sheet-mobile";
 
     // Chats acomoda la conversación mientras haya un panel abierto, igual que
-    // ya hace con la ficha de Contacto. Fuera de Chats esto no hace nada: la
-    // regla de CSS está acotada a `[data-chat-view]`.
+    // ya hace con la ficha de Contacto. Y fuera de Chats también: allí se
+    // reserva la envoltura del contenido y el panel empuja la pantalla en vez
+    // de taparla (`MedidaDelContenido`).
     //
     // Y el mismo hook aparta a los demás paneles de la franja. Antes eran dos
     // y la exclusión estaba escrita a mano en `BotonesDelBorde`; con cinco, esa
