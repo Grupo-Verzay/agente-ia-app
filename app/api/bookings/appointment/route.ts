@@ -3,7 +3,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
-import { getTimezoneFromPhone } from '@/lib/timezones';
+import { laCiudadDeLaZona, laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
+import { elTextoDelRecordatorio, segundosAntesDeLaCita } from '@/lib/recordatorios-de-la-cita';
 import { createBookingAppointment } from '@/actions/bookings-actions';
 // El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
 // resuelta desde la base. La acción con puerta es para el navegador.
@@ -20,43 +21,36 @@ function isAuthorized(request: Request): boolean {
 }
 
 function tzCityLabel(tz: string): string {
-  const parts = tz.split('/');
-  return (parts[parts.length - 1] ?? tz).replace(/_/g, ' ');
+  return laCiudadDeLaZona(tz);
 }
 
-function normalizeTimeToSeconds(timeStr: string): number {
-  const unitToSeconds: Record<string, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
-  const [unit, valueStr] = (timeStr ?? '').split('-');
-  const value = parseInt(valueStr, 10);
-  if (unit in unitToSeconds && !isNaN(value)) return value * unitToSeconds[unit];
-  const raw = parseInt(timeStr, 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
-}
+/**
+ * Cuántos segundos antes de la cita. La regla ESTRICTA y compartida: la copia
+ * indulgente de aquí se caía a `parseInt` y de una hora ISO sacaba 2026
+ * segundos (~34 min antes de cada cita).
+ */
+const normalizeTimeToSeconds = segundosAntesDeLaCita;
 
 function subtractSecondsFromTime(date: Date, seconds: number): string {
   return new Date(date.getTime() - seconds * 1000).toISOString();
 }
 
+/** El texto con sus variables, con la hora en la zona de la CUENTA (no la del teléfono del cliente). */
 function formatReminderMessage(
   template: string,
   pushName: string,
   startTime: string,
-  advisorTimezone: string,
+  accountTimezone: string,
   durationMin: number,
-  clientTimezone?: string,
   serviceName: string = '',
 ): string {
-  const displayTz = clientTimezone ?? advisorTimezone;
-  let msg = template;
-  msg = msg.replace(/@client_name\b/gi, pushName);
-  msg = msg.replace(/@service_name\b/gi, serviceName);
-  const startLocal = toZonedTime(new Date(startTime), displayTz);
-  const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
-  const hourLabel = format(startLocal, 'h:mm a', { locale: es });
-  const tzLabel = tzCityLabel(displayTz);
-  msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel} (hora ${tzLabel}).`);
-  msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
-  return msg;
+  return elTextoDelRecordatorio(template, {
+    nombreDelCliente: pushName,
+    inicio: new Date(startTime),
+    zona: accountTimezone,
+    duracionMinutos: durationMin,
+    servicio: serviceName,
+  });
 }
 
 async function runPostBookingTasks({
@@ -93,7 +87,7 @@ async function runPostBookingTasks({
       where: { userId, instanceName },
       select: { instanceId: true, instanceType: true, metaPhoneNumberId: true, metaAccessToken: true },
     }),
-    db.user.findUnique({ where: { id: userId }, select: { apiKeyId: true, notificationNumber: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { apiKeyId: true, notificationNumber: true, timezone: true } }),
     db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
@@ -126,12 +120,13 @@ async function runPostBookingTasks({
   const evolutionApiKey = isMetaInstance
     ? (instance.metaAccessToken || apiKey?.key || instance.instanceId)
     : (apiKey?.key ?? instance.instanceId);
-  const clientTimezone = getTimezoneFromPhone(phone, timezone);
+  // La zona de la CUENTA manda; la del equipo/agente solo si la cuenta no tiene.
+  const accountTimezone = laZonaDeLaCuenta(user?.timezone, laZonaDeLaCuenta(timezone));
 
   // 1. Confirmación al cliente
   const confirmRawText = service?.messageText?.trim()
     || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
-  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
+  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
 
   const clientJid = phone.includes('@s.whatsapp.net')
     ? phone
@@ -161,10 +156,10 @@ async function runPostBookingTasks({
   }
 
   if (ownerPhones.length > 0) {
-    const ownerStartLocal = toZonedTime(new Date(startTime), timezone);
+    const ownerStartLocal = toZonedTime(new Date(startTime), accountTimezone);
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
-    const tzLabel = tzCityLabel(timezone);
+    const tzLabel = tzCityLabel(accountTimezone);
     const serviceName = service?.name ?? 'Asesoría';
     const memberName = member?.name ?? '';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
@@ -216,7 +211,7 @@ async function runPostBookingTasks({
         if (reminderDate.getTime() <= Date.now()) return;
 
         const seguimientoTime = subtractSecondsFromTime(new Date(startTime), seconds);
-        const mensaje = formatReminderMessage(rem.message, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
+        const mensaje = formatReminderMessage(rem.message, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
 
         await db.seguimiento.create({
           data: {
@@ -243,7 +238,7 @@ async function runPostBookingTasks({
         if (reminderDate.getTime() <= Date.now()) return;
 
         const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-        const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
+        const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
 
         await db.seguimiento.create({
           data: {

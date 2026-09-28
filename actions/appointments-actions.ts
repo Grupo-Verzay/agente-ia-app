@@ -1,6 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
+import { programarLosRecordatoriosDeLaCita } from '@/lib/recordatorios-de-la-cita.server';
 import { Appointment, AppointmentStatus } from '@prisma/client';
 import { addMinutes, parseISO, isBefore } from 'date-fns';
 // El lead de una reserva pública se crea SIN puerta: quien reserva no tiene
@@ -310,6 +311,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         // Sincronizar con Google Calendar (fire-and-forget: no bloquea ni rompe la cita).
         void syncAppointmentToCalendar(created.id).catch(() => {});
 
+        // Los recordatorios de la agenda, en el MISMO sitio para los tres
+        // caminos que crean una cita —el chat, el agente y la página pública—.
+        // Antes solo los dos últimos los programaban, cada uno a su manera, y
+        // una cita agendada desde el chat quedaba sin ninguno. Nunca lanza.
+        const recordatorios = await programarLosRecordatoriosDeLaCita(created.id);
+        if (recordatorios.motivo) {
+            console.warn('[createAppointment] la cita quedó sin recordatorios', { citaId: created.id, motivo: recordatorios.motivo });
+        }
+
         return {
             success: true,
             message: 'Cita creada exitosamente.',
@@ -578,6 +588,16 @@ export async function updateAppointmentDetails(
 
         // Reflejar la reprogramación/cambio de servicio en Google Calendar.
         void updateAppointmentCalendarEvent(id).catch(() => {});
+
+        // Reprogramada: los recordatorios pendientes de ESTA cita se rehacen con
+        // la hora nueva. Se reconocen por su llave (`appt-reminder:<cita>:`),
+        // así que no se toca ningún otro recordatorio del mismo contacto.
+        if (data.startTime) {
+            await db.seguimiento.deleteMany({
+                where: { idempotencyKey: { startsWith: `appt-reminder:${id}:` }, followUpStatus: 'pending' },
+            });
+            await programarLosRecordatoriosDeLaCita(id);
+        }
 
         return { success: true, message: 'Cita actualizada correctamente.', data: updated };
     } catch (error) {

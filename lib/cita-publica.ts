@@ -2,7 +2,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
 import { formatServiceMessage } from "@/app/schedule/helpers/formatServiceMessage";
-import { normalizeTimeToSeconds } from "@/app/schedule/helpers/normalizeTimeToSeconds";
 
 /**
  * Lo que se manda después de que alguien agenda una cita en la página PÚBLICA
@@ -71,8 +70,6 @@ export function elDiaElegido(ymd: unknown, inicio: Date, zonaDelDueno: string): 
     return new Date(local.getFullYear(), local.getMonth(), local.getDate());
 }
 
-export type RecordatorioDeAgenda = { description: string | null; time: string | null };
-
 export type DatosDeLaCita = {
     nombreDelCliente: string;
     telefonoDelCliente: string; // dígitos, sin '+'
@@ -85,30 +82,8 @@ export type DatosDeLaCita = {
     servicio: { name: string | null; messageText: string | null } | null;
 };
 
-/** Los seguimientos que programan los recordatorios de la agenda: texto y hora. */
-export function losRecordatoriosDeLaCita(
-    recordatorios: RecordatorioDeAgenda[],
-    cita: DatosDeLaCita,
-): Array<{ mensaje: string; cuando: string }> {
-    const franja = `${cita.inicio.toISOString()}|${cita.fin.toISOString()}`;
-    const salida: Array<{ mensaje: string; cuando: string }> = [];
-    for (const r of recordatorios) {
-        const segundos = normalizeTimeToSeconds(r.time ?? "");
-        if (!segundos || Number.isNaN(segundos)) continue;
-        salida.push({
-            cuando: new Date(cita.inicio.getTime() - segundos * 1000).toISOString(),
-            mensaje: formatServiceMessage(r.description ?? "", {
-                nameClient: cita.nombreDelCliente,
-                selectedDate: cita.diaElegido,
-                selectedSlot: franja,
-                timezone: cita.zonaDelCliente,
-                slotDuration: cita.duracionMinutos,
-                serviceName: cita.servicio?.name ?? "",
-            }),
-        });
-    }
-    return salida;
-}
+// Los recordatorios de la agenda ya no se arman aquí: los arma
+// `lib/recordatorios-de-la-cita.ts`, la misma regla para los cuatro caminos.
 
 /** El aviso al dueño y a sus contactos de notificación. Mismo texto que tenía la página. */
 export function elAvisoAlDueno(cita: DatosDeLaCita): { texto: string; descripcion: string; servicio: string } {

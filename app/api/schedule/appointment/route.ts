@@ -3,7 +3,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
-import { getTimezoneFromPhone } from '@/lib/timezones';
+import { laCiudadDeLaZona, laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
+import { elTextoDelRecordatorio } from '@/lib/recordatorios-de-la-cita';
 import { createAppointment } from '@/actions/appointments-actions';
 // El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
 // resuelta desde la base. La acción con puerta es para el navegador.
@@ -67,46 +68,30 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
   return null;
 }
 
-function normalizeTimeToSeconds(timeStr: string): number {
-  const unitToSeconds: Record<string, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
-  const [unit, valueStr] = (timeStr ?? '').split('-');
-  const value = parseInt(valueStr, 10);
-  if (unit in unitToSeconds && !isNaN(value)) return value * unitToSeconds[unit];
-  // Fallback: número plano guardado directamente como segundos (formato legacy)
-  const raw = parseInt(timeStr, 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
-}
-
 function tzCityLabel(tz: string): string {
-  const parts = tz.split('/');
-  return (parts[parts.length - 1] ?? tz).replace(/_/g, ' ');
+  return laCiudadDeLaZona(tz);
 }
 
-function subtractSecondsFromTime(date: Date, seconds: number): string {
-  const newDate = new Date(date.getTime() - seconds * 1000);
-  return newDate.toISOString();
-}
-
+/**
+ * El texto con sus variables, con la hora en la zona de la CUENTA. Antes se
+ * pintaba en la del país del teléfono del cliente (`getTimezoneFromPhone`), así
+ * que un cliente con número de otro país leía otra hora que la de la agenda.
+ */
 function formatReminderMessage(
   template: string,
   pushName: string,
   startTime: string,
-  advisorTimezone: string,
+  accountTimezone: string,
   durationMin: number,
-  clientTimezone?: string,
   serviceName: string = '',
 ): string {
-  const displayTz = clientTimezone ?? advisorTimezone;
-  let msg = template;
-  msg = msg.replace(/@client_name\b/gi, pushName);
-  msg = msg.replace(/@service_name\b/gi, serviceName);
-  const startLocal = toZonedTime(new Date(startTime), displayTz);
-  const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
-  const hourLabel = format(startLocal, 'h:mm a', { locale: es });
-  const tzLabel = tzCityLabel(displayTz);
-  msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel} (hora ${tzLabel}).`);
-  msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
-  return msg;
+  return elTextoDelRecordatorio(template, {
+    nombreDelCliente: pushName,
+    inicio: new Date(startTime),
+    zona: accountTimezone,
+    duracionMinutos: durationMin,
+    servicio: serviceName,
+  });
 }
 
 /**
@@ -132,14 +117,13 @@ async function runPostAppointmentTasks({
   timezone: string;
   serviceId: string;
 }) {
-  const [service, instance, user, reminders, notificationContacts] = await Promise.all([
+  const [service, instance, user, notificationContacts] = await Promise.all([
     db.service.findFirst({ where: { id: serviceId }, select: { messageText: true, name: true } }),
     db.instancia.findFirst({
       where: { userId, instanceName },
       select: { instanceId: true, instanceType: true, metaPhoneNumberId: true, metaAccessToken: true },
     }),
-    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true, notificationNumber: true } }),
-    db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
+    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true, notificationNumber: true, timezone: true } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
 
@@ -147,7 +131,10 @@ async function runPostAppointmentTasks({
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
     : null;
 
-  console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
+  console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'}`);
+
+  // La zona de la CUENTA manda; la que mande el agente solo si la cuenta no tiene.
+  const accountTimezone = laZonaDeLaCuenta(user?.timezone, laZonaDeLaCuenta(timezone));
 
   if (!instance?.instanceId) {
     console.warn(`[schedule/notification] Sin apiKey (url+key) o instancia — abortando tareas post-cita`);
@@ -165,14 +152,11 @@ async function runPostAppointmentTasks({
     ? (instance.metaAccessToken || apiKey?.key || instance.instanceId)
     : (apiKey?.key ?? instance.instanceId);
 
-  // Detectar timezone del cliente por código de país del teléfono
-  const clientTimezone = getTimezoneFromPhone(phone, timezone);
-
   // 1. Confirmación del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
   // Usa el mensaje del servicio si está configurado; de lo contrario, envía un mensaje genérico.
   const confirmRawText = service?.messageText?.trim()
     || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
-  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
+  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
   const clientJid = phone.includes('@s.whatsapp.net')
     ? phone
     : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
@@ -203,10 +187,10 @@ async function runPostAppointmentTasks({
   }
 
   if (ownerPhones.length > 0) {
-    const ownerStartLocal = toZonedTime(new Date(startTime), timezone);
+    const ownerStartLocal = toZonedTime(new Date(startTime), accountTimezone);
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
-    const tzLabel = tzCityLabel(timezone);
+    const tzLabel = tzCityLabel(accountTimezone);
     const serviceName = service?.name ?? 'Asesoría';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
@@ -252,50 +236,10 @@ async function runPostAppointmentTasks({
     console.log(`[schedule/notification] Sin número de notificación configurado para userId=${userId}`);
   }
 
-  // 3. Crear seguimientos programados (igual que el flujo público)
-  if (reminders.length === 0) {
-    console.log(`[schedule/notification] Sin recordatorios configurados para userId=${userId}`);
-    return;
-  }
-
-  const seguimientosCreados = await Promise.allSettled(
-    reminders.map(async (rem) => {
-      const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
-      console.log(`[REMINDER_DEBUG] rem.time: "${rem.time}" | normalizedSeconds: ${normalizedSeconds} | startTime: ${startTime}`);
-      if (!normalizedSeconds) return;
-
-      const reminderDate = new Date(new Date(startTime).getTime() - normalizedSeconds * 1000);
-      console.log(`[REMINDER_DEBUG] reminderDate UTC: ${reminderDate.toISOString()} | seguimientoTime guardado: "${subtractSecondsFromTime(new Date(startTime), normalizedSeconds)}"`);
-
-      if (reminderDate.getTime() <= Date.now()) {
-        console.log(`[REMINDER_DEBUG] Recordatorio vencido al crear cita, omitiendo: ${reminderDate.toISOString()}`);
-        return;
-      }
-
-      const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-      const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
-
-      await db.seguimiento.create({
-        data: {
-          idNodo: `appt-reminder-${rem.id}`,
-          serverurl: serverUrl,
-          instancia: instanceName,
-          apikey: evolutionApiKey,
-          remoteJid: phone,
-          mensaje,
-          tipo: 'text',
-          time: seguimientoTime,
-        },
-      });
-
-      console.log(`[schedule/notification] Seguimiento creado para ${phone} en ${seguimientoTime}`);
-    })
-  );
-
-  const errors = seguimientosCreados.filter(r => r.status === 'rejected');
-  if (errors.length > 0) {
-    console.error(`[schedule/notification] ${errors.length} seguimiento(s) fallaron`);
-  }
+  // 3. Los recordatorios de la agenda NO se programan aquí: los programa
+  //    `createAppointment`, igual para el chat, el agente y la página pública
+  //    (`lib/recordatorios-de-la-cita.server.ts`). Tener aquí una copia fue lo
+  //    que dejó a cada camino con su propio fallo.
 }
 
 /**

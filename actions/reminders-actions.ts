@@ -5,10 +5,11 @@ import { whereRecordatoriosDelLead } from "@/lib/registros-del-lead"
 import { z } from "zod"
 import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } from "@/schema/reminder"
 import { Prisma, Reminders } from "@prisma/client"
-import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion"
 import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server"
 import { sinLaClaveDeLaFila } from "@/lib/clave-del-servidor"
+import { laHoraParaElMotor } from "@/lib/zona-de-la-cuenta"
+import { laZonaHorariaDeLaCuenta } from "@/lib/zona-de-la-cuenta.server"
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —que
@@ -45,29 +46,17 @@ function randomBetween(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function normalizeToAbsoluteTime(timeStr: string): Date | null {
-    if (!timeStr) return null;
-    // Formato dd/MM/yyyy HH:mm (DateTimePicker)
-    const byFormat = parseDate(timeStr, 'dd/MM/yyyy HH:mm', new Date());
-    if (isValid(byFormat)) return byFormat;
-    // Formato ISO
-    const byIso = new Date(timeStr);
-    if (!isNaN(byIso.getTime())) return byIso;
-    return null;
-}
-
-function addSecondsToTime(timeStr: string, extraSeconds: number): string {
-    if (!timeStr) return timeStr;
-    const base = normalizeToAbsoluteTime(timeStr);
-    if (!base) return timeStr;
-    return format(addSeconds(base, extraSeconds), 'dd/MM/yyyy HH:mm');
-}
-
-function addSecondsToIsoTime(timeStr: string, extraSeconds: number): string {
-    if (!timeStr) return timeStr;
-    const base = normalizeToAbsoluteTime(timeStr);
-    if (!base) return timeStr;
-    return addSeconds(base, extraSeconds).toISOString();
+/**
+ * La hora del recordatorio para el motor: el reloj de pared que eligió la
+ * persona, leído en la zona de la CUENTA y guardado como instante (ISO/UTC).
+ *
+ * Antes el individual se guardaba como «dd/MM/yyyy HH:mm» y el motor lo leía
+ * SIEMPRE en hora de Colombia, y la campaña se convertía con la zona del
+ * servidor: una cuenta de México recibía sus recordatorios una hora antes, y
+ * una de España seis horas tarde.
+ */
+function laHoraDelSeguimiento(timeStr: string, zona: string, segundosDeMas = 0): string {
+    return laHoraParaElMotor(timeStr, zona, segundosDeMas);
 }
 
 function applyVariables(message: string, name: string, phone: string): string {
@@ -122,6 +111,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         const servidor = await laClaveDelServidorDeLaCuenta(cuenta)
         const serverurl = servidor?.url ?? ""
         const apikey = servidor?.key ?? ""
+        const zona = await laZonaHorariaDeLaCuenta(cuenta)
 
         // Crear 1 registro Reminders por campaña o recordatorio
         const reminder = await db.reminders.create({
@@ -147,7 +137,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     tipo:      seguimientoTipo,
                     media:     media ?? null,
                     nameFile:  nameFile ?? null,
-                    time:      addSecondsToTime(reminderData.time ?? '', 0),
+                    time:      laHoraDelSeguimiento(reminderData.time ?? '', zona),
                     workflowId: reminderData.workflowId ?? null,
                 },
             });
@@ -182,7 +172,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     tipo:      seguimientoTipo,
                     media:     media ?? null,
                     nameFile:  nameFile ?? null,
-                    time:      addSecondsToIsoTime(reminderData.time ?? '', cumulativeDelay),
+                    time:      laHoraDelSeguimiento(reminderData.time ?? '', zona, cumulativeDelay),
                     workflowId: reminderData.workflowId ?? null,
                 },
             });
@@ -687,6 +677,20 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
                 ...(servidor ? { serverUrl: servidor.url, apikey: servidor.key } : {}),
             } as Prisma.RemindersUpdateInput,
         })
+
+        // Si cambió la hora (o el texto) de un recordatorio individual, su envío
+        // pendiente se mueve con él: antes se quedaba con la hora vieja, y el
+        // cambio de la pantalla no llegaba al cliente.
+        if (!updated.isCampaign && !updated.isSchedule && data.time) {
+            const zona = await laZonaHorariaDeLaCuenta(cuenta)
+            await db.seguimiento.updateMany({
+                where: { idNodo: `reminder-${id}`, followUpStatus: "pending" },
+                data: {
+                    time: laHoraDelSeguimiento(data.time, zona),
+                    ...(data.description || data.title ? { mensaje: data.description || data.title } : {}),
+                },
+            })
+        }
 
         return {
             success: true,
