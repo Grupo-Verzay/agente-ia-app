@@ -65,7 +65,7 @@ npx esbuild lib/__tests__/fingido/entrada-de-grabaciones-de-reuniones.ts --bundl
   --alias:next/headers=./lib/__tests__/fingido/stub-headers.ts \
   --alias:next/server=./lib/__tests__/fingido/next-server.ts \
   --alias:react=./lib/__tests__/fingido/react-cache.ts \
-  --alias:openai=./lib/__tests__/fingido/openai-de-mentira.ts \
+  --alias:openai=./lib/__tests__/fingido/openai-de-las-llamadas.ts \
   --banner:js="import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" \
   --log-level=error
 sed -i '/server-only/d' "$OUT/entrada-de-grabaciones-de-reuniones.js"

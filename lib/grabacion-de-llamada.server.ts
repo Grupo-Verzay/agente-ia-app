@@ -31,6 +31,7 @@ import "server-only";
 import { Readable } from 'stream';
 import { randomUUID } from 'crypto';
 import { db } from '@/lib/db';
+import { laCuentaQuePagaLaLlamada } from '@/lib/cuenta-que-paga-la-llamada.server';
 import { minioClient } from '@/lib/minio';
 import {
   descontarLaTranscripcion,
@@ -138,22 +139,19 @@ async function getUserAiConfig(userId: string): Promise<AiCfg | null> {
   };
 }
 
-/**
- * Quien PAGA la transcripcion de una llamada: **la cuenta bajo la que quedo la
- * fila**, que es la DUENA de la conversacion desde la que se llamo.
+/*
+ * Quien PAGA la transcripcion de una llamada: **la MISMA cuenta a la que el
+ * backend cobro la llamada**, o sea la duena del `astraSid` con su desempate
+ * (`lib/cuenta-que-paga-la-llamada.server.ts`). En el caso normal es la cuenta
+ * de la fila; cuando el sid lo comparte otra cuenta de `id` menor, es esa — y
+ * leer el saldo de la fila daba «quedan 0» sobre una llamada ya pagada.
  *
- * **La cuenta, nunca la persona**: `ia_credits` tiene una fila por cuenta, y
- * cobrarle a una persona seria cobrarle a una fila que no existe.
- *
- * Y **no sube a la madre de la familia**, a proposito y distinto de las notas
- * del chat de equipo: una llamada con IA la lanza, la configura y la gasta la
- * cuenta de la linea de la conversacion (Ventas por Ventas, Atencion por
- * Atencion). Cobrarsela a la madre es exactamente el fallo de «la llamada queda
- * en la cuenta de quien mira», movido de la fila a la bolsa de creditos.
+ * **La cuenta, nunca la persona**, y **no sube a la madre de la familia**.
+ * Y la CLAVE de IA sale de la misma cuenta: el backend atendio la llamada con
+ * la clave de OpenAI de esa cuenta, y `elSaldoDeLaCuenta` decide «ilimitado»
+ * mirando sus claves — decidir sobre una y gastar otra seria cobrar a quien no
+ * gasta.
  */
-async function laCuentaQuePagaLaLlamada(cuentaId: string): Promise<string> {
-  return cuentaId;
-}
 
 /**
  * **Si esta grabacion se transcribe, y con que bolsa.** Una sola funcion para
@@ -628,7 +626,10 @@ export async function processCallRecordingForUser(input: {
   // la linea desde la que se llamo: la misma con cuyo `sid` salio la llamada y
   // a la que el motor le cobro los creditos de la llamada. Ni la persona —
   // `ia_credits` tiene una fila por cuenta— ni la madre de la familia.
-  const paga = await laCuentaQuePagaLaLlamada(input.userId);
+  const paga = await laCuentaQuePagaLaLlamada({
+    cuentaDeLaFila: input.userId,
+    astraSid: input.astraSid,
+  });
   const { que, marca, cobra } = await queHacerConEsteAudio({
     audio,
     segundos: duracion,
@@ -643,11 +644,12 @@ export async function processCallRecordingForUser(input: {
     return { success: false, message: motivo, motivo: marca?.motivo };
   }
 
-  const cfg = await getUserAiConfig(input.userId);
+  const cfg = await getUserAiConfig(paga);
   if (!cfg) {
     console.warn('[llamadas] la cuenta no tiene ninguna clave de IA activa', {
       chatMessageId: input.chatMessageId,
       userId: input.userId,
+      cuentaQuePaga: paga,
     });
     // Con el nombre de la cuenta: «esta cuenta no tiene IA» sin decir cual
     // manda a mirar la configuracion de la cuenta equivocada, que es la mitad
@@ -1164,14 +1166,15 @@ export async function processMetaCallRecordingForUser(input: {
   //    y **cobrarlo igual**. Es el mismo Whisper sobre el mismo audio: dejar
   //    gratis una de las dos mitades es la familia de «a una hermana se le
   //    pasa», y no se ve — se nota en la factura de quien paga la clave.
-  const paga = await laCuentaQuePagaLaLlamada(userId);
+  // Meta no pasa por el voicebot ni lleva sid: paga la cuenta de la fila.
+  const paga = await laCuentaQuePagaLaLlamada({ cuentaDeLaFila: userId });
   const { que, marca, cobra } = await queHacerConEsteAudio({
     audio: buffer,
     segundos: Number(callObj.durationSecs ?? 0),
     cuentaQuePaga: paga,
   });
 
-  const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(userId) : null;
+  const cfg = que.hacer === 'transcribir' ? await getUserAiConfig(paga) : null;
   // **Y aqui tambien queda escrito en la fila.** Este camino se rendia con un
   // `console.warn` y `success: true`, asi que una llamada de Meta sin creditos
   // —o con un audio que no cabe— se quedaba diciendo «Procesando…» para

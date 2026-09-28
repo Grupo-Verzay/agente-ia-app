@@ -47,7 +47,7 @@ empaquetar() { # $1 = árbol, $2 = salida
     --external:@prisma/client --external:server-only --external:minio \
     --banner:js='import{createRequire as __cr}from "module";const require=__cr(import.meta.url);' \
     --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-llamadas.ts \
-    --alias:openai=./lib/__tests__/fingido/openai-de-mentira.ts \
+    --alias:openai=./lib/__tests__/fingido/openai-de-las-llamadas.ts \
     --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
     --alias:next/server=./lib/__tests__/fingido/next-server.ts \
     --alias:react=./lib/__tests__/fingido/react-cache.ts \
@@ -64,7 +64,7 @@ git worktree remove --force "$ANTES" 2>/dev/null || rm -rf "$ANTES"
 git worktree add --detach "$ANTES" "$ANTES_REF" >/dev/null 2>&1
 ln -s "$PWD/node_modules" "$ANTES/node_modules"
 cp lib/__tests__/fingido/entrada-de-la-cuenta-de-la-llamada.ts lib/__tests__/fingido/auth-de-llamadas.ts \
-   lib/__tests__/fingido/ia-de-mentira.ts lib/__tests__/fingido/openai-de-mentira.ts \
+   lib/__tests__/fingido/ia-de-mentira.ts lib/__tests__/fingido/openai-de-las-llamadas.ts \
    lib/__tests__/fingido/next-cache.ts lib/__tests__/fingido/next-server.ts \
    lib/__tests__/fingido/react-cache.ts "$ANTES/lib/__tests__/fingido/"
 empaquetar "$ANTES" "$PWD/lib/__tests__/.compilado/cuenta-llamada-antes"
