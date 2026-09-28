@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pendientesDelMenuAction } from "@/actions/pendientes-del-menu-actions";
-import { correosSinLeerAction } from "@/actions/correo-actions";
+import { useCorreosSinLeerStore } from "@/stores/useCorreosSinLeerStore";
 import { useTaskStore } from "@/stores/useTaskStore";
 import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
 import { lasClavesDelMenu, type ClaveDePendientes, type ConteosDelMenu } from "@/lib/pendientes-del-menu";
@@ -32,6 +32,11 @@ export function usePendientesDelMenu(rutas: (string | null | undefined)[]): Cont
     const chats = useChatsQueEsperan();
     const tareas = useTaskStore((s) => s.pendingCount);
     const [delServidor, setDelServidor] = useState<ConteosDelMenu>({});
+    // Correos vive en un store compartido: lo pinta también el selector
+    // Chats ⇄ Correos de la barra de arriba, y la pregunta sale una vez.
+    const correoSabido = useCorreosSinLeerStore((s) => s.pedidoEn > 0);
+    const correo = useCorreosSinLeerStore((s) => s.sinLeer);
+    const pedirElCorreo = useCorreosSinLeerStore((s) => s.pedirSiHaceFalta);
 
     const firma = rutas.join("|");
     const claves = useMemo(() => lasClavesDelMenu(rutas), [firma]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -54,12 +59,7 @@ export function usePendientesDelMenu(rutas: (string | null | undefined)[]): Cont
         };
         const contarElCorreo = async () => {
             if (!clavesRef.current.has("correo")) return;
-            try {
-                const res = await correosSinLeerAction();
-                if (vivo && res.success) setDelServidor((antes) => ({ ...antes, correo: res.sinLeer }));
-            } catch (error) {
-                console.warn("[menu] no se pudieron contar los correos sin leer", error);
-            }
+            await pedirElCorreo(CADA_CUANTO_SE_CUENTA_EL_CORREO_MS / 2);
         };
 
         // La primera cuenta la hace el efecto de abajo, al conocerse las rutas.
@@ -89,12 +89,8 @@ export function usePendientesDelMenu(rutas: (string | null | undefined)[]): Cont
                 .then((res) => { if (res.success) setDelServidor((antes) => ({ ...antes, ...res.conteos })); })
                 .catch((error) => console.warn("[menu] no se pudieron contar los pendientes", error));
         }
-        if (claves.has("correo") && delServidor.correo === undefined) {
-            void correosSinLeerAction()
-                .then((res) => { if (res.success) setDelServidor((antes) => ({ ...antes, correo: res.sinLeer })); })
-                .catch((error) => console.warn("[menu] no se pudieron contar los correos sin leer", error));
-        }
+        if (claves.has("correo")) void pedirElCorreo(CADA_CUANTO_SE_CUENTA_EL_CORREO_MS / 2);
     }, [claves]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return { ...delServidor, chats, tareas };
+    return { ...delServidor, ...(claves.has("correo") && correoSabido ? { correo } : {}), chats, tareas };
 }

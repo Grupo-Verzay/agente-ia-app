@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# La barra de arriba de la plataforma: la casita siempre primera y en el mismo
-# píxel, sin ruta de texto, el selector Chats ⇄ Correos en todas las pantallas
-# y centrado en la columna de la lista, y todos los botones con la misma forma
+# La barra de arriba de la plataforma: SIN casita —el menú es lo primero y en el
+# mismo píxel—, sin ruta de texto, el selector Chats ⇄ Correos en todas las
+# pantallas, con los sin leer de cada una y centrado en la columna de la lista
+# (quitar la casita no lo corrió), y todos los botones con la misma forma
 # (rectángulo de esquinas redondeadas).
 #
 # Dos mitades:
@@ -10,11 +11,11 @@
 #  2. En Chromium, sobre el CSS del build, la `Breadcrumbs` de VERDAD en /chats,
 #     /correo, /sessions y /schedule a 1440/1280/1024/390, con y sin tutoriales.
 #
-# Y los tres de la izquierda van SIMÉTRICOS: casita → menú → selector con el
-# mismo hueco, y el selector mide lo que Soporte (h-9).
+# Y va SIMÉTRICO: menú → selector con el hueco de los botones de la derecha, y
+# el selector mide lo que ellos (h-9).
 #
 # `MODO=roto` monta la barra de un commit PINCHADO (`ANTES_REF`, nunca
-# `origin/main`) y afirma los fallos: huecos dispares y el selector más bajo.
+# `origin/main`) y afirma los fallos: la casita de primera y ningún número.
 #
 # Necesita el build (`npm run build`) para el CSS.
 set -euo pipefail
@@ -25,12 +26,13 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
 export MODO
-ANTES_REF="${ANTES_REF:-51664e1}"
+ANTES_REF="${ANTES_REF:-f3f296c}"
 
 C=lib/__tests__/.compilado/barra-de-arriba
 A=lib/__tests__/.antes/barra-de-arriba
 mkdir -p "$C" "$A"
 npx -y esbuild lib/alternar-bandejas.ts --format=esm --outfile="$C/alternar-bandejas.mjs" --log-level=warning
+npx -y esbuild lib/pendientes-del-menu.ts --format=esm --outfile="$C/pendientes-del-menu.mjs" --log-level=warning
 
 COMUNES=(
   --alias:next/navigation=./lib/__tests__/fingido/next-navigation-con-ruta.ts

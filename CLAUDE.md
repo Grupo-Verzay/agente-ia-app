@@ -22149,19 +22149,21 @@ Chromium sobre el CSS del build el panel de Chats de hoy contra el de antes
 tarjetas que filtran. `MODO=roto` lo corre contra `ANTES_REF` y afirma que no
 había panel ni barrita.
 
-### La barra de arriba: casita primero, sin ruta, y el selector en la columna
+### La barra de arriba: el menú primero, sin ruta, y el selector en la columna
 
 La barra de la plataforma (`components/custom/Breadcrumbs.tsx`) es la MISMA en
 todas las pantallas y se lee así:
 
 ```
-[casita] [menú]      [Chats | Correos]      …      [tutoriales] [buscar] [soporte] [campana]
-                     ^ centrado en la columna de la lista
+[menú]      [Chats 3 | Correos 12]      …      [tutoriales] [buscar] [soporte] [campana]
+            ^ centrado en la columna de la lista
 ```
 
-1. **La casita va SIEMPRE de primera**, en el mismo píxel en todas las
-   pantallas, y detrás el botón del menú (las dos flechas). Antes el selector
-   se metía delante en Chats y Correos y la casita saltaba de sitio.
+1. **No hay casita.** Llevaba al inicio, que ya se abre desde el menú, y en un
+   teléfono apretaba los demás iconos. **El menú (las dos flechas) va SIEMPRE
+   de primero**, en el mismo píxel en todas las pantallas (16 px, el relleno de
+   la barra). La barra mide lo mismo que con la casita: el menú son 28 px con
+   `py-3`, y `min-h-7 box-content` lo guarda también en el editor de flujos.
 2. **No hay ruta de texto** («leads», «chats»…): no era pulsable de verdad ni
    llevaba a ninguna parte que el menú no lleve. `breadcrumbLabels` sigue
    exportado porque lo usa el copiloto para nombrar la pantalla.
@@ -22172,32 +22174,38 @@ todas las pantallas y se lee así:
    `[data-columna-de-chats]` (la llevan Chats y Correos) y, donde no hay,
    la columna que habría —`--ancho-lateral` desde el borde del contenido—.
    Es `absolute` dentro de la barra: no empuja nada. Dónde exactamente lo
-   decide `dondeVaElSelector` (pura): centrado con sus palabras; si así pisaría
-   la casita o los botones de la derecha, centrado solo con los iconos; y si ni
-   así, lo más cerca sin pisar nada. Los anchos (`w-[5.5rem]`, `w-8`) están
-   escritos en `lib/alternar-bandejas.ts` y el banco los compara con lo pintado.
+   decide `dondeVaElSelector` (pura).
 5. **Todo botón de la barra es un rectángulo de esquinas redondeadas**
    (`rounded-md`): ni el selector ni la campana son ya píldoras.
-6. **Casita → menú → selector van con el MISMO hueco** (`HUECO_DE_LA_BARRA_PX`,
-   8 px: el `gap-2` de la barra y el que deja el selector tras el menú). Y
-   sigue centrado en la columna porque lo que cambia es su ANCHO: arranca a un
-   hueco del menú y mide dos veces lo que hay del menú al centro de la columna
-   (`dondeVaElSelector` devuelve `ancho`). Se acota entre dos iconos y
-   `ANCHO_MAXIMO_DEL_SELECTOR`; si centrado se saldría por la derecha (un
-   teléfono) conserva el hueco y se acorta. **Mide `h-9`, lo que Ver tutoriales,
-   Soporte y la campana**, con letra `text-sm`; con menos de
-   `ANCHO_CON_PALABRAS` enseña solo los iconos. Medido: 8/8 px y centrado
-   exacto a 1440, 1280 y 1024 (218, 218 y 186 px de ancho, con sus palabras).
+6. **Menú → selector con el hueco de los botones de la derecha**
+   (`HUECO_DE_LA_BARRA_PX`, 8 px). Y sigue centrado en la columna porque lo que
+   cambia es su ANCHO: arranca a un hueco del menú y mide dos veces lo que hay
+   del menú al centro de la columna. **Por eso quitar la casita no lo corrió a
+   la izquierda**: su centro es el de la columna, lo que ganó fue ancho (el tope
+   `PESTANA_MAXIMA_PX` subió a 160 para que la columna más ancha, 24rem, siga
+   cabiendo a un hueco del menú). Si centrado se saldría por la derecha (un
+   teléfono) conserva el hueco y se acorta. Mide `h-9`, lo que Ver tutoriales,
+   Soporte y la campana; con menos de `ANCHO_CON_PALABRAS` enseña solo los
+   iconos.
+7. **Cada pestaña lleva sus SIN LEER**, con el MISMO número y la misma forma
+   que el menú lateral (`elTextoDelContador`, `CLASE_DEL_CONTADOR`): cero y «no
+   se sabe» no se pintan, más de 99 es «99+». Chats sale de
+   `useChatsQueEsperan` (la pastilla «Sin leer») y Correos de
+   `useCorreosSinLeerStore`, **el store que comparten el menú y el selector**:
+   la pregunta al proveedor sale una vez por periodo aunque la pidan los dos
+   (`pedirSiHaceFalta`, con la pregunta en vuelo compartida). El selector
+   también la pide porque en un teléfono el menú no está montado mientras está
+   cerrado. Con palabras el número va detrás; solo con iconos, en la esquina de
+   la pestaña, para no ensancharla. Por eso una pestaña con palabra pide 116 px
+   (`PESTANA_CON_PALABRA_PX`): cabe «Correos 99+».
 
-Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador y la
-`Breadcrumbs` real en Chromium en /chats, /correo, /sessions y /schedule a
-1440/1280/1024/390, con y sin tutoriales, con Poppins cargada (sirve
-`.next/static/media`: con la letra de respaldo, «Correos» cabría donde en
-producción no). `MODO=roto` monta la barra de `ANTES_REF` (`51664e1`) y afirma
-los huecos dispares (4 px contra ~30) y el selector más bajo que los botones de
-la derecha. La campanita del arnés lleva su acción fingida con forma de verdad
-(`fingido/barra-de-arriba/campana.ts`): con la muda (`data: []`) revienta el
-árbol y la barra no se pinta.
+Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador (incluido
+que el centro con casita y sin casita es el mismo) y la `Breadcrumbs` real en
+Chromium en /chats, /correo, /sessions y /schedule a 1440/1280/1024/390, con y
+sin tutoriales, con Poppins cargada y con los números puestos (3 y 12, y 0 y
+250): el menú primero y en el mismo píxel, el selector centrado, cada número
+dentro de su pestaña sin tapar la palabra. `MODO=roto` monta la barra de
+`ANTES_REF` (`f3f296c`) y afirma la casita de primera y ningún número.
 
 ## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
 
