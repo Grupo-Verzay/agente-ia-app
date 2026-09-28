@@ -103,7 +103,8 @@ export const CLASE_DEL_CONTADOR =
 
 /**
  * El número de Agenda y de Multiagenda es EXACTAMENTE la pastilla «Pendiente»
- * de su pantalla: las citas en estado PENDIENTE, de todas las fechas, sacadas
+ * de su pantalla: las citas en estado PENDIENTE que quedan por atender (su fin
+ * no ha pasado; una de ayer sin cambiar de estado ya no cuenta), sacadas
  * de la misma consulta (`lib/citas-por-estado.server.ts`) y —en Agenda— de las
  * mismas cuentas que enseña el tablero (la propia y las que cuelgan de ella).
  *
