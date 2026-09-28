@@ -19253,6 +19253,23 @@ cuenta que recargó) y la campana real en Chromium sobre el CSS del build a
 1440/1280/1024/390, con números normales y con «99+» en todas. `MODO=roto`
 corre todo contra `97ae916` y afirma seis pastillas y ninguna de las nuevas.
 
+### Y el panel mide LO MISMO que los paneles laterales
+
+Iba a `min(96vw,420px)`: 36 px más ancho que el chat del equipo, el copiloto,
+las notas y la ficha, que miden `--ancho-lateral` (18/20/22/24 rem). Ahora el
+ancho es `ANCHO_DEL_PANEL_LATERAL` (`lib/panel-lateral.ts`), la MISMA clase que
+las franjas, y acaba en el mismo filo derecho. En un teléfono sigue acotado a
+la ventana.
+
+Y con menos ancho, las nueve pastillas **no se recortan ni pasan a dos
+columnas**: por debajo de 22,5 rem de rejilla (`REJILLA_DE_CHIPS`, consulta de
+contenedor) cada pastilla pone su número DEBAJO del rótulo (`CHIP_APILADO`),
+las nueve igual. Se pregunta a la rejilla, no a la ventana.
+
+Lo prueba `scripts/banco-ancho-de-la-campana.sh`: la campana real y la franja
+real de `PanelLateral` en la misma página, a 1440/1280/1024/800/700/390, con
+«99+» en todas. `MODO=roto` monta la de `a62250d` y afirma los 420 px.
+
 ## Documentación › Actualizaciones: publicar y que salte UNA vez a cada persona
 
 La tarjeta «Plantillas IA» se quitó de Documentación (su pantalla `/templates`

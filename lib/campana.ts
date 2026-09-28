@@ -58,6 +58,25 @@ export const CHIPS_DE_LA_CAMPANA: ClaseDeAviso[] = [
 export const CHIPS_POR_FILA = 3;
 
 /**
+ * Cuándo la pastilla pone su número DEBAJO del rótulo en vez de al lado.
+ *
+ * El panel mide lo mismo que los paneles laterales (`--ancho-lateral`, 18 a 24
+ * rem), y por debajo de 24 rem tres pastillas en fila no caben con el rótulo y
+ * el número lado a lado: «Créditos bajos» con «99+» pide 116 px y a 1024 le
+ * tocan 110. En vez de recortar el rótulo o partir la rejilla en dos columnas
+ * —cinco filas, la última a medias—, la pastilla se apila: rótulo arriba y
+ * número abajo, las nueve igual. Se pregunta a la REJILLA (consulta de
+ * contenedor), no a la ventana: lo que decide es cuánto mide el panel.
+ *
+ * Clases literales: Tailwind solo genera lo que ve escrito.
+ */
+export const REJILLA_DE_CHIPS = "[container-type:inline-size]";
+export const CHIP_APILADO =
+    "[@container(max-width:22.5rem)]:flex-col [@container(max-width:22.5rem)]:items-center " +
+    "[@container(max-width:22.5rem)]:justify-center [@container(max-width:22.5rem)]:gap-0.5 " +
+    "[@container(max-width:22.5rem)]:text-center";
+
+/**
  * Un aviso de conexión NO se puede dar por leído.
  *
  * Es la regla que ya tenía el clic de uno en uno, escrita aquí para que las dos

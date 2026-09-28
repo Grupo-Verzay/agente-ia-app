@@ -42,9 +42,10 @@ import {
 } from "@/actions/collab-actions";
 import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
 import { correosSinLeerAction } from "@/actions/correo-actions";
-import { CHIPS_DE_LA_CAMPANA, CHIPS_POR_FILA, elAvisoDeCorreos, lasQueSeMarcan, losConteos } from "@/lib/campana";
+import { CHIP_APILADO, CHIPS_DE_LA_CAMPANA, CHIPS_POR_FILA, REJILLA_DE_CHIPS, elAvisoDeCorreos, lasQueSeMarcan, losConteos } from "@/lib/campana";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
+import { ANCHO_DEL_PANEL_LATERAL } from "@/lib/panel-lateral";
 import { cn } from "@/lib/utils";
 
 // Lo que ya se abrió desde la campanita.
@@ -397,7 +398,7 @@ export function NotificationCenter() {
           decide `usePanelFlotante`, igual que los paneles de Chats. */}
       <DropdownMenuContent
         {...panel.props}
-        className="flex w-[min(96vw,420px)] flex-col overflow-hidden p-0"
+        className={cn("flex flex-col overflow-hidden p-0", ANCHO_DEL_PANEL_LATERAL)}
       >
         <div className="flex shrink-0 items-center justify-between gap-1 px-3 py-2">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notificaciones</DropdownMenuLabel>
@@ -441,7 +442,7 @@ export function NotificationCenter() {
           // tres filas exactas: las nueve pastillas miden lo mismo.
           <div
             data-chips-de-la-campana
-            className="grid shrink-0 gap-1 px-1.5 py-2"
+            className={cn("grid shrink-0 gap-1 px-1.5 py-2", REJILLA_DE_CHIPS)}
             style={{ gridTemplateColumns: `repeat(${CHIPS_POR_FILA}, minmax(0, 1fr))` }}
           >
             {summary.map(([kind, count]) => {
@@ -457,11 +458,12 @@ export function NotificationCenter() {
                   onClick={() => setActiveKind(kind)}
                   className={cn(
                     "flex min-w-0 items-center justify-between gap-0.5 rounded-md border px-1 py-1 text-left transition-colors",
+                    CHIP_APILADO,
                     meta.filterClass,
                     activeKind === kind && meta.activeClass,
                   )}
                 >
-                  <span data-rotulo className="min-w-0 truncate text-[11px]">{meta.label}</span>
+                  <span data-rotulo className="min-w-0 max-w-full truncate text-[11px]">{meta.label}</span>
                   <Badge variant="outline" className="h-4 min-w-4 shrink-0 justify-center rounded border-current bg-white/70 px-0.5 text-[9px] text-current">
                     {numero}
                   </Badge>
