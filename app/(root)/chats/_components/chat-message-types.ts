@@ -1,3 +1,4 @@
+import type { Traduccion } from '@/lib/traduccion-de-chats';
 import type { MediaType } from './attachment-menu';
 
 /* ─── Outgoing payload types ─── */
@@ -6,6 +7,8 @@ export type OutgoingTextPayload = {
   /** Un reenvío: sale tal cual, sin firma del asesor (ver `lib/reenviar-mensaje`). */
   reenviado?: boolean;
   text: string;
+  /** El original en español de un texto que sale traducido (lo guarda el servidor). */
+  traduccion?: Traduccion;
   delay?: number;
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
@@ -23,6 +26,8 @@ export type OutgoingMediaPayload = {
   mimetype?: string;
   fileName?: string;
   caption?: string;
+  /** El original en español de un pie que sale traducido (lo guarda el servidor). */
+  traduccion?: Traduccion;
   ptt?: boolean;
   delay?: number;
   linkPreview?: boolean;
@@ -96,6 +101,13 @@ export type UIBubble = {
    * ninguna; se lee para saber qué contar (ver `laMarcaVieja`).
    */
   transcripcionMotivo?: 'muy_larga' | 'fallo';
+  /**
+   * La versión en ESPAÑOL de este mensaje, cuando se tradujo: del cliente
+   * (traducido al español) o del asesor (el original que escribió antes de
+   * salir traducido). Va DEBAJO del texto, no en su lugar. Ver
+   * `lib/traduccion-de-chats.ts`.
+   */
+  traduccion?: Traduccion;
   /**
    * Lo que dura la nota de voz.
    *

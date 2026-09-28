@@ -8,6 +8,7 @@ import { Prisma, type WorkflowNode } from "@prisma/client";
 
 import { currentUser } from "@/lib/auth";
 import { anteponerFirmaDelAsesor } from "@/lib/firma-del-asesor";
+import { laTraduccionDelEnvio } from "@/lib/traduccion-de-chats";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { db } from "@/lib/db";
 import { borrarSeguimientosDelNumeroEnLaCuenta } from "@/lib/seguimientos-de-la-cuenta.server";
@@ -304,6 +305,9 @@ async function persistOutgoingHistory(params: {
           payload,
           sentData: sentData ?? null,
           metadata,
+          // El original en español de lo que salió traducido (ver
+          // `laTraduccionDelEnvio`): la misma línea en los tres caminos.
+          ...laTraduccionDelEnvio(payload),
           // La cita, con la MISMA forma que la manda WhatsApp
           // (`contextInfo.stanzaId` + `quotedMessage`). Guardada asi, el panel
           // la lee igual venga de donde venga, y no hay que ensenarle a leer

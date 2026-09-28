@@ -8322,6 +8322,59 @@ ninguna tecla del selector**: ese manda con las flechas, Enter, Tab y Escape, y
 ninguna de ellas es b, i ni x. Todo lo demás pasa de largo tal cual llegó, que
 es la misma regla con la que estos atajos entraron en Chats.
 
+## Chats: el idioma del cliente se DETECTA, y la traducción va sola
+
+El cliente escribe en inglés (o portugués, francés…) y la plataforma lo nota
+sola, sin ningún botón:
+
+| quién lleva la conversación | qué pasa |
+| --- | --- |
+| **la IA** | contesta en el idioma del cliente. No se traduce nada ni se gasta un crédito de más |
+| **una persona** (IA pausada o esperando asesor) | cada mensaje del cliente lleva debajo su traducción al español, y lo que escribe el asesor en español **sale traducido** al idioma del cliente |
+| **el cliente escribe en español** | todo sigue igual que hoy: ni traducciones, ni una línea de más en el prompt |
+
+> **El idioma lo decide UNA función, copiada byte a byte en los dos
+> repositorios**: `lib/idioma-del-cliente.ts` aquí y
+> `src/modules/ai-agent/idioma-del-cliente.ts` en el backend. La App decide con
+> ella si traduce y el motor si la IA cambia de idioma; si discreparan, la IA
+> contestaría en inglés a quien la pantalla no le traduce nada. Los dos bancos
+> las comparan. **Si se toca una, se copia a la otra.**
+
+Seis cosas que hay que mantener:
+
+1. **Se decide con los PRIMEROS mensajes del cliente**, juntos
+   (`MENSAJES_PARA_DECIDIR`), y **con dudas no se decide**: «Hola», «ok» o un
+   emoji no dicen nada. Heurística de palabras y alfabetos, sin IA: decidir el
+   idioma no cuesta un crédito. Se lee por las TRES identidades, en tres ramas
+   con su `LIMIT`.
+2. **La burbuja enseña lo que viajó por WhatsApp y DEBAJO el español**, en las
+   dos direcciones (`MessageBubble`, `data-traduccion`): del cliente, la
+   traducción; del asesor, lo que escribió antes de salir traducido. Una sola
+   forma: `raw.traduccion = { espanol, idioma, como, en }`, en `raw` y no en una
+   columna (#360). El historial guarda así las dos versiones de cada mensaje.
+3. **«La lleva una persona» es `Session.status = false` o `escalated_at`**
+   (`laLlevaUnaPersona`), no «tiene asesor asignado»: el reparto asigna todas y
+   la IA sigue contestando.
+4. **Cada traducción es un uso de IA de la cuenta DUEÑA de la línea**
+   (`usarLaIaCobrando`). Sin créditos, lo del cliente no se traduce (aviso una
+   vez) y lo del asesor **sale en español y se dice**: un mensaje que no llega
+   por no poder traducirlo es peor que uno sin traducir.
+5. **El sondeo no borra la traducción**: el `ON CONFLICT` de
+   `persistChatMessage` la conserva cuando la fila nueva no la trae. Y los TRES
+   caminos de envío (Evolution, Waha y canales) la guardan con
+   `laTraduccionDelEnvio`, la misma línea.
+6. **«Traducir» en el menú «⋯» de cada mensaje es el respaldo manual**, en los
+   dos lados, solo donde `seOfreceTraducir` deja (texto, sin traducir, no en
+   español). No se traducen: respuestas rápidas, flujos, reenviados ni notas.
+
+La IA recibe al FINAL del prompt el bloque «IDIOMA DEL CLIENTE» (respuesta
+normal y los dos seguimientos, `elBloqueDelIdioma` en el backend).
+
+Lo prueban `scripts/banco-traduccion-de-chats.sh` aquí (reglas, barrido y las
+acciones contra Postgres con la IA fingida) y
+`scripts/banco-idioma-del-cliente.sh` en el backend, los dos con `MODO=roto`
+contra un commit pinchado que afirma que no existía nada de esto.
+
 ## Chats: reenviar un mensaje es el MISMO envío, a otra conversación
 
 Cada mensaje (texto, foto, vídeo, documento o nota de voz) lleva **Reenviar**:

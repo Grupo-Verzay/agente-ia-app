@@ -1,4 +1,5 @@
 import 'server-only';
+import type { Prisma } from '@prisma/client';
 
 /**
  * El ENVÍO por un canal unificado (Meta: WhatsApp Cloud / Facebook / Instagram;
@@ -28,6 +29,7 @@ import 'server-only';
 
 import { persistChatMessage, resolveInstanceOwner } from '@/lib/chat-persistence';
 import { currentUser } from '@/lib/auth';
+import { laTraduccionDelEnvio } from '@/lib/traduccion-de-chats';
 import { db } from '@/lib/db';
 import type { SendMessageResult } from '@/actions/chat-actions';
 import { pausarIaPorIntervencionHumana } from '@/lib/human-takeover';
@@ -93,6 +95,16 @@ async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: s
   return sessionRow ? `${signature}\n${text}` : text;
 }
 
+/**
+ * El original en español de lo que salió traducido, para el `raw` de la fila
+ * (`laTraduccionDelEnvio`, la misma línea que guardan Evolution y Waha). Solo lo
+ * trae un envío del asesor desde la pantalla; los caminos de servidor no.
+ */
+function traduccionParaGuardar(payload: ChannelOutgoingPayload): { raw?: Prisma.InputJsonValue } {
+  const t = laTraduccionDelEnvio(payload);
+  return t.traduccion ? { raw: t as unknown as Prisma.InputJsonValue } : {};
+}
+
 export async function enviarPorCanal(
   instanceName: string,
   remoteJid: string,
@@ -140,6 +152,7 @@ export async function enviarPorCanal(
           content: String(payload.caption ?? payload.fileName ?? mediaFallbackLabel(payload)),
           mediaUrl: typeof publicUrl === 'string' ? publicUrl : (typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null),
           messageTimestamp: new Date(),
+          ...traduccionParaGuardar(payload),
         });
       }
       await apuntarElEnvio(remoteJid);
@@ -182,6 +195,7 @@ export async function enviarPorCanal(
         messageType: 'conversation',
         content: text,
         messageTimestamp: new Date(),
+        ...traduccionParaGuardar(payload),
       });
     }
     await apuntarElEnvio(remoteJid);

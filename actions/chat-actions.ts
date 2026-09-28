@@ -602,6 +602,8 @@ export type EvolutionMessage = {
    * otro, que es lo pedido.
    */
   transcripcionMotivo?: "muy_larga" | "fallo";
+  /** La versión en español del mensaje, si se tradujo (`raw.traduccion`). */
+  traduccion?: import("@/lib/traduccion-de-chats").Traduccion;
   /**
    * Lo que dura la nota, en segundos, **leído de la misma fila que cobra**.
    *

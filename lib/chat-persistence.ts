@@ -10,6 +10,7 @@ import {
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
 import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
+import { laTraduccionDelRaw } from '@/lib/traduccion-de-chats';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -543,6 +544,8 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
   // mismo número por construcción. Deducirla al pintar es lo que ponía «1
   // crédito» debajo de una nota de 40 segundos.
   const audioSegundos = segundosDeLaNota(row.raw);
+  // La traducción, por el mismo camino que la transcripción: en `raw`.
+  const traduccion = laTraduccionDelRaw(row.raw);
 
   return {
     id: String(row.id),
@@ -571,6 +574,7 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     ...(transcripcion ? { transcripcion } : {}),
     ...(transcripcionMotivo ? { transcripcionMotivo } : {}),
     ...(audioSegundos > 0 ? { audioSegundos } : {}),
+    ...(traduccion ? { traduccion } : {}),
     ...(row.deleted ? { clientDeleted: true } : {}),
     // Corregido desde la App. La marca ya estaba guardada —es lo que impide que
     // el sondeo devuelva el texto viejo— pero no llegaba a la pantalla, asi que
@@ -1363,7 +1367,11 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
         ELSE COALESCE(EXCLUDED."content", "chat_messages"."content")
       END,
       "mediaUrl" = COALESCE(EXCLUDED."mediaUrl", "chat_messages"."mediaUrl"),
-      "raw" = CASE
+      -- La TRADUCCION de un mensaje (ver lib/traduccion-de-chats) se conserva
+      -- aunque el raw se reemplace: el sondeo de Evolution vuelve a guardar el
+      -- mismo mensaje cada pocos segundos con su foto, que no la trae, y sin
+      -- esto la traduccion ya pagada se borraba en la vuelta siguiente.
+      "raw" = (CASE
         WHEN "chat_messages"."editedAt" IS NOT NULL THEN "chat_messages"."raw"
         WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
           THEN "chat_messages"."raw"
@@ -1374,6 +1382,11 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
         WHEN ("chat_messages"."raw" ->> 'sentByAi') = 'true'
           THEN jsonb_set(COALESCE(EXCLUDED."raw", '{}'::jsonb), '{sentByAi}', 'true'::jsonb)
         ELSE COALESCE(EXCLUDED."raw", "chat_messages"."raw")
+      END) || CASE
+        WHEN ("chat_messages"."raw" -> 'traduccion') IS NOT NULL
+             AND (EXCLUDED."raw" -> 'traduccion') IS NULL
+          THEN jsonb_build_object('traduccion', "chat_messages"."raw" -> 'traduccion')
+        ELSE '{}'::jsonb
       END,
       -- La hora de la fila solo se pisa con una hora REAL. Con una inventada
       -- -el mensaje llego sin hora y le pusimos la de ahora- se conserva la que

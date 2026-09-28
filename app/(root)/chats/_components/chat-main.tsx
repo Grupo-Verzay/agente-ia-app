@@ -61,6 +61,8 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
 import dynamic from 'next/dynamic';
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-visible';
+import { elAvisoDeLaCajaDeEscribir } from '@/lib/traduccion-de-chats';
+import { useTraduccionDeLaConversacion } from './hooks/useTraduccionDeLaConversacion';
 
 // Notas nativas dentro del chat (pestaña "Notas"). Carga diferida: el editor
 // (BlockNote) solo se descarga cuando el usuario abre la pestaña, para no
@@ -419,6 +421,21 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     [reversed, header.avatarSrc],
   );
 
+  // La traducción de la conversación: sola, sin ningún botón. Ver
+  // `useTraduccionDeLaConversacion` y `lib/traduccion-de-chats.ts`.
+  const traduccion = useTraduccionDeLaConversacion(
+    {
+      instanceName: info?.instanceName,
+      remoteJid: info?.remoteJid,
+      remoteJidAliases: info?.remoteJidAliases,
+    },
+    baseBubbles,
+  );
+  const traduccionesDeLaConversacion = traduccion.traducciones;
+  const prepararElEnvio = traduccion.prepararElEnvio;
+  const traducirUnMensaje = traduccion.traducirUno;
+  const avisoDeTraduccion = elAvisoDeLaCajaDeEscribir(traduccion.idioma);
+
   // Emparejamiento por texto de mensajes generados por IA: O(n×m) pero
   // independiente de la media, así que solo se recalcula cuando cambian los
   // mensajes o el set de contenidos de IA (no en cada tick de descarga de media).
@@ -470,10 +487,16 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         const emoji = reacciones.get(b.id)!;
         bubble = { ...bubble, reaction: emoji || undefined };
       }
+      // La traducción que se acaba de pedir y aún no vuelve con el mensaje: la
+      // del servidor (ya guardada en `raw`) manda si las dos están.
+      if (!bubble.traduccion && traduccionesDeLaConversacion.size > 0) {
+        const tr = traduccionesDeLaConversacion.get(b.id);
+        if (tr) bubble = { ...bubble, traduccion: tr };
+      }
       out.push(bubble);
     }
     return out;
-  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent, editadosLocal, reacciones]);
+  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent, editadosLocal, reacciones, traduccionesDeLaConversacion]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {
@@ -1088,6 +1111,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         // El optimista inmediato (burbuja con la imagen y relojito "pendiente") lo
         // agrega onSend/handleSendAny ANTES de subir a Evolution: sin cuadro gris
         // "Enviando" ni burbuja duplicada. Se envían en el orden elegido.
+        // El pie, en el idioma del cliente si hace falta (lo que escribe el
+        // asesor sale traducido; el original en español se guarda con él).
+        const pie = caption ? await prepararElEnvio(caption) : { texto: '' };
         for (let i = 0; i < listToSend.length; i++) {
           const m = listToSend[i];
           await onSend({
@@ -1096,7 +1122,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
             mediaUrl: m.dataUrl,
             mimetype: m.mimeType,
             fileName: m.fileName,
-            caption: i === 0 ? caption : '',
+            caption: i === 0 ? pie.texto : '',
+            ...(i === 0 && pie.traduccion ? { traduccion: pie.traduccion } : {}),
             quotedMessage: i === 0 ? quotedMessage : undefined,
           });
         }
@@ -1121,6 +1148,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     setIsSending(true);
 
     try {
+      // Lo que escribe el asesor sale en el idioma del cliente cuando no es el
+      // español, ANTES de construir la burbuja optimista: así la burbuja ya
+      // enseña lo que va a recibir el cliente, con el original debajo.
+      if (payload.kind === 'text') {
+        const listo = await prepararElEnvio(payload.text);
+        payload = { ...payload, text: listo.texto, ...(listo.traduccion ? { traduccion: listo.traduccion } : {}) };
+      }
       // El optimista (texto/nota de voz con relojito "pendiente") lo agrega onSend
       // de inmediato; aquí ya no manejamos burbuja temporal ni cuadro "Enviando".
       await onSend(payload);
@@ -1130,7 +1164,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } finally {
       setIsSending(false);
     }
-  }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus, info?.remoteJid]);
+  }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus, info?.remoteJid, prepararElEnvio]);
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1377,6 +1411,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
         onEditMessage={handleEditMessage}
+        onTranslateMessage={traducirUnMensaje}
         onDeleteNote={handleDeleteNote}
         onLoadOlderMessages={onLoadOlderMessages}
         canLoadOlderMessages={canLoadOlderMessages}
@@ -1415,6 +1450,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       />
 
       <ChatInputBar
+        avisoDeTraduccion={avisoDeTraduccion}
         input={input}
         composeMediaList={composeMediaList}
         replyTo={replyTo}

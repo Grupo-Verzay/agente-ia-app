@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Check, CheckCheck, CircleAlert, Clock, Forward, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, Clock, Forward, Reply, PhoneMissed, PhoneOutgoing, Video, Phone, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer, anchoDelAdjunto } from './MediaRenderer';
 import { SafeImage } from '@/components/custom/SafeImage';
@@ -15,6 +15,7 @@ import { TextoConFormato } from '@/components/shared/TextoConFormato';
 import { useOrigenDeLaApp } from '@/components/shared/OrigenDeLaApp';
 import { recortarSinPartirEnlaces } from '@/lib/enlaces-del-texto';
 import { useConversacionDeLaNota, useTranscribirNota } from './TranscribirNota';
+import { elRotuloDeLaTraduccion, type Traduccion } from '@/lib/traduccion-de-chats';
 
 /* ─── ExpandableText ─── */
 interface ExpandableTextProps {
@@ -106,6 +107,12 @@ interface MessageBubbleProps {
   transcripcion?: string;
   /** La marca que dejó el paso automático mientras existió. */
   transcripcionMotivo?: "muy_larga" | "fallo";
+  /**
+   * La versión en ESPAÑOL del mensaje, cuando el cliente no escribe en español.
+   * Va debajo del texto que viajó por WhatsApp, en las dos direcciones: el del
+   * cliente traducido, y el original que escribió el asesor.
+   */
+  traduccion?: Traduccion;
   /** El id del mensaje: lo necesita el botón de transcribir su nota de voz. */
   messageId?: string;
   /** Lo que dura la nota de voz. De ahí sale el precio que enseña el botón. */
@@ -124,6 +131,8 @@ interface MessageBubbleProps {
   onForward?: () => void;
   onReact?: (emoji: string) => void;
   onEdit?: () => void;
+  /** «Traducir» del menú: el respaldo manual de la traducción automática. */
+  onTranslate?: () => void;
   onDelete?: () => void;
 }
 
@@ -145,6 +154,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   reaction,
   transcripcion,
   transcripcionMotivo,
+  traduccion,
   messageId,
   audioSegundos,
   callPhone,
@@ -157,6 +167,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onForward,
   onReact,
   onEdit,
+  onTranslate,
   onDelete,
 }) => {
   /**
@@ -453,6 +464,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onForward={onForward}
       onReact={onReact}
       onEdit={onEdit}
+      onTranslate={onTranslate}
       onDelete={onDelete}
     />
   );
@@ -570,6 +582,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
           >
             <ExpandableText message={message} isUserMessage={isUserMessage} />
+          </div>
+        )}
+        {traduccion && message && !clientDeleted && (
+          // La versión en español, debajo de lo que viajó por WhatsApp. Es la
+          // misma forma en las dos direcciones: lo que escribió el cliente
+          // traducido, y lo que escribió el asesor antes de salir traducido.
+          <div
+            data-traduccion=""
+            className={cn(
+              'mt-1 border-t pt-1 text-[0.8rem] leading-snug',
+              isUserMessage
+                ? 'border-white/25 text-white/85'
+                : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300',
+              media && anchoDelAdjunto(media.type),
+            )}
+          >
+            <span
+              className={cn(
+                'mb-0.5 flex items-center gap-1 text-[0.65rem] font-medium',
+                isUserMessage ? 'text-white/70' : 'text-gray-400 dark:text-gray-400',
+              )}
+            >
+              <Languages className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {elRotuloDeLaTraduccion(traduccion)}
+            </span>
+            <span className="whitespace-pre-wrap">{traduccion.espanol}</span>
           </div>
         )}
         {/*

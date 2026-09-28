@@ -413,6 +413,9 @@ function buildOptimisticOutgoingMessage(
       messageTimestamp: now,
       status: "PENDING",
       optimistic: true,
+      // Lo que escribió el asesor en español, si salió traducido: la burbuja
+      // lo enseña debajo desde el primer momento.
+      ...(payload.traduccion ? { traduccion: payload.traduccion } : {}),
     } as EvolutionMessage;
   }
 
@@ -454,6 +457,7 @@ function buildOptimisticOutgoingMessage(
     messageTimestamp: now,
     status: "PENDING",
     optimistic: true,
+    ...(payload.traduccion ? { traduccion: payload.traduccion } : {}),
   } as EvolutionMessage;
 }
 
