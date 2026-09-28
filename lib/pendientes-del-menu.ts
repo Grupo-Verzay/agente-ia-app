@@ -13,10 +13,10 @@
  * | --- | --- | --- |
  * | Chats | `/chats` | conversaciones sin leer (la pastilla «Sin leer») |
  * | Correos | `/correo` | correos sin leer en la bandeja de entrada |
- * | Agenda | `/schedule` | citas PENDIENTES que todavía no han pasado |
- * | Multiagenda | `/bookings` | reservas PENDIENTES que todavía no han pasado |
+ * | Agenda | `/schedule` | la pastilla «Pendiente» del tablero (todas sus cuentas) |
+ * | Multiagenda | `/bookings` | la pastilla «Pendiente» de su tablero |
  * | Mis tareas | `/tareas` | tareas pendientes de hoy o vencidas |
- * | Recordatorios | `/reminders` | los del grupo «Pendientes» de su pantalla |
+ * | Recordatorios | `/reminders` | los del grupo «Pendientes» de lo que su LISTA enseña |
  *
  * **Llamadas no lleva**: es un registro de lo que ya pasó. Ni Leads, ni
  * Etiquetas, ni Campañas, ni nada más: ahí no hay nada «por atender», y un
@@ -102,16 +102,21 @@ export const CLASE_DEL_CONTADOR =
 // ── Citas (Agenda y Multiagenda) ────────────────────────────────────────────
 
 /**
- * Una cita está PENDIENTE si su estado lo es y todavía no ha pasado. Es la
- * misma condición con la que la campanita cuenta las de la Agenda
- * (`status: "PENDIENTE", startTime >= ahora`), así que el menú y la campana
- * dicen lo mismo. Una pendiente de ayer ya no es algo que atender: es una cita
- * que nadie cerró.
+ * El número de Agenda y de Multiagenda es EXACTAMENTE la pastilla «Pendiente»
+ * de su pantalla: las citas en estado PENDIENTE, de todas las fechas, sacadas
+ * de la misma consulta (`lib/citas-por-estado.server.ts`) y —en Agenda— de las
+ * mismas cuentas que enseña el tablero (la propia y las que cuelgan de ella).
+ *
+ * Antes el menú contaba solo la cuenta propia y solo lo que no había pasado, y
+ * la pantalla todas las cuentas y todas las fechas: el tablero decía «4
+ * pendientes» y el menú no pintaba nada. Aquí se toma el número de la pantalla,
+ * que es lo que la persona tiene delante al pulsar.
  */
-export function esCitaPendiente(estado: string | null | undefined, inicio: Date | string | null | undefined, ahora: Date = new Date()): boolean {
-    if (estado !== "PENDIENTE" || !inicio) return false;
-    const t = new Date(inicio).getTime();
-    return Number.isFinite(t) && t >= ahora.getTime();
+export const ESTADO_DE_CITA_PENDIENTE = "PENDIENTE";
+
+/** Las pendientes de un conteo por estado. Sin la fila, cero. */
+export function lasPendientesDelConteo(conteo: readonly { status: string; count: number }[]): number {
+    return conteo.find((c) => c.status === ESTADO_DE_CITA_PENDIENTE)?.count ?? 0;
 }
 
 // ── Recordatorios ───────────────────────────────────────────────────────────
@@ -122,6 +127,12 @@ export type GrupoDelRecordatorio = "pending" | "today" | "tomorrow" | "recurring
 /** Lo mínimo de un recordatorio para saber en qué grupo cae. */
 export type RecordatorioParaAgrupar = {
     repeatType?: string | null;
+    /**
+     * `true` son las plantillas de la pestaña Recordatorios de la AGENDA
+     * («2 horas antes de la cita»): su hora es `hours-2`, no una fecha, y la
+     * lista de Recordatorios no las enseña.
+     */
+    isSchedule?: boolean | null;
     sentAt?: Date | string | null;
     time?: string | null;
 };
@@ -187,8 +198,22 @@ export function losCortesDelDia(ahora: Date = new Date(), desfaseMin?: number | 
     return { ahora: t, manana: manana.getTime(), pasadoManana: pasado.getTime() };
 }
 
-/** Cuántos recordatorios caen en «Pendientes», con la regla de su pantalla. */
+/**
+ * Si un recordatorio sale en la lista de Recordatorios. Las plantillas de la
+ * Agenda (`isSchedule`) no: viven en la pestaña Recordatorios de `/schedule`.
+ *
+ * La usan la lista, sus pastillas y el número del menú. Antes las pastillas y
+ * el menú contaban también las plantillas, y como su hora (`minutes-30`) no es
+ * una fecha, caían en «Pendientes» o en «Vencidos»: la pantalla decía «No se
+ * encontraron recordatorios» con un 1 en el menú y un 1 y un 2 en sus
+ * pastillas.
+ */
+export function seVeEnLaListaDeRecordatorios(r: RecordatorioParaAgrupar): boolean {
+    return r.isSchedule !== true;
+}
+
+/** Cuántos recordatorios de la LISTA caen en «Pendientes», con la regla de su pantalla. */
 export function cuantosRecordatoriosPendientes(lista: RecordatorioParaAgrupar[], ahora: Date = new Date(), desfaseMin?: number | null): number {
     const c = losCortesDelDia(ahora, desfaseMin);
-    return lista.filter((r) => elGrupoDelRecordatorio(r, c.ahora, c.manana, c.pasadoManana) === "pending").length;
+    return lista.filter((r) => seVeEnLaListaDeRecordatorios(r) && elGrupoDelRecordatorio(r, c.ahora, c.manana, c.pasadoManana) === "pending").length;
 }

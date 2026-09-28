@@ -2,7 +2,9 @@
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cuantosRecordatoriosPendientes, type ClaveDePendientes } from "@/lib/pendientes-del-menu";
+import { cuantosRecordatoriosPendientes, lasPendientesDelConteo, type ClaveDePendientes } from "@/lib/pendientes-del-menu";
+import { lasCitasPorEstado, lasReservasPorEstado } from "@/lib/citas-por-estado.server";
+import { lasCuentasQueConsultaElCrm } from "@/lib/cuentas-del-crm";
 
 /**
  * Los contadores del menú lateral que salen de NUESTRA base: Agenda,
@@ -18,9 +20,9 @@ import { cuantosRecordatoriosPendientes, type ClaveDePendientes } from "@/lib/pe
  *   navegador, que solo mueve dónde empieza «mañana»: no decide ningún acceso.
  * - **Cada contador en su propio `try`**: uno que falla sale `null` —sin
  *   número— y no se lleva a los demás. `null` no es cero.
- * - Son `COUNT` sobre índices (`userId`, `teamId + startTime`), salvo
- *   Recordatorios, que se agrupa con la regla de su pantalla y trae solo tres
- *   columnas.
+ * - **Cada número es la pastilla de su pantalla**, con la misma consulta:
+ *   Agenda y Multiagenda por `lib/citas-por-estado.server.ts`, Recordatorios
+ *   con la regla de su lista (`seVeEnLaListaDeRecordatorios`).
  */
 export async function pendientesDelMenuAction(
     clavesPedidas: unknown,
@@ -48,20 +50,24 @@ export async function pendientesDelMenuAction(
     };
 
     await Promise.all([
-        // La MISMA condición que la campanita (`esCitaPendiente`).
-        contar("agenda", () =>
-            db.appointment.count({ where: { userId: cuenta, status: "PENDIENTE", startTime: { gte: ahora } } }),
+        // La pastilla «Pendiente» del tablero de Agenda: la MISMA consulta y las
+        // MISMAS cuentas que abre `/schedule` sin filtro (la propia y las que
+        // cuelgan de ella; un agente, la suya).
+        contar("agenda", async () =>
+            lasPendientesDelConteo(await lasCitasPorEstado(await lasCuentasQueConsultaElCrm(cuenta, null))),
         ),
+        // La pastilla «Pendiente» de Multiagenda: el equipo de la cuenta.
         contar("multiagenda", async () => {
             const team = await db.team.findUnique({ where: { userId: cuenta }, select: { id: true } });
             if (!team) return 0;
-            return db.bookingAppointment.count({ where: { teamId: team.id, status: "PENDIENTE", startTime: { gte: ahora } } });
+            return lasPendientesDelConteo(await lasReservasPorEstado(team.id));
         }),
         contar("recordatorios", async () => {
             const filas = await db.reminders.findMany({
-                // Los mismos que enseña su pantalla (`getRemindersByUserId`).
+                // Los mismos que trae su pantalla (`getRemindersByUserId`);
+                // las plantillas de la Agenda las descarta la regla.
                 where: { userId: cuenta, isCampaign: false },
-                select: { time: true, sentAt: true, repeatType: true },
+                select: { time: true, sentAt: true, repeatType: true, isSchedule: true },
             });
             return cuantosRecordatoriosPendientes(filas, ahora, desfase);
         }),

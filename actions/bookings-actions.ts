@@ -14,6 +14,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { DEFAULT_SERVICE_REMINDERS } from '@/types/reminder';
 import { serviceDefaultMsg } from '@/app/(root)/schedule/_components/services/defaultServiceValues';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { lasReservasPorEstado } from '@/lib/citas-por-estado.server';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId`, el
@@ -155,15 +156,8 @@ export async function getBookingStatusCounts(teamId: string): Promise<{
             return { success: false, message: 'No autorizado.' };
         }
 
-        const counts = await db.bookingAppointment.groupBy({
-            by: ['status'],
-            where: { teamId },
-            _count: { id: true },
-        });
-        return {
-            success: true,
-            data: counts.map((c) => ({ status: c.status as AppointmentStatus, count: c._count.id })),
-        };
+        // La MISMA consulta que el numerito de Multiagenda en el menú.
+        return { success: true, data: await lasReservasPorEstado(teamId) };
     } catch (error) {
         console.error('[getBookingStatusCounts]', error);
         return { success: false, message: 'Error al obtener conteos.' };

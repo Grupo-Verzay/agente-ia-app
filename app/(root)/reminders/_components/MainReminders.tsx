@@ -26,7 +26,7 @@ import {
 import { ReminderGroupAutomationsPanel } from '@/app/(root)/crm/rules/components/ReminderGroupAutomationsPanel';
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
-import { elGrupoDelRecordatorio, type GrupoDelRecordatorio } from '@/lib/pendientes-del-menu';
+import { elGrupoDelRecordatorio, seVeEnLaListaDeRecordatorios, type GrupoDelRecordatorio } from '@/lib/pendientes-del-menu';
 
 // La regla de los grupos vive en `lib/pendientes-del-menu`: el numerito de
 // «Recordatorios» en el menú lateral sale de la MISMA función, así que dice lo
@@ -65,7 +65,9 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       expired: 0,
     };
 
-    reminders.forEach((reminder) => {
+    // Las pastillas cuentan lo que la LISTA enseña —sin las plantillas de la
+    // Agenda—, con la misma regla que el número del menú.
+    reminders.filter(seVeEnLaListaDeRecordatorios).forEach((reminder) => {
       const group = getReminderGroup(reminder, now, startOfTomorrow.getTime(), startOfDayAfterTomorrow.getTime());
       counts[group]++;
     });
@@ -113,7 +115,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
     });
 
     return sorted.filter((r) => {
-      if (r.isSchedule) return false;
+      if (!seVeEnLaListaDeRecordatorios(r)) return false;
       const fullText = `${r.title} ${r.description ?? ""} ${r.pushName} ${r.remoteJid}`.toLowerCase();
       return fullText.includes(search.toLowerCase());
     });
