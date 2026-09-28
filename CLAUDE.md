@@ -19060,6 +19060,47 @@ sigue la cadena): mejor callar que cantar un fallo que no existe.
 `MODO=roto` lee el árbol de `0583de4` (pinchado) y afirma el import roto; sobre
 `aa92189`, que sí compilaba, no encuentra nada.
 
+## Entrenamiento › Cotizaciones: la App DECIDE y arma el PDF, el backend lo MANDA o escala
+
+Una pestaña más del entrenamiento (la octava, detrás de Gestión): un interruptor
+—**apagado de serie**— y un cuadro libre con qué incluye una cotización y qué
+condiciones aplica. Encendida, cuando el cliente pide una cotización la IA llama
+a `Enviar_Cotizacion` y el cliente recibe por WhatsApp un PDF con el logo y los
+datos del negocio, lo pedido con **los precios del catálogo de Productos**, el
+total y esas condiciones.
+
+> **El modelo nunca pone un precio.** Manda nombres y cantidades; la App
+> (`/api/cotizacion-ia`, clave interna) empareja contra los productos ACTIVOS de
+> la cuenta (`decidirLaCotizacion`, `lib/cotizacion-ia.ts`, pura) y contesta
+> `lista`, `aclarar` (más de un producto casa), `escalar` o `apagada`. Lo que no
+> está en el catálogo, o un descuento / precio especial / cuotas, **escala a un
+> asesor por `escalarConversacion`** —el camino de siempre, con su modo
+> solo-registro— y no genera ni PDF ni fila.
+
+Seis cosas que hay que mantener:
+
+1. **Los ajustes viven en `cotizacion_ia_ajustes`, tabla de la App**; sin fila
+   o sin tabla es APAGADA, y el backend lo lee así (42P01 → apagada).
+2. **La herramienta solo existe encendida**, y con ella encendida **se omite la
+   vieja `crear_cotizacion`** del catálogo de herramientas: esa tomaba los
+   precios que escribía el modelo. Apagada, todo sigue como estaba.
+3. **La cotización se guarda en el módulo Cotizaciones** (`status: 'enviada'`,
+   cada línea con su `productId`) ANTES de armar el PDF, que va al bucket en
+   `cotizaciones/<cuenta>/`. El texto de condiciones viaja en `notes`.
+4. **Los datos del negocio salen de Perfil** (`sections.business` del prompt
+   `system-prompt-ai`) y el logo de `laMarcaDelNegocio`, la de exportar a PDF.
+5. **`/api/cotizacion-ia` está entre los prefijos del middleware** con su
+   propia puerta: sin él el backend se traería el login con un 200. Y el backend
+   mira `resp.redirected`.
+6. **Si el PDF no sale por la línea, al modelo se le dice** que no le diga al
+   cliente que ya la tiene ni le dé precios.
+
+Lo prueban `scripts/banco-cotizacion-ia.sh` aquí (la regla y el PDF leído con
+pdf.js, la pestaña en Chromium a 1440/1280/1024/390 y la ruta y las acciones
+contra Postgres; `MODO=roto` afirma que en `8b1bdab` no existía) y el del mismo
+nombre en `api-webhook` (la herramienta contra Postgres; `MODO=roto` afirma que
+la vieja usaba los precios del modelo).
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

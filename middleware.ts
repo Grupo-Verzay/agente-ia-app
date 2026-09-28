@@ -82,6 +82,9 @@ const apiCallsPrefix = "/api/calls";
 const apiSendMediaPrefix = "/api/send-media";
 const apiProductsPrefix = "/api/products";
 const apiExternalClientDataPrefix = "/api/external-client-data";
+// La cotización que arma el agente (`Enviar_Cotizacion`): la llama el backend
+// con la clave interna y nunca un navegador. Tiene su propia puerta.
+const apiCotizacionIaPrefix = "/api/cotizacion-ia";
 
 
 export default auth((req) => {
@@ -116,6 +119,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiSendMediaPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiProductsPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiCotizacionIaPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
