@@ -21936,30 +21936,47 @@ los dos son **la misma pieza**, `components/shared/PanelSinSeleccion.tsx`: lo
 leer, cada una con `setFiltro` de SU pastilla). Destacados va en el ámbar de su
 pastilla, como «Mías» lleva el violeta de la suya.
 
-Y arriba, en la barra de la plataforma, la barrita **Chats ⇄ Correos**
-(`components/shared/AlternarBandeja.tsx`, regla pura en
-`lib/alternar-bandejas.ts`). Cuatro cosas que hay que mantener:
-
-1. **Sale solo en /chats y /correo, y solo si las DOS están en el menú** de
-   quien mira: ofrecer Correos a quien no lo tiene es un enlace a una puerta
-   cerrada.
-2. **Va anclada a la izquierda, justo después del botón del menú**, no
-   centrada ni detrás de las migas. Medido: centrada, a 1024 y 1280 con
-   «Ver tutoriales» el buscador le pasa por encima; detrás de las migas se
-   corre, porque «chats» y «correo» no miden lo mismo.
-3. **Los dos botones tienen ancho fijo** (`sm:w-[6.5rem]`, iconos solos en un
-   teléfono): con el suyo propio, la activa en negrita ensancharía su mitad y
-   la barrita se movería al cambiar de pantalla.
-4. **Mide 28 px, lo mismo que el botón del menú**, y con ella puesta las migas
-   no se parten (`flex-nowrap`): con 34 px la barra crecía 6 px, y partidas en
-   un teléfono crecía una línea entera.
-
 Lo prueba `scripts/banco-bandejas-simetricas.sh`: la regla y un barrido, y en
 Chromium sobre el CSS del build el panel de Chats de hoy contra el de antes
-(sacado de git), el de Correo —con su componente real— contra el de Chats, las
-tarjetas que filtran y la barra de arriba real en /chats y /correo a
-1440/1280/1024/390, con y sin tutoriales. `MODO=roto` lo corre contra
-`ANTES_REF` y afirma que no había panel ni barrita.
+(sacado de git), el de Correo —con su componente real— contra el de Chats y las
+tarjetas que filtran. `MODO=roto` lo corre contra `ANTES_REF` y afirma que no
+había panel ni barrita.
+
+### La barra de arriba: casita primero, sin ruta, y el selector en la columna
+
+La barra de la plataforma (`components/custom/Breadcrumbs.tsx`) es la MISMA en
+todas las pantallas y se lee así:
+
+```
+[casita] [menú]      [Chats | Correos]      …      [tutoriales] [buscar] [soporte] [campana]
+                     ^ centrado en la columna de la lista
+```
+
+1. **La casita va SIEMPRE de primera**, en el mismo píxel en todas las
+   pantallas, y detrás el botón del menú (las dos flechas). Antes el selector
+   se metía delante en Chats y Correos y la casita saltaba de sitio.
+2. **No hay ruta de texto** («leads», «chats»…): no era pulsable de verdad ni
+   llevaba a ninguna parte que el menú no lleve. `breadcrumbLabels` sigue
+   exportado porque lo usa el copiloto para nombrar la pantalla.
+3. **El selector Chats ⇄ Correos sale en TODAS las pantallas** si la persona
+   tiene las dos en su menú (`seVeLaBarritaDeBandejas`), y marca la activa
+   (`laBandejaActiva`; fuera de las dos, ninguna).
+4. **Va centrado en la columna de la lista, no en la barra**: se MIDE
+   `[data-columna-de-chats]` (la llevan Chats y Correos) y, donde no hay,
+   la columna que habría —`--ancho-lateral` desde el borde del contenido—.
+   Es `absolute` dentro de la barra: no empuja nada. Dónde exactamente lo
+   decide `dondeVaElSelector` (pura): centrado con sus palabras; si así pisaría
+   la casita o los botones de la derecha, centrado solo con los iconos; y si ni
+   así, lo más cerca sin pisar nada. Los anchos (`w-[5.5rem]`, `w-8`) están
+   escritos en `lib/alternar-bandejas.ts` y el banco los compara con lo pintado.
+5. **Todo botón de la barra es un rectángulo de esquinas redondeadas**
+   (`rounded-md`): ni el selector ni la campana son ya píldoras.
+
+Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador y la
+`Breadcrumbs` real en Chromium en /chats, /correo, /sessions y /schedule a
+1440/1280/1024/390, con y sin tutoriales. `MODO=roto` monta la barra de
+`ANTES_REF` y afirma la ruta de texto, la casita moviéndose, el selector solo en
+dos pantallas y la campana en píldora.
 
 ## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
 
