@@ -5,8 +5,13 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
+    comoEslogan,
     comoMoneda,
+    comoTipoDeItems,
+    comoVisibilidadDeNota,
+    esLineaParaEnviar,
     esTokenValido,
+    laNotaQueSeEnsena,
     type DatosDePropuesta,
     type Propuesta,
     type PropuestaPublica,
@@ -72,6 +77,31 @@ function asegurarLasTablas(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "propuestas_comerciales_cuenta_idx"
             ON "propuestas_comerciales" ("cuentaId", "creadaEn" DESC)
         `);
+        // Los campos nuevos entran con ADD COLUMN IF NOT EXISTS y no reescribiendo
+        // el CREATE: la tabla ya está en producción y un CREATE TABLE IF NOT
+        // EXISTS no toca una que ya existe. Todos con su valor de siempre, así
+        // que las propuestas que ya había se leen igual que antes.
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "propuestas_comerciales"
+                ADD COLUMN IF NOT EXISTS "tipoDeItems" TEXT NOT NULL DEFAULT 'servicios',
+                ADD COLUMN IF NOT EXISTS "empresa" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "whatsapp" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "linea" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "correo" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "vigencia" DATE,
+                ADD COLUMN IF NOT EXISTS "nota" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "notaVisibilidad" TEXT NOT NULL DEFAULT 'interna',
+                ADD COLUMN IF NOT EXISTS "metodoPago" TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS "medioPago" TEXT NOT NULL DEFAULT ''
+        `);
+        // El eslogan es de la CUENTA, no de una propuesta: sale en todas.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "propuestas_ajustes" (
+                "cuentaId" TEXT PRIMARY KEY,
+                "eslogan" TEXT NOT NULL DEFAULT '',
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -116,10 +146,22 @@ type Fila = {
     ultimaVezAbierta: Date | null;
     creadaEn: Date;
     actualizadaEn: Date;
+    tipoDeItems: string | null;
+    empresa: string | null;
+    whatsapp: string | null;
+    linea: string | null;
+    correo: string | null;
+    vigencia: Date | string | null;
+    nota: string | null;
+    notaVisibilidad: string | null;
+    metodoPago: string | null;
+    medioPago: string | null;
 };
 
 const COLUMNAS = `"id", "token", "cliente", "fecha", "moneda", "servicios", "mantenimientoMensual",
-       "mantenimientoDescripcion", "condiciones", "vecesAbierta", "ultimaVezAbierta", "creadaEn", "actualizadaEn"`;
+       "mantenimientoDescripcion", "condiciones", "vecesAbierta", "ultimaVezAbierta", "creadaEn", "actualizadaEn",
+       "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota", "notaVisibilidad",
+       "metodoPago", "medioPago"`;
 
 function comoServicios(v: unknown): ServicioDePropuesta[] {
     const lista = Array.isArray(v) ? v : typeof v === "string" ? safeParse(v) : [];
@@ -160,11 +202,37 @@ function comoPropuestaDeLaFila(f: Fila): Propuesta {
         mantenimientoMensual: mant === null || mant === undefined ? null : Number(mant),
         mantenimientoDescripcion: f.mantenimientoDescripcion ?? "",
         condiciones: f.condiciones ?? "",
+        tipoDeItems: comoTipoDeItems(f.tipoDeItems),
+        empresa: f.empresa ?? "",
+        whatsapp: f.whatsapp ?? "",
+        linea: f.linea ?? "",
+        correo: f.correo ?? "",
+        vigencia: f.vigencia ? comoDia(f.vigencia) : null,
+        nota: f.nota ?? "",
+        notaVisibilidad: comoVisibilidadDeNota(f.notaVisibilidad),
+        metodoPago: f.metodoPago ?? "",
+        medioPago: f.medioPago ?? "",
         vecesAbierta: Number(f.vecesAbierta ?? 0) || 0,
         ultimaVezAbierta: f.ultimaVezAbierta ? new Date(f.ultimaVezAbierta).toISOString() : null,
         creadaEn: new Date(f.creadaEn).toISOString(),
         actualizadaEn: new Date(f.actualizadaEn).toISOString(),
     };
+}
+
+/** Los campos que se añadieron después, en el MISMO orden en crear y en editar. */
+function camposNuevos(d: DatosDePropuesta): unknown[] {
+    return [
+        d.tipoDeItems,
+        d.empresa,
+        d.whatsapp,
+        d.linea,
+        d.correo,
+        d.vigencia,
+        d.nota,
+        d.notaVisibilidad,
+        d.metodoPago,
+        d.medioPago,
+    ];
 }
 
 /** Las de una cuenta, la más reciente primero. */
@@ -199,8 +267,11 @@ export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: strin
         const filas = await db.$queryRawUnsafe<Fila[]>(
             `INSERT INTO "propuestas_comerciales"
                 ("id", "cuentaId", "token", "cliente", "fecha", "moneda", "servicios",
-                 "mantenimientoMensual", "mantenimientoDescripcion", "condiciones", "creadoPorId")
-             VALUES ($1, $2, $3, $4, $5::date, $6, $7::jsonb, $8::numeric, $9, $10, $11)
+                 "mantenimientoMensual", "mantenimientoDescripcion", "condiciones", "creadoPorId",
+                 "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota",
+                 "notaVisibilidad", "metodoPago", "medioPago")
+             VALUES ($1, $2, $3, $4, $5::date, $6, $7::jsonb, $8::numeric, $9, $10, $11,
+                     $12, $13, $14, $15, $16, $17::date, $18, $19, $20, $21)
              RETURNING ${COLUMNAS}`,
             randomUUID(),
             datos.cuentaId,
@@ -213,6 +284,7 @@ export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: strin
             datos.mantenimientoDescripcion,
             datos.condiciones,
             datos.creadoPorId,
+            ...camposNuevos(datos),
         );
         return comoPropuestaDeLaFila(filas[0]!);
     });
@@ -228,7 +300,10 @@ export async function editarPropuesta(cuentaId: string, id: string, datos: Datos
             `UPDATE "propuestas_comerciales" SET
                 "cliente" = $3, "fecha" = $4::date, "moneda" = $5, "servicios" = $6::jsonb,
                 "mantenimientoMensual" = $7::numeric, "mantenimientoDescripcion" = $8,
-                "condiciones" = $9, "actualizadaEn" = CURRENT_TIMESTAMP
+                "condiciones" = $9, "tipoDeItems" = $10, "empresa" = $11, "whatsapp" = $12,
+                "linea" = $13, "correo" = $14, "vigencia" = $15::date, "nota" = $16,
+                "notaVisibilidad" = $17, "metodoPago" = $18, "medioPago" = $19,
+                "actualizadaEn" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "cuentaId" = $2
              RETURNING ${COLUMNAS}`,
             id,
@@ -240,6 +315,7 @@ export async function editarPropuesta(cuentaId: string, id: string, datos: Datos
             datos.mantenimientoMensual,
             datos.mantenimientoDescripcion,
             datos.condiciones,
+            ...camposNuevos(datos),
         );
         return filas[0] ? comoPropuestaDeLaFila(filas[0]) : null;
     });
@@ -279,12 +355,15 @@ export async function laPropuestaPublica(token: string): Promise<PropuestaPublic
         const f = filas[0];
         if (!f) return null;
         const p = comoPropuestaDeLaFila(f);
-        const cuenta = await db.user
-            .findUnique({
-                where: { id: f.cuentaId },
-                select: { brandName: true, company: true, name: true, email: true, image: true },
-            })
-            .catch(() => null);
+        const [cuenta, eslogan] = await Promise.all([
+            db.user
+                .findUnique({
+                    where: { id: f.cuentaId },
+                    select: { brandName: true, company: true, name: true, email: true, image: true },
+                })
+                .catch(() => null),
+            elEsloganDe(f.cuentaId).catch(() => ""),
+        ]);
         const nombre = cuenta?.brandName?.trim() || (cuenta ? nombreDeLaCuenta(cuenta) : "") || "";
         const imagen = cuenta?.image?.trim() || null;
         return {
@@ -297,7 +376,13 @@ export async function laPropuestaPublica(token: string): Promise<PropuestaPublic
             mantenimientoDescripcion: p.mantenimientoDescripcion,
             condiciones: p.condiciones,
             actualizadaEn: p.actualizadaEn,
-            negocio: { nombre, logo: elLogoQueSeEnsena(imagen, process.env.S3_PUBLIC_URL) },
+            tipoDeItems: p.tipoDeItems,
+            empresa: p.empresa,
+            vigencia: p.vigencia,
+            nota: laNotaQueSeEnsena(p),
+            metodoPago: p.metodoPago,
+            medioPago: p.medioPago,
+            negocio: { nombre, logo: elLogoQueSeEnsena(imagen, process.env.S3_PUBLIC_URL), eslogan },
         };
     });
 }
@@ -315,4 +400,53 @@ export function elLogoQueSeEnsena(url: string | null, publicUrl: string | undefi
     } catch {
         return null;
     }
+}
+
+/** El eslogan de la cuenta para el encabezado de sus propuestas; vacío = ninguno. */
+export async function elEsloganDe(cuentaId: string): Promise<string> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ eslogan: string }[]>`
+            SELECT "eslogan" FROM "propuestas_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
+        `;
+        return comoEslogan(filas[0]?.eslogan ?? "");
+    });
+}
+
+/** Guarda el eslogan; vacío BORRA la fila, para que «sin fila» signifique una sola cosa. */
+export async function ponerElEslogan(cuentaId: string, eslogan: string): Promise<string> {
+    const limpio = comoEslogan(eslogan);
+    return conLasTablas(async () => {
+        if (!limpio) {
+            await db.$executeRaw`DELETE FROM "propuestas_ajustes" WHERE "cuentaId" = ${cuentaId}`;
+            return "";
+        }
+        await db.$executeRaw`
+            INSERT INTO "propuestas_ajustes" ("cuentaId", "eslogan", "actualizadoEn")
+            VALUES (${cuentaId}, ${limpio}, CURRENT_TIMESTAMP)
+            ON CONFLICT ("cuentaId") DO UPDATE SET "eslogan" = EXCLUDED."eslogan", "actualizadoEn" = CURRENT_TIMESTAMP
+        `;
+        return limpio;
+    });
+}
+
+export type LineaParaEnviar = { instanceName: string; nombre: string; tipo: string };
+
+/**
+ * Las líneas de ESTA cuenta desde las que se puede mandar un WhatsApp. Es la
+ * lista que se ofrece al crear la propuesta y la MISMA con la que se comprueba
+ * al guardar y al enviar: una línea que no sale de aquí no se acepta.
+ */
+export async function lasLineasParaEnviar(cuentaId: string): Promise<LineaParaEnviar[]> {
+    const filas = await db.instancia.findMany({
+        where: { userId: cuentaId },
+        select: { instanceName: true, displayName: true, instanceType: true, metaChannel: true },
+        orderBy: { instanceName: "asc" },
+    });
+    return filas
+        .filter((i) => i.instanceName && esLineaParaEnviar(i))
+        .map((i) => ({
+            instanceName: i.instanceName!,
+            nombre: i.displayName?.trim() || i.instanceName!,
+            tipo: (i.instanceType ?? "Whatsapp").toString(),
+        }));
 }

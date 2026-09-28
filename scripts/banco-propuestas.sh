@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # El banco de PROPUESTAS COMERCIALES (Panel › Propuestas y /propuesta/<token>).
 #
+# Incluye los ajustes de la segunda vuelta: el azul claro, el encabezado (logo,
+# «Propuesta comercial» debajo y el eslogan de la cuenta a la derecha),
+# Servicios/Productos, los campos nuevos (empresa, WhatsApp, línea, correo,
+# vigencia, nota interna/pública, método y medio de pago) y el envío por
+# WhatsApp desde la línea de la propuesta.
+#
 # Tres mitades: la REGLA pura y un barrido (ruta pública, noindex en metadata y
 # cabecera, copiar/editar en el panel); las ACCIONES contra Postgres (token de
 # 32 caracteres que no cambia al editar, otra cuenta no ve ni toca, un agente
@@ -20,7 +26,7 @@ export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/c
 
 MODO="${MODO:-bueno}"
 export MODO
-ANTES_REF="${ANTES_REF:-69d9721}"
+ANTES_REF="${ANTES_REF:-73f991f}"
 export ANTES_REF
 
 if [ "$MODO" = "roto" ]; then
@@ -65,6 +71,7 @@ npx esbuild lib/__tests__/fingido/entrada-de-propuestas.ts --bundle \
   --platform=node --format=esm --outdir=$OUT \
   --external:@prisma/client --external:server-only --external:next/headers \
   --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
+  --alias:@/actions/whatsapp-dispatcher=./lib/__tests__/fingido/despacho-de-propuestas.ts \
   --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
   --alias:react=./lib/__tests__/fingido/react-cache.ts \
   --log-level=error
@@ -83,7 +90,13 @@ import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 const propuesta = {
     token: "t".repeat(32),
     cliente: "ClinicaDentalSonrisaDeLaCiudadDeMedellinSinEspacios",
+    empresa: "Grupo Clínicas Sonrisa de Antioquia SAS",
     fecha: "2026-09-28",
+    vigencia: "2026-10-15",
+    tipoDeItems: "productos",
+    nota: "Precios con el descuento de lanzamiento.",
+    metodoPago: "Transferencia / Nequi",
+    medioPago: "Bancolombia ahorros 123-456789-00\nA nombre de Verzay SAS",
     moneda: "COP",
     servicios: [
         { nombre: "Agente de IA para WhatsApp con entrenamiento y flujos", alcance: "Configuración de la línea\nEntrenamiento con el catálogo\nDos flujos de venta", inversion: 1500000 },
@@ -94,7 +107,7 @@ const propuesta = {
     mantenimientoDescripcion: "Soporte, ajustes del agente y reportes mensuales.",
     condiciones: "50% de anticipo y 50% a la entrega.\nVigencia de la propuesta: 15 días.\n" + "Texto largo ".repeat(40),
     actualizadaEn: new Date().toISOString(),
-    negocio: { nombre: "Verzay | Pruebas", logo: null },
+    negocio: { nombre: "Verzay | Pruebas", logo: null, eslogan: "Automatiza tu negocio con IA y vende más cada día" },
 };
 
 createRoot(document.getElementById("app")!).render(
