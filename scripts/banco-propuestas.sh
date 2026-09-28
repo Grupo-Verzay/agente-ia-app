@@ -57,7 +57,7 @@ export DIRECT_URL="$DATABASE_URL"
 export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco \
        CRM_FOLLOW_UP_RUNNER_KEY=banco S3_ACCESS_KEY=banco S3_SECRET_KEY=banco \
        S3_ENDPOINT=http://localhost S3_PUBLIC_URL=https://s3.test S3_BUCKET_NAME=verzay-media \
-       NEXT_PUBLIC_APP_URL=https://app.test
+       NEXT_PUBLIC_APP_URL=https://app.test GEMINI_API_KEY=banco
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
