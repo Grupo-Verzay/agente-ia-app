@@ -49,6 +49,8 @@ import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VoiceSettings } from "./VoiceSettings";
+import { CotizacionesBuilder } from "./CotizacionesBuilder";
+import { AJUSTES_POR_DEFECTO } from "@/lib/cotizacion-ia";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     business:   "Base transversal · Datos del negocio y contexto del agente",
@@ -58,11 +60,12 @@ const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     more:       "Fase 5 · Negociación — Objeciones, Q&A y casos especiales",
     keywords:   "Atajos directos — Respuestas sin IA · palabras clave frecuentes o urgentes",
     management: "Fases 6-7 · Acuerdo + Postventa — Cierre, herramientas y seguimiento",
+    quotes:     "Cotizaciones — PDF con precios del catálogo; lo que no está, a un asesor",
 };
 
 type TabKey = AiSectionKey;
 
-export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
+export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: MainAiProps) => {
     const router = useRouter();
     const [showAlertDialog, setShowAlertDialog] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
@@ -337,11 +340,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             more: sections?.extras?.steps?.length ?? 0,
             management: sections?.management?.steps?.length ?? 0,
             keywords: sections?.keywords?.rules?.length ?? 0,
+            // Un interruptor no es una cuenta de cosas: sin numerito.
+            quotes: 0,
         };
     }, [sections]);
 
     const completionCount = completedTabs.size;
-    const totalTabs = Object.keys(TYPE_AI_LABELS).length;
+    // Cotizaciones es opcional y nace apagada: no cuenta en el progreso, o
+    // toda cuenta que ya lo tenía completo bajaría de golpe sin haber cambiado nada.
+    const totalTabs = Object.keys(TYPE_AI_LABELS).filter((k) => k !== "quotes").length;
 
     return (
         <>
@@ -690,6 +697,14 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                             />
                         </TabsContent>
 
+                        <TabsContent value="quotes" className="m-0">
+                            <CotizacionesBuilder
+                                cuentaId={user.effectiveId ?? user.id}
+                                inicial={cotizaciones ?? AJUSTES_POR_DEFECTO}
+                                registerSaveHandler={(fn) => registerSaveHandler("quotes", fn)}
+                            />
+                        </TabsContent>
+
                         <div className="h-6" />
                     </div>
 
@@ -739,7 +754,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 promptPreview={prompt}
                 promptId={promptMeta.id}
                 promptVersion={promptVersion}
-                onApplyDraft={activeTab !== "business" ? (text) => setValues((prev) => ({ ...prev, [activeTab]: text })) : undefined}
+                onApplyDraft={activeTab !== "business" && activeTab !== "quotes" ? (text) => setValues((prev) => ({ ...prev, [activeTab]: text })) : undefined}
                 businessName={promptMeta.businessName ?? ""}
             />
         </>

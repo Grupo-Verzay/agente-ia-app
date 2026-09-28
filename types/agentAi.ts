@@ -359,6 +359,8 @@ export interface MainAiInterface {
 }
 export type MainAiProps = MainAiInterface & {
     sections: SectionsPromptSystem;
+    /** Entrenamiento › Cotizaciones (de la cuenta, no del canal). */
+    cotizaciones?: import("@/lib/cotizacion-ia").AjustesDeCotizacion;
 };
 export interface BusinessValues {
     nombre: string;

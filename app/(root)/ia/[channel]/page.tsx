@@ -17,6 +17,8 @@ import { getTrainingChannel, DEFAULT_TRAINING_CHANNEL, isChannelEnabled } from '
 import { getUserChannelFlags } from '@/lib/channel-access';
 import { ChannelLockedNotice } from '../_components/ChannelLockedNotice';
 import type { SectionsPromptSystem } from '@/types/agentAi';
+import { leerAjustesDeCotizacion } from '@/lib/cotizacion-ia-db';
+import { AJUSTES_POR_DEFECTO } from '@/lib/cotizacion-ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +58,12 @@ export default async function ChannelTrainingPage({ params }: { params: { channe
     });
 
     const sections = prompt?.sections ?? {};
+    // Que no se puedan leer no deja la pantalla sin abrir: sale apagada, que
+    // es como nace toda cuenta. Mudo no.
+    const cotizaciones = await leerAjustesDeCotizacion(user.effectiveId).catch((error) => {
+        console.error('[cotizacion-ia] no se pudieron leer los ajustes al abrir el entrenamiento', String(error));
+        return AJUSTES_POR_DEFECTO;
+    });
 
     return (
         <MainAi
@@ -63,6 +71,7 @@ export default async function ChannelTrainingPage({ params }: { params: { channe
             user={user}
             promptMeta={{ id: prompt.id, version: prompt.version, businessName: prompt.businessName }}
             sections={sections as unknown as SectionsPromptSystem}
+            cotizaciones={cotizaciones}
             paymentReceiptPrompt={paymentReceiptPrompt
                 ? {
                     id: paymentReceiptPrompt.id,

@@ -81,6 +81,11 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
     { label: "Sugerir variaciones", icon: Sparkles, text: "Revisa las palabras clave configuradas y sugiere variaciones o sinónimos que los clientes podrían usar y que aún no están capturadas." },
     { label: "Nuevas palabras clave", icon: Lightbulb, text: "Sugiere palabras clave adicionales que los clientes podrían usar y que aún no están configuradas." },
   ],
+  quotes: [
+    { label: "Redactar condiciones", icon: Wand2, text: "Redacta unas condiciones claras para mis cotizaciones: validez, forma de pago, tiempos de entrega e impuestos." },
+    { label: "Qué debe incluir", icon: Lightbulb, text: "Sugiere qué información debería incluir una cotización de mi negocio para que el cliente decida rápido." },
+    { label: "Revisar condiciones", icon: Sparkles, text: "Revisa mis condiciones de cotización y dime qué falta o qué puede generar malentendidos con el cliente." },
+  ],
 };
 
 const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
@@ -91,6 +96,7 @@ const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
   more: "Espacio para información complementaria: políticas, condiciones, horarios especiales o instrucciones que el agente aplica en situaciones puntuales que no cubre otra sección.",
   management: "Define cómo el agente maneja quejas, reclamos, seguimientos y cuándo escalar a un humano. Una buena configuración aquí evita fricciones y mejora la experiencia del cliente.",
   keywords: "Configura palabras o frases clave con respuestas directas pre-definidas. El agente las detecta antes de consultar la IA y responde de forma inmediata, reduciendo latencia y costos.",
+  quotes: "Cuando el cliente pide una cotización, el agente le envía un PDF con tu logo, los productos del catálogo con sus precios, el total y estas condiciones. Si pide algo fuera del catálogo o un descuento, pasa la conversación a un asesor.",
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
