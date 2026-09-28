@@ -18897,6 +18897,23 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Un `import` que no existe se caza sin esperar al build
+
+Es la otra mitad de *dos PR verdes por separado pueden tumbar el despliegue
+juntos*: `comprobar-tipos-de-reagendar.sh` vigila ese choque concreto; esto
+vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
+con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
+del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
+los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
+sigue la cadena): mejor callar que cantar un fallo que no existe.
+
+> **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
+> culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
+> no tenía nada que ver.
+
+`MODO=roto` lee el árbol de `0583de4` (pinchado) y afirma el import roto; sobre
+`aa92189`, que sí compilaba, no encuentra nada.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
