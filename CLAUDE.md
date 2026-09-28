@@ -3925,15 +3925,16 @@ Lo mide `MedidaDeLaBarra` con un `ResizeObserver` y lo publica en
 `fixed`, no cuelgan de la barra en el árbol, así que la variable tiene que
 llegarles esté donde esté cada uno.
 
-### En Chats acomodan; fuera, se superponen
+### En Chats acomodan; y fuera, TAMBIÉN (ver *El panel empuja el contenido en TODAS las pantallas*)
 
 La ficha de Contacto ya acomodaba la conversación porque es un hermano del flex.
 El copiloto y el chat del equipo cuelgan del layout y no pueden ser hermanos de
 nada, pero el contenedor de la bandeja ya lleva `data-chat-view`: con un panel
 abierto se le reserva la franja por la derecha (`padding-right`). El efecto es
-el mismo y no hay que mover ningún panel de sitio. **Fuera de Chats la regla no
-aplica** —está acotada a ese atributo—, así que el panel se abre encima sin
-empujar ni encoger nada.
+el mismo y no hay que mover ningún panel de sitio. Fuera de Chats esta regla no
+aplica —está acotada a ese atributo—, y durante un tiempo eso significó que el
+panel se abría encima y tapaba el contenido. Ya no: fuera reserva la envoltura
+del layout (sección de abajo).
 
 Y de ahí salieron dos cosas que solo se ven midiendo:
 
@@ -17385,8 +17386,45 @@ Cuatro cosas que hay que mantener:
 3. **La franja va con `overflow: hidden`**: cerrada, la hoja se desplaza su
    ancho a la derecha y sin recorte asomaría por el hueco entre la bandeja y el
    borde de la ventana.
-4. **Fuera de Chats nada cambia**: al desmontar se borran las variables y la
-   marca, y el panel vuelve a la ventana.
+4. **Al salir de Chats** se borran las variables y la marca de la bandeja, y
+   manda la colocación de fuera de Chats (`MedidaDelContenido`, abajo).
+
+### El panel empuja el contenido en TODAS las pantallas
+
+En Agenda, el Panel, Leads o cualquier pantalla que no fuera Chats o Correo, el
+chat del equipo —y el copiloto y la nota rápida— se abría ENCIMA y tapaba la
+parte derecha del contenido: la reserva de la franja estaba acotada a
+`[data-chat-view]`.
+
+> **La reserva es de la plataforma.** La envoltura del contenido del layout
+> (`data-contenido-de-la-app`, la del `sm:p-1`) gana `padding-right` con un
+> panel abierto; la caja del módulo (`data-caja-del-contenido`) se estrecha y
+> todo se corre a la izquierda. Donde hay `data-chat-view` manda la regla de
+> Chats (`:not(:has([data-chat-view]))`): reservar en los dos sitios dejaría el
+> hueco dos veces.
+
+Cuatro cosas que hay que mantener:
+
+1. **Se reserva en la ENVOLTURA, no en la caja.** La caja es la que desplaza:
+   con el relleno dentro, su barra de desplazamiento quedaría debajo del panel.
+2. **La franja se MIDE** (`MedidaDelContenido`, montada una vez en el layout;
+   la cuenta es `laFranjaDelContenido`, pura): arriba y alto los de la caja, y
+   a la derecha el relleno de la envoltura, leído del lado IZQUIERDO, que no
+   cambia al abrir. Con eso el panel empieza justo donde acaba la caja y lo
+   medido no se mueve durante el deslizamiento.
+3. **Se lee como Chats**: el panel continúa el marco de la caja —borde arriba,
+   derecha y abajo, esquinas derechas redondeadas— y el separador es el borde
+   derecho de la propia caja, que pierde sus esquinas derechas mientras hay
+   panel.
+4. **El mismo punto de corte que Chats (`lg`)** y la misma transición: por
+   debajo de 1024 no cabe y el panel se abre encima.
+
+Lo prueba `scripts/banco-panel-fuera-de-chats.sh`: la cuenta y un barrido sin
+navegador, y sobre la página servida Agenda, Tareas, Leads y Panel a
+1440/1280/1024 con los tres paneles (la caja se estrecha lo que mide el panel,
+sin hueco ni solape, el filo derecho sigue a la vista y vuelve al cerrar), que
+Chats no cambió y que a 900 no se reserva. `MODO=roto BUILD_ANTES=<.next de
+626a48c>` afirma que antes el panel tapaba el contenido.
 
 ### El chat del equipo: UNA vista por vez
 
@@ -21370,6 +21408,34 @@ Lo prueba `scripts/banco-reagendar-cita.sh`: la regla y un barrido de los
 cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
 `ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
 recordatorios viejos.
+
+### Dos PR verdes por separado pueden tumbar el despliegue juntos
+
+#998 (Reagendar) y #999 (recordatorios a su hora) se fusionaron con minutos de
+diferencia, cada uno con su banco en verde. Juntos, `next build` no compilaba:
+Reagendar importaba `losRecordatoriosDeLaCita` de `lib/cita-publica`, y #999 la
+había movido a `lib/recordatorios-de-la-cita`. El despliegue de #999 **y el de
+#1000 detrás** fallaron, así que producción se quedó en #998 sin que nada lo
+dijera fuera de la pestaña Actions.
+
+Y debajo del error de compilación había dos más, del mismo choque: al editar la
+hora de una cita corrían **dos** reprogramaciones (la de Reagendar, sin llave, y
+la de #999, con llave), así que al cliente le llegaba cada recordatorio dos
+veces; y agendar dejaba fuera las plantillas viejas con `isCampaign` nulo, que
+Reagendar sí contaba.
+
+Tres cosas que hay que mantener:
+
+1. **Reagendar calcula con `losRecordatoriosDeLaCita` de
+   `lib/recordatorios-de-la-cita.ts`** —la zona de la cuenta y la hora
+   estricta— y escribe **con la misma llave** (`appt-reminder:<cita>:<plantilla>`).
+   Es la única reprogramación: editar la hora ya no lleva una segunda.
+2. **Las plantillas de agenda se leen con `isCampaign` falso O nulo**, en los
+   dos sitios.
+3. **Después de fusionar, se mira que el despliegue salió.** Un banco que
+   empaqueta con esbuild no comprueba tipos: `scripts/comprobar-tipos-de-reagendar.sh`
+   pasa `tsc` por esos ficheros, y su `MODO=roto` (contra `0583de4`) afirma el
+   error exacto que tumbó el build. Lo corre `banco-reagendar-cita.sh`.
 
 ## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
 

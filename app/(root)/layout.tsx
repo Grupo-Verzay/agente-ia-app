@@ -32,6 +32,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { themeClass } from "@/types/generic";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { BotonesDelBorde } from "@/components/chat-equipo/BotonesDelBorde";
+import { MedidaDelContenido } from "@/components/shared/MedidaDelContenido";
 import { OyenteDeLlamadas } from "@/components/chat-equipo/OyenteDeLlamadas";
 import { ReunionEnLaPlataforma } from "@/components/video/ReunionEnLaPlataforma";
 import { AnfitrionDeLlamada } from "@/components/chats/AnfitrionDeLlamada";
@@ -496,8 +497,13 @@ export default async function RootGroupLayout({
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
-                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
-                            <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
+                        {/* La envoltura reserva la franja del panel lateral con
+                            un panel abierto, en TODAS las pantallas: la caja
+                            se estrecha y el contenido se corre a la izquierda
+                            en vez de quedar tapado. Ver `MedidaDelContenido`. */}
+                        <div data-contenido-de-la-app className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
+                            <MedidaDelContenido />
+                            <div data-caja-del-contenido className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
                                 <LockedRouteGuard
                                     lockedRoutes={lockedRoutes}
                                     deniedRoutes={rutasNegadas}

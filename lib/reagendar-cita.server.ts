@@ -1,9 +1,9 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
 import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
-import { laLlaveDelRecordatorio, losRecordatoriosDeLaCita, type DatosDelRecordatorio } from "@/lib/recordatorios-de-la-cita";
+import { laLlaveDelRecordatorio, losRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita";
+import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
 import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
 
 /**
@@ -29,6 +29,11 @@ import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } f
  * 3. **El número se busca en todas sus formas** (`losNumerosDelCliente`): la
  *    ruta del agente lo guarda como se lo dieron, a veces solo dígitos.
  * 4. **Solo se programan los que todavía no han pasado.**
+ * 5. **Se calculan con la MISMA regla que al agendar** (`losRecordatoriosDeLaCita`
+ *    de `lib/recordatorios-de-la-cita.ts`: hora estricta `unidad-valor` y texto
+ *    en la zona de la CUENTA) y **llevan la MISMA llave** (`appt-reminder:<cita>:<plantilla>`).
+ *    Sin la llave, otra llamada a `programarLosRecordatoriosDeLaCita` sobre la
+ *    misma cita no los reconocería y al cliente le llegaría cada uno dos veces.
  */
 export type ResultadoDeReprogramar = {
     borrados: number;
@@ -48,9 +53,9 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             userId: true,
             clientName: true,
             startTime: true,
-            endTime: true,
             status: true,
-            service: { select: { name: true, messageText: true } },
+            timezone: true,
+            service: { select: { name: true } },
             session: { select: { remoteJid: true, remoteJidAlt: true, instanceId: true, pushName: true } },
             user: { select: { timezone: true, meetingDuration: true } },
         },
@@ -99,60 +104,48 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
-    // La hora del texto va en la zona de la CUENTA, nunca en la del teléfono
-    // del cliente: es la misma regla con la que se programan al agendar.
-    const datos: DatosDelRecordatorio = {
-        nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
-        inicio: cita.startTime,
-        zona: laZonaDeLaCuenta(cita.user?.timezone),
-        duracionMinutos: cita.user?.meetingDuration || 60,
-        servicio: cita.service?.name ?? "",
-    };
-
-    // Se calculan todos (desde el origen de los tiempos) para poder contar en
-    // la consola cuántos se saltan por haber pasado ya.
-    const calculados = losRecordatoriosDeLaCita(plantillas, datos, new Date(0));
+    // La MISMA regla que al agendar: una sola función decide qué recordatorios
+    // lleva una cita y qué dicen, con la hora en la zona de la cuenta.
+    const calculados = losRecordatoriosDeLaCita(
+        plantillas,
+        {
+            nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
+            inicio: cita.startTime,
+            zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
+            duracionMinutos: cita.user?.meetingDuration || 60,
+            servicio: cita.service?.name ?? "",
+        },
+        ahora,
+    );
     const programados = losQueTodaviaNoPasan(calculados, ahora);
 
-    // La línea y la clave salen de la base, como al agendar: Meta usa su
-    // número y su token; el resto, el servidor de la cuenta dueña.
-    let serverurl = "";
-    let apikey = "";
-    if (programados.length) {
-        const instancia = await db.instancia.findFirst({
-            where: { userId: cita.userId, instanceName: linea },
-            select: { instanceId: true, instanceType: true, metaPhoneNumberId: true, metaAccessToken: true },
-        });
-        const esMeta = String(instancia?.instanceType ?? "").toLowerCase() === "meta";
-        const servidor = await laClaveDelServidorDeLaCuenta(cita.userId);
-        if (esMeta) {
-            serverurl = instancia?.metaPhoneNumberId || instancia?.instanceId || "";
-            apikey = instancia?.metaAccessToken || servidor?.key || instancia?.instanceId || "";
-        } else {
-            serverurl = servidor?.url ?? "";
-            apikey = servidor?.key ?? instancia?.instanceId ?? "";
-        }
-    }
+    // La línea y la clave salen de la base, como al agendar (la misma función).
+    const { serverurl, apikey } = programados.length
+        ? await lasCredencialesDeLaLinea(cita.userId, linea)
+        : { serverurl: "", apikey: "" };
 
     const [borrados, creados] = await db.$transaction([
         db.seguimiento.deleteMany({
             where: {
-                instancia: linea,
-                remoteJid: { in: numeros },
                 OR: [
-                    { idNodo: null },
-                    { idNodo: "" },
-                    { idNodo: { startsWith: "appt-reminder-" } },
-                    ...(antiguosDeAgenda.length ? [{ idNodo: { in: antiguosDeAgenda } }] : []),
+                    // Los de ESTA cita por su llave, estén bajo la forma del número que estén.
+                    { idempotencyKey: { startsWith: `appt-reminder:${cita.id}:` } },
+                    {
+                        instancia: linea,
+                        remoteJid: { in: numeros },
+                        OR: [
+                            { idNodo: null },
+                            { idNodo: "" },
+                            { idNodo: { startsWith: "appt-reminder-" } },
+                            ...(antiguosDeAgenda.length ? [{ idNodo: { in: antiguosDeAgenda } }] : []),
+                        ],
+                    },
                 ],
             },
         }),
         db.seguimiento.createMany({
             data: programados.map((r) => ({
                 idNodo: elIdNodoDelRecordatorio(r.plantillaId),
-                // La MISMA llave con la que los programa agendar: así este
-                // camino y `programarLosRecordatoriosDeLaCita` no pueden dejar
-                // dos copias del mismo recordatorio.
                 idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
                 serverurl,
                 instancia: linea,
@@ -162,7 +155,6 @@ export async function reprogramarLosRecordatoriosDeLaCita(
                 tipo: "text",
                 time: r.cuando,
             })),
-            skipDuplicates: true,
         }),
     ]);
 
