@@ -2,8 +2,6 @@
 
 import { AlternarBandeja } from "@/components/shared/AlternarBandeja";
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { HomeIcon } from '@heroicons/react/24/solid';
 import { SidebarTrigger } from '../ui/sidebar';
 import { useEffect, useRef, useState } from 'react';
 import { getGuidesForPath } from '@/actions/guide-actions';
@@ -58,15 +56,18 @@ export const breadcrumbLabels: Record<string, string> = {
 /**
  * La barra de arriba de la plataforma, la MISMA en todas las pantallas:
  *
- *   [casita] [menú]      [Chats | Correos]      …      [tutoriales] [buscar] [soporte] [campana]
- *                        ^ centrado en la columna de la lista
+ *   [menú]      [Chats 3 | Correos 12]      …      [tutoriales] [buscar] [soporte] [campana]
+ *                ^ centrado en la columna de la lista
  *
- * - **La casita va siempre de primera**, en el mismo píxel en todas las
- *   pantallas; detrás, el botón del menú (las dos flechas).
+ * - **El menú (las dos flechas) va siempre de primero**, en el mismo píxel en
+ *   todas las pantallas. **No hay casita**: llevaba al inicio, que ya se abre
+ *   desde el menú, y en un teléfono le quitaba sitio a los demás iconos.
  * - **Sin ruta de texto** («leads», «chats»…): no era pulsable de verdad ni
  *   llevaba a ninguna parte que el menú no lleve.
  * - **El selector Chats ⇄ Correos** sale en todas las pantallas, marcando la
- *   activa, centrado en la columna de la lista (`AlternarBandeja`).
+ *   activa y con los sin leer de cada una, centrado en la columna de la lista
+ *   (`AlternarBandeja`). Quitar la casita NO lo mueve: su centro es el de la
+ *   columna, y lo que cambia es cuánto mide.
  * - **Todos los botones son rectángulos de esquinas redondeadas**
  *   (`rounded-md`), ninguno en píldora: la barra es simétrica.
  */
@@ -105,20 +106,11 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
             {...{ [MARCA_DE_LA_BARRA]: "" }}
             className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white"
           >
-            {/* La casita SIEMPRE de primera y detrás el menú. `py-3` es el que
-                le da el alto a la barra (el mismo que antes con las migas).
-                `gap-2` es `HUECO_DE_LA_BARRA_PX`: el mismo hueco que deja el
-                selector después del menú, para que los tres vayan parejos. */}
-            <div ref={loDeLaIzquierda} data-inicio-de-la-barra className="flex shrink-0 items-center gap-2 py-3">
-              <Link
-                href="/"
-                data-casita
-                title="Inicio"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
-              >
-                <HomeIcon className="h-5 w-5" />
-                <span className="sr-only">Inicio</span>
-              </Link>
+            {/* El menú SIEMPRE de primero. `py-3` es el que le da el alto a la
+                barra: 28 px del menú más 12 arriba y abajo, los mismos 52 que
+                con la casita. `min-h-7` con `box-content` los guarda también
+                en el editor de flujos, que no pinta el menú. */}
+            <div ref={loDeLaIzquierda} data-inicio-de-la-barra className="box-content flex min-h-7 shrink-0 items-center py-3">
               {!isFlow && <SidebarTrigger />}
             </div>
 

@@ -10,10 +10,17 @@ import { createRoot } from "react-dom/client";
 import { Breadcrumbs } from "@/components/custom/Breadcrumbs";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useModuleStore } from "@/stores/modules/useModuleStore";
+import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
+import { useCorreosSinLeerStore } from "@/stores/useCorreosSinLeerStore";
 
 const w = window as any;
 
 w.maquetaBarra = (ruta: string, rutas: string[]) => {
+    // Los sin leer de cada bandeja (el de ANTES no los lee: no pasa nada).
+    // `pedidoEn` reciente: el store no le pregunta a la acción muda.
+    const sinLeer = w.__sinLeer ?? { chats: null, correo: null };
+    useChatUnreadStore.setState({ sinLeer: sinLeer.chats });
+    useCorreosSinLeerStore.setState({ sinLeer: sinLeer.correo, pedidoEn: Date.now() });
     useModuleStore.setState({
         modules: [{ id: "m1", label: "Bandeja", route: "/bandeja", moduleItems: rutas.map((r, i) => ({ id: `i${i}`, url: r })) }] as any,
     });

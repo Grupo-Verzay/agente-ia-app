@@ -11,14 +11,19 @@ import {
     HUECO_DE_LA_BARRA_PX,
     laBandejaActiva,
     seVeLaBarritaDeBandejas,
+    type SinLeerDeLasBandejas,
 } from "@/lib/alternar-bandejas";
+import { CLASE_DEL_CONTADOR, elTextoDelContador } from "@/lib/pendientes-del-menu";
+import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
+import { useCorreosSinLeerStore } from "@/stores/useCorreosSinLeerStore";
+import { CADA_CUANTO_SE_CUENTA_EL_CORREO_MS } from "@/hooks/usePendientesDelMenu";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import { cn } from "@/lib/utils";
 
 const ICONO = { chats: MessageCircle, correo: Mail } as const;
 
 /** Hueco entre el selector y lo que tiene a cada lado: el MISMO que hay
- *  entre la casita y el menú (`gap-2` en la barra). */
+ *  entre los botones de la derecha (`gap-2` en la barra). */
 const HUECO_PX = HUECO_DE_LA_BARRA_PX;
 
 /**
@@ -32,17 +37,45 @@ const HUECO_PX = HUECO_DE_LA_BARRA_PX;
  * izquierdo del contenido—. Así sale en el mismo píxel en todas las pantallas.
  * Dónde exactamente, cuánto mide y si cabe con sus palabras o solo con los
  * iconos, lo decide `dondeVaElSelector`, que es pura: arranca a un hueco del
- * menú —el mismo que hay entre la casita y el menú— y se estira hasta que su
- * centro cae en el de la columna. Mide lo que los botones de la derecha
+ * menú —el mismo que hay entre los botones de la derecha— y se estira hasta
+ * que su centro cae en el de la columna. Mide lo que los botones de la derecha
  * (`h-9`), no menos.
  *
- * Es `absolute` dentro de la barra (que es `relative`): así no empuja nada y la
- * casita y el menú no se mueven.
+ * Cada pestaña lleva sus SIN LEER, con el mismo número y la misma forma que el
+ * menú lateral: Chats de la bandeja (`useChatsQueEsperan`) y Correos del store
+ * compartido con el menú, así la pregunta al proveedor sale una vez.
+ *
+ * Es `absolute` dentro de la barra (que es `relative`): así no empuja nada y el
+ * menú no se mueve.
  */
 export function useSeVeLaBarritaDeBandejas(): boolean {
     const modules = useModuleStore((s) => s.modules);
     const rutas = modules.flatMap((m) => [m.route, ...(m.moduleItems ?? []).map((i) => i.url)]);
     return seVeLaBarritaDeBandejas(rutas);
+}
+
+/**
+ * Los sin leer de las dos. Correos se pide aquí también —en un teléfono el menú
+ * lateral no está montado mientras está cerrado—, pero al store compartido:
+ * si el menú ya preguntó hace poco, no se vuelve a preguntar.
+ */
+function useSinLeerDeLasBandejas(activo: boolean): SinLeerDeLasBandejas {
+    const chats = useChatsQueEsperan();
+    const correo = useCorreosSinLeerStore((s) => s.sinLeer);
+    const pedir = useCorreosSinLeerStore((s) => s.pedirSiHaceFalta);
+    useEffect(() => {
+        if (!activo) return;
+        const edad = CADA_CUANTO_SE_CUENTA_EL_CORREO_MS / 2;
+        void pedir(edad);
+        const reloj = setInterval(() => { if (!document.hidden) void pedir(edad); }, CADA_CUANTO_SE_CUENTA_EL_CORREO_MS);
+        const alVolver = () => { if (!document.hidden) void pedir(edad); };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            clearInterval(reloj);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, [activo, pedir]);
+    return { chats, correo };
 }
 
 /** La columna visible de la lista, o `null` si en esta pantalla no hay. */
@@ -66,6 +99,7 @@ export function AlternarBandeja({
     const pathname = usePathname();
     const seVe = useSeVeLaBarritaDeBandejas();
     const activa = laBandejaActiva(pathname);
+    const sinLeer = useSinLeerDeLasBandejas(seVe);
     const sonda = useRef<HTMLDivElement>(null);
     const [sitio, setSitio] = useState<{ izquierda: number; ancho: number; compacto: boolean } | null>(null);
 
@@ -145,15 +179,16 @@ export function AlternarBandeja({
                 {BANDEJAS.map((b) => {
                     const Icono = ICONO[b.clave];
                     const esLaActiva = activa === b.clave;
+                    const numero = elTextoDelContador(b.ruta, sinLeer);
                     return (
                         <Link
                             key={b.clave}
                             href={b.ruta}
                             data-bandeja={b.clave}
                             aria-current={esLaActiva ? "page" : undefined}
-                            title={b.nombre}
+                            title={numero ? `${b.nombre} · ${numero} sin leer` : b.nombre}
                             className={cn(
-                                "flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-[5px] px-1.5 text-sm transition-colors",
+                                "relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-[5px] px-1.5 text-sm transition-colors",
                                 esLaActiva
                                     ? "bg-background font-semibold text-primary shadow-sm"
                                     : "font-medium text-muted-foreground hover:text-foreground",
@@ -161,6 +196,17 @@ export function AlternarBandeja({
                         >
                             <Icono className="h-4 w-4 shrink-0" />
                             {!compacto && <span className="whitespace-nowrap">{b.nombre}</span>}
+                            {/* Con sus palabras, el número va detrás; solo con
+                                el icono, en su esquina, para no ensanchar la
+                                pestaña en un teléfono. */}
+                            {numero && (
+                                <span
+                                    data-sin-leer={b.clave}
+                                    className={cn(CLASE_DEL_CONTADOR, compacto ? "absolute right-0 top-0" : "ml-0.5")}
+                                >
+                                    {numero}
+                                </span>
+                            )}
                         </Link>
                     );
                 })}
