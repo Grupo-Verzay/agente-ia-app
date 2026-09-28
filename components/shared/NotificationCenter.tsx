@@ -10,8 +10,11 @@ import {
   CalendarDays,
   CheckCheck,
   CheckCircle2,
+  Coins,
   FileText,
+  Mail,
   MessageCircle,
+  UserCheck,
   ListChecks,
   ClipboardCheck,
   PlugZap,
@@ -38,7 +41,8 @@ import {
   markCollabNotificationReadAction,
 } from "@/actions/collab-actions";
 import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
-import { CHIPS_DE_LA_CAMPANA, lasQueSeMarcan } from "@/lib/campana";
+import { correosSinLeerAction } from "@/actions/correo-actions";
+import { CHIPS_DE_LA_CAMPANA, CHIPS_POR_FILA, elAvisoDeCorreos, lasQueSeMarcan, losConteos } from "@/lib/campana";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import { cn } from "@/lib/utils";
@@ -126,6 +130,27 @@ const KIND_META: Record<
     filterClass: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
     activeClass: "border-violet-400 bg-violet-100 text-violet-800",
   },
+  correo: {
+    label: "Correos",
+    Icon: Mail,
+    color: "text-sky-600",
+    filterClass: "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
+    activeClass: "border-sky-400 bg-sky-100 text-sky-800",
+  },
+  asignacion: {
+    label: "Asignaciones",
+    Icon: UserCheck,
+    color: "text-teal-600",
+    filterClass: "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100",
+    activeClass: "border-teal-400 bg-teal-100 text-teal-800",
+  },
+  creditos: {
+    label: "Créditos bajos",
+    Icon: Coins,
+    color: "text-orange-600",
+    filterClass: "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100",
+    activeClass: "border-orange-400 bg-orange-100 text-orange-800",
+  },
 };
 
 /**
@@ -139,9 +164,21 @@ const FILTER_ORDER = CHIPS_DE_LA_CAMPANA as NotificationKind[];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
-  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 },
+  counts: losConteos([]),
   items: [],
 };
+
+/**
+ * Pone el aviso de correos en la lista —quitando el anterior— sin tocar lo
+ * demás. Llega por su propio camino (pregunta a los buzones) y no puede pisar
+ * lo que trajo la carga del servidor, ni al revés.
+ */
+function conElCorreo(prev: NotificationCenterData, sinLeer: number | null): NotificationCenterData {
+  const aviso = elAvisoDeCorreos(sinLeer);
+  const otros = prev.items.filter((i) => i.kind !== "correo");
+  const items = aviso && !loadDismissed().has(aviso.id) ? [aviso, ...otros] : otros;
+  return { items, counts: losConteos(items), total: items.length };
+}
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -166,17 +203,32 @@ export function NotificationCenter() {
   // bajo que ella y con el hueco de siempre el panel se le montaba encima.
   const panel = usePanelFlotante("barraDeArriba", "menu");
 
+  // Los correos sin leer: el número del proveedor, como en el menú lateral.
+  // `null` es «algún buzón no contestó», y no se pinta como cero.
+  const [correoSinLeer, setCorreoSinLeer] = useState<number | null>(0);
+
   const load = useCallback(() => {
     startTransition(async () => {
       const res = await getNotificationCenterData();
       if (res.success) {
         const dismissed = loadDismissed();
-        const items = res.data.items.filter((i) => !dismissed.has(i.id));
-        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 } as Record<NotificationKind, number>;
-        for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
-        setData({ items, counts, total: items.length });
+        setData((prev) => {
+          // El aviso de correos llega por su camino: se conserva el que haya.
+          const correos = prev.items.filter((i) => i.kind === "correo");
+          const items = [...correos, ...res.data.items.filter((i) => !dismissed.has(i.id))];
+          return { items, counts: losConteos(items), total: items.length };
+        });
       }
     });
+    // Aparte y sin esperar: pregunta a Gmail, Outlook o IMAP, y un buzón lento
+    // no puede retener los chats ni las citas.
+    void correosSinLeerAction()
+      .then((res) => {
+        if (!res.success) return;
+        setCorreoSinLeer(res.sinLeer);
+        setData((prev) => conElCorreo(prev, res.sinLeer));
+      })
+      .catch((error) => console.warn("[campana] no se pudieron contar los correos sin leer", error));
   }, []);
 
   useEffect(() => {
@@ -214,11 +266,7 @@ export function NotificationCenter() {
       setData((prev) => {
         const others = prev.items.filter((i) => i.kind !== "mention");
         const items = [...fresh, ...others];
-        return {
-          items,
-          counts: { ...prev.counts, mention: fresh.length },
-          total: items.length,
-        };
+        return { items, counts: losConteos(items), total: items.length };
       });
     };
     void poll();
@@ -295,16 +343,14 @@ export function NotificationCenter() {
     }
     setData((prev) => {
       const items = prev.items.filter((i) => !idsQueSeVan.has(i.id));
-      const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0, tarea: 0 } as Record<NotificationKind, number>;
-      for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
-      return { items, counts, total: items.length };
+      return { items, counts: losConteos(items), total: items.length };
     });
   }, [marcables]);
 
   // Conteo de chats viene del mismo store que el badge izquierdo del sidebar
   const effectiveCounts = useMemo(
-    () => ({ ...data.counts, chat: storeChatCount }),
-    [data.counts, storeChatCount],
+    () => ({ ...data.counts, chat: storeChatCount, correo: correoSinLeer ?? 0 }),
+    [data.counts, storeChatCount, correoSinLeer],
   );
   const badgeTotal = useMemo(
     () => Object.values(effectiveCounts).reduce((sum, n) => sum + n, 0),
@@ -351,7 +397,7 @@ export function NotificationCenter() {
           decide `usePanelFlotante`, igual que los paneles de Chats. */}
       <DropdownMenuContent
         {...panel.props}
-        className="flex w-[min(92vw,380px)] flex-col overflow-hidden p-0"
+        className="flex w-[min(96vw,420px)] flex-col overflow-hidden p-0"
       >
         <div className="flex shrink-0 items-center justify-between gap-1 px-3 py-2">
           <DropdownMenuLabel className="p-0 text-sm font-semibold">Notificaciones</DropdownMenuLabel>
@@ -391,35 +437,33 @@ export function NotificationCenter() {
         <DropdownMenuSeparator />
 
         {summary.length > 0 && (
-          <div className="grid shrink-0 grid-cols-6 gap-1 px-2 py-2">
-            {summary.map(([kind, count], index) => {
+          // Tres grupos de tres, en el orden de `CHIPS_DE_LA_CAMPANA`. Nueve son
+          // tres filas exactas: las nueve pastillas miden lo mismo.
+          <div
+            data-chips-de-la-campana
+            className="grid shrink-0 gap-1 px-1.5 py-2"
+            style={{ gridTemplateColumns: `repeat(${CHIPS_POR_FILA}, minmax(0, 1fr))` }}
+          >
+            {summary.map(([kind, count]) => {
               const meta = KIND_META[kind];
-              // Tres por fila (`col-span-2` sobre seis columnas). Lo que sobra
-              // se reparte la última fila entera en vez de quedarse pegado a la
-              // izquierda con un hueco al lado.
-              //
-              // Estaba escrito solo para el caso de cinco. Al entrar el séptimo
-              // chip esa condición dejó de aplicar y el último salía suelto, que
-              // es justo lo que aquel arreglo evitaba. Ahora sale de la cuenta:
-              // sobra uno → ancho completo; sobran dos → a medias.
-              const sobran = summary.length % 3;
-              const enLaUltimaFila = sobran !== 0 && index >= summary.length - sobran;
-              const anchoDelResto = sobran === 1 ? "col-span-6" : "col-span-3";
+              // Los correos: `null` es «algún buzón no contestó», y eso no es 0.
+              const numero = kind === "correo" && correoSinLeer === null ? "—" : count > 99 ? "99+" : count;
               return (
                 <button
                   key={kind}
                   type="button"
+                  data-chip={kind}
+                  title={meta.label}
                   onClick={() => setActiveKind(kind)}
                   className={cn(
-                    "col-span-2 flex min-w-0 items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-left transition-colors",
-                    enLaUltimaFila && anchoDelResto,
+                    "flex min-w-0 items-center justify-between gap-0.5 rounded-md border px-1 py-1 text-left transition-colors",
                     meta.filterClass,
                     activeKind === kind && meta.activeClass,
                   )}
                 >
-                  <span className="min-w-0 truncate text-[11px]">{meta.label}</span>
-                  <Badge variant="outline" className="h-4 min-w-4 shrink-0 rounded border-current bg-white/70 px-1 text-[9px] text-current">
-                    {count}
+                  <span data-rotulo className="min-w-0 truncate text-[11px]">{meta.label}</span>
+                  <Badge variant="outline" className="h-4 min-w-4 shrink-0 justify-center rounded border-current bg-white/70 px-0.5 text-[9px] text-current">
+                    {numero}
                   </Badge>
                 </button>
               );
