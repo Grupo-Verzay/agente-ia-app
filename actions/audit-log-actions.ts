@@ -15,7 +15,8 @@ export type AuditAction =
   | "completed"
   | "cancelled"
   | "archived"
-  | "restored";
+  | "restored"
+  | "rescheduled";
 
 type AuditMetadata = Record<string, unknown>;
 

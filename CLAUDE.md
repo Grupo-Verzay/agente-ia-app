@@ -21244,6 +21244,51 @@ Dos cosas del propio banco que costaron su vuelta:
    está en `display:none`. Es el mismo error que ya costó una vuelta midiendo
    Macros.
 
+## Agenda: «Reagendar» mueve la MISMA cita y rehace sus recordatorios
+
+Faltaba cómo mover una cita a otra fecha y hora. Lo único parecido era el lápiz
+de la ficha del CRM, que cambiaba la hora **y dejaba vivos los recordatorios de
+la hora vieja**: al cliente le llegaba «en 3 horas es tu cita» a la hora que ya
+no era.
+
+> **Reagendar es una ACCIÓN, no un estado.** Los estados son un enum de
+> `Appointment`, que es del backend (#360), y reagendar no es «en qué punto
+> está» sino moverla. Sale al lado de los estados en los **cuatro** sitios donde
+> se cambian —el calendario de Agenda y la cabecera del chat (una opción más del
+> desplegable, `OPCION_REAGENDAR`), la tarjeta del tablero y la ficha del CRM—,
+> y los cuatro abren el MISMO `DialogoDeReagendar`, con el MISMO
+> `SelectorDeFechaYHora` que agendar (se sacó de `ChatCreateAppointmentSheet`).
+
+Lo decide `lib/reagendar-cita.ts` (puro); guarda `reagendarCitaAction`; los
+recordatorios los rehace `reprogramarLosRecordatoriosDeLaCita`
+(`lib/reagendar-cita.server.ts`). Seis cosas que hay que mantener:
+
+1. **La misma fila**: se escriben `startTime`/`endTime` en la cita que existe,
+   con su auditoría (`rescheduled`, antes y después). Nada de cancelar y crear
+   otra: se perderían su historial y su evento de Calendar.
+2. **Conserva la duración**, y los huecos son los de la **cuenta dueña** de la
+   cita (`datosParaReagendarAction`), no los de quien mira.
+3. **La misma comprobación de solape que al agendar**, con su candado, **sin
+   contarse a sí misma**: correrla media hora no choca con su propio hueco.
+4. **Pendiente y Confirmada se quedan; cualquier otro estado vuelve a
+   Pendiente** (`elEstadoAlReagendar`): reagendar una cancelada o una no
+   asistida es volver a ponerla en marcha.
+5. **Los recordatorios se borran y se crean en UNA transacción**, y solo los de
+   CITA —`appt-reminder-*`, los de `idNodo` vacío de la página pública y los
+   antiguos `reminder-*` de agenda—: un flujo o la confirmación no se tocan. El
+   número se busca en todas sus formas (la ruta del agente lo guarda en
+   dígitos). Salen las plantillas de Agenda › Recordatorios de la cuenta
+   (`isSchedule`, sin campañas, con `isCampaign` nulo incluido), **solo las que
+   todavía no han pasado**, con el `idNodo` `appt-reminder-{plantilla}`.
+6. **Editar la hora por el lápiz del CRM rehace los recordatorios igual**
+   (`updateAppointmentDetails` llama a la misma función): dos caminos que mueven
+   una cita, una sola reprogramación.
+
+Lo prueba `scripts/banco-reagendar-cita.sh`: la regla y un barrido de los
+cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
+`ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
+recordatorios viejos.
+
 ## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
 
 Dos fallos de la misma cabecera, reportados juntos: el botón de la **etapa del

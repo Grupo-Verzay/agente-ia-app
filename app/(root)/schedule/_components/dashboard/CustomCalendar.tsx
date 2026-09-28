@@ -55,6 +55,7 @@ import {
     SelectValue,
     SelectContent,
     SelectItem,
+    SelectSeparator,
 } from "@/components/ui/select";
 import { ScheduleInterface } from "@/schema/schema";
 import { XCircleIcon, Phone } from 'lucide-react';
@@ -63,6 +64,8 @@ import { InsigniaDeLinea } from "@/components/shared/InsigniaDeLinea";
 import { esCitaDeOtraCuenta, laInsigniaDeLaFila } from "@/lib/agenda-de-la-familia";
 import { STATUS_LABELS } from "@/types/schedule";
 import { fmtPhone } from "@/lib/whatsapp-jid";
+import { DialogoDeReagendar } from "@/components/shared/DialogoDeReagendar";
+import { OPCION_REAGENDAR, ROTULO_REAGENDAR, esLaOpcionDeReagendar } from "@/lib/reagendar-cita";
 
 
 const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
@@ -204,6 +207,7 @@ export const CustomCalendar = ({
     const [newStatus, setNewStatus] = useState<AppointmentStatus>("CONFIRMADA");
     const [openCancelAlert, setOpenCancelAlert] = useState(false);
     const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+    const [citaAReagendar, setCitaAReagendar] = useState<string | null>(null);
 
     const [agendaMode, setAgendaMode] = useState(true);
     const [agendaDate, setAgendaDate] = useState(() => startOfDay(new Date()));
@@ -518,7 +522,17 @@ export const CustomCalendar = ({
                                 <CardContent>
                                     <Select
                                         value={newStatus}
-                                        onValueChange={(val) => setNewStatus(val as AppointmentStatus)}
+                                        onValueChange={(val) => {
+                                            // «Reagendar» no es un estado: abre el selector
+                                            // de fecha y hora sobre esta misma cita.
+                                            if (esLaOpcionDeReagendar(val)) {
+                                                if (!selectedEventId) return;
+                                                setCitaAReagendar(selectedEventId);
+                                                setOpenDialog(false);
+                                                return;
+                                            }
+                                            setNewStatus(val as AppointmentStatus);
+                                        }}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Seleccionar estado" />
@@ -531,6 +545,8 @@ export const CustomCalendar = ({
                                             <SelectItem value="CANCELADA">Cancelada</SelectItem>
                                             <SelectItem value="FINALIZADO">Finalizado</SelectItem>
                                             <SelectItem value="DESCARTADO">Descartado</SelectItem>
+                                            <SelectSeparator />
+                                            <SelectItem value={OPCION_REAGENDAR} data-opcion-reagendar="">{ROTULO_REAGENDAR}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </CardContent>
@@ -632,6 +648,13 @@ export const CustomCalendar = ({
                     </Tabs>
                 </AlertDialogContent>
             </AlertDialog >
+
+            <DialogoDeReagendar
+                citaId={citaAReagendar}
+                open={citaAReagendar !== null}
+                onOpenChange={(abierto) => { if (!abierto) setCitaAReagendar(null); }}
+                alReagendar={() => { void loadAppointments(); }}
+            />
 
             <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
                 <AlertDialogContent className="border-border">

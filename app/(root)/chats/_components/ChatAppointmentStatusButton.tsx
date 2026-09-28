@@ -11,6 +11,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -35,6 +36,8 @@ import {
   type SessionAppointmentCard,
 } from '@/actions/appointments-actions';
 import { STATUS_LABELS } from '@/types/schedule';
+import { DialogoDeReagendar } from '@/components/shared/DialogoDeReagendar';
+import { OPCION_REAGENDAR, ROTULO_REAGENDAR, esLaOpcionDeReagendar } from '@/lib/reagendar-cita';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { ENCIMA_DE_SU_PANEL, PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
@@ -71,6 +74,7 @@ export function ChatAppointmentStatusButton({
   const [saving, setSaving] = useState(false);
   const [appointment, setAppointment] = useState<SessionAppointmentCard | null | undefined>(undefined);
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState(false);
+  const [reagendando, setReagendando] = useState(false);
 
   const loadAppointment = useCallback(async () => {
     if (appointment !== undefined) return;
@@ -107,12 +111,19 @@ export function ChatAppointmentStatusButton({
     }
   };
 
-  const handleStatusChange = (newStatus: AppointmentStatus) => {
+  const handleStatusChange = (newStatus: AppointmentStatus | string) => {
+    // «Reagendar» no es un estado: abre el selector de fecha y hora sobre
+    // esta misma cita. El menú se cierra para que el diálogo no quede debajo.
+    if (esLaOpcionDeReagendar(newStatus)) {
+      setOpen(false);
+      setReagendando(true);
+      return;
+    }
     if (newStatus === 'CANCELADA') {
       setPendingCancelConfirm(true);
       return;
     }
-    void applyStatusChange(newStatus);
+    void applyStatusChange(newStatus as AppointmentStatus);
   };
 
   return (
@@ -194,7 +205,7 @@ export function ChatAppointmentStatusButton({
 
               <Select
                 value={appointment.status}
-                onValueChange={(v) => handleStatusChange(v as AppointmentStatus)}
+                onValueChange={(v) => handleStatusChange(v)}
                 disabled={saving}
               >
                 <SelectTrigger className="h-8 text-xs">
@@ -209,6 +220,10 @@ export function ChatAppointmentStatusButton({
                       {STATUS_LABELS[s]}
                     </SelectItem>
                   ))}
+                  <SelectSeparator />
+                  <SelectItem value={OPCION_REAGENDAR} className="text-xs" data-opcion-reagendar="">
+                    {ROTULO_REAGENDAR}
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
@@ -232,6 +247,21 @@ export function ChatAppointmentStatusButton({
           )}
         </PopoverContent>
       </Popover>
+
+      <DialogoDeReagendar
+        citaId={reagendando ? appointment?.id ?? null : null}
+        open={reagendando && !!appointment}
+        onOpenChange={setReagendando}
+        alReagendar={(cita) => {
+          if (!appointment) return;
+          setAppointment({
+            ...appointment,
+            startTime: cita.startTime,
+            endTime: cita.endTime,
+            status: cita.status as AppointmentStatus,
+          });
+        }}
+      />
 
       <AlertDialog open={pendingCancelConfirm} onOpenChange={setPendingCancelConfirm}>
         <AlertDialogContent className="border-border">
