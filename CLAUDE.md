@@ -14591,6 +14591,44 @@ La última fila es la que importa: **plegar esconde la rejilla, no la desmonta**
 Desmontarla se llevaría por delante los `<video>` y con ellos el audio de los
 demás — plegar dejaría de ser plegar y pasaría a ser salirse.
 
+## La X de un diálogo va a 16 px del BORDE, con el relleno medido
+
+En el visor de adjuntos de Chats (un PDF, un documento) la X de cerrar salía
+montada sobre la esquina superior derecha, medio afuera. No era del visor: la X
+de `DialogContent` iba con `-right-2 -top-2` dentro de la caja de contenido,
+pensado para el `p-6` de siempre (24 − 8 = 16 px del borde). En un diálogo
+`p-0` —el visor, el simulador, Nuevo mensaje, Macros, el exportador del CRM…—
+el mismo `-8px` la dejaba **8 px por fuera**; en uno `px-0`, fuera por la
+derecha.
+
+> **`DialogContent` mide su relleno y su hueco entre filas** (`--dialogo-pt`,
+> `--dialogo-pr`, `--dialogo-gap`, con `getComputedStyle`, al montar, al cambiar
+> la clase y al redimensionar) y la X se coloca a `16px − relleno`
+> (`lib/cerrar-del-dialogo.ts`): queda a **16 px del borde por arriba y por la
+> derecha** tenga el relleno que tenga. En `p-6` no cambia ni un píxel.
+
+Cuatro cosas que hay que mantener:
+
+1. **La caja pegajosa va con `top-0`**, no con `top: relleno`: en un `sticky` el
+   `top` se cuenta desde el borde del relleno del contenedor que desplaza (la
+   vista pegajosa descuenta el relleno). Con `top: relleno` bajaba el doble.
+2. **Lo que la caja abre se devuelve con el hueco MEDIDO**, no con un `-mt-4`
+   fijo: en un `p-0 gap-0` no hay hueco y el `-16px` metía el cuerpo por debajo
+   de la cabecera. Y también cuando lo siguiente es un título `sr-only`, que va
+   fuera del flujo.
+3. **Una pantalla puede centrar la X en su barra** con `--cerrar-arriba`; la
+   distancia lateral no se toca. El visor lo hace (1.375rem) y va con `gap-0`:
+   la X queda centrada con Descargar y con el mismo hueco a él que al borde.
+4. **Nadie reubica la X a mano**: se esconde con `hideCloseButton` o se tiñe con
+   `[&>[data-cerrar]>button]:…`. Sheet no tenía el fallo (`right-4 top-4`
+   contra su propia caja).
+
+Lo prueba `scripts/banco-cerrar-del-dialogo.sh`: la regla y, en Chromium sobre
+el CSS de la App, el visor real (PDF y documento), un diálogo `p-6`, uno `px-0`,
+uno `p-0 gap-0` y uno que desplaza, a 1440/1280/1024/390. `MODO=roto` pinta el
+mismo arnés con el código de un commit pinchado y afirma la X por fuera y el
+cuerpo tapado.
+
 ## Un diálogo tiene UNA altura, y el aire se resta en `rem`
 
 Los modales crecían hasta pegarse a los bordes de la ventana y ninguno se

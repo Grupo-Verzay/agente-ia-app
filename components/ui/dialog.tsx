@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { comoPixeles } from "@/lib/cerrar-del-dialogo"
 
 const Dialog = DialogPrimitive.Root
 
@@ -56,16 +57,66 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 export const ALTO_DEL_DIALOGO =
   "max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-4rem)]"
 
+/**
+ * Mide el relleno de arriba y de la derecha del dialogo y lo deja en dos
+ * variables (`--dialogo-pt`, `--dialogo-pr`) de las que tira la X para quedar
+ * siempre a la misma distancia del BORDE (`lib/cerrar-del-dialogo.ts`).
+ *
+ * Se mide y no se deduce de la clase: el relleno lo pone cada pantalla
+ * (`p-0`, `px-0`, `p-4 sm:p-6`…) y cambia con el ancho de la ventana. Se
+ * vuelve a medir cuando cambia la clase —el visor de Chats pasa de tarjeta a
+ * visor sin desmontarse— y al redimensionar.
+ */
+function useRellenoDelDialogo(className: string | undefined) {
+  const nodo = React.useRef<HTMLDivElement | null>(null)
+  const medir = React.useCallback(() => {
+    const el = nodo.current
+    if (!el || typeof window === "undefined") return
+    const estilo = window.getComputedStyle(el)
+    el.style.setProperty("--dialogo-pt", `${comoPixeles(estilo.paddingTop)}px`)
+    el.style.setProperty("--dialogo-pr", `${comoPixeles(estilo.paddingRight)}px`)
+    // El hueco entre filas que la caja de la X abre y que su hermano de abajo
+    // devuelve. Con `gap-0` no hay hueco que devolver: un `-mt-4` fijo subia la
+    // cabecera 16px y la cortaba contra el borde (Nuevo mensaje, el simulador).
+    el.style.setProperty("--dialogo-gap", `${comoPixeles(estilo.rowGap)}px`)
+  }, [])
+  const alMontar = React.useCallback(
+    (el: HTMLDivElement | null) => {
+      nodo.current = el
+      medir()
+    },
+    [medir]
+  )
+  React.useLayoutEffect(() => {
+    medir()
+  }, [className, medir])
+  React.useEffect(() => {
+    window.addEventListener("resize", medir)
+    return () => window.removeEventListener("resize", medir)
+  }, [medir])
+  return alMontar
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideCloseButton?: boolean }
->(({ className, children, hideCloseButton, ...props }, ref) => (
+>(({ className, children, hideCloseButton, ...props }, ref) => {
+  const alMontar = useRellenoDelDialogo(className)
+  const refs = React.useCallback(
+    (el: HTMLDivElement | null) => {
+      alMontar(el)
+      if (typeof ref === "function") ref(el)
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el
+    },
+    [alMontar, ref]
+  )
+  return (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
-      ref={ref}
+      ref={refs}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg [&>[data-cerrar]+*]:-mt-4 translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg [&>[data-cerrar]+*]:mt-[calc(-1*var(--dialogo-gap,1rem))] [&>[data-cerrar]+.sr-only+*]:mt-[calc(-1*var(--dialogo-gap,1rem))] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
         ALTO_DEL_DIALOGO,
         className
       )}
@@ -81,11 +132,21 @@ const DialogContent = React.forwardRef<
           `gap` entre pistas y el margen negativo de una pista de alto cero
           no lo descuenta. Medido: el titulo bajaba 16px y el dialogo crecia
           otros 16, en TODA la plataforma. El `-mt-4` va en el hermano
-          siguiente (`[&>[data-cerrar]+*]:-mt-4`, en la clase del dialogo),
+          siguiente (`[&>[data-cerrar]+*]:mt-[...]`, en la clase del dialogo, con el hueco MEDIDO: `--dialogo-gap`),
           que si tiene alto y si encoge su pista. */}
+      {/* Y su sitio se calcula con el relleno MEDIDO: queda a 16px del borde
+          por arriba y por la derecha tenga el dialogo `p-6` o `p-0`. Con el
+          `-right-2 -top-2` de antes, un dialogo sin relleno (el visor de
+          documentos de Chats) la dejaba medio afuera. La caja se pega con
+          `top-0`, que en un `sticky` se cuenta desde el borde del RELLENO del
+          dialogo (la vista pegajosa descuenta el relleno), asi que al
+          desplazar no se mueve ni un pixel. Ver `lib/cerrar-del-dialogo.ts`. */}
       {!hideCloseButton && (
-        <div data-cerrar className="sticky top-0 z-20 h-0">
-          <DialogPrimitive.Close className="absolute -right-2 -top-2 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+        <div
+          data-cerrar
+          className="sticky top-0 z-20 h-0 w-full"
+        >
+          <DialogPrimitive.Close className="absolute right-[calc(var(--cerrar-lado,1rem)_-_var(--dialogo-pr,1.5rem))] top-[calc(var(--cerrar-arriba,1rem)_-_var(--dialogo-pt,1.5rem))] rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -94,7 +155,8 @@ const DialogContent = React.forwardRef<
       {children}
     </DialogPrimitive.Content>
   </DialogPortal>
-))
+  )
+})
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 /**

@@ -114,15 +114,19 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
       <DialogContent
         className={
           isDocumentCard
-            ? 'max-w-[92vw] sm:max-w-sm p-0 flex flex-col overflow-hidden'
-            : 'max-w-[95vw] sm:max-w-[90vw] p-0 border-none flex flex-col overflow-hidden'
+            ? 'max-w-[92vw] sm:max-w-sm p-0 gap-0 flex flex-col overflow-hidden [--cerrar-arriba:1.375rem]'
+            : 'max-w-[95vw] sm:max-w-[90vw] p-0 gap-0 border-none flex flex-col overflow-hidden [--cerrar-arriba:1.375rem]'
         }
       >
         <DialogTitle className="sr-only">
           {rotulo || TYPE_LABELS[type] || 'Visor multimedia'}
         </DialogTitle>
 
-        {/* Top bar — pr-12 deja espacio para el botón X de DialogClose */}
+        {/* Top bar — pr-12 deja espacio para la X del dialogo: 16px de borde,
+            16 de X y 16 de hueco hasta Descargar. La X va a 16px del borde por
+            la derecha (`lib/cerrar-del-dialogo.ts`) y `--cerrar-arriba`
+            (1.375rem = 10 de py-2.5 + 20 de medio boton - 8 de media X) la
+            centra en esta barra. */}
         <div className="flex items-center gap-3 pl-4 pr-12 py-2.5 border-b border-border">
           <div className="flex-1 min-w-0">
             {rotulo ? (
