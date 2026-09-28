@@ -21655,7 +21655,8 @@ Cinco cosas que hay que mantener:
    una segunda fuente diría un día otra cosa.
 2. **Cada número es la pastilla de su pantalla, con la MISMA consulta.**
    Agenda y Multiagenda cuentan con `lib/citas-por-estado.server.ts`, que es
-   también lo que pintan sus pastillas: PENDIENTE de todas las fechas, y en
+   también lo que pintan sus pastillas: PENDIENTE **por atender** —su hora de
+   fin no ha pasado; una de ayer que nadie cambió de estado ya no cuenta—, y en
    Agenda con las cuentas del tablero abierto sin filtro (la propia y las que
    cuelgan de ella). Antes el menú contaba solo la cuenta propia y solo lo
    futuro: el tablero decía 4 y el menú nada. **Recordatorios cuenta lo que su
