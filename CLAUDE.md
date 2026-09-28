@@ -18766,6 +18766,19 @@ Cinco cosas que hay que mantener:
 5. **El PDF viaja en base64** (`formato: "pdf"`) y `descargarExportacion` lo
    baja con sus bytes tal cual: el BOM de texto delante lo rompería.
 
+6. **El contenido fluye seguido entre páginas** (`elCorteDeLaBurbuja`). Un
+   mensaje que no cabía al final de la hoja pasaba ENTERO a la siguiente, y
+   con uno de treinta líneas eso dejaba media página en blanco, como un salto
+   de página forzado. Ahora uno corto (menos de `LINEAS_PARA_PARTIR`, 7) sigue
+   pasando entero —el hueco es su propio alto—, y uno largo se parte por sus
+   LÍNEAS, nunca por el medio de una, con al menos 3 a cada lado y «continúa»
+   donde iría la hora. El separador de día va pegado a su mensaje, todas las
+   burbujas llevan el mismo pie y el mismo aire, y el «Página N de M» va a
+   `MARGEN` del borde, como el resto de la hoja. Lo prueba
+   `scripts/banco-pdf-sin-huecos.sh` leyendo el PDF con pdf.js: ningún hueco
+   al final de una hoja pasa del alto de un mensaje corto; `MODO=roto` corre
+   el generador de `8b1bdab` y afirma huecos de más de 300 pt.
+
 Lo prueba `scripts/banco-exportar-pdf.sh`: las reglas y el PDF leído con pdf.js
 (todos los tipos, lados, enlaces, imágenes, el `.txt` idéntico a `ANTES_REF`),
 el PDF renderizado en Chromium con el color de cada burbuja medido en píxeles y
