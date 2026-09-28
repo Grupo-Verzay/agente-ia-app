@@ -16,6 +16,7 @@ import {
 } from './google-calendar-actions';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
+import { lasCitasPorEstado } from '@/lib/citas-por-estado.server';
 import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
 
 /**
@@ -748,15 +749,8 @@ export async function getAppointmentStatusCounts(
         const cuentas = await lasCuentasDeLaAgenda(userId, cuentasPedidas);
         if (!cuentas) return { success: false, message: 'No autorizado.' };
 
-        const counts = await db.appointment.groupBy({
-            by: ['status'],
-            where: { userId: { in: cuentas } },
-            _count: { id: true },
-        });
-        return {
-            success: true,
-            data: counts.map((c) => ({ status: c.status, count: c._count.id })),
-        };
+        // La MISMA consulta que el numerito de Agenda en el menú.
+        return { success: true, data: await lasCitasPorEstado(cuentas) };
     } catch (error) {
         console.error('Error al obtener conteos de citas:', error);
         return { success: false, message: 'Error al obtener conteos.' };

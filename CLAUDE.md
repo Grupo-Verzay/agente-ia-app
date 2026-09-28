@@ -21641,10 +21641,10 @@ lo pintaba.
 | --- | --- | --- | --- |
 | Chats | `/chats` | sin leer | `useChatsQueEsperan` (la pastilla «Sin leer») |
 | Correos | `/correo` | sin leer en la entrada | `correosSinLeerAction`, el contador del proveedor |
-| Agenda | `/schedule` | citas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
-| Multiagenda | `/bookings` | reservas PENDIENTES que no han pasado | `pendientesDelMenuAction` |
+| Agenda | `/schedule` | la pastilla «Pendiente» del tablero, con todas sus cuentas | `pendientesDelMenuAction` |
+| Multiagenda | `/bookings` | la pastilla «Pendiente» de su tablero | `pendientesDelMenuAction` |
 | Mis tareas | `/tareas` | pendientes de hoy o vencidas | `useTaskStore` |
-| Recordatorios | `/reminders` | el grupo «Pendientes» de su pantalla | `pendientesDelMenuAction` |
+| Recordatorios | `/reminders` | el grupo «Pendientes» de lo que su LISTA enseña | `pendientesDelMenuAction` |
 
 **Ningún otro apartado lleva número**, y Llamadas tampoco: es un registro. Un
 número que no se atiende enseña a ignorar los que sí.
@@ -21653,11 +21653,17 @@ Cinco cosas que hay que mantener:
 
 1. **Chats y Mis tareas no se vuelven a pedir**: ya los tiene el navegador, y
    una segunda fuente diría un día otra cosa.
-2. **Agenda es la regla de la campanita** (`esCitaPendiente`: PENDIENTE y sin
-   pasar) y **Recordatorios la de su pantalla** (`elGrupoDelRecordatorio`, que
-   `MainReminders` importa de ahí): el número del menú es el que se ve al
-   entrar. Y viaja el desfase horario del navegador: sin él, un recordatorio
-   de mañana por la noche caería en otro grupo en el servidor.
+2. **Cada número es la pastilla de su pantalla, con la MISMA consulta.**
+   Agenda y Multiagenda cuentan con `lib/citas-por-estado.server.ts`, que es
+   también lo que pintan sus pastillas: PENDIENTE de todas las fechas, y en
+   Agenda con las cuentas del tablero abierto sin filtro (la propia y las que
+   cuelgan de ella). Antes el menú contaba solo la cuenta propia y solo lo
+   futuro: el tablero decía 4 y el menú nada. **Recordatorios cuenta lo que su
+   LISTA enseña** (`seVeEnLaListaDeRecordatorios`): las plantillas de la Agenda
+   (`isSchedule`, hora `minutes-30`) no salen en la lista y antes caían en
+   «Pendientes» y «Vencidos» del menú y de las pastillas con la lista vacía.
+   Y viaja el desfase horario del navegador: sin él, un recordatorio de mañana
+   por la noche caería en otro grupo en el servidor.
 3. **Correos suma el contador de cada buzón SOLO si se saben todos**
    (`losNumerosDeLasBandejas`, la regla del selector de bandejas): con uno que
    no contesta, sin número; nunca una suma más baja. Va en su propia acción y

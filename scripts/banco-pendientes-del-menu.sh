@@ -11,7 +11,9 @@
 #
 # `MODO=roto` lee el menú de `ANTES_REF` —pinchado a un commit, nunca a
 # `origin/main`— y AFIRMA el fallo: dentro de un desplegable ningún apartado
-# llevaba número, y solo Chats y Mis tareas sueltos, escritos a mano.
+# llevaba número, y solo Chats y Mis tareas sueltos, escritos a mano. Y corre
+# las consultas de antes sobre las mismas filas: la Agenda sin número con 4
+# pendientes en su tablero, y un 1 en Recordatorios con la lista vacía.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,7 +29,7 @@ mkdir -p "$OUT"
 npx esbuild lib/pendientes-del-menu.ts --bundle --platform=node --format=esm --outdir=$OUT --log-level=error
 
 TESTS="lib/__tests__/pendientes-del-menu.test.mjs"
-if [ "$MODO" != "roto" ]; then
+if true; then
   PGDIR=/tmp/pgpendientesmenu
   PORT=55619
   if [ ! -d "$PGDIR" ]; then
@@ -48,7 +50,10 @@ if [ "$MODO" != "roto" ]; then
     --external:@prisma/client --external:server-only \
     --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts \
     --alias:next/cache=./lib/__tests__/fingido/next-cache.ts \
+    --alias:react=./lib/__tests__/fingido/react-cache.ts \
+    --banner:js="import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" \
     --log-level=error
+  sed -i '/server-only/d' $OUT/entrada-de-pendientes-del-menu.js
   TESTS="$TESTS lib/__tests__/pendientes-del-menu-db.test.mjs"
 fi
-node --test $TESTS
+node --test --test-concurrency=1 $TESTS
