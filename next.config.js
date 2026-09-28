@@ -116,6 +116,18 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // La página pública de una propuesta comercial (/propuesta/<token>).
+        // Además del `robots` de su metadata va en la CABECERA: un buscador que
+        // no lea el HTML —o un PDF, o una vista previa— también la ve. Y sin
+        // `Referer`: el token es la única puerta, y no tiene que viajar a
+        // ningún sitio al que se salga desde ahí.
+        source: "/propuesta/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
     ];
   },
 };
