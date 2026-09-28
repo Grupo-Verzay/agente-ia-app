@@ -2311,7 +2311,8 @@ Cuatro cosas que hay que mantener:
    asigna con la cuenta de cada conversación. Mezclando líneas no hay ninguna
    etiqueta que valga para todas.
 4. **El filtro de la lista**, con una línea elegida en Canales, ofrece las de su
-   cuenta; sin línea, todas.
+   cuenta; sin línea y con varias cuentas, primero se elige la cuenta (ver *el
+   panel de filtros ofrece etiquetas y embudos de UNA cuenta*). Nunca todas.
 
 Dos líneas de la **misma** cuenta comparten etiquetas: `Tag` no tiene columna de
 línea, y añadírsela es otro frente (la tabla la toca el backend, ver el #360).
@@ -2319,6 +2320,44 @@ línea, y añadírsela es otro frente (la tabla la toca el backend, ver el #360)
 Lo prueba `scripts/banco-etiquetas-de-la-linea.sh`, contra Postgres y con las
 acciones de verdad, en dos modos: el roto corre el camino viejo y afirma que la
 conversación de Atención ofrecía las de la madre y el servidor las rechazaba.
+
+## Chats: el panel de filtros ofrece etiquetas y embudos de UNA cuenta
+
+El embudo del panel de la columna tenía rango de fechas y etiquetas, y sin una
+línea elegida en «Canales» las etiquetas salían de TODAS las cuentas de la
+bandeja mezcladas —dos «Interesado», de Ventas y de Atención, sin forma de
+saber cuál era cuál—. Y no había filtro de embudos.
+
+> **Etiquetas y Embudos son dos secciones del mismo panel y leen la MISMA
+> cuenta** (`laCuentaDelFiltro`, `lib/filtro-de-chats-por-cuenta.ts`, puro): la
+> de la línea elegida en «Canales»; si no, con una sola cuenta en la bandeja,
+> esa; y con varias, **se elige primero la cuenta** y solo entonces salen sus
+> etiquetas y sus embudos. Nunca mezcladas.
+
+Cinco cosas que hay que mantener:
+
+1. **Las cuentas salen de las líneas de la bandeja** (`lasCuentasDeLasLineas`,
+   la propia delante), no de una consulta: una cuenta sin líneas no tiene
+   chats que filtrar.
+2. **Con varios embudos se elige el embudo y luego la etapa**; con uno, sus
+   etapas directas. La etapa se elige **igual que una etiqueta**
+   (`alternarUnaSola`: pulsar deja solo esa, pulsar otra vez la quita) y filtra
+   EXACTA por `chatSession.etapa.id`, que es la que ya pinta la pastilla de la
+   fila. Etiqueta y etapa a la vez se suman (las dos tienen que cumplirse).
+3. **Cambiar de cuenta suelta lo elegido de la otra**: una etiqueta o una etapa
+   de Ventas dejaría la lista de Atención vacía.
+4. **Los embudos se piden al ABRIR el panel** (`embudosDelFiltroDeChatsAction`,
+   `actions/filtro-de-chats-actions.ts`), no en cada carga de Chats, y cada
+   cuenta pasa por `laCuentaDeLaAccion`: hacia abajo, nunca la madre desde una
+   hija ni una ajena. Solo lee: no siembra embudos. El color de cada etapa sale
+   de `elColorDeLaEtapa`, la misma función que la fila.
+5. **Las filas de etiqueta y de etapa son la MISMA** (`OpcionDelPanel`), y los
+   rótulos de las tres secciones también (`SeccionDelPanel`).
+
+Lo prueba `scripts/banco-filtro-de-chats.sh`: la regla, la acción contra
+Postgres (la etapa del panel es la misma que la fila pinta, y filtra exacto) y
+la página servida con una madre y dos hijas (`probar-filtro-de-chats.mjs`).
+`MODO=roto` afirma que antes las etiquetas salían mezcladas y no había embudos.
 
 ## Chats: los Atajos de una conversación son los de SU línea
 

@@ -3,7 +3,7 @@
 import { PanelSinChat } from "./PanelSinChat";
 import { AvisoDeInvitado, SinAccesoPorMencion, useAccesoDeInvitado } from "./InvitadoPorMencion";
 import { MedidaDeChats } from "@/components/chats/MedidaDeChats";
-import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
+import { lasCuentasDeLasLineas } from "@/lib/filtro-de-chats-por-cuenta";
 import { atajosDeLaConversacion } from "@/lib/atajos-de-la-linea";
 import { getWahaPresenceAction } from "@/actions/waha-chat-actions";
 import { mediaDeUnMensajeAction, suscribirPresenciaEvolucionAction } from "@/actions/chat-manual-actions";
@@ -4651,12 +4651,14 @@ export function ChatsClient({
     [quickReplies, cuentaDeLosAtajos],
   );
 
-  // El filtro de etiquetas de la lista: con una linea elegida, solo las de su
-  // cuenta (`lib/etiquetas-de-la-linea.ts`).
-  const etiquetasParaFiltrar = useMemo(
-    () => etiquetasDelFiltro(allTags, selectedChannel ? instanceOwners[selectedChannel] ?? null : null),
-    [allTags, instanceOwners, selectedChannel],
+  // El panel de filtros (etiquetas y embudos) ofrece los de UNA cuenta: la de
+  // la linea elegida en «Canales», o la que se elija alli si la bandeja junta
+  // varias (`lib/filtro-de-chats-por-cuenta.ts`). Nunca mezcladas.
+  const cuentasDelFiltro = useMemo(
+    () => lasCuentasDeLasLineas(instanceOwners, userId),
+    [instanceOwners, userId],
   );
+  const cuentaDeLaLineaDelFiltro = selectedChannel ? instanceOwners[selectedChannel] ?? null : null;
 
   const handleBulkAddTag = useCallback(
     async (chats: SeleccionDeChat[], tagId: number) => {
@@ -5649,7 +5651,8 @@ export function ChatsClient({
         <ChatSidebar
           onResolucion={marcarResolucion}
           allTags={allTags}
-          etiquetasDelFiltro={etiquetasParaFiltrar}
+          cuentasDelFiltro={cuentasDelFiltro}
+          cuentaDeLaLineaDelFiltro={cuentaDeLaLineaDelFiltro}
           presencias={presenciasVisibles}
           sentimientos={sentimientos}
           chatPreferences={chatPreferences}
