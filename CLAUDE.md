@@ -18897,32 +18897,22 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
-## Dos PR que compilan por separado pueden no compilar juntos
+## Un `import` que no existe se caza sin esperar al build
 
-El #1000 (el panel lateral que empuja el contenido) salió rojo en
-`docker-publish` y **no tenía la culpa**. El #998 (reagendar) importaba
-`losRecordatoriosDeLaCita` de `@/lib/cita-publica`; el #999 —fusionado un
-minuto después— la había mudado a `@/lib/recordatorios-de-la-cita` con otra
-firma. Cada uno pasaba solo; juntos, `next build` se caía en «Checking validity
-of types» y la imagen no se publicaba. El #999 y el #1000 heredaron el rojo, y
-**nada del #1000 llegó a producción** hasta arreglarlo.
+Es la otra mitad de *dos PR verdes por separado pueden tumbar el despliegue
+juntos*: `comprobar-tipos-de-reagendar.sh` vigila ese choque concreto; esto
+vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
+con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
+del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
+los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
+sigue la cadena): mejor callar que cantar un fallo que no existe.
 
 > **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
-> culpar al último PR**: el fallo puede venir de la combinación de dos
-> anteriores. Y un PR que mueve o renombra una función exportada busca antes a
-> TODOS sus importadores en `origin/main`, no en su rama.
+> culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
+> no tenía nada que ver.
 
-El arreglo no fue volver a apuntar el import: reagendar pasó a la MISMA regla
-que agendar (`lib/recordatorios-de-la-cita.ts`: zona de la cuenta, llave única
-`appt-reminder:{cita}:{plantilla}` y las credenciales de
-`lasCredencialesDeLaLinea`), y editar la hora desde la ficha reprograma **una
-vez** (había quedado con los dos caminos: el de #998 y el de #999). Las
-plantillas con `isCampaign` nulo entran en los dos.
-
-Lo caza `scripts/banco-importaciones.sh` en segundos, sin esperar al build: lee
-el código con el compilador de TypeScript y exige que cada `import { … }` entre
-ficheros del repo esté exportado donde se importa. `MODO=roto` lee el árbol de
-`0583de4` (pinchado) y afirma el import roto.
+`MODO=roto` lee el árbol de `0583de4` (pinchado) y afirma el import roto; sobre
+`aa92189`, que sí compilaba, no encuentra nada.
 
 # Pendientes
 
@@ -21400,6 +21390,34 @@ Lo prueba `scripts/banco-reagendar-cita.sh`: la regla y un barrido de los
 cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
 `ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
 recordatorios viejos.
+
+### Dos PR verdes por separado pueden tumbar el despliegue juntos
+
+#998 (Reagendar) y #999 (recordatorios a su hora) se fusionaron con minutos de
+diferencia, cada uno con su banco en verde. Juntos, `next build` no compilaba:
+Reagendar importaba `losRecordatoriosDeLaCita` de `lib/cita-publica`, y #999 la
+había movido a `lib/recordatorios-de-la-cita`. El despliegue de #999 **y el de
+#1000 detrás** fallaron, así que producción se quedó en #998 sin que nada lo
+dijera fuera de la pestaña Actions.
+
+Y debajo del error de compilación había dos más, del mismo choque: al editar la
+hora de una cita corrían **dos** reprogramaciones (la de Reagendar, sin llave, y
+la de #999, con llave), así que al cliente le llegaba cada recordatorio dos
+veces; y agendar dejaba fuera las plantillas viejas con `isCampaign` nulo, que
+Reagendar sí contaba.
+
+Tres cosas que hay que mantener:
+
+1. **Reagendar calcula con `losRecordatoriosDeLaCita` de
+   `lib/recordatorios-de-la-cita.ts`** —la zona de la cuenta y la hora
+   estricta— y escribe **con la misma llave** (`appt-reminder:<cita>:<plantilla>`).
+   Es la única reprogramación: editar la hora ya no lleva una segunda.
+2. **Las plantillas de agenda se leen con `isCampaign` falso O nulo**, en los
+   dos sitios.
+3. **Después de fusionar, se mira que el despliegue salió.** Un banco que
+   empaqueta con esbuild no comprueba tipos: `scripts/comprobar-tipos-de-reagendar.sh`
+   pasa `tsc` por esos ficheros, y su `MODO=roto` (contra `0583de4`) afirma el
+   error exacto que tumbó el build. Lo corre `banco-reagendar-cita.sh`.
 
 ## Chats: los controles de la cabecera, a UNA separación; y la marca abre la fila
 

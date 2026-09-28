@@ -2,13 +2,9 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
-import {
-    elNodoDelRecordatorio,
-    laLlaveDelRecordatorio,
-    losRecordatoriosDeLaCita,
-} from "@/lib/recordatorios-de-la-cita";
+import { laLlaveDelRecordatorio, losRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita";
 import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
-import { losNumerosDelCliente } from "@/lib/reagendar-cita";
+import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
 
 /**
  * Rehace los recordatorios de una cita a partir de su hora ACTUAL: borra los
@@ -33,12 +29,11 @@ import { losNumerosDelCliente } from "@/lib/reagendar-cita";
  * 3. **El número se busca en todas sus formas** (`losNumerosDelCliente`): la
  *    ruta del agente lo guarda como se lo dieron, a veces solo dígitos.
  * 4. **Solo se programan los que todavía no han pasado.**
- *
- * Y lo que se programa sale de la MISMA regla que al agendar
- * (`lib/recordatorios-de-la-cita.ts`): la hora del texto en la zona de la
- * CUENTA, el instante en ISO, el `idNodo` `appt-reminder-{plantilla}` y la
- * llave única `appt-reminder:{cita}:{plantilla}`. Con una copia aquí, una cita
- * reagendada recibiría recordatorios distintos de una recién agendada.
+ * 5. **Se calculan con la MISMA regla que al agendar** (`losRecordatoriosDeLaCita`
+ *    de `lib/recordatorios-de-la-cita.ts`: hora estricta `unidad-valor` y texto
+ *    en la zona de la CUENTA) y **llevan la MISMA llave** (`appt-reminder:<cita>:<plantilla>`).
+ *    Sin la llave, otra llamada a `programarLosRecordatoriosDeLaCita` sobre la
+ *    misma cita no los reconocería y al cliente le llegaría cada uno dos veces.
  */
 export type ResultadoDeReprogramar = {
     borrados: number;
@@ -109,9 +104,10 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
-    // La MISMA regla que al agendar: zona de la cuenta, y solo lo que no pasó.
-    const programados = losRecordatoriosDeLaCita(
-        plantillas.map((p) => ({ id: String(p.id), time: p.time, description: p.description })),
+    // La MISMA regla que al agendar: una sola función decide qué recordatorios
+    // lleva una cita y qué dicen, con la hora en la zona de la cuenta.
+    const calculados = losRecordatoriosDeLaCita(
+        plantillas,
         {
             nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
             inicio: cita.startTime,
@@ -121,33 +117,35 @@ export async function reprogramarLosRecordatoriosDeLaCita(
         },
         ahora,
     );
+    const programados = losQueTodaviaNoPasan(calculados, ahora);
 
-    // La línea y la clave salen de la base, con la misma función que al agendar.
+    // La línea y la clave salen de la base, como al agendar (la misma función).
     const { serverurl, apikey } = programados.length
         ? await lasCredencialesDeLaLinea(cita.userId, linea)
         : { serverurl: "", apikey: "" };
 
-    const [borradosPorNumero, borradosPorLlave, creados] = await db.$transaction([
+    const [borrados, creados] = await db.$transaction([
         db.seguimiento.deleteMany({
             where: {
-                instancia: linea,
-                remoteJid: { in: numeros },
                 OR: [
-                    { idNodo: null },
-                    { idNodo: "" },
-                    { idNodo: { startsWith: "appt-reminder-" } },
-                    ...(antiguosDeAgenda.length ? [{ idNodo: { in: antiguosDeAgenda } }] : []),
+                    // Los de ESTA cita por su llave, estén bajo la forma del número que estén.
+                    { idempotencyKey: { startsWith: `appt-reminder:${cita.id}:` } },
+                    {
+                        instancia: linea,
+                        remoteJid: { in: numeros },
+                        OR: [
+                            { idNodo: null },
+                            { idNodo: "" },
+                            { idNodo: { startsWith: "appt-reminder-" } },
+                            ...(antiguosDeAgenda.length ? [{ idNodo: { in: antiguosDeAgenda } }] : []),
+                        ],
+                    },
                 ],
             },
         }),
-        // Los de ESTA cita por su llave, estén bajo el número que estén: la llave
-        // es única y un resto la dejaría sin poder volver a programarse.
-        db.seguimiento.deleteMany({
-            where: { idempotencyKey: { startsWith: `appt-reminder:${cita.id}:` } },
-        }),
         db.seguimiento.createMany({
             data: programados.map((r) => ({
-                idNodo: elNodoDelRecordatorio(r.plantillaId),
+                idNodo: elIdNodoDelRecordatorio(r.plantillaId),
                 idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
                 serverurl,
                 instancia: linea,
@@ -159,14 +157,13 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             })),
         }),
     ]);
-    const borrados = { count: borradosPorNumero.count + borradosPorLlave.count };
 
     console.info("[reagendar] recordatorios de la cita reprogramados", {
         appointmentId,
         borrados: borrados.count,
         creados: creados.count,
         plantillas: plantillas.length,
-        pasados: plantillas.length - programados.length,
+        pasados: calculados.length - programados.length,
     });
 
     return {
