@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarDays, Check, Filter, Search, Tag, X } from "lucide-react";
+import React, { useState } from "react";
+import { Building2, CalendarDays, Check, ChevronLeft, Filter, Search, Tag, Workflow, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   FILTRO_DE_LA_COLUMNA,
@@ -20,6 +20,14 @@ import {
   type AtajoDeRango,
   type CampoDeFecha,
 } from "@/lib/rango-de-fechas-chats";
+import { etiquetasDelFiltro } from "@/lib/etiquetas-de-la-linea";
+import {
+  elEmbudoDelFiltro,
+  hayQueElegirCuenta,
+  losEmbudosDelFiltro,
+  type EmbudosDeLaCuenta,
+} from "@/lib/filtro-de-chats-por-cuenta";
+import { embudosDelFiltroDeChatsAction } from "@/actions/filtro-de-chats-actions";
 
 /**
  * El panel del embudo: DOS filtros en un solo sitio.
@@ -44,7 +52,22 @@ type TagFilterPanelProps = {
   onClearFilter: () => void;
   onToggleTag: (tagId: number) => void;
   selectedTagIds: Set<number>;
+  /** TODAS las etiquetas de la bandeja, cada una con su cuenta (`userId`). */
   tags: SimpleTag[];
+  /**
+   * Las cuentas de la bandeja, la de la línea elegida en «Canales» y la que
+   * resulta (`laCuentaDelFiltro`). Etiquetas y Embudos leen la MISMA.
+   */
+  cuentas?: string[];
+  cuentaDeLaLinea?: string | null;
+  cuentaDelFiltro?: string | null;
+  onElegirCuenta?: (cuenta: string | null) => void;
+  /** El filtro de embudos: el embudo elegido y la etapa, como las etiquetas. */
+  embudoElegido?: string | null;
+  onElegirEmbudo?: (embudo: string | null) => void;
+  selectedEtapaIds?: Set<string>;
+  onToggleEtapa?: (etapaId: string) => void;
+  onClearEtapas?: () => void;
   /** El rango de fechas, tal cual funcionaba en el menú «⋯». */
   rangoDesde: string;
   rangoHasta: string;
@@ -61,6 +84,15 @@ export function TagFilterPanel({
   onToggleTag,
   selectedTagIds,
   tags,
+  cuentas = [],
+  cuentaDeLaLinea = null,
+  cuentaDelFiltro = null,
+  onElegirCuenta,
+  embudoElegido = null,
+  onElegirEmbudo,
+  selectedEtapaIds = new Set<string>(),
+  onToggleEtapa,
+  onClearEtapas,
   rangoDesde,
   rangoHasta,
   campoDeFecha,
@@ -73,7 +105,44 @@ export function TagFilterPanel({
   const [search, setSearch] = useState("");
   // El embudo: ancho de la columna, filo izquierdo, bajo las pastillas.
   const panel = usePanelFlotante("columnaAncha", "popover");
-  const filterCount = selectedTagIds.size;
+  const filterCount = selectedTagIds.size + selectedEtapaIds.size;
+
+  // Los embudos se piden al ABRIR el panel, no en cada carga de Chats, y una
+  // vez por juego de cuentas.
+  const llaveDeLasCuentas = cuentas.join("|");
+  const [embudos, setEmbudos] = useState<{ llave: string; datos: EmbudosDeLaCuenta[] } | null>(null);
+  const [cargandoEmbudos, setCargandoEmbudos] = useState(false);
+  const [errorEmbudos, setErrorEmbudos] = useState<string | null>(null);
+  const datosDeEmbudos = embudos?.llave === llaveDeLasCuentas ? embudos.datos : null;
+  const pedirLosEmbudos = async () => {
+    if (cargandoEmbudos || datosDeEmbudos || cuentas.length === 0) return;
+    setCargandoEmbudos(true);
+    setErrorEmbudos(null);
+    try {
+      const res = await embudosDelFiltroDeChatsAction(cuentas);
+      if (res.success) setEmbudos({ llave: llaveDeLasCuentas, datos: res.data ?? [] });
+      else setErrorEmbudos(res.message);
+    } catch (error) {
+      console.error("[chats] no se pudieron pedir los embudos del filtro", error);
+      setErrorEmbudos("No se pudieron cargar los embudos.");
+    } finally {
+      setCargandoEmbudos(false);
+    }
+  };
+  const alAbrir = (abierto: boolean) => {
+    panel.alAbrir(abierto);
+    if (abierto) void pedirLosEmbudos();
+  };
+
+  const elegirCuenta = hayQueElegirCuenta(cuentas, cuentaDeLaLinea);
+  const nombreDe = (cuenta: string) =>
+    datosDeEmbudos?.find((d) => d.cuentaId === cuenta)?.nombre ?? (cargandoEmbudos ? "Cargando…" : "Cuenta");
+  // Sin cuenta resuelta y con varias en la bandeja no se enseña nada: primero
+  // se elige la cuenta. Sin líneas (ninguna cuenta), las de siempre.
+  const seVenLasSecciones = !elegirCuenta || Boolean(cuentaDelFiltro);
+  const etiquetasDeLaCuenta = etiquetasDelFiltro(tags, cuentaDelFiltro);
+  const embudosDeLaCuenta = losEmbudosDelFiltro(datosDeEmbudos ?? [], cuentaDelFiltro);
+  const embudoDelFiltro = elEmbudoDelFiltro(embudosDeLaCuenta, embudoElegido);
   // El embudo se marca activo con CUALQUIERA de los dos filtros, igual que ya se
   // marcaba con las etiquetas.
   const activo = filterCount > 0 || rangoActivo;
@@ -91,18 +160,18 @@ export function TagFilterPanel({
     onRangoHasta(r.hasta);
   };
 
-  const sorted = tags
+  const sorted = etiquetasDeLaCuenta
     .slice()
     .sort((a, b) => a.order - b.order)
     .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <Popover onOpenChange={panel.alAbrir}>
+    <Popover onOpenChange={alAbrir}>
       <PopoverTrigger asChild ref={panel.disparador}>
         <button
           type="button"
           aria-label="Filtros"
-          title="Filtrar por fecha o etiquetas"
+          title="Filtrar por fecha, etiquetas o embudos"
           data-embudo
           data-activo={activo ? "si" : "no"}
           className={cn(
@@ -223,60 +292,204 @@ export function TagFilterPanel({
           </label>
         </div>
 
-        {/* ── Etiquetas ───────────────────────────────────────────────────── */}
-        {tags.length > 0 && (
+        {/* ── Cuenta ──────────────────────────────────────────────────────
+            Solo cuando la bandeja junta varias cuentas y no hay una línea
+            elegida en «Canales»: primero se elige la cuenta, y solo entonces
+            salen sus etiquetas y sus embudos. Nunca mezclados. */}
+        {elegirCuenta && (
           <>
-            {/* Separación clara entre las dos secciones. */}
             <div className="my-2 border-t border-border" />
-            <div className="mb-1 px-1">
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <Tag className="h-3 w-3 shrink-0" />
-                Etiquetas
-              </span>
-            </div>
-
-            {/* Buscador de etiquetas. */}
-            <div className="relative mb-1">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar etiqueta..."
-                className="w-full rounded-md bg-muted/40 py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-border"
-              />
-            </div>
-
-            {/* Lista de etiquetas. */}
-            <div className="flex flex-col">
-              {sorted.map((tag) => {
-                const isActive = selectedTagIds.has(tag.id);
-                const color = tag.color ?? "#6366F1";
-                return (
+            <SeccionDelPanel icono={Building2} titulo="Cuenta" />
+            {cuentaDelFiltro ? (
+              <div className="flex items-center gap-2 px-2 py-1.5 text-sm" data-cuenta-elegida={cuentaDelFiltro}>
+                <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-semibold text-foreground" title={nombreDe(cuentaDelFiltro)}>
+                  {nombreDe(cuentaDelFiltro)}
+                </span>
+                <button
+                  type="button"
+                  data-cambiar-cuenta
+                  onClick={() => onElegirCuenta?.(null)}
+                  className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  Cambiar
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {cuentas.map((cuenta) => (
                   <button
-                    key={tag.id}
+                    key={cuenta}
                     type="button"
-                    data-tag={tag.id}
-                    onClick={() => (isActive ? onClearFilter() : onToggleTag(tag.id))}
-                    className={cn(
-                      "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors text-left",
-                      isActive ? "bg-foreground/10" : "hover:bg-muted/60",
-                    )}
+                    data-cuenta={cuenta}
+                    onClick={() => onElegirCuenta?.(cuenta)}
+                    className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60"
                   >
-                    <Tag className="h-4 w-4 shrink-0" style={{ color }} />
-                    <span className={isActive ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                      {tag.name}
-                    </span>
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate" title={nombreDe(cuenta)}>{nombreDe(cuenta)}</span>
                   </button>
-                );
-              })}
-              {sorted.length === 0 && (
-                <p className="px-2 py-2 text-xs text-muted-foreground">Sin resultados</p>
+                ))}
+                <p className="px-2 pt-1 text-xs text-muted-foreground" data-elige-cuenta>
+                  Elige una cuenta para ver sus etiquetas y sus embudos.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {seVenLasSecciones && (
+          <>
+            {/* ── Etiquetas ─────────────────────────────────────────────── */}
+            <div className="my-2 border-t border-border" />
+            <SeccionDelPanel icono={Tag} titulo="Etiquetas" dato="etiquetas" />
+            {etiquetasDeLaCuenta.length > 0 && (
+              <div className="relative mb-1">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar etiqueta..."
+                  className="w-full rounded-md bg-muted/40 py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-border"
+                />
+              </div>
+            )}
+            <div className="flex flex-col">
+              {sorted.map((tag) => (
+                <OpcionDelPanel
+                  key={tag.id}
+                  dato={{ "data-tag": tag.id }}
+                  activa={selectedTagIds.has(tag.id)}
+                  onClick={() => (selectedTagIds.has(tag.id) ? onClearFilter() : onToggleTag(tag.id))}
+                  icono={<Tag className="h-4 w-4 shrink-0" style={{ color: tag.color ?? "#6366F1" }} />}
+                  nombre={tag.name}
+                />
+              ))}
+              {etiquetasDeLaCuenta.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted-foreground">Esta cuenta no tiene etiquetas.</p>
+              ) : (
+                sorted.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">Sin resultados</p>
               )}
             </div>
+
+            {/* ── Embudos ───────────────────────────────────────────────────
+                Si la cuenta tiene varios, se elige primero el embudo y luego
+                la etapa, con el mismo comportamiento que las etiquetas. */}
+            <div className="my-2 border-t border-border" />
+            <SeccionDelPanel icono={Workflow} titulo="Embudos" dato="embudos" />
+            {cargandoEmbudos && !datosDeEmbudos ? (
+              <p className="px-2 py-2 text-xs text-muted-foreground">Cargando embudos…</p>
+            ) : errorEmbudos && !datosDeEmbudos ? (
+              <p className="px-2 py-2 text-xs text-destructive">{errorEmbudos}</p>
+            ) : embudosDeLaCuenta.length === 0 ? (
+              <p className="px-2 py-2 text-xs text-muted-foreground">Esta cuenta no tiene embudos.</p>
+            ) : !embudoDelFiltro ? (
+              <div className="flex flex-col">
+                {embudosDeLaCuenta.map((embudo) => (
+                  <OpcionDelPanel
+                    key={embudo.id}
+                    dato={{ "data-embudo-opcion": embudo.id }}
+                    activa={false}
+                    onClick={() => onElegirEmbudo?.(embudo.id)}
+                    icono={<Workflow className="h-4 w-4 shrink-0" />}
+                    nombre={embudo.nombre}
+                  />
+                ))}
+                <p className="px-2 pt-1 text-xs text-muted-foreground" data-elige-embudo>
+                  Elige un embudo para ver sus etapas.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {embudosDeLaCuenta.length > 1 && (
+                  <button
+                    type="button"
+                    data-cambiar-embudo
+                    onClick={() => {
+                      onClearEtapas?.();
+                      onElegirEmbudo?.(null);
+                    }}
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm font-semibold text-foreground hover:bg-muted/60"
+                    title="Cambiar de embudo"
+                  >
+                    <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 truncate">{embudoDelFiltro.nombre}</span>
+                  </button>
+                )}
+                {embudoDelFiltro.etapas.map((etapa) => (
+                  <OpcionDelPanel
+                    key={etapa.id}
+                    dato={{ "data-etapa": etapa.id }}
+                    activa={selectedEtapaIds.has(etapa.id)}
+                    onClick={() => (selectedEtapaIds.has(etapa.id) ? onClearEtapas?.() : onToggleEtapa?.(etapa.id))}
+                    icono={<span className="h-2.5 w-2.5 shrink-0 rounded-full mx-[3px]" style={{ backgroundColor: etapa.color }} />}
+                    nombre={etapa.nombre}
+                  />
+                ))}
+                {embudoDelFiltro.etapas.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">Este embudo no tiene etapas.</p>
+                )}
+              </div>
+            )}
           </>
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * El rótulo de una sección del panel. Etiquetas, Embudos y Cuenta lo pintan
+ * igual: con uno escrito en cada sección, se separan sin que nadie lo note.
+ */
+function SeccionDelPanel({
+  icono: Icono,
+  titulo,
+  dato,
+}: {
+  icono: React.ComponentType<{ className?: string }>;
+  titulo: string;
+  dato?: string;
+}) {
+  return (
+    <div className="mb-1 px-1" data-seccion={dato ?? titulo.toLowerCase()}>
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Icono className="h-3 w-3 shrink-0" />
+        {titulo}
+      </span>
+    </div>
+  );
+}
+
+/** Una fila del panel: la de una etiqueta y la de una etapa son la MISMA. */
+function OpcionDelPanel({
+  activa,
+  onClick,
+  icono,
+  nombre,
+  dato,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  icono: React.ReactNode;
+  nombre: string;
+  dato: Record<string, string | number>;
+}) {
+  return (
+    <button
+      type="button"
+      {...dato}
+      data-activa={activa ? "si" : "no"}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors text-left",
+        activa ? "bg-foreground/10" : "hover:bg-muted/60",
+      )}
+    >
+      {icono}
+      <span className={cn("min-w-0 truncate", activa ? "font-semibold text-foreground" : "text-muted-foreground")} title={nombre}>
+        {nombre}
+      </span>
+    </button>
   );
 }

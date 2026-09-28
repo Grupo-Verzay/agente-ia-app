@@ -63,6 +63,12 @@ import {
 } from "@/lib/rango-de-fechas-chats";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { BotonDeAsesores, BotonDeGrupos } from "./BotonesDeLaBarra";
+import {
+  alternarUnaSola,
+  laCuentaDelFiltro,
+  pasaElFiltroDeEtapa,
+  pasaElFiltroDeEtiquetas,
+} from "@/lib/filtro-de-chats-por-cuenta";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
 import { MARCA_DE_LA_COLUMNA, usePanelFlotante } from "@/hooks/usePanelFlotante";
@@ -241,8 +247,13 @@ type LoParaNoLeido = {
 
 type ChatSidebarProps = {
   allTags?: SimpleTag[];
-  /** Las del filtro de la lista; si no llega, todas. */
-  etiquetasDelFiltro?: SimpleTag[];
+  /**
+   * Las cuentas de la bandeja (la propia delante) y la de la linea elegida en
+   * «Canales». Con eso el panel de filtros decide de que cuenta ofrece las
+   * etiquetas y los embudos (`lib/filtro-de-chats-por-cuenta.ts`).
+   */
+  cuentasDelFiltro?: string[];
+  cuentaDeLaLineaDelFiltro?: string | null;
   chatPreferences: ChatConversationPreferenceMap;
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean, instanceName?: string) => void | Promise<void>;
@@ -317,7 +328,8 @@ type ChatSidebarProps = {
 
 export function ChatSidebar({
   allTags = [],
-  etiquetasDelFiltro,
+  cuentasDelFiltro,
+  cuentaDeLaLineaDelFiltro,
   chatPreferences,
   chatSessions,
   onArchiveChat,
@@ -373,6 +385,26 @@ export function ChatSidebar({
   );
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
+  // El filtro de EMBUDOS, hermano del de etiquetas: la cuenta (si la bandeja
+  // junta varias), el embudo (si la cuenta tiene varios) y la etapa elegida.
+  const [cuentaElegidaDelFiltro, setCuentaElegidaDelFiltro] = useState<string | null>(null);
+  const [embudoElegidoDelFiltro, setEmbudoElegidoDelFiltro] = useState<string | null>(null);
+  const [selectedEtapaIds, setSelectedEtapaIds] = useState<Set<string>>(new Set());
+  const cuentaDelFiltro = laCuentaDelFiltro({
+    cuentas: cuentasDelFiltro ?? [],
+    cuentaDeLaLineaElegida: cuentaDeLaLineaDelFiltro,
+    elegida: cuentaElegidaDelFiltro,
+  });
+  // Al cambiar de cuenta, lo elegido de la otra no significa nada aqui: una
+  // etiqueta o una etapa de Ventas dejarian la lista de Atencion vacia.
+  const cuentaDelFiltroAnterior = React.useRef(cuentaDelFiltro);
+  useEffect(() => {
+    if (cuentaDelFiltroAnterior.current === cuentaDelFiltro) return;
+    cuentaDelFiltroAnterior.current = cuentaDelFiltro;
+    setSelectedTagIds(new Set());
+    setSelectedEtapaIds(new Set());
+    setEmbudoElegidoDelFiltro(null);
+  }, [cuentaDelFiltro]);
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
   const [internalUnreadOnly, setInternalUnreadOnly] = useState(false);
   const unreadOnly = unreadOnlyProp ?? internalUnreadOnly;
@@ -967,9 +999,13 @@ export function ChatSidebar({
     }
 
     if (selectedTagIds.size > 0) {
-      list = list.filter((c) =>
-        (c.chatSession?.tags ?? []).some((tag) => selectedTagIds.has(tag.id)),
-      );
+      list = list.filter((c) => pasaElFiltroDeEtiquetas(c.chatSession?.tags, selectedTagIds));
+    }
+
+    // La etapa del embudo, con el mismo comportamiento que las etiquetas: solo
+    // las conversaciones que estan en ESA etapa exacta.
+    if (selectedEtapaIds.size > 0) {
+      list = list.filter((c) => pasaElFiltroDeEtapa(c.chatSession?.etapa?.id, selectedEtapaIds));
     }
 
     if (advisorFilter === 'unassigned') {
@@ -1009,7 +1045,7 @@ export function ChatSidebar({
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, estaDestacado, currentAdvisorId, rangoActivo, limitesRango, campoDeFecha]);
+  }, [contacts, q, selectedTagIds, selectedEtapaIds, tab, advisorFilter, unreadOnly, enEsperaOnly, starredOnly, notesOnly, estaDestacado, currentAdvisorId, rangoActivo, limitesRango, campoDeFecha]);
 
   // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
   // dispararlos en cada cambio de la lista (p. ej. polls).
@@ -1237,6 +1273,7 @@ export function ChatSidebar({
     setStarredOnly(false);
     setNotesOnly(false);
     setSelectedTagIds(new Set());
+    setSelectedEtapaIds(new Set());
   }, [setUnreadOnly]);
 
   const handleTabChange = useCallback((newTab: TabKey) => {
@@ -1265,10 +1302,10 @@ export function ChatSidebar({
   );
 
   const toggleTagFilter = useCallback((tagId: number) => {
-    setSelectedTagIds((prev) => {
-      if (prev.has(tagId)) return new Set();
-      return new Set([tagId]);
-    });
+    setSelectedTagIds((prev) => alternarUnaSola(prev, tagId));
+  }, []);
+  const toggleEtapaFilter = useCallback((etapaId: string) => {
+    setSelectedEtapaIds((prev) => alternarUnaSola(prev, etapaId));
   }, []);
 
   const handleSelectJid = useCallback(
@@ -1716,10 +1753,22 @@ export function ChatSidebar({
                 SIEMPRE —aunque no haya etiquetas—, porque el rango de fechas
                 aplica a cualquier cuenta. */}
             <TagFilterPanel
-              tags={etiquetasDelFiltro ?? allTags}
+              tags={allTags}
+              cuentas={cuentasDelFiltro ?? []}
+              cuentaDeLaLinea={cuentaDeLaLineaDelFiltro ?? null}
+              cuentaDelFiltro={cuentaDelFiltro}
+              onElegirCuenta={setCuentaElegidaDelFiltro}
               selectedTagIds={selectedTagIds}
               onToggleTag={toggleTagFilter}
               onClearFilter={() => setSelectedTagIds(new Set())}
+              embudoElegido={embudoElegidoDelFiltro}
+              onElegirEmbudo={(id) => {
+                setEmbudoElegidoDelFiltro(id);
+                setSelectedEtapaIds(new Set());
+              }}
+              selectedEtapaIds={selectedEtapaIds}
+              onToggleEtapa={toggleEtapaFilter}
+              onClearEtapas={() => setSelectedEtapaIds(new Set())}
               rangoDesde={rangoDesde}
               rangoHasta={rangoHasta}
               campoDeFecha={campoDeFecha}
