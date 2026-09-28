@@ -19040,6 +19040,21 @@ Cuatro cosas que hay que mantener:
    Chats y el chat del equipo ya grababan y no cambian; los adjuntos de tareas
    y tickets (`BloqueDeAdjuntos`) no son notas de voz y no llevan grabador.
 
+### Y sus botones llenan la caja, a partes iguales, en las tres etapas
+
+Iban en un `flex-wrap` pegado a la izquierda y dejaban la derecha de la
+tarjeta vacía (el paso «Nota de voz» de los flujos, Macros). Ahora son una
+**rejilla de N columnas iguales** (`repeat(N, minmax(0,1fr))` en `style`, que
+N cambia con la etapa y Tailwind no genera clases compuestas), el orden no
+cambia y el tiempo va en su propia línea, centrado. La caja es un contenedor
+de consulta: por debajo de 24rem —la tarjeta de un paso mide 300 px— con
+varios botones el icono va ENCIMA del rótulo, porque tres rótulos con su icono
+al lado no caben. Se pregunta a la CAJA, no a la ventana.
+
+Lo prueba `scripts/banco-grabador-simetrico.sh`, con el componente real a
+274/360/520 px y micrófono falso; `MODO=roto` monta el de `28daebd` y afirma
+el hueco de la derecha.
+
 Lo prueba `scripts/banco-grabador-de-audio.sh`: la regla, un barrido de las
 seis pantallas y el grabador real en Chromium con micrófono falso (pausa que
 para el tiempo, archivo que aceptan los dos editores, y el aviso sin permiso).

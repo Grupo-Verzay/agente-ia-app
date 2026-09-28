@@ -35,8 +35,25 @@ type Props = {
     className?: string;
 };
 
+/**
+ * Los mandos ocupan el ancho ENTERO de su caja, a partes iguales, en las tres
+ * etapas. Pegados a la izquierda dejaban un hueco vacío a la derecha de la
+ * tarjeta (en el paso de nota de voz de los flujos, en Macros…) y la fila se
+ * leía descuadrada. Por eso son una rejilla de N columnas iguales, no un
+ * `flex-wrap`: el `wrap` los apila a la izquierda y parte la fila por donde
+ * toque.
+ *
+ * Y la caja es un contenedor de consulta (`container-type: inline-size`): en
+ * una caja estrecha —la tarjeta de un paso de flujo mide 300 px— tres
+ * rótulos con su icono al lado no caben, así que por debajo de `ESTRECHO` el
+ * icono va ENCIMA del rótulo. Se pregunta a la CAJA y no a la ventana: la
+ * misma ventana pinta la tarjeta estrecha del flujo y el formulario ancho de
+ * Macros.
+ */
 const BOTON =
-    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+    "inline-flex min-h-8 w-full min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium leading-tight transition-colors disabled:pointer-events-none disabled:opacity-50";
+/** Solo cuando hay varios: uno solo («Grabar audio») cabe con su icono al lado. */
+const BOTON_EN_CAJA_ESTRECHA = "[@container(max-width:24rem)]:flex-col [@container(max-width:24rem)]:gap-0.5";
 
 const ESTILO: Record<MandoDelGrabador, { rotulo: string; clase: string; Icono: typeof Mic }> = {
     grabar: { rotulo: "Grabar audio", clase: "border-red-200 bg-background text-red-600 hover:bg-red-50", Icono: Mic },
@@ -101,12 +118,18 @@ export function GrabadorDeAudio({ onGrabado, disabled, className }: Props) {
     return (
         <div
             data-grabador={estado}
-            className={cn("nodrag flex flex-col gap-2", className)}
+            className={cn("nodrag flex w-full flex-col gap-2 [container-type:inline-size]", className)}
             // Dentro de un nodo de React Flow, un clic aquí no puede abrir el
             // selector de archivos del recuadro de al lado.
             onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex flex-wrap items-center gap-2">
+            <div
+                data-mandos-del-grabador
+                className="grid w-full gap-2"
+                // `repeat(N, …)` en `style`: Tailwind solo genera clases que ve
+                // escritas, y N cambia con la etapa (1, 3).
+                style={{ gridTemplateColumns: `repeat(${mandos.length}, minmax(0, 1fr))` }}
+            >
                 {mandos.map((m) => {
                     const { rotulo, clase, Icono } = ESTILO[m];
                     return (
@@ -116,26 +139,28 @@ export function GrabadorDeAudio({ onGrabado, disabled, className }: Props) {
                             data-mando={m}
                             disabled={disabled}
                             onClick={() => pulsar(m)}
-                            className={cn(BOTON, clase)}
+                            className={cn(BOTON, mandos.length > 1 && BOTON_EN_CAJA_ESTRECHA, clase)}
                         >
-                            <Icono className="h-4 w-4" />
-                            {rotulo}
+                            <Icono className="h-4 w-4 shrink-0" />
+                            <span className="min-w-0 text-center">{rotulo}</span>
                         </button>
                     );
                 })}
-                {(estado === "grabando" || estado === "pausado") && (
-                    <span data-tiempo className="inline-flex items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
-                        <span
-                            className={cn(
-                                "h-2 w-2 rounded-full",
-                                estado === "grabando" ? "animate-pulse bg-red-500" : "bg-amber-500",
-                            )}
-                        />
-                        {estado === "pausado" ? "En pausa · " : ""}
-                        {tiempo}
-                    </span>
-                )}
             </div>
+            {/* El tiempo va en su propia línea, centrado: dentro de la fila le
+                quitaría a los botones un trozo que no es simétrico. */}
+            {(estado === "grabando" || estado === "pausado") && (
+                <span data-tiempo className="inline-flex items-center justify-center gap-1.5 text-sm tabular-nums text-muted-foreground">
+                    <span
+                        className={cn(
+                            "h-2 w-2 rounded-full",
+                            estado === "grabando" ? "animate-pulse bg-red-500" : "bg-amber-500",
+                        )}
+                    />
+                    {estado === "pausado" ? "En pausa · " : ""}
+                    {tiempo}
+                </span>
+            )}
             {estado === "lista" && recordedAudio && (
                 <audio data-escuchar controls src={recordedAudio.dataUrlWithPrefix} className="h-9 w-full" />
             )}
