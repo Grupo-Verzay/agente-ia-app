@@ -1,23 +1,12 @@
 'use client';
 
-import { AlternarBandeja, useSeVeLaBarritaDeBandejas } from "@/components/shared/AlternarBandeja";
+import { AlternarBandeja } from "@/components/shared/AlternarBandeja";
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { HomeIcon } from '@heroicons/react/24/solid';
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbSeparator,
-  BreadcrumbEllipsis,
-} from '@/components/ui/breadcrumb';
-import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from '../ui/sidebar';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getGuidesForPath } from '@/actions/guide-actions';
-import { getWorkflowNameById } from '@/actions/workflow-actions';
-import { getFormNameById } from '@/actions/form-name-actions';
 import { Play } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +28,11 @@ import { MedidaDeLaBarra } from '@/components/shared/MedidaDeLaBarra';
 import { MARCA_DE_LA_BARRA } from '@/hooks/usePanelFlotante';
 import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
 
+/**
+ * Nombres legibles de cada segmento de ruta. La barra ya NO pinta una ruta de
+ * texto, pero el copiloto los usa para decir en qué pantalla está la persona
+ * (`app/(root)/ai-chat/hooks/useChatContext.ts`).
+ */
 export const breadcrumbLabels: Record<string, string> = {
   flow: 'flujo',
   profile: 'perfil',
@@ -61,77 +55,39 @@ export const breadcrumbLabels: Record<string, string> = {
   'mis-formularios': 'mis formularios'
 };
 
+/**
+ * La barra de arriba de la plataforma, la MISMA en todas las pantallas:
+ *
+ *   [casita] [menú]      [Chats | Correos]      …      [tutoriales] [buscar] [soporte] [campana]
+ *                        ^ centrado en la columna de la lista
+ *
+ * - **La casita va siempre de primera**, en el mismo píxel en todas las
+ *   pantallas; detrás, el botón del menú (las dos flechas).
+ * - **Sin ruta de texto** («leads», «chats»…): no era pulsable de verdad ni
+ *   llevaba a ninguna parte que el menú no lleve.
+ * - **El selector Chats ⇄ Correos** sale en todas las pantallas, marcando la
+ *   activa, centrado en la columna de la lista (`AlternarBandeja`).
+ * - **Todos los botones son rectángulos de esquinas redondeadas**
+ *   (`rounded-md`), ninguno en píldora: la barra es simétrica.
+ */
 export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
   const rawPathname = usePathname();
   const pathname = rawPathname ?? '/';
-
-  const segments = useMemo(
-    () => pathname.split('/').filter((segment) => segment !== ''),
-    [pathname]
-  );
+  const hayRuta = pathname.split('/').some((s) => s !== '');
 
   const laBarra = useRef<HTMLDivElement>(null);
-  const conBarrita = useSeVeLaBarritaDeBandejas();
+  const laCabecera = useRef<HTMLElement>(null);
+  const loDeLaIzquierda = useRef<HTMLDivElement>(null);
+  const loDeLaDerecha = useRef<HTMLDivElement>(null);
   const [guides, setGuides] = useState<GuideUrl[]>([]);
-  const [workflowName, setWorkflowName] = useState<string | null>(null);
-  const [formName, setFormName] = useState<string | null>(null);
-  const moduleIndex = useMemo(() => {
-    return segments.findIndex((s) => s === 'flow' || s === 'workflow' || s === 'workflows');
-  }, [segments]);
-
-  const workflowId = useMemo(() => {
-    if (moduleIndex === -1) return null;
-    return segments[moduleIndex + 1] ?? null;
-  }, [segments, moduleIndex]);
-
-  const formModuleIndex = useMemo(() => segments.findIndex((s) => s === 'mis-formularios'), [segments]);
-  const formId = useMemo(() => {
-    if (formModuleIndex === -1) return null;
-    return segments[formModuleIndex + 1] ?? null;
-  }, [segments, formModuleIndex]);
 
   useEffect(() => {
-    const fetchGuides = async () => {
-      const data = await getGuidesForPath(pathname);
-      setGuides(data);
-    };
-    if (segments.length > 0) fetchGuides();
-  }, [pathname, segments.length]);
-
-  useEffect(() => {
-    const fetchWorkflowName = async () => {
-      if (!workflowId) {
-        setWorkflowName(null);
-        return;
-      }
-      const name = await getWorkflowNameById(workflowId);
-      setWorkflowName(name);
-    };
-
-    fetchWorkflowName();
-  }, [workflowId]);
-
-  useEffect(() => {
-    if (!formId) { setFormName(null); return; }
-    getFormNameById(formId).then(setFormName);
-  }, [formId]);
-
-  // Generamos el array de breadcrumbs
-  const breadcrumbs = segments.map((segment, index) => {
-    const href = '/' + segments.slice(0, index + 1).join('/');
-
-    const labelFromDict = breadcrumbLabels[segment];
-
-    const isWorkflowIdSegment = workflowId && index === moduleIndex + 1;
-    const isFormIdSegment = formId && index === formModuleIndex + 1;
-    const label =
-      (isWorkflowIdSegment && (workflowName ?? 'flujo')) ||
-      (isFormIdSegment && (formName ?? '...')) ||
-      labelFromDict ||
-      decodeURIComponent(segment.replace(/-/g, ' '));
-
-    return { href, label };
-  });
+    if (!hayRuta) {
+      setGuides([]);
+      return;
+    }
+    getGuidesForPath(pathname).then(setGuides);
+  }, [pathname, hayRuta]);
 
   return (
     <>
@@ -141,92 +97,39 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
       <MedidaDeLaBarra de={laBarra} />
       <div ref={laBarra} className={`h-18 shrink-0 ${isFlow && 'flex flex-1'}`}>
           {/* `data-barra-de-arriba`: de aquí sale el borde de ABAJO con el que
-              se coloca el panel de la campanita. Sin esta marca ese panel nace
-              pegado a su botón —que mide menos que la barra— y se monta sobre
-              ella. Lo lee `usePanelFlotante`. */}
+              se coloca el panel de la campanita. Lo lee `usePanelFlotante`.
+              `relative` porque el selector Chats ⇄ Correos va `absolute`
+              dentro, centrado en la columna de la lista. */}
           <header
+            ref={laCabecera}
             {...{ [MARCA_DE_LA_BARRA]: "" }}
             className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white"
           >
-            <Breadcrumb className="py-3 flex flex-row flex-1 overflow-hidden dark:bg-gray-900 dark:text-white">
-              {/* Con la barrita de Chats ⇄ Correos las migas no se parten en
-                  dos líneas en un teléfono: se recortan (la caja ya es
-                  `overflow-hidden`). Partidas, la barra crecía de alto. */}
-              <BreadcrumbList className={conBarrita ? "flex-nowrap" : undefined}>
-                {!isFlow && (
-                  <>
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator orientation="vertical" className="mr-2 h-4" />
-                    {/* Chats ⇄ Correos: justo después del menú, el mismo
-                        sitio en las dos pantallas. Fuera de ellas no pinta
-                        nada. */}
-                    <AlternarBandeja />
-                  </>
-                )}
+            {/* La casita SIEMPRE de primera y detrás el menú. `py-3` es el que
+                le da el alto a la barra (el mismo que antes con las migas). */}
+            <div ref={loDeLaIzquierda} data-inicio-de-la-barra className="flex shrink-0 items-center gap-1 py-3">
+              <Link
+                href="/"
+                data-casita
+                title="Inicio"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+              >
+                <HomeIcon className="h-5 w-5" />
+                <span className="sr-only">Inicio</span>
+              </Link>
+              {!isFlow && <SidebarTrigger />}
+            </div>
 
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href="/" className="flex items-center gap-1 text-muted-foreground hover:text-primary">
-                      <HomeIcon className="h-5" />
-                      <span className="sr-only">Home</span>
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
+            {!isFlow && (
+              <AlternarBandeja barra={laCabecera} izquierda={loDeLaIzquierda} derecha={loDeLaDerecha} />
+            )}
 
-                {breadcrumbs.length > 0 && <BreadcrumbSeparator />}
+            <div className="flex-1" />
+            {isFlow && <ThemeSwitcher />}
 
-                {breadcrumbs.length > 3 ? (
-                  <>
-                    <BreadcrumbEllipsis />
-                    <BreadcrumbSeparator />
-                    {breadcrumbs.slice(-2).map((breadcrumb, index) => (
-                      <div key={breadcrumb.href} className="flex items-center">
-                        <BreadcrumbItem>
-                          <BreadcrumbLink asChild>
-                            <Link
-                              href={breadcrumb.href}
-                              className={`${index === breadcrumbs.length - 1 ? 'text-primary' : 'text-muted-foreground'
-                                } hover:text-primary transition`}
-                            >
-                              {breadcrumb.label.toLocaleLowerCase()}
-                            </Link>
-                          </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        {index !== breadcrumbs.slice(-2).length - 1 && <BreadcrumbSeparator />}
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  breadcrumbs.map((breadcrumb, index) => (
-                    <div key={breadcrumb.href} className="flex items-center">
-                      <BreadcrumbItem>
-                        <BreadcrumbLink asChild>
-                          <Link
-                            href={breadcrumb.href}
-                            className={`${index === breadcrumbs.length - 1 ? 'text-primary' : 'text-muted-foreground'
-                              } hover:text-primary transition`}
-                          >
-                            {breadcrumb.label.toLocaleLowerCase()}
-                          </Link>
-                        </BreadcrumbLink>
-                      </BreadcrumbItem>
-                      {index !== breadcrumbs.length - 1 && <BreadcrumbSeparator />}
-                    </div>
-                  ))
-                )}
-              </BreadcrumbList>
-
-              {isFlow &&
-                <div className="flex flex-1 justify-end">
-                  <ThemeSwitcher />
-                </div>
-              }
-            </Breadcrumb>
-            {/* Fuera del Breadcrumb (overflow-hidden) para que el badge de la campana
-                no se recorte. Los cuatro botones viven en la misma fila y a la misma
-                altura: dentro del breadcrumb, "Ver tutoriales" quedaba más alto que
-                los demás porque lo centraba otra caja. */}
-            <div className="ml-2 flex shrink-0 items-center gap-2">
+            {/* Los botones de la derecha, en la misma fila y a la misma altura,
+                y todos con la MISMA forma: rectángulo de esquinas redondeadas. */}
+            <div ref={loDeLaDerecha} data-botones-de-la-barra className="ml-2 flex shrink-0 items-center gap-2">
               {guides.length > 0 && (
                   <Dialog>
                     <DialogTrigger asChild>
@@ -280,10 +183,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
               )}
               <GlobalSearch />
               {/* «Soporte»: abre el ticket nuevo, o lleva al tablero si esta es
-                  la cuenta que los atiende. Antes era «Ayuda» y abria un
-                  WhatsApp; eso convivia con el boton flotante de tickets, que
-                  ademas tapaba el campo de escribir de Chats. Un solo camino
-                  para pedir ayuda, y en la barra. */}
+                  la cuenta que los atiende. */}
               <BotonDeSoporte />
               <NotificationCenter />
             </div>

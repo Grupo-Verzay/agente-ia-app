@@ -333,7 +333,7 @@ export function NotificationCenter() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 shrink-0 overflow-visible rounded-full border border-border bg-background shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50"
+          className="relative h-9 w-9 shrink-0 overflow-visible rounded-md border border-border bg-background shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50"
           aria-label="Centro de notificaciones"
         >
           <Bell className="h-4 w-4 text-amber-500" />
