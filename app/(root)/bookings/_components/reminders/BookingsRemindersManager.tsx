@@ -1,5 +1,6 @@
 'use client';
 
+import { GrabadorDeAudio } from '@/components/shared/GrabadorDeAudio';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -128,6 +129,11 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
     const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        usarArchivo(file);
+    };
+
+    // Elegido del dispositivo o grabado aquí: el MISMO camino para los dos.
+    const usarArchivo = (file: File) => {
         const detectedType: MediaType =
             file.type.startsWith('image/') ? 'image'
             : file.type.startsWith('video/') ? 'video'
@@ -264,6 +270,8 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
                                 );
                             })}
                         </div>
+
+                        <GrabadorDeAudio onGrabado={usarArchivo} />
 
                         {mediaPreview ? (
                             <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2">

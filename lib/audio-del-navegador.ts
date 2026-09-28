@@ -62,7 +62,11 @@ export function comoArchivoDeAudio(grabado: RecordedAudioData, nombre?: string):
     const bytes = new Uint8Array(crudo.length);
     for (let i = 0; i < crudo.length; i += 1) bytes[i] = crudo.charCodeAt(i);
     const ext = extensionDelAudio(grabado.mimetype);
+    // El tipo va SIN los códecs (`audio/webm`, no `audio/webm;codecs=opus`):
+    // los flujos validan el archivo contra una lista de tipos y con los códecs
+    // dentro lo rechazaban. Ver `elMimeSinCodecs` en `lib/grabador-de-audio.ts`.
+    const base = (grabado.mimetype || "").split(";")[0].trim().toLowerCase() || "audio/webm";
     return new File([bytes], nombre ?? `nota-${Date.now()}.${ext}`, {
-        type: grabado.mimetype,
+        type: base,
     });
 }

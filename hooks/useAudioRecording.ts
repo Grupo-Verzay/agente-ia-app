@@ -19,16 +19,24 @@ import type { RecordedAudioData } from '@/lib/audio-del-navegador';
 
 interface UseAudioRecordingReturn {
   isRecording: boolean;
+  /** En pausa: el micrófono sigue abierto y el tiempo parado. */
+  isPaused: boolean;
+  /** Por qué no se pudo grabar (sin micrófono, permiso denegado). `null` si nada. */
+  error: string | null;
   recordSecs: number;
   recordedAudio: RecordedAudioData | null;
   startRecording: () => Promise<void>;
   stopRecordingAndPreview: () => void;
   cancelRecording: () => void;
   clearRecordedAudio: () => void;
+  pauseRecording: () => void;
+  resumeRecording: () => void;
 }
 
 export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [recordSecs, setRecordSecs] = useState(0);
   const [recordedAudio, setRecordedAudio] = useState<RecordedAudioData | null>(null);
 
@@ -50,15 +58,20 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
     }
   }, []);
 
-  const startTimer = useCallback(() => {
+  // Sigue contando desde donde iba: es lo que usa reanudar tras una pausa.
+  const continueTimer = useCallback(() => {
     stopTimer();
-    setRecordSecs(0);
-    recordSecsRef.current = 0;
     timerRef.current = window.setInterval(
       () => setRecordSecs((s) => s + 1),
       1000,
     ) as unknown as number;
   }, [stopTimer]);
+
+  const startTimer = useCallback(() => {
+    setRecordSecs(0);
+    recordSecsRef.current = 0;
+    continueTimer();
+  }, [continueTimer]);
 
   const stopMicrophoneStream = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -70,6 +83,7 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
   const cancelRecording = useCallback(() => {
     stopTimer();
     setIsRecording(false);
+    setIsPaused(false);
     setRecordedAudio(null);
     audioChunksRef.current = [];
 
@@ -90,10 +104,38 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
     if (rec && rec.state !== 'inactive') rec.stop();
   }, []);
 
+  // Pausar NO cierra el micrófono ni suelta lo grabado: al reanudar sigue en
+  // el MISMO archivo. El tiempo se para con la grabación, o la duración
+  // contaría los segundos en pausa.
+  const pauseRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state !== 'recording') return;
+    try {
+      rec.pause();
+      stopTimer();
+      setIsPaused(true);
+    } catch (err) {
+      console.error('[pauseRecording] el navegador no pudo pausar la grabación', err);
+    }
+  }, [stopTimer]);
+
+  const resumeRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state !== 'paused') return;
+    try {
+      rec.resume();
+      continueTimer();
+      setIsPaused(false);
+    } catch (err) {
+      console.error('[resumeRecording] el navegador no pudo reanudar la grabación', err);
+    }
+  }, [continueTimer]);
+
   const startRecording = useCallback(async () => {
     if (isSending) return;
 
     cancelRecording();
+    setError(null);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -121,6 +163,7 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
       rec.onstop = async () => {
         stopTimer();
         setIsRecording(false);
+        setIsPaused(false);
         mediaRecorderRef.current = null;
 
         const finalMimeType = rec.mimeType || chosenMime || 'audio/webm';
@@ -153,6 +196,14 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
     } catch (err) {
       console.error('Error al iniciar grabación:', err);
       cancelRecording();
+      const nombre = (err as { name?: string } | null)?.name;
+      setError(
+        nombre === 'NotAllowedError' || nombre === 'SecurityError'
+          ? 'El navegador no dio permiso para usar el micrófono. Actívalo desde el candado de la barra de direcciones.'
+          : nombre === 'NotFoundError'
+            ? 'No se encontró ningún micrófono en este equipo.'
+            : 'No se pudo empezar a grabar. Revisa el micrófono e inténtalo otra vez.',
+      );
     }
   }, [cancelRecording, startTimer, stopTimer, stopMicrophoneStream, isSending]);
 
@@ -163,11 +214,15 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
 
   return {
     isRecording,
+    isPaused,
+    error,
     recordSecs,
     recordedAudio,
     startRecording,
     stopRecordingAndPreview,
     cancelRecording,
     clearRecordedAudio,
+    pauseRecording,
+    resumeRecording,
   };
 }

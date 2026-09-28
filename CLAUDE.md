@@ -19008,6 +19008,44 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Grabar una nota de voz AHÍ MISMO: un grabador para las seis pantallas que suben audio
+
+Macros (acción «Enviar archivo»), el paso de nota de voz de los dos editores de
+flujos (`/workflow` y el legado `/flow`, acción y seguimiento), Recordatorios,
+Multiagenda › Recordatorios y la biblioteca de Seguimientos del CRM solo dejaban
+**subir** un audio ya grabado. Ahora las seis llevan, al lado de subir —que se
+queda—, **Grabar audio → Pausar / Reanudar → Detener → escuchar → Usar
+grabación** (o «Grabar otra» / «Descartar»).
+
+> **El grabador es UNO, `components/shared/GrabadorDeAudio.tsx`**, sobre el
+> micrófono de siempre (`useAudioRecording`, el de Chats y el chat del equipo,
+> que ganó `pauseRecording`/`resumeRecording` y un `error` legible). Los mandos
+> de cada momento los decide `lib/grabador-de-audio.ts` (puro). Y **la
+> grabación entra por el MISMO camino que un archivo elegido** en cada
+> pantalla (`handleFile`, `uploadFileForAction`, `usarArchivo`): subir y grabar
+> no pueden acabar guardándose de dos formas.
+
+Cuatro cosas que hay que mantener:
+
+1. **El archivo va SIN códecs en el tipo** (`audio/webm`, no
+   `audio/webm;codecs=opus`, en `comoArchivoDeAudio`). La validación de los
+   flujos compara contra una lista y con los códecs dentro rechazaba la
+   grabación como «tipo de archivo no válido».
+2. **Pausar no cierra el micrófono ni parte el archivo**, y el tiempo se para:
+   la duración no cuenta la pausa. Detener sale siempre con el micrófono
+   abierto, en pausa también.
+3. **Sin permiso o sin micrófono se DICE** debajo del botón, no solo en la
+   consola.
+4. **Nadie graba por su cuenta**: el único `new MediaRecorder` es el del hook.
+   Chats y el chat del equipo ya grababan y no cambian; los adjuntos de tareas
+   y tickets (`BloqueDeAdjuntos`) no son notas de voz y no llevan grabador.
+
+Lo prueba `scripts/banco-grabador-de-audio.sh`: la regla, un barrido de las
+seis pantallas y el grabador real en Chromium con micrófono falso (pausa que
+para el tiempo, archivo que aceptan los dos editores, y el aviso sin permiso).
+`MODO=roto` lee las pantallas y el hook de `ANTES_REF` y afirma que ninguna
+podía grabar ni pausar.
+
 ## Flujos: el «Menú con botones» es el MISMO paso que el de texto, entregado de otra forma
 
 «Menú de opciones» manda las opciones numeradas en texto; **«Menú con botones»**
@@ -21982,30 +22020,47 @@ los dos son **la misma pieza**, `components/shared/PanelSinSeleccion.tsx`: lo
 leer, cada una con `setFiltro` de SU pastilla). Destacados va en el ámbar de su
 pastilla, como «Mías» lleva el violeta de la suya.
 
-Y arriba, en la barra de la plataforma, la barrita **Chats ⇄ Correos**
-(`components/shared/AlternarBandeja.tsx`, regla pura en
-`lib/alternar-bandejas.ts`). Cuatro cosas que hay que mantener:
-
-1. **Sale solo en /chats y /correo, y solo si las DOS están en el menú** de
-   quien mira: ofrecer Correos a quien no lo tiene es un enlace a una puerta
-   cerrada.
-2. **Va anclada a la izquierda, justo después del botón del menú**, no
-   centrada ni detrás de las migas. Medido: centrada, a 1024 y 1280 con
-   «Ver tutoriales» el buscador le pasa por encima; detrás de las migas se
-   corre, porque «chats» y «correo» no miden lo mismo.
-3. **Los dos botones tienen ancho fijo** (`sm:w-[6.5rem]`, iconos solos en un
-   teléfono): con el suyo propio, la activa en negrita ensancharía su mitad y
-   la barrita se movería al cambiar de pantalla.
-4. **Mide 28 px, lo mismo que el botón del menú**, y con ella puesta las migas
-   no se parten (`flex-nowrap`): con 34 px la barra crecía 6 px, y partidas en
-   un teléfono crecía una línea entera.
-
 Lo prueba `scripts/banco-bandejas-simetricas.sh`: la regla y un barrido, y en
 Chromium sobre el CSS del build el panel de Chats de hoy contra el de antes
-(sacado de git), el de Correo —con su componente real— contra el de Chats, las
-tarjetas que filtran y la barra de arriba real en /chats y /correo a
-1440/1280/1024/390, con y sin tutoriales. `MODO=roto` lo corre contra
-`ANTES_REF` y afirma que no había panel ni barrita.
+(sacado de git), el de Correo —con su componente real— contra el de Chats y las
+tarjetas que filtran. `MODO=roto` lo corre contra `ANTES_REF` y afirma que no
+había panel ni barrita.
+
+### La barra de arriba: casita primero, sin ruta, y el selector en la columna
+
+La barra de la plataforma (`components/custom/Breadcrumbs.tsx`) es la MISMA en
+todas las pantallas y se lee así:
+
+```
+[casita] [menú]      [Chats | Correos]      …      [tutoriales] [buscar] [soporte] [campana]
+                     ^ centrado en la columna de la lista
+```
+
+1. **La casita va SIEMPRE de primera**, en el mismo píxel en todas las
+   pantallas, y detrás el botón del menú (las dos flechas). Antes el selector
+   se metía delante en Chats y Correos y la casita saltaba de sitio.
+2. **No hay ruta de texto** («leads», «chats»…): no era pulsable de verdad ni
+   llevaba a ninguna parte que el menú no lleve. `breadcrumbLabels` sigue
+   exportado porque lo usa el copiloto para nombrar la pantalla.
+3. **El selector Chats ⇄ Correos sale en TODAS las pantallas** si la persona
+   tiene las dos en su menú (`seVeLaBarritaDeBandejas`), y marca la activa
+   (`laBandejaActiva`; fuera de las dos, ninguna).
+4. **Va centrado en la columna de la lista, no en la barra**: se MIDE
+   `[data-columna-de-chats]` (la llevan Chats y Correos) y, donde no hay,
+   la columna que habría —`--ancho-lateral` desde el borde del contenido—.
+   Es `absolute` dentro de la barra: no empuja nada. Dónde exactamente lo
+   decide `dondeVaElSelector` (pura): centrado con sus palabras; si así pisaría
+   la casita o los botones de la derecha, centrado solo con los iconos; y si ni
+   así, lo más cerca sin pisar nada. Los anchos (`w-[5.5rem]`, `w-8`) están
+   escritos en `lib/alternar-bandejas.ts` y el banco los compara con lo pintado.
+5. **Todo botón de la barra es un rectángulo de esquinas redondeadas**
+   (`rounded-md`): ni el selector ni la campana son ya píldoras.
+
+Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador y la
+`Breadcrumbs` real en Chromium en /chats, /correo, /sessions y /schedule a
+1440/1280/1024/390, con y sin tutoriales. `MODO=roto` monta la barra de
+`ANTES_REF` y afirma la ruta de texto, la casita moviéndose, el selector solo en
+dos pantallas y la campana en píldora.
 
 ## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
 
