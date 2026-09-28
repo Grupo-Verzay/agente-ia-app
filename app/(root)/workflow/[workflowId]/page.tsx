@@ -43,7 +43,11 @@ const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) =>
       <WorkflowEditorShellProvider lockedFeatures={lockedFeatures}>
         <SidebarProvider
           defaultOpen={defaultOpen}
-          className="min-w-0"
+          // La paleta de acciones vive DENTRO de este contenedor, no pegada a la
+          // ventana (ver `PALETA_DEL_FLUJO` en WorkflowSidebar): `relative` es su
+          // ancla, y `h-full min-h-0` hace que mida lo que la pantalla y no la
+          // ventana entera.
+          className="relative h-full min-h-0 min-w-0"
           style={{ '--sidebar-width': '20rem' } as CSSProperties}
         >
           <div className="relative w-full min-w-0 h-full overflow-hidden">
