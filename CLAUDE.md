@@ -19008,6 +19008,44 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Grabar una nota de voz AHÍ MISMO: un grabador para las seis pantallas que suben audio
+
+Macros (acción «Enviar archivo»), el paso de nota de voz de los dos editores de
+flujos (`/workflow` y el legado `/flow`, acción y seguimiento), Recordatorios,
+Multiagenda › Recordatorios y la biblioteca de Seguimientos del CRM solo dejaban
+**subir** un audio ya grabado. Ahora las seis llevan, al lado de subir —que se
+queda—, **Grabar audio → Pausar / Reanudar → Detener → escuchar → Usar
+grabación** (o «Grabar otra» / «Descartar»).
+
+> **El grabador es UNO, `components/shared/GrabadorDeAudio.tsx`**, sobre el
+> micrófono de siempre (`useAudioRecording`, el de Chats y el chat del equipo,
+> que ganó `pauseRecording`/`resumeRecording` y un `error` legible). Los mandos
+> de cada momento los decide `lib/grabador-de-audio.ts` (puro). Y **la
+> grabación entra por el MISMO camino que un archivo elegido** en cada
+> pantalla (`handleFile`, `uploadFileForAction`, `usarArchivo`): subir y grabar
+> no pueden acabar guardándose de dos formas.
+
+Cuatro cosas que hay que mantener:
+
+1. **El archivo va SIN códecs en el tipo** (`audio/webm`, no
+   `audio/webm;codecs=opus`, en `comoArchivoDeAudio`). La validación de los
+   flujos compara contra una lista y con los códecs dentro rechazaba la
+   grabación como «tipo de archivo no válido».
+2. **Pausar no cierra el micrófono ni parte el archivo**, y el tiempo se para:
+   la duración no cuenta la pausa. Detener sale siempre con el micrófono
+   abierto, en pausa también.
+3. **Sin permiso o sin micrófono se DICE** debajo del botón, no solo en la
+   consola.
+4. **Nadie graba por su cuenta**: el único `new MediaRecorder` es el del hook.
+   Chats y el chat del equipo ya grababan y no cambian; los adjuntos de tareas
+   y tickets (`BloqueDeAdjuntos`) no son notas de voz y no llevan grabador.
+
+Lo prueba `scripts/banco-grabador-de-audio.sh`: la regla, un barrido de las
+seis pantallas y el grabador real en Chromium con micrófono falso (pausa que
+para el tiempo, archivo que aceptan los dos editores, y el aviso sin permiso).
+`MODO=roto` lee las pantallas y el hook de `ANTES_REF` y afirma que ninguna
+podía grabar ni pausar.
+
 ## Flujos: el «Menú con botones» es el MISMO paso que el de texto, entregado de otra forma
 
 «Menú de opciones» manda las opciones numeradas en texto; **«Menú con botones»**

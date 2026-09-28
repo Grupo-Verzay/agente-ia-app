@@ -1,6 +1,7 @@
 // components/forms/ReminderForm.tsx
 "use client"
 
+import { GrabadorDeAudio } from "@/components/shared/GrabadorDeAudio";
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { fmtPhone } from "@/lib/whatsapp-jid"
 import { Controller, useForm } from "react-hook-form"
@@ -217,6 +218,11 @@ export const ReminderForm = ({
     const handleMediaSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
+        usarArchivo(file);
+    };
+
+    // Elegido del dispositivo o grabado aquí: el MISMO camino para los dos.
+    const usarArchivo = (file: File) => {
 
         const detectedType =
             file.type.startsWith("image/")
@@ -414,6 +420,8 @@ export const ReminderForm = ({
                             );
                         })}
                     </div>
+
+                    <GrabadorDeAudio onGrabado={usarArchivo} />
 
                     {mediaPreview ? (
                         <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2">

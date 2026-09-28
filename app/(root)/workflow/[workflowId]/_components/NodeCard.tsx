@@ -1,5 +1,6 @@
 'use client';
 
+import { GrabadorDeAudio } from "@/components/shared/GrabadorDeAudio";
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from 'next/navigation';
 import { updateNode, deleteNode, updateUrlNode, updateDelayNode, deleteFileNode, updateInactivityNode, updateNodeAiEnabled, updateNodeNotifyPhones, updateNodeNotifyText, updateNodeMenuOptions } from "@/actions/workflow-node-action";
@@ -586,6 +587,11 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
             onChange={handleFileChange}
           />
         </div>
+        {/* Nota de voz: también se puede grabar aquí mismo. Entra por el MISMO
+            `handleFile` que subir o arrastrar, con su validación de tipo. */}
+        {baseType === 'audio' && (
+          <GrabadorDeAudio disabled={isUploading} onGrabado={(f) => handleFile(f)} />
+        )}
       </div>
     );
   };

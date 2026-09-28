@@ -1,5 +1,6 @@
 'use client';
 
+import { GrabadorDeAudio } from "@/components/shared/GrabadorDeAudio";
 import { ChangeEvent, useEffect, useState, useTransition } from "react";
 import type { CurrentUser } from '@/lib/auth';
 import { useSortable } from "@dnd-kit/sortable";
@@ -496,6 +497,11 @@ export const NodeCard = ({ nodes, workflowId, user }: Props) => {
             onChange={handleFileChange}
           />
         </div>
+        {/* Nota de voz: también se puede grabar aquí mismo. Entra por el MISMO
+            `handleFile` que subir o arrastrar, con su validación de tipo. */}
+        {baseType === 'audio' && (
+          <GrabadorDeAudio disabled={isUploading} onGrabado={(f) => handleFile(f)} />
+        )}
 
         {/* {file && (
           <div className="flex justify-end gap-2">
