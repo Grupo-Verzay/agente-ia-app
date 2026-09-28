@@ -106,8 +106,10 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
             className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white"
           >
             {/* La casita SIEMPRE de primera y detrás el menú. `py-3` es el que
-                le da el alto a la barra (el mismo que antes con las migas). */}
-            <div ref={loDeLaIzquierda} data-inicio-de-la-barra className="flex shrink-0 items-center gap-1 py-3">
+                le da el alto a la barra (el mismo que antes con las migas).
+                `gap-2` es `HUECO_DE_LA_BARRA_PX`: el mismo hueco que deja el
+                selector después del menú, para que los tres vayan parejos. */}
+            <div ref={loDeLaIzquierda} data-inicio-de-la-barra className="flex shrink-0 items-center gap-2 py-3">
               <Link
                 href="/"
                 data-casita

@@ -42,40 +42,67 @@ export function seVeLaBarritaDeBandejas(rutas: (string | null | undefined)[]): b
 // pantallas no hay columna: se centra donde estaría (el mismo ancho,
 // `--ancho-lateral`, desde el borde izquierdo del contenido).
 //
-// Nunca puede montarse sobre la casita y el menú (a su izquierda) ni sobre los
-// botones de la derecha. Si centrado con sus palabras no cabe, prueba solo con
-// los iconos —también centrado—; y si ni así, se queda lo más cerca posible.
+// Y los tres de la izquierda van SIMÉTRICOS: casita → menú → selector con el
+// MISMO hueco (`HUECO_DE_LA_BARRA_PX`). Las dos cosas a la vez se consiguen
+// eligiendo el ANCHO: el selector arranca a un hueco del menú y se estira lo
+// justo para que su centro caiga en el de la columna —o sea, dos veces lo que
+// hay del menú al centro—. Por eso el ancho no es fijo: sale de medir.
+//
+// Si así se saliera por la derecha (un teléfono, donde la columna es toda la
+// pantalla) se conserva el hueco y se acorta; nunca pisa la casita, el menú ni
+// los botones de la derecha. Con poco ancho enseña solo los iconos.
 
-/** Ancho de una pestaña con su palabra: `w-[5.5rem]`. */
-export const ANCHO_DE_PESTANA_PX = 88;
-/** Ancho de una pestaña solo con su icono: `w-8`. */
-export const ANCHO_DE_PESTANA_COMPACTA_PX = 32;
+/** El hueco entre la casita, el menú y el selector: `gap-2`. */
+export const HUECO_DE_LA_BARRA_PX = 8;
 /** Borde (1+1), relleno `p-px` (1+1) y el hueco `gap-0.5` entre las dos. */
 export const RELLENO_DEL_SELECTOR_PX = 6;
+/** Una pestaña con su icono y su palabra («Correos») cabe desde aquí. */
+export const PESTANA_CON_PALABRA_PX = 88;
+/** Una pestaña solo con su icono: el alto de la barra, un cuadrado. */
+export const PESTANA_SOLO_ICONO_PX = 36;
+/** Más ancho no dice nada más: el selector deja de crecer aquí. */
+export const PESTANA_MAXIMA_PX = 124;
 
-export function elAnchoDelSelector(compacto: boolean): number {
-    const pestana = compacto ? ANCHO_DE_PESTANA_COMPACTA_PX : ANCHO_DE_PESTANA_PX;
-    return pestana * BANDEJAS.length + RELLENO_DEL_SELECTOR_PX;
-}
+const anchoCon = (pestana: number) => pestana * BANDEJAS.length + RELLENO_DEL_SELECTOR_PX;
+export const ANCHO_MINIMO_DEL_SELECTOR = anchoCon(PESTANA_SOLO_ICONO_PX);
+export const ANCHO_CON_PALABRAS = anchoCon(PESTANA_CON_PALABRA_PX);
+export const ANCHO_MAXIMO_DEL_SELECTOR = anchoCon(PESTANA_MAXIMA_PX);
 
 /**
  * Medidas en píxeles, relativas al borde izquierdo de la barra.
- * `minimo`: donde acaba lo de la izquierda (casita y menú) más su hueco.
+ * `minimo`: donde acaba lo de la izquierda (el menú) MÁS el hueco.
  * `maximo`: donde empieza lo de la derecha menos su hueco.
  */
 export function dondeVaElSelector(entrada: {
     columna: { izquierda: number; ancho: number };
     minimo: number;
     maximo: number;
-}): { izquierda: number; compacto: boolean } {
+}): { izquierda: number; ancho: number; compacto: boolean; centrado: boolean } {
     const { columna, minimo, maximo } = entrada;
-    const centro = columna.izquierda + columna.ancho / 2;
-    for (const compacto of [false, true]) {
-        const ancho = elAnchoDelSelector(compacto);
-        const x = centro - ancho / 2;
-        if (x >= minimo && x + ancho <= maximo) return { izquierda: Math.round(x), compacto };
+    const inicio = Math.round(minimo);
+    const centro = Math.round(columna.izquierda + columna.ancho / 2);
+    const cabe = (ancho: number) => inicio + ancho <= maximo;
+    const con = (izquierda: number, ancho: number, centrado: boolean) => ({
+        izquierda,
+        ancho,
+        compacto: ancho < ANCHO_CON_PALABRAS,
+        centrado,
+    });
+
+    // Lo normal: a un hueco del menú y centrado, a la vez.
+    const simetrico = 2 * (centro - inicio);
+    if (simetrico >= ANCHO_MINIMO_DEL_SELECTOR && simetrico <= ANCHO_MAXIMO_DEL_SELECTOR && cabe(simetrico)) {
+        return con(inicio, simetrico, true);
     }
-    const ancho = elAnchoDelSelector(true);
-    const x = Math.max(minimo, Math.min(centro - ancho / 2, maximo - ancho));
-    return { izquierda: Math.round(x), compacto: true };
+    // Una columna tan ancha que no hace falta estirarlo tanto: centrado.
+    if (simetrico > ANCHO_MAXIMO_DEL_SELECTOR) {
+        const izquierda = centro - ANCHO_MAXIMO_DEL_SELECTOR / 2;
+        if (izquierda + ANCHO_MAXIMO_DEL_SELECTOR <= maximo) return con(Math.round(izquierda), ANCHO_MAXIMO_DEL_SELECTOR, true);
+    }
+    // No cabe centrado: se conserva el hueco del menú y se acorta.
+    const ancho = Math.max(
+        ANCHO_MINIMO_DEL_SELECTOR,
+        Math.min(simetrico, ANCHO_MAXIMO_DEL_SELECTOR, Math.floor(maximo - inicio)),
+    );
+    return con(inicio, ancho, false);
 }
