@@ -1,5 +1,6 @@
 "use client";
 
+import { PanelSinSeleccion, ICONO_DE_CORREO } from "@/components/shared/PanelSinSeleccion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AlertTriangle,
@@ -1224,9 +1225,20 @@ function Bandeja({
                             alCambiarFirma={(firma, activa) => alCambiarFirma(abierto.buzonId, firma, activa)}
                         />
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center p-6 text-sm text-muted-foreground">
-                            Elige un correo para leerlo.
-                        </div>
+                        // El MISMO panel que Chats sin conversación: icono,
+                        // título, frase y las tres tarjetas, cada una con SU
+                        // filtro (el de la pastilla del mismo nombre).
+                        <PanelSinSeleccion
+                            className="flex"
+                            icono={ICONO_DE_CORREO}
+                            titulo="Tus correos"
+                            texto="Selecciona un correo de la lista para comenzar"
+                            tarjetas={[
+                                { clave: "destacados", tono: "ambar", letra: "D", titulo: "Destacados", texto: "Correos que marcaste con estrella", alPulsar: () => setFiltro("destacados") },
+                                { clave: "todos", tono: "azul", letra: "T", titulo: "Todos", texto: "Todos los correos de la bandeja", alPulsar: () => setFiltro("todos") },
+                                { clave: "sinLeer", tono: "naranja", letra: "S", titulo: "Sin leer", texto: "Correos pendientes por leer", alPulsar: () => setFiltro("sinLeer") },
+                            ]}
+                        />
                     )}
                 </div>
             </div>
