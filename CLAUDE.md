@@ -22500,6 +22500,36 @@ contra Postgres: 50/30/20 exacto, 40 chats a la vez, asesor desactivado, y
 Máx. chats e Ilimitado iguales). Los dos con `MODO=roto` contra un commit
 pinchado, que afirma que no había tercer modo.
 
+## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
+
+Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
+(`lib/propuestas.ts` puro, `lib/propuestas-db.ts`, `actions/propuestas-actions.ts`).
+Cada una puede llevar, todo opcional: empresa, WhatsApp del cliente, la línea
+de la cuenta desde la que se envía, correo, vigencia, nota interna o pública,
+método y medio de pago (el par de Instancias, sin días de licencia) y si la
+sección se titula «Servicios» o «Productos». El eslogan del encabezado es de la
+CUENTA (`propuestas_ajustes`), no de una propuesta.
+
+Cinco cosas que hay que mantener:
+
+1. **El botón de WhatsApp ENVÍA** (`enviarPropuestaPorWhatsappAction`): al
+   número y desde la línea guardados en la propuesta, por el despachador del
+   servidor. Solo llega el id; número y línea se leen de la base. **Nunca por
+   otra línea**: si la elegida no está conectada se dice (el despachador caería
+   a otra). Abrir `wa.me` sin enviar queda en el «⋯».
+2. **La línea tiene que ser de la cuenta** (`lasLineasParaEnviar`, la misma
+   regla que el despachador), al guardar y al enviar.
+3. **La página pública no lleva WhatsApp, correo ni línea**, y la nota solo si
+   es pública (`laNotaQueSeEnsena`). Lo que no se entiende es interna.
+4. Los campos nuevos entran con `ADD COLUMN IF NOT EXISTS`: la tabla ya está
+   en producción.
+5. El azul de la cabecera es `AZUL_DE_LA_PROPUESTA` (blue-500 → blue-400), uno
+   para la cabecera y las iniciales; y junto al logo va solo «Propuesta
+   comercial», no el nombre de la cuenta.
+
+Lo prueba `scripts/banco-propuestas.sh`; `MODO=roto` lee `73f991f` y afirma la
+cabecera oscura, el nombre junto al logo y el botón que solo abría `wa.me`.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

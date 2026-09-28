@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, ExternalLink, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, Send, StickyNote, Tag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,23 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarraDeAcciones, BotonDeCrear } from "@/components/shared/BarraDeAcciones";
 import {
     borrarPropuestaAction,
     crearPropuestaAction,
     editarPropuestaAction,
+    enviarPropuestaPorWhatsappAction,
+    ponerEsloganAction,
 } from "@/actions/propuestas-actions";
 import {
     comoSeLeeElImporte,
@@ -37,9 +48,11 @@ import {
     elEnlacePublico,
     elMensajeDeWhatsapp,
     elTotal,
+    losRotulosDeItems,
+    TOPE_DE_ESLOGAN,
     type Propuesta,
 } from "@/lib/propuestas";
-import { FormularioDePropuesta, type BorradorDePropuesta } from "./FormularioDePropuesta";
+import { FormularioDePropuesta, type BorradorDePropuesta, type LineaDelFormulario } from "./FormularioDePropuesta";
 import { copiarAlPortapapeles } from "./copiar-enlace";
 
 /** Lo que se busca: el cliente, sin acentos ni mayúsculas. */
@@ -57,8 +70,24 @@ async function pedir<T>(hacer: () => Promise<{ success: true; data: T } | { succ
     }
 }
 
-export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; origen: string }) {
+export function PropuestasClient({
+    inicial,
+    origen,
+    lineas,
+    esloganInicial,
+}: {
+    inicial: Propuesta[];
+    origen: string;
+    lineas: LineaDelFormulario[];
+    esloganInicial: string;
+}) {
     const [propuestas, setPropuestas] = useState<Propuesta[]>(inicial);
+    const [enviando, setEnviando] = useState<string | null>(null);
+    const [eslogan, setEslogan] = useState(esloganInicial);
+    const [esloganAbierto, setEsloganAbierto] = useState(false);
+    const [borradorEslogan, setBorradorEslogan] = useState(esloganInicial);
+    const [guardandoEslogan, setGuardandoEslogan] = useState(false);
+    const nombreDeLinea = (n: string) => lineas.find((l) => l.instanceName === n)?.nombre ?? n;
     const [busqueda, setBusqueda] = useState("");
     const [formAbierto, setFormAbierto] = useState(false);
     const [enEdicion, setEnEdicion] = useState<Propuesta | null>(null);
@@ -104,6 +133,44 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
         else toast.error("No se pudo copiar. Abre la propuesta y copia la dirección desde el navegador.");
     };
 
+    /**
+     * Manda el enlace por WhatsApp DESDE la línea de la propuesta y AL número de
+     * la propuesta. El botón se ve pulsado al momento y no deja pulsar dos veces
+     * mientras va: un mensaje repetido al cliente no se recoge.
+     */
+    const enviar = async (p: Propuesta) => {
+        if (enviando) return;
+        setEnviando(p.id);
+        const r = await pedir(() => enviarPropuestaPorWhatsappAction(p.id));
+        setEnviando(null);
+        if (!r.success) {
+            toast.error(r.message, {
+                action: {
+                    label: "Editar",
+                    onClick: () => {
+                        setEnEdicion(p);
+                        setFormAbierto(true);
+                    },
+                },
+            });
+            return;
+        }
+        toast.success(`Propuesta enviada a ${r.data.a} desde ${r.data.linea}.`);
+    };
+
+    const guardarEslogan = async () => {
+        setGuardandoEslogan(true);
+        const r = await pedir(() => ponerEsloganAction(borradorEslogan));
+        setGuardandoEslogan(false);
+        if (!r.success) {
+            toast.error(r.message);
+            return;
+        }
+        setEslogan(r.data);
+        setEsloganAbierto(false);
+        toast.success(r.data ? "Eslogan guardado: sale en todas tus propuestas." : "Eslogan quitado.");
+    };
+
     const borrar = async () => {
         const p = aBorrar;
         if (!p) return;
@@ -129,6 +196,22 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
                         placeholder="Buscar cliente…"
                         className="h-10 w-56 sm:w-72"
                     />
+                }
+                secundarias={
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 gap-1.5"
+                        data-abrir-eslogan
+                        title={eslogan ? `Eslogan: ${eslogan}` : "Sin eslogan"}
+                        onClick={() => {
+                            setBorradorEslogan(eslogan);
+                            setEsloganAbierto(true);
+                        }}
+                    >
+                        <Tag className="h-4 w-4" />
+                        <span className="hidden sm:inline">Eslogan</span>
+                    </Button>
                 }
                 crear={<BotonDeCrear onClick={abrirNueva}>Nuevo</BotonDeCrear>}
             />
@@ -171,8 +254,28 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
                                         >
                                             {p.cliente}
                                         </button>
-                                        <div className="text-xs text-muted-foreground">
-                                            {p.servicios.length} {p.servicios.length === 1 ? "servicio" : "servicios"}
+                                        {p.empresa ? (
+                                            <div className="line-clamp-1 text-xs text-muted-foreground" title={p.empresa}>
+                                                {p.empresa}
+                                            </div>
+                                        ) : null}
+                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            <span>
+                                                {p.servicios.length}{" "}
+                                                {p.servicios.length === 1
+                                                    ? losRotulosDeItems(p.tipoDeItems).singular
+                                                    : losRotulosDeItems(p.tipoDeItems).plural.toLowerCase()}
+                                            </span>
+                                            {p.nota ? (
+                                                <span
+                                                    data-nota-en-la-fila={p.notaVisibilidad}
+                                                    className="inline-flex items-center gap-0.5"
+                                                    title={`${p.notaVisibilidad === "publica" ? "Nota pública" : "Nota interna"}: ${p.nota}`}
+                                                >
+                                                    <StickyNote className="h-3 w-3" />
+                                                    {p.notaVisibilidad === "publica" ? "Nota pública" : "Nota interna"}
+                                                </span>
+                                            ) : null}
                                         </div>
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap">{comoSeLeeLaFecha(p.fecha)}</TableCell>
@@ -208,20 +311,22 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
                                                 <span className="hidden sm:inline">Copiar enlace</span>
                                             </Button>
                                             <Button
-                                                asChild
+                                                type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                className="h-8 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                                                className="h-8 gap-1.5 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                                                data-enviar-whatsapp
+                                                disabled={enviando === p.id}
+                                                title={
+                                                    p.whatsapp && p.linea
+                                                        ? `Enviar a +${p.whatsapp} desde ${nombreDeLinea(p.linea)}`
+                                                        : "Falta el WhatsApp del cliente o la línea: edita la propuesta"
+                                                }
+                                                aria-label="Enviar por WhatsApp"
+                                                onClick={() => void enviar(p)}
                                             >
-                                                <a
-                                                    href={elEnlaceDeWhatsapp(elMensajeDeWhatsapp(p.cliente, enlace))}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    title="Enviar por WhatsApp"
-                                                    aria-label="Enviar por WhatsApp"
-                                                >
-                                                    WhatsApp
-                                                </a>
+                                                <Send className="h-3.5 w-3.5" />
+                                                <span className="hidden sm:inline">{enviando === p.id ? "Enviando…" : "WhatsApp"}</span>
                                             </Button>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -239,6 +344,15 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
                                                     <DropdownMenuItem asChild>
                                                         <a href={enlace} target="_blank" rel="noopener noreferrer">
                                                             <ExternalLink className="mr-2 h-4 w-4" /> Ver página pública
+                                                        </a>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem asChild>
+                                                        <a
+                                                            href={elEnlaceDeWhatsapp(elMensajeDeWhatsapp(p.cliente, enlace))}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            <MessageCircle className="mr-2 h-4 w-4" /> Abrir en WhatsApp (sin enviar)
                                                         </a>
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
@@ -270,10 +384,47 @@ export function PropuestasClient({ inicial, origen }: { inicial: Propuesta[]; or
             <FormularioDePropuesta
                 abierto={formAbierto}
                 propuesta={enEdicion}
+                lineas={lineas}
                 guardando={guardando}
                 onCerrar={() => setFormAbierto(false)}
                 onGuardar={(b) => void guardar(b)}
             />
+
+            <Dialog open={esloganAbierto} onOpenChange={(o) => !o && !guardandoEslogan && setEsloganAbierto(false)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Eslogan de tus propuestas</DialogTitle>
+                        <DialogDescription>
+                            Sale a la derecha del logo en todas las propuestas de esta cuenta. Déjalo vacío si no quieres ninguno.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form
+                        id="formulario-de-eslogan"
+                        className="space-y-1.5"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            void guardarEslogan();
+                        }}
+                    >
+                        <Label htmlFor="propuesta-eslogan">Eslogan o marca (opcional)</Label>
+                        <Input
+                            id="propuesta-eslogan"
+                            value={borradorEslogan}
+                            maxLength={TOPE_DE_ESLOGAN}
+                            onChange={(e) => setBorradorEslogan(e.target.value)}
+                            placeholder="Ej: Automatiza tu negocio con IA"
+                        />
+                    </form>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setEsloganAbierto(false)} disabled={guardandoEslogan}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit" form="formulario-de-eslogan" disabled={guardandoEslogan}>
+                            {guardandoEslogan ? "Guardando…" : "Guardar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <AlertDialog open={Boolean(aBorrar)} onOpenChange={(o) => !o && setABorrar(null)}>
                 <AlertDialogContent>

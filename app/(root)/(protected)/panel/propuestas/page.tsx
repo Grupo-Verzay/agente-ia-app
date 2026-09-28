@@ -15,5 +15,12 @@ export const dynamic = "force-dynamic";
 export default async function PropuestasPage() {
     const r = await listarPropuestasAction();
     if (!r.success) return <AccessDenied />;
-    return <PropuestasClient inicial={r.data.propuestas} origen={r.data.origen} />;
+    return (
+        <PropuestasClient
+            inicial={r.data.propuestas}
+            origen={r.data.origen}
+            lineas={r.data.lineas}
+            esloganInicial={r.data.eslogan}
+        />
+    );
 }
