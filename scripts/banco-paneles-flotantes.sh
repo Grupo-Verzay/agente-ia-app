@@ -342,6 +342,7 @@ function Maqueta({ carril, columna }: { carril: number; columna: number }) {
 TSX
 
 npx esbuild "$ENTRY" --bundle --format=esm --outfile="$OUT" \
+  --alias:@/actions/filtro-de-chats-actions=./lib/__tests__/fingido/filtro-de-chats-actions.ts \
   --alias:@="$(pwd)" \
   --loader:.tsx=tsx --loader:.json=json --jsx=automatic \
   --define:process.env.NODE_ENV='"production"' --log-level=error

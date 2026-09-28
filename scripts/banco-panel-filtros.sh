@@ -73,6 +73,7 @@ let root: Root | null = null;
 TSX
 
 npx esbuild "$ENTRY" --bundle --format=esm --outfile="$OUT" \
+    --alias:@/actions/filtro-de-chats-actions=./lib/__tests__/fingido/filtro-de-chats-actions.ts \
     --alias:@="$(pwd)" --loader:.tsx=tsx --jsx=automatic \
     --define:process.env.NODE_ENV='"production"' --log-level=error
 

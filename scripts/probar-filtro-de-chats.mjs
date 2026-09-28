@@ -41,7 +41,7 @@ const nombresDeLaLista = (pagina) =>
     pagina.$$eval("[data-columna-de-chats] [data-chat-id]", (filas) =>
         filas
             .map((f) => f.textContent ?? "")
-            .map((t) => (t.match(/(Mario|Ana|Beto|Caro|Vera) \w+/) ?? [""])[0])
+            .map((t) => (t.match(/(Mario|Ana|Beto|Caro|Vera) (Madre|Atencion|Ventas)/) ?? [""])[0])
             .filter(Boolean)
             .sort(),
     );
@@ -49,7 +49,18 @@ const nombresDeLaLista = (pagina) =>
 const textos = (pagina, selector) =>
     pagina.$$eval(`[data-radix-popper-content-wrapper] ${selector}`, (xs) => xs.map((x) => (x.textContent ?? "").trim()));
 
+/** La «Guía rápida» del copiloto se abre sola con un velo que se come los clics. */
+async function apartarLoQueTapa(pagina) {
+    for (let i = 0; i < 4; i += 1) {
+        const capa = await pagina.$('div[data-state="open"].fixed.inset-0');
+        if (!capa) break;
+        await pagina.keyboard.press("Escape");
+        await pagina.waitForTimeout(250);
+    }
+}
+
 async function abrirPanel(pagina) {
+    await apartarLoQueTapa(pagina);
     if (await pagina.$("[data-radix-popper-content-wrapper] [data-seccion]")) return;
     await pagina.click('button[aria-label="Filtros"]');
     await pagina.waitForSelector("[data-radix-popper-content-wrapper] [data-seccion]", { timeout: 15000 });

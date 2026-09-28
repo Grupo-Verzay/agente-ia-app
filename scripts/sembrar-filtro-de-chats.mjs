@@ -25,7 +25,16 @@ const pass = await bcrypt.hash(CLAVE, 10);
 
 async function cuenta(email, name, company, extra = {}) {
     const vieja = await db.user.findUnique({ where: { email } });
-    if (vieja) await db.user.delete({ where: { id: vieja.id } });
+    if (vieja) {
+        // Lo de una vuelta anterior, entero: con dos fichas para el mismo
+        // número la bandeja se queda con la vieja y el banco mide otra cosa.
+        await db.session.deleteMany({ where: { userId: vieja.id } });
+        await db.chatConversation.deleteMany({ where: { userId: vieja.id } });
+        await db.chatMessage.deleteMany({ where: { userId: vieja.id } });
+        await db.tag.deleteMany({ where: { userId: vieja.id } });
+        await db.linkedAccount.deleteMany({ where: { OR: [{ masterUserId: vieja.id }, { linkedUserId: vieja.id }] } });
+        await db.user.delete({ where: { id: vieja.id } });
+    }
     return db.user.create({ data: { email, name, company, password: pass, role: "user", status: true, ...extra } });
 }
 
@@ -102,20 +111,20 @@ async function chat(duena, instanceName, instanceId, jid, nombre, etiquetas = []
 const tag = (duena, name, color) =>
     db.tag.create({ data: { userId: duena.id, name, slug: name.toLowerCase(), color } });
 
-await linea(madre, "FILTRO_MADRE", "inst-filtro-m");
-await linea(atencion, "FILTRO_ATENCION", "inst-filtro-a");
-await linea(ventas, "FILTRO_VENTAS", "inst-filtro-v");
+await linea(madre, "FILTRO_MADRE", "FILTRO_MADRE");
+await linea(atencion, "FILTRO_ATENCION", "FILTRO_ATENCION");
+await linea(ventas, "FILTRO_VENTAS", "FILTRO_VENTAS");
 
 const vip = await tag(madre, "VIP", "#7C3AED");
 const interesadoA = await tag(atencion, "Interesado", "#2563EB");
 const reclamo = await tag(atencion, "Reclamo", "#DC2626");
 const interesadoV = await tag(ventas, "Interesado", "#16A34A");
 
-await chat(madre, "FILTRO_MADRE", "inst-filtro-m", "573000000001@s.whatsapp.net", "Mario Madre", [vip.id]);
-const ana = await chat(atencion, "FILTRO_ATENCION", "inst-filtro-a", "573000000002@s.whatsapp.net", "Ana Atencion", [interesadoA.id]);
-const beto = await chat(atencion, "FILTRO_ATENCION", "inst-filtro-a", "573000000003@s.whatsapp.net", "Beto Atencion", [reclamo.id]);
-const caro = await chat(atencion, "FILTRO_ATENCION", "inst-filtro-a", "573000000004@s.whatsapp.net", "Caro Atencion");
-await chat(ventas, "FILTRO_VENTAS", "inst-filtro-v", "573000000005@s.whatsapp.net", "Vera Ventas", [interesadoV.id]);
+await chat(madre, "FILTRO_MADRE", "FILTRO_MADRE", "573000000001@s.whatsapp.net", "Mario Madre", [vip.id]);
+const ana = await chat(atencion, "FILTRO_ATENCION", "FILTRO_ATENCION", "573000000002@s.whatsapp.net", "Ana Atencion", [interesadoA.id]);
+const beto = await chat(atencion, "FILTRO_ATENCION", "FILTRO_ATENCION", "573000000003@s.whatsapp.net", "Beto Atencion", [reclamo.id]);
+const caro = await chat(atencion, "FILTRO_ATENCION", "FILTRO_ATENCION", "573000000004@s.whatsapp.net", "Caro Atencion");
+await chat(ventas, "FILTRO_VENTAS", "FILTRO_VENTAS", "573000000005@s.whatsapp.net", "Vera Ventas", [interesadoV.id]);
 
 const eVentasA = await crearEmbudo({ cuentaId: atencion.id, nombre: "Embudo de ventas", creadoPorId: atencion.id });
 await crearEmbudo({ cuentaId: atencion.id, nombre: "Soporte", creadoPorId: atencion.id });
