@@ -11,6 +11,7 @@ import { esGenteQueAlcanzo, laCuentaDeLaConversacion } from "@/lib/dueno-del-dat
 import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
 import { encolarLaEncuestaDeSatisfaccion } from "@/lib/encuesta-de-satisfaccion.server";
+import { asignarPorPorcentaje, leerElReparto } from "@/lib/reparto-por-porcentaje-db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import {
@@ -146,6 +147,29 @@ export async function autoAssignUnassignedSessionsForOwner(
     ORDER BY "createdAt" ASC
   `;
 
+  // Modo «Por porcentaje»: excluye a Máx. chats e Ilimitado. Mismo reparto que
+  // el backend al entrar un chat (`lib/reparto-por-porcentaje.ts`, copiado allí
+  // byte a byte), y con el mismo contador acumulado: lo que se reparte desde
+  // aquí también cuenta para la proporción.
+  const reparto = await leerElReparto(ownerId);
+  if (reparto.activo) {
+    let asignadosPorPorcentaje = 0;
+    for (const session of unassigned) {
+      const advisorId = await asignarPorPorcentaje(ownerId, session.id);
+      if (advisorId === "ocupada") continue;
+      if (!advisorId) {
+        return {
+          assigned: asignadosPorPorcentaje,
+          skippedReason: "no_available_advisors",
+        };
+      }
+      await logAssignment(session.id, advisorId, options.assignedBy, "auto_assigned");
+      void triggerAdvisorAutomations(session.id, advisorId);
+      asignadosPorPorcentaje++;
+    }
+    return { assigned: asignadosPorPorcentaje };
+  }
+
   let assigned = 0;
   for (const session of unassigned) {
     // Round-robin 1-1-1: mismo criterio que el backend (auto-assign.service.ts).
@@ -165,6 +189,9 @@ export async function autoAssignUnassignedSessionsForOwner(
         FROM "linked_accounts" la
         JOIN "User" u ON u.id = la."linked_user_id"
         WHERE la."master_user_id" = ${ownerId}
+          -- La misma gente que reparte el backend: una vinculada con papel de
+          -- administrador es otra cuenta titular, no alguien a quien repartirle.
+          AND la.role::text = 'agente'
       ),
       load AS (
         SELECT s.assigned_advisor_id AS id, COUNT(*)::int AS cnt

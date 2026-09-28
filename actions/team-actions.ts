@@ -15,6 +15,18 @@ import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, rutasDePanelPara } from "@/lib/sid
 import { isAdminLike } from "@/lib/rbac";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
 import { validarEdicionDeAsesor, esCorreoValido } from "@/lib/editar-asesor";
+import {
+  apagarElReparto,
+  guardarElReparto,
+  leerElReparto,
+  losAsesoresDelReparto,
+} from "@/lib/reparto-por-porcentaje-db";
+import {
+  comoModoDeReparto,
+  comoPorcentaje,
+  porQueNoSePuedeGuardar,
+  type ModoDeReparto,
+} from "@/lib/reparto-por-porcentaje";
 import type { Role } from "@prisma/client";
 
 export type ModuleOption = { id: string; label: string };
@@ -36,6 +48,14 @@ export type AdvisorRow = {
    * esa opción es ofrecer un botón que da error.
    */
   esDelEquipo: boolean;
+  /**
+   * Si entra en el reparto automático de chats: el equipo con papel y las
+   * cuentas vinculadas marcadas como `agente`. Es la MISMA gente que reparte el
+   * backend (`losAsesoresDelReparto`); una vinculada con papel de
+   * administrador es otra cuenta titular y no recibe leads, así que ofrecerle
+   * un porcentaje sería ofrecer algo que nunca se cumple.
+   */
+  entraEnElReparto: boolean;
 };
 export type AdvisorInfo = {
   id: string;
@@ -152,6 +172,17 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       -- vinculadas. El DISTINCT ON de arriba ya decide cual gana cuando
       -- alguien esta en las dos.
       (d.priority = 0) AS "esDelEquipo",
+      (
+        EXISTS (
+          SELECT 1 FROM "User" x
+          WHERE x.id = d.id AND x.owner_id = ${owner.id} AND x.advisor_role IS NOT NULL
+        )
+        OR EXISTS (
+          SELECT 1 FROM "linked_accounts" lr
+          WHERE lr."master_user_id" = ${owner.id} AND lr."linked_user_id" = d.id
+            AND lr.role::text = 'agente'
+        )
+      ) AS "entraEnElReparto",
       COUNT(s.id)::int AS "assignedCount",
       COUNT(s.id) FILTER (WHERE s.status = true)::int AS "activeCount",
       MAX(s."updatedAt") AS "lastActivity"
@@ -860,9 +891,20 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
  * depende (`actions/escalado-actions.ts`). Aqui no podia quedarse: los planes
  * sin equipo no ven esta pantalla y tambien escalan.
  */
-export async function getAutoAssignSettings(): Promise<
-  ActionResult<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }>
-> {
+export type AutoAssignSettingsData = {
+  autoAssignEnabled: boolean;
+  autoAssignMaxChats: number;
+  /**
+   * El modo del reparto, uno solo a la vez. `maximo` e `ilimitado` salen de
+   * `auto_assign_max_chats` como siempre (0 = ilimitado); `porcentaje` sale de
+   * la tabla de la App `reparto_porcentaje` y manda sobre los otros dos.
+   */
+  modo: ModoDeReparto;
+  /** Porcentaje y contador acumulado de cada asesor, por id. */
+  porcentajes: Record<string, { porcentaje: number; asignados: number }>;
+};
+
+export async function getAutoAssignSettings(): Promise<ActionResult<AutoAssignSettingsData>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
@@ -872,12 +914,33 @@ export async function getAutoAssignSettings(): Promise<
     FROM "User" WHERE id = ${owner.id}
   `;
   const row = rows[0] ?? { autoAssignEnabled: false, autoAssignMaxChats: 5 };
-  return { success: true, data: row };
+  // El reparto por porcentaje es best-effort al LEER: si sus tablas fallan, la
+  // pantalla se pinta con Máx. chats / Ilimitado como antes, y se dice.
+  let reparto: Awaited<ReturnType<typeof leerElReparto>> = { activo: false, activadoEn: null, porcentajes: {} };
+  try {
+    reparto = await leerElReparto(owner.id);
+  } catch (error) {
+    console.warn("[equipo] no se pudo leer el reparto por porcentaje", error);
+  }
+  return {
+    success: true,
+    data: {
+      ...row,
+      modo: reparto.activo ? "porcentaje" : row.autoAssignMaxChats <= 0 ? "ilimitado" : "maximo",
+      porcentajes: reparto.porcentajes,
+    },
+  };
 }
 
 export async function saveAutoAssignSettings(input: {
   enabled: boolean;
   maxChats: number;
+  /**
+   * Opcional para no romper a nadie: sin él se deduce de `maxChats` como antes
+   * (0 = ilimitado). Con `porcentaje`, `porcentajes` es obligatorio.
+   */
+  modo?: ModoDeReparto;
+  porcentajes?: Record<string, number>;
 }): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -885,11 +948,42 @@ export async function saveAutoAssignSettings(input: {
   // maxChats === 0 significa CAPACIDAD ILIMITADA (sin tope de chats por asesor).
   // Cualquier otro valor se acota entre 1 y 500.
   const maxChats = input.maxChats <= 0 ? 0 : Math.max(1, Math.min(input.maxChats, 500));
-  await db.$executeRaw`
-    UPDATE "User"
-    SET auto_assign_enabled = ${input.enabled}, auto_assign_max_chats = ${maxChats}
-    WHERE id = ${owner.id}
-  `;
+  const modo: ModoDeReparto = input.modo
+    ? comoModoDeReparto(input.modo)
+    : maxChats <= 0
+      ? "ilimitado"
+      : "maximo";
+
+  if (modo === "porcentaje") {
+    // La lista la decide el SERVIDOR: solo cuentan los asesores que de verdad
+    // entran en el reparto de esta cuenta, con su disponibilidad de ahora. Un id
+    // que llegue de fuera y no sea de este equipo se ignora.
+    const asesores = await losAsesoresDelReparto(owner.id);
+    const pedidos = input.porcentajes ?? {};
+    const conPedidos = asesores.map((a) => ({
+      ...a,
+      porcentaje: Object.prototype.hasOwnProperty.call(pedidos, a.id) ? comoPorcentaje(pedidos[a.id]) : a.porcentaje,
+    }));
+    const motivo = porQueNoSePuedeGuardar(conPedidos);
+    if (motivo) return { success: false, message: motivo };
+    await guardarElReparto(
+      owner.id,
+      Object.fromEntries(conPedidos.map((a) => [a.id, a.porcentaje])),
+    );
+    // `auto_assign_max_chats` NO se toca: es el Máx. chats que vuelve si se
+    // cambia de modo.
+    await db.$executeRaw`
+      UPDATE "User" SET auto_assign_enabled = ${input.enabled} WHERE id = ${owner.id}
+    `;
+  } else {
+    await apagarElReparto(owner.id);
+    await db.$executeRaw`
+      UPDATE "User"
+      SET auto_assign_enabled = ${input.enabled},
+          auto_assign_max_chats = ${modo === "ilimitado" ? 0 : maxChats <= 0 ? 5 : maxChats}
+      WHERE id = ${owner.id}
+    `;
+  }
 
   if (input.enabled) {
     // El alcance es la CUENTA (`owner.id`, que es lo que `requireOwner`
