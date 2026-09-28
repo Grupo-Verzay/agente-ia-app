@@ -18897,6 +18897,41 @@ contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
 `scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
 esperando horario, las zonas de México y Madrid, la acción y la migración).
 
+## Flujos: el «Menú con botones» es el MISMO paso que el de texto, entregado de otra forma
+
+«Menú de opciones» manda las opciones numeradas en texto; **«Menú con botones»**
+(`menu-interactivo`) manda las mismas opciones como **lista desplegable** de
+WhatsApp —o como hasta 3 botones— y el cliente elige tocando. Todo lo demás es
+común: la pregunta, las opciones (una por línea, tope 10, que es también el
+máximo de filas de una lista), las ramas `opt-N`, los **reintentos** (0 a 5) con
+su aviso, y qué pasa al agotarlos: **seguir por la rama «No eligió»** o **pasar
+a la IA**. Los dos se editan con el mismo bloque (`MenuNodeFields`).
+
+Cinco cosas que hay que mantener:
+
+1. **La regla es una, escrita dos veces a propósito**: `lib/workflow-menu.ts`
+   aquí y `src/modules/workflow/menu-de-opciones.ts` en el backend. Rótulos,
+   topes de WhatsApp (fila 24, botón 20), forma y conectores tienen que decir lo
+   mismo: la vista previa es lo que le llega al cliente, y el conector que se
+   dibuja es la rama que el motor sigue. El banco compila las dos y las compara.
+2. **Las columnas nuevas (`menu_style`, `menu_list_button`, `menu_fallback`)
+   son del BACKEND** y la App las lee y escribe en SQL crudo
+   (`lib/menu-interactivo-db.ts`), tolerando que falten (#360).
+3. **Solo WAHA manda la lista**, y su motor GOWS **no implementa botones**: el
+   motor prueba botones, cae a lista y, si nada sale, al menú numerado en texto.
+   El cliente siempre recibe algo, y el menú queda escrito en la conversación
+   (antes el menú de texto por Waha no se guardaba).
+4. **El cliente puede tocar o escribir**: vale el número, el id de la fila o el
+   texto de la opción. Lo que no case cuenta como reintento. Pasar a la IA
+   termina el paso y le deja a la IA una nota de qué se preguntó.
+5. **«Pasar a la IA» no dibuja la rama «No eligió»**, y al elegirlo se borra la
+   conexión que colgaba de ella. Un menú nuevo se conecta por su primer conector
+   libre (`conectoresDeSalida`), no por `out`.
+
+Lo prueba `scripts/banco-menu-interactivo.sh` aquí (regla, barrido y comparación
+con el backend; `MODO=roto` afirma que antes no existía) y el del mismo nombre
+en `api-webhook` (el motor contra Postgres, con su modo roto).
+
 ## Un `import` que no existe se caza sin esperar al build
 
 Es la otra mitad de *dos PR verdes por separado pueden tumbar el despliegue

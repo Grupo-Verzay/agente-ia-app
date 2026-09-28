@@ -2,7 +2,7 @@ import { Handle, Position, useConnection } from "@xyflow/react";
 import { NodeCard } from "./NodeCard";
 import { CustomNodeData } from "@/types/workflow-node";
 import { SourceDotHandle } from "./SourceDotHandle"; // o donde lo tengas
-import { menuOptionHandle, parseMenuOptions } from "@/lib/workflow-menu";
+import { comoRendicion, esNodoDeMenu, menuOptionHandle, parseMenuOptions } from "@/lib/workflow-menu";
 
 export function CustomNode({ data }: { data: CustomNodeData }) {
     const connection = useConnection();
@@ -15,14 +15,18 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
 
     const nodeType = (data.nodeDB.tipo ?? "").toLowerCase();
     const isIntention = nodeType === "intention";
-    const isMenu = nodeType === "menu";
+    // Los dos menus -el de texto y el de botones- se conectan IGUAL: un
+    // conector por opcion (opt-N) y, si al agotar los reintentos se sigue por
+    // una rama, el de rendicion ("no"). Con «Pasar a la IA» esa rama no existe:
+    // no se dibuja un conector que el motor nunca va a usar.
+    const isMenu = esNodoDeMenu(nodeType);
+    const nodoMenu = data.nodeDB as { menuOptions?: string | null; menuFallback?: string | null };
 
-    // Un conector por opcion, mas el de rendicion. Se reparten a lo alto del
-    // nodo dejando aire arriba y abajo; con una sola opcion queda centrada.
-    const opcionesMenu = isMenu
-        ? parseMenuOptions((data.nodeDB as { menuOptions?: string | null }).menuOptions)
-        : [];
-    const totalConectores = opcionesMenu.length + 1;
+    // Se reparten a lo alto del nodo dejando aire arriba y abajo; con una sola
+    // opcion queda centrada.
+    const opcionesMenu = isMenu ? parseMenuOptions(nodoMenu.menuOptions) : [];
+    const conRendicion = isMenu && comoRendicion(nodoMenu.menuFallback) === "rama";
+    const totalConectores = opcionesMenu.length + (conRendicion ? 1 : 0);
     const posicionConector = (indice: number) =>
         totalConectores === 1 ? 50 : 18 + (indice * 64) / (totalConectores - 1);
 
@@ -59,17 +63,19 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                         />
                     ))}
                     {/* La rama de rendicion: por aqui sale cuando el cliente no
-                        acierta ninguna opcion despues de varios intentos. Es
+                        acierta ninguna opcion despues de los reintentos. Es
                         donde se suele poner "te paso con un asesor". */}
-                    <SourceDotHandle
-                        id="no"
-                        label="No entendió"
-                        topPct={posicionConector(opcionesMenu.length)}
-                        active={!connection.inProgress || isSourceActive}
-                        connectableStart={!connection.inProgress}
-                        totalNodes={data.totalNodes}
-                        seguimientoNodes={data.seguimientoNodes}
-                    />
+                    {conRendicion && (
+                        <SourceDotHandle
+                            id="no"
+                            label="No eligió"
+                            topPct={posicionConector(opcionesMenu.length)}
+                            active={!connection.inProgress || isSourceActive}
+                            connectableStart={!connection.inProgress}
+                            totalNodes={data.totalNodes}
+                            seguimientoNodes={data.seguimientoNodes}
+                        />
+                    )}
                 </>
             ) : isIntention ? (
                 <>

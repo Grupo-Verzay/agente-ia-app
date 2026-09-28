@@ -2,7 +2,16 @@
 import { buildLinearExecutionOrder } from "@/app/(root)/workflow/[workflowId]/helpers/buildLinearExecutionOrder";
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
-import { parseMenuOptions } from "@/lib/workflow-menu";
+import {
+  comoEstiloDeMenu,
+  comoRendicion,
+  comoTextoDelBoton,
+  esMenuInteractivo,
+  esNodoDeMenu,
+  intentosDeReintentos,
+  parseMenuOptions,
+} from "@/lib/workflow-menu";
+import { ajustesDe, escribirAjustesDeMenu, leerAjustesDeMenu } from "@/lib/menu-interactivo-db";
 import { db } from "@/lib/db";
 import { minioClient } from "@/lib/minio";
 import { createNodeflowSchema, createNodeflowSchemaType } from "@/schema/nodeflow";
@@ -637,12 +646,94 @@ export async function getNodeforUser(workflowId: string) {
   // Leer los pasos de un flujo ajeno es leer lo que su agente le dice a sus
   // clientes. Sin dueño alcanzable, la lista vacía, como un flujo sin pasos.
   if (!(await laCuentaDelFlujo(workflowId))) return [];
-  return db.workflowNode.findMany({
+  const nodos = await db.workflowNode.findMany({
     where: {
       workflowId,
     },
     orderBy: { order: "asc" },
-  })
+  });
+  // Los ajustes del menú con botones (y la rendición de los dos menús) viven
+  // en columnas que no están en el esquema de la App: se leen aparte, en UNA
+  // consulta, y solo si hay algún paso de menú. Ver `lib/menu-interactivo-db.ts`.
+  const deMenu = nodos.filter((n) => esNodoDeMenu(n.tipo)).map((n) => n.id);
+  if (deMenu.length === 0) return nodos;
+  const ajustes = await leerAjustesDeMenu(deMenu);
+  return nodos.map((n) => (esNodoDeMenu(n.tipo) ? { ...n, ...ajustesDe(ajustes, n.id) } : n));
+}
+
+/**
+ * Los ajustes de los dos pasos de menú, en una acción: reintentos, aviso si no
+ * elige, qué pasa al agotar los reintentos (rama «no» o la IA) y, en el menú
+ * con botones, la forma (lista o botones) y el botón que abre la lista.
+ *
+ * Todo lo que llega se sanea con la MISMA regla del motor (`lib/workflow-menu`):
+ * un valor que no se entiende cae en lo de siempre, nunca se guarda tal cual.
+ *
+ * Pasar a «Pasar a la IA» quita la conexión de la rama «no» de ese paso: esa
+ * rama deja de usarse, y un conector que ya no se dibuja con una flecha
+ * colgando de él se leería como que el flujo todavía va por ahí.
+ */
+export async function updateNodeMenuConfig(
+  nodeId: string,
+  cambios: {
+    reintentos?: number;
+    aviso?: string;
+    rendicion?: string;
+    estilo?: string;
+    textoDelBoton?: string;
+  },
+) {
+  try {
+    if (!nodeId) return { success: false, message: 'Parámetros inválidos.' };
+    const user = await currentUser();
+    if (!user?.id) return { success: false, message: 'No autorizado.' };
+    if (!(await laCuentaDelNodo(nodeId))) return NO_ES_TUYO_EL_PASO;
+
+    const nodo = await db.workflowNode.findUnique({
+      where: { id: nodeId },
+      select: { id: true, tipo: true, workflowId: true },
+    });
+    if (!nodo || !esNodoDeMenu(nodo.tipo)) return NO_ES_TUYO_EL_PASO;
+    const interactivo = esMenuInteractivo(nodo.tipo);
+
+    const data: { intentionMaxAttempts?: number; noMatchMessage?: string | null } = {};
+    if (cambios.reintentos !== undefined) data.intentionMaxAttempts = intentosDeReintentos(cambios.reintentos);
+    if (cambios.aviso !== undefined) {
+      const aviso = cambios.aviso.trim().slice(0, 500);
+      data.noMatchMessage = aviso || null;
+    }
+    if (Object.keys(data).length > 0) {
+      await db.workflowNode.update({ where: { id: nodeId }, data });
+    }
+
+    const ajustes: Parameters<typeof escribirAjustesDeMenu>[1] = {};
+    if (cambios.rendicion !== undefined) ajustes.menuFallback = comoRendicion(cambios.rendicion);
+    if (interactivo && cambios.estilo !== undefined) ajustes.menuStyle = comoEstiloDeMenu(cambios.estilo);
+    if (interactivo && cambios.textoDelBoton !== undefined) {
+      const t = cambios.textoDelBoton.trim();
+      ajustes.menuListButton = t ? comoTextoDelBoton(t) : null;
+    }
+    const escrito = await escribirAjustesDeMenu(nodeId, ajustes);
+    if (!escrito.ok) {
+      return {
+        success: false,
+        message: escrito.faltaLaMigracion
+          ? 'El servidor todavía no admite este ajuste. Inténtalo en unos minutos.'
+          : 'Ocurrió un error al guardar el menú.',
+      };
+    }
+
+    if (ajustes.menuFallback === 'ia') {
+      await db.workflowEdge.deleteMany({
+        where: { workflowId: nodo.workflowId, sourceId: nodeId, sourceHandle: 'no' },
+      });
+    }
+
+    return { success: true, message: 'Menú actualizado.' };
+  } catch (error) {
+    console.error('Error updateNodeMenuConfig', error);
+    return { success: false, message: 'Ocurrió un error al guardar el menú.' };
+  }
 }
 
 /* SE UTILIZA PARA SABER EL ORDEN DE LOS NODOS */
