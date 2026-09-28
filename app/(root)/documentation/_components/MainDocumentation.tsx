@@ -38,6 +38,7 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
                 return (
                     <div
                         key={index}
+                        data-tarjeta-de-documentacion={card.title}
                         className="flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border bg-background transition-all duration-300 hover:shadow-lg hover:scale-[1.015]"
                         style={{ borderTop: `3px solid ${color}` }}
                     >
@@ -49,13 +50,29 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
                             >
                                 <span style={{ color }}>{card.icon}</span>
                             </div>
-                            <p className="font-semibold text-base leading-tight">{card.title}</p>
-                            <p className="text-sm text-muted-foreground leading-snug">{card.description}</p>
+                            {/* El título reserva dos líneas y la descripción tres,
+                                aunque usen menos: así el icono, el título, la
+                                descripción y el botón caen a la misma altura en
+                                las cuatro tarjetas, sea cual sea el largo del
+                                texto. El texto entero va en el `title`. */}
+                            <p
+                                className="flex min-h-[2lh] items-center font-semibold text-base leading-tight"
+                                data-titulo-de-tarjeta
+                            >
+                                {card.title}
+                            </p>
+                            <p
+                                className="line-clamp-3 min-h-[3lh] text-sm text-muted-foreground leading-snug"
+                                title={card.description}
+                                data-descripcion-de-tarjeta
+                            >
+                                {card.description}
+                            </p>
                         </div>
 
                         {/* Botón */}
                         <div className="px-5 pb-5">
-                            <Button asChild className="w-full" style={{ backgroundColor: color, borderColor: color }}>
+                            <Button asChild className="w-full text-white" style={{ backgroundColor: color, borderColor: color }}>
                                 <Link href={card.href}>{card.buttonLabel}</Link>
                             </Button>
                         </div>

@@ -153,6 +153,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/dashboard/finance/settings" },
     { route: "/documentation/guide" },
     { route: "/documentation/tutorial" },
+    { route: "/documentation/actualizaciones" },
     // Panel (admin section) - adicionales
     { route: "/panel/pagos" },
     { route: "/panel/planes" },
