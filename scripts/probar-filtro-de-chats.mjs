@@ -66,6 +66,18 @@ async function abrirPanel(pagina) {
     await pagina.waitForSelector("[data-radix-popper-content-wrapper] [data-seccion]", { timeout: 15000 });
     await pagina.waitForTimeout(1200);
 }
+/** Etiquetas y Embudos nacen plegadas: se despliega la que se va a mirar. */
+async function desplegar(pagina, seccion) {
+    const sel = `[data-radix-popper-content-wrapper] button[data-seccion="${seccion}"]`;
+    await pagina.waitForSelector(sel, { timeout: 15000 });
+    if ((await pagina.getAttribute(sel, "data-abierta")) !== "si") await pagina.click(sel);
+    await pagina.waitForTimeout(300);
+}
+/** Elegir una etiqueta o una etapa cierra el panel entero, solo. */
+async function exigirPanelCerrado(pagina, que) {
+    await pagina.waitForTimeout(500);
+    exigir(!(await pagina.$("[data-radix-popper-content-wrapper] [data-seccion]")), `elegir ${que} cierra el panel`);
+}
 async function cerrarPanel(pagina) {
     await pagina.keyboard.press("Escape");
     await pagina.waitForTimeout(600);
@@ -102,10 +114,21 @@ try {
     // 2. Atención: sus etiquetas y sus dos embudos.
     await pagina.click(`[data-radix-popper-content-wrapper] [data-cuenta="${CUENTAS.atencion}"]`);
     await pagina.waitForTimeout(500);
+    exigir(
+        (await pagina.$$("[data-radix-popper-content-wrapper] [data-tag]")).length === 0,
+        "Etiquetas nace plegada",
+    );
+    await desplegar(pagina, "etiquetas");
     const etiquetas = await textos(pagina, "[data-tag]");
     exigir(
         JSON.stringify([...etiquetas].sort()) === JSON.stringify(["Interesado", "Reclamo"]),
         `Atención ofrece solo SUS etiquetas (${etiquetas.join(", ")})`,
+    );
+    await desplegar(pagina, "embudos");
+    await pagina.waitForSelector("[data-radix-popper-content-wrapper] [data-embudo-opcion]", { timeout: 15000 });
+    exigir(
+        (await pagina.$$("[data-radix-popper-content-wrapper] [data-tag]")).length === 0,
+        "desplegar Embudos pliega Etiquetas",
     );
     const embudos = await textos(pagina, "[data-embudo-opcion]");
     exigir(
@@ -120,25 +143,28 @@ try {
     const etapas = await textos(pagina, "[data-etapa]");
     exigir(etapas.includes("Cotizado") && etapas[0] === "Nuevo", `salen las etapas del embudo (${etapas.join(", ")})`);
     await pagina.click('[data-radix-popper-content-wrapper] [data-etapa]:has-text("Cotizado")');
-    await cerrarPanel(pagina);
+    await exigirPanelCerrado(pagina, "la etapa");
     const enCotizado = await nombresDeLaLista(pagina);
     exigir(JSON.stringify(enCotizado) === JSON.stringify(["Beto Atencion"]), `en «Cotizado» sale solo Beto (${enCotizado.join(", ")})`);
 
     await abrirPanel(pagina);
+    await desplegar(pagina, "embudos");
     await pagina.click('[data-radix-popper-content-wrapper] [data-etapa]:has-text("Nuevo")');
-    await cerrarPanel(pagina);
+    await exigirPanelCerrado(pagina, "la etapa");
     const enNuevo = await nombresDeLaLista(pagina);
     exigir(JSON.stringify(enNuevo) === JSON.stringify(["Ana Atencion"]), `en «Nuevo» sale solo Ana (${enNuevo.join(", ")})`);
 
     await abrirPanel(pagina);
+    await desplegar(pagina, "embudos");
     await pagina.click('[data-radix-popper-content-wrapper] [data-etapa]:has-text("Nuevo")');
-    await cerrarPanel(pagina);
+    await exigirPanelCerrado(pagina, "la etapa");
     exigir((await nombresDeLaLista(pagina)).length === 5, "pulsar la etapa otra vez la quita: vuelven todas");
 
     // Etiqueta, con el mismo comportamiento.
     await abrirPanel(pagina);
+    await desplegar(pagina, "etiquetas");
     await pagina.click('[data-radix-popper-content-wrapper] [data-tag]:has-text("Reclamo")');
-    await cerrarPanel(pagina);
+    await exigirPanelCerrado(pagina, "la etiqueta");
     const conReclamo = await nombresDeLaLista(pagina);
     exigir(JSON.stringify(conReclamo) === JSON.stringify(["Beto Atencion"]), `la etiqueta «Reclamo» filtra a Beto (${conReclamo.join(", ")})`);
 
@@ -148,8 +174,10 @@ try {
     await pagina.waitForTimeout(300);
     await pagina.click(`[data-radix-popper-content-wrapper] [data-cuenta="${CUENTAS.ventas}"]`);
     await pagina.waitForTimeout(500);
+    await desplegar(pagina, "etiquetas");
     const deVentas = await textos(pagina, "[data-tag]");
     exigir(JSON.stringify(deVentas) === JSON.stringify(["Interesado"]), `Ventas ofrece solo su «Interesado» (${deVentas.join(", ")})`);
+    await desplegar(pagina, "embudos");
     exigir((await pagina.$$("[data-radix-popper-content-wrapper] [data-embudo-opcion]")).length === 0, "con un solo embudo no hay que elegirlo");
     exigir((await pagina.$$("[data-radix-popper-content-wrapper] [data-etapa]")).length >= 3, "y salen sus etapas directamente");
     await cerrarPanel(pagina);
@@ -157,8 +185,9 @@ try {
 
     // Ventas, etiqueta Interesado → solo Vera (no Ana, que tiene la de Atención).
     await abrirPanel(pagina);
+    await desplegar(pagina, "etiquetas");
     await pagina.click('[data-radix-popper-content-wrapper] [data-tag]:has-text("Interesado")');
-    await cerrarPanel(pagina);
+    await exigirPanelCerrado(pagina, "la etiqueta");
     const interesados = await nombresDeLaLista(pagina);
     exigir(JSON.stringify(interesados) === JSON.stringify(["Vera Ventas"]), `«Interesado» de Ventas no trae el de Atención (${interesados.join(", ")})`);
 } finally {

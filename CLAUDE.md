@@ -2359,6 +2359,24 @@ Postgres (la etapa del panel es la misma que la fila pinta, y filtra exacto) y
 la página servida con una madre y dos hijas (`probar-filtro-de-chats.mjs`).
 `MODO=roto` afirma que antes las etiquetas salían mezcladas y no había embudos.
 
+### Etiquetas y Embudos se PLIEGAN, y elegir cierra el panel
+
+Con las dos listas desplegadas a la vez el panel tapaba la lista de chats
+entera, y después de elegir se quedaba encima hasta pulsar fuera. Ahora
+(`lib/secciones-del-filtro.ts`, puro):
+
+1. **Las dos secciones nacen plegadas cada vez que se abre el panel**, cada una
+   con su flecha; **desplegar una pliega la otra**. Plegada, la sección lleva
+   el número de lo elegido dentro: es lo único que dice que filtra.
+2. **Elegir o quitar una etiqueta o una etapa cierra el panel entero** y el
+   filtro ya queda aplicado (`cierraElPanel`). Elegir la cuenta o el embudo NO
+   lo cierra: son pasos. El rango de fechas tampoco: se escribe en dos campos.
+3. Por eso el `Popover` es **controlado** (`open`).
+
+Lo prueba `scripts/banco-panel-filtros.sh` (la regla y el panel real en
+Chromium; `MODO=roto` monta el de `a041144` y afirma las dos listas a la vez y
+el panel abierto tras elegir) y la sonda de la página servida de arriba.
+
 ## Chats: los Atajos de una conversación son los de SU línea
 
 El panel de Atajos de la barra de escribir —pestañas **Rápidas** y

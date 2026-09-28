@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Building2, CalendarDays, Check, ChevronLeft, Filter, Search, Tag, Workflow, X } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, ChevronLeft, Filter, Search, Tag, Workflow, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   FILTRO_DE_LA_COLUMNA,
@@ -28,6 +28,13 @@ import {
   type EmbudosDeLaCuenta,
 } from "@/lib/filtro-de-chats-por-cuenta";
 import { embudosDelFiltroDeChatsAction } from "@/actions/filtro-de-chats-actions";
+import {
+  SECCION_AL_ABRIR,
+  alternarSeccion,
+  cierraElPanel,
+  type AccionDelFiltro,
+  type SeccionDelFiltro,
+} from "@/lib/secciones-del-filtro";
 
 /**
  * El panel del embudo: DOS filtros en un solo sitio.
@@ -40,6 +47,15 @@ import { embudosDelFiltroDeChatsAction } from "@/actions/filtro-de-chats-actions
  * El botón del embudo se marca activo cuando hay **cualquiera** de los dos: un
  * rango puesto o etiquetas elegidas. La insignia con el número sigue siendo de
  * las etiquetas; el rango, al no ser una cuenta, solo enciende el resaltado.
+ *
+ * # Etiquetas y Embudos se PLIEGAN, y elegir cierra el panel
+ *
+ * Las dos secciones nacen plegadas cada vez que se abre el panel, y desplegar
+ * una pliega la otra (`lib/secciones-del-filtro.ts`): con las dos listas
+ * abiertas el panel tapaba la lista de chats entera. Y elegir o quitar una
+ * etiqueta o una etapa cierra el panel —el filtro ya se aplicó y lo que se
+ * quiere ver es la lista—; elegir la cuenta o el embudo no, que son pasos.
+ * Por eso el `Popover` es CONTROLADO (`abierto`).
  *
  * # Por qué un `Popover` y no el menú
  *
@@ -129,9 +145,20 @@ export function TagFilterPanel({
       setCargandoEmbudos(false);
     }
   };
-  const alAbrir = (abierto: boolean) => {
-    panel.alAbrir(abierto);
-    if (abierto) void pedirLosEmbudos();
+  const [abierto, setAbierto] = useState(false);
+  const [seccion, setSeccion] = useState<SeccionDelFiltro | null>(SECCION_AL_ABRIR);
+  const alAbrir = (siguiente: boolean) => {
+    setAbierto(siguiente);
+    panel.alAbrir(siguiente);
+    if (siguiente) {
+      setSeccion(SECCION_AL_ABRIR);
+      void pedirLosEmbudos();
+    }
+  };
+  /** Ejecuta la acción y, si aplica un filtro, cierra el panel entero. */
+  const hacer = (accion: AccionDelFiltro, fn: () => void) => {
+    fn();
+    if (cierraElPanel(accion)) setAbierto(false);
   };
 
   const elegirCuenta = hayQueElegirCuenta(cuentas, cuentaDeLaLinea);
@@ -166,7 +193,7 @@ export function TagFilterPanel({
     .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <Popover onOpenChange={alAbrir}>
+    <Popover open={abierto} onOpenChange={alAbrir}>
       <PopoverTrigger asChild ref={panel.disparador}>
         <button
           type="button"
@@ -341,7 +368,17 @@ export function TagFilterPanel({
           <>
             {/* ── Etiquetas ─────────────────────────────────────────────── */}
             <div className="my-2 border-t border-border" />
-            <SeccionDelPanel icono={Tag} titulo="Etiquetas" dato="etiquetas" />
+            <SeccionDelPanel
+              icono={Tag}
+              titulo="Etiquetas"
+              dato="etiquetas"
+              plegable
+              abierta={seccion === "etiquetas"}
+              elegidas={selectedTagIds.size}
+              onAlternar={() => setSeccion((s) => alternarSeccion(s, "etiquetas"))}
+            />
+            {seccion === "etiquetas" && (
+            <div data-lista-de-seccion="etiquetas">
             {etiquetasDeLaCuenta.length > 0 && (
               <div className="relative mb-1">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -360,7 +397,9 @@ export function TagFilterPanel({
                   key={tag.id}
                   dato={{ "data-tag": tag.id }}
                   activa={selectedTagIds.has(tag.id)}
-                  onClick={() => (selectedTagIds.has(tag.id) ? onClearFilter() : onToggleTag(tag.id))}
+                  onClick={() =>
+                    hacer("etiqueta", () => (selectedTagIds.has(tag.id) ? onClearFilter() : onToggleTag(tag.id)))
+                  }
                   icono={<Tag className="h-4 w-4 shrink-0" style={{ color: tag.color ?? "#6366F1" }} />}
                   nombre={tag.name}
                 />
@@ -371,12 +410,24 @@ export function TagFilterPanel({
                 sorted.length === 0 && <p className="px-2 py-2 text-xs text-muted-foreground">Sin resultados</p>
               )}
             </div>
+            </div>
+            )}
 
             {/* ── Embudos ───────────────────────────────────────────────────
                 Si la cuenta tiene varios, se elige primero el embudo y luego
                 la etapa, con el mismo comportamiento que las etiquetas. */}
             <div className="my-2 border-t border-border" />
-            <SeccionDelPanel icono={Workflow} titulo="Embudos" dato="embudos" />
+            <SeccionDelPanel
+              icono={Workflow}
+              titulo="Embudos"
+              dato="embudos"
+              plegable
+              abierta={seccion === "embudos"}
+              elegidas={selectedEtapaIds.size}
+              onAlternar={() => setSeccion((s) => alternarSeccion(s, "embudos"))}
+            />
+            {seccion === "embudos" && (
+            <div data-lista-de-seccion="embudos">
             {cargandoEmbudos && !datosDeEmbudos ? (
               <p className="px-2 py-2 text-xs text-muted-foreground">Cargando embudos…</p>
             ) : errorEmbudos && !datosDeEmbudos ? (
@@ -421,7 +472,11 @@ export function TagFilterPanel({
                     key={etapa.id}
                     dato={{ "data-etapa": etapa.id }}
                     activa={selectedEtapaIds.has(etapa.id)}
-                    onClick={() => (selectedEtapaIds.has(etapa.id) ? onClearEtapas?.() : onToggleEtapa?.(etapa.id))}
+                    onClick={() =>
+                      hacer("etapa", () =>
+                        selectedEtapaIds.has(etapa.id) ? onClearEtapas?.() : onToggleEtapa?.(etapa.id),
+                      )
+                    }
                     icono={<span className="h-2.5 w-2.5 shrink-0 rounded-full mx-[3px]" style={{ backgroundColor: etapa.color }} />}
                     nombre={etapa.nombre}
                   />
@@ -430,6 +485,8 @@ export function TagFilterPanel({
                   <p className="px-2 py-2 text-xs text-muted-foreground">Este embudo no tiene etapas.</p>
                 )}
               </div>
+            )}
+            </div>
             )}
           </>
         )}
@@ -446,11 +503,53 @@ function SeccionDelPanel({
   icono: Icono,
   titulo,
   dato,
+  plegable = false,
+  abierta = false,
+  elegidas = 0,
+  onAlternar,
 }: {
   icono: React.ComponentType<{ className?: string }>;
   titulo: string;
   dato?: string;
+  /** Etiquetas y Embudos: el rótulo es un botón con su flecha. */
+  plegable?: boolean;
+  abierta?: boolean;
+  /** Cuántas hay elegidas dentro: plegada, es lo único que dice que filtra. */
+  elegidas?: number;
+  onAlternar?: () => void;
 }) {
+  if (plegable) {
+    return (
+      <button
+        type="button"
+        onClick={onAlternar}
+        aria-expanded={abierta}
+        data-seccion={dato ?? titulo.toLowerCase()}
+        data-abierta={abierta ? "si" : "no"}
+        className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/60"
+      >
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Icono className="h-3 w-3 shrink-0" />
+          {titulo}
+          {elegidas > 0 && (
+            <span
+              data-elegidas
+              className="ml-0.5 rounded-full bg-primary px-1.5 text-[9px] font-bold leading-4 text-primary-foreground"
+            >
+              {elegidas}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          data-flecha
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+            abierta ? "rotate-180" : "rotate-0",
+          )}
+        />
+      </button>
+    );
+  }
   return (
     <div className="mb-1 px-1" data-seccion={dato ?? titulo.toLowerCase()}>
       <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

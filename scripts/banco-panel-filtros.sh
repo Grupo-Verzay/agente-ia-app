@@ -24,12 +24,12 @@ export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/c
 ENTRY=".banco-panel-filtros-entry.tsx"
 OUT="lib/__tests__/.compilado/harness-panel-filtros.js"
 mkdir -p "$(dirname "$OUT")"
-trap 'rm -f "$ENTRY"' EXIT
+trap 'rm -f "$ENTRY" "$ENTRY.x.tsx"' EXIT
 
 cat > "$ENTRY" <<'TSX'
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { TagFilterPanel } from "@/app/(root)/chats/_components/TagFilterPanel";
+import { TagFilterPanel } from "__PANEL__";
 import { atajoDelRango, rangoDelAtajo } from "@/lib/rango-de-fechas-chats";
 
 // Se exponen las MISMAS funciones que usa el componente, para que el banco
@@ -45,12 +45,18 @@ type Props = {
     rangoHasta?: string;
     campoDeFecha?: "inicio" | "actividad";
     rangoActivo?: boolean;
+    /** Con embudos: la cuenta del filtro y lo que devuelve la acción fingida. */
+    cuentas?: string[];
+    embudos?: unknown[];
+    selectedEtapaIds?: string[];
+    embudoElegido?: string | null;
 };
 
 let root: Root | null = null;
 (window as any).calls = [];
 (window as any).montar = (p: Props) => {
     root ??= createRoot(document.getElementById("app")!);
+    (globalThis as any).__embudosDelBanco = p.embudos ?? [];
     const rec = (nombre: string) => (...args: unknown[]) => (window as any).calls.push([nombre, ...args]);
     root.render(
         React.createElement(TagFilterPanel, {
@@ -66,17 +72,47 @@ let root: Root | null = null;
             onRangoHasta: rec("onRangoHasta"),
             onCampoDeFecha: rec("onCampoDeFecha"),
             onLimpiarRango: rec("onLimpiarRango"),
+            cuentas: p.cuentas ?? [],
+            cuentaDelFiltro: p.cuentas?.[0] ?? null,
+            selectedEtapaIds: new Set<string>(p.selectedEtapaIds ?? []),
+            onToggleEtapa: rec("onToggleEtapa"),
+            onClearEtapas: rec("onClearEtapas"),
+            onElegirEmbudo: rec("onElegirEmbudo"),
+            embudoElegido: p.embudoElegido ?? null,
         }),
     );
 };
 (window as any).listo = true;
 TSX
 
-npx esbuild "$ENTRY" --bundle --format=esm --outfile="$OUT" \
-    --alias:@/actions/filtro-de-chats-actions=./lib/__tests__/fingido/filtro-de-chats-actions.ts \
-    --alias:@="$(pwd)" --loader:.tsx=tsx --jsx=automatic \
-    --define:process.env.NODE_ENV='"production"' --log-level=error
+# El «antes» va PINCHADO a un commit, nunca a `origin/main`: en cuanto esto se
+# fusione, `origin/main` pasa a ser el «después» y el modo roto dejaría de
+# reproducir nada. Sus imports son todos `@/…`, así que vive donde sea.
+ANTES_REF="${ANTES_REF:-a041144}"
+ANTES_TSX="lib/__tests__/.compilado/TagFilterPanel.antes.tsx"
+git show "$ANTES_REF:app/(root)/chats/_components/TagFilterPanel.tsx" > "$ANTES_TSX"
+
+construir() { # $1 = el panel, $2 = la salida
+    sed "s#__PANEL__#$1#" "$ENTRY" > "$ENTRY.x.tsx"
+    npx esbuild "$ENTRY.x.tsx" --bundle --format=esm --outfile="$2" \
+        --alias:@/actions/filtro-de-chats-actions=./lib/__tests__/fingido/filtro-de-chats-actions.ts \
+        --alias:@="$(pwd)" --loader:.tsx=tsx --jsx=automatic \
+        --define:process.env.NODE_ENV='"production"' --log-level=error
+    rm -f "$ENTRY.x.tsx"
+}
+construir "@/app/(root)/chats/_components/TagFilterPanel" "$OUT"
+construir "@/$ANTES_TSX" "lib/__tests__/.compilado/harness-panel-filtros-antes.js"
+
+npx esbuild lib/secciones-del-filtro.ts --format=esm --outfile=lib/__tests__/.compilado/secciones-del-filtro.js --log-level=error
 
 rm -f "$ENTRY"
 
-node --test lib/__tests__/panel-de-filtros.test.mjs "$@"
+# Sin navegador los casos se SALTAN, y 11 saltados se leen como 11 verdes: aquí
+# se exige que haya uno antes de dar nada por bueno.
+node -e 'require("playwright")' 2>/dev/null || { echo "MAL: sin playwright, el banco no ejerce nada"; exit 1; }
+
+node --test lib/__tests__/secciones-del-filtro.test.mjs lib/__tests__/panel-de-filtros.test.mjs "$@"
+
+echo
+echo "── con el panel de antes (tiene que AFIRMAR el fallo) ──"
+MODO=roto node --test lib/__tests__/panel-de-filtros.test.mjs
