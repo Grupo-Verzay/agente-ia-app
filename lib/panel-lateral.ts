@@ -17,6 +17,16 @@
  * Puro y sin imports: lo usan componentes de cliente, y son cadenas.
  */
 
+/**
+ * El ancho de un panel lateral, escrito UNA vez: `--ancho-lateral`.
+ *
+ * Lo usan las franjas de abajo y también lo que se despliega desde la barra de
+ * arriba —la campanita—, que no es una franja pero se lee al lado de ellas: con
+ * su propio número (fue `min(96vw,420px)`) salía 36 px más ancha que el chat
+ * del equipo, el copiloto, las notas y la ficha. Igual, no parecido.
+ */
+export const ANCHO_DEL_PANEL_LATERAL = "w-[var(--ancho-lateral)]";
+
 /** La franja donde vive el panel en escritorio: pegada a la derecha, bajo la barra. */
 export const FRANJA_LATERAL =
     "pointer-events-none fixed right-0 z-50 hidden sm:block " +
