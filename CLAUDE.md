@@ -19101,6 +19101,44 @@ contra Postgres; `MODO=roto` afirma que en `8b1bdab` no existía) y el del mismo
 nombre en `api-webhook` (la herramienta contra Postgres; `MODO=roto` afirma que
 la vieja usaba los precios del modelo).
 
+## Documentación › Actualizaciones: publicar y que salte UNA vez a cada persona
+
+La tarjeta «Plantillas IA» se quitó de Documentación (su pantalla `/templates`
+sigue existiendo) y en su sitio va **Actualizaciones**. Orden de izquierda a
+derecha: Actualizaciones, Administrador tutoriales, Administrador guías,
+Conexión API de Meta. **Cada tarjeta lleva su color escrito** (`accent`): con el
+color sacado del índice, reordenar les cambiaba el color a todas. El título
+reserva dos líneas y la descripción tres (`min-h-[2lh]`, `min-h-[3lh]`), así el
+icono, el título, la descripción y el botón caen a la misma altura en las cuatro.
+
+En `/documentation/actualizaciones` se escribe un texto breve, se sube (opcional)
+un video o documento por `/api/upload` y se publica. A cada persona que abra la
+plataforma le salta una ventana (`AvisoDeActualizacion`, colgada del layout) con
+**la más reciente que no ha visto**; «Ver completo» la agranda y «Cerrar» (o la
+X, Escape, fuera) la cierra, y las dos la dan por vista para siempre.
+
+Cinco cosas que hay que mantener:
+
+1. **Publicar, listar y retirar son de la CASA** (`quienMandaEnLaCasa`): lo que
+   se publica le sale a toda la plataforma.
+2. **Ver y cerrar son de la PERSONA** (`laPersonaQueActua`), y ninguna acción
+   recibe un id de persona. `actualizaciones_vistas` tiene `(personaId,
+   actualizacionId)` de clave: «una vez» es la forma de la tabla.
+3. **Solo salta la MÁS RECIENTE** (`laActualizacionPendiente`, pura; el SQL de
+   `laPendienteDe` dice lo mismo y el banco las encadena). Las anteriores sin
+   ver no saltan nunca: encadenar ventanas enseña a despacharlas sin leer.
+4. **El archivo tiene que ser de NUESTRO bucket** (`comoSeGuardaElAdjunto` →
+   `llaveDelArchivoSubido`): si no, la ventana de todos pintaría un `<video>`
+   apuntando a donde dijera quien publica.
+5. **Dos tablas de la App** (`actualizaciones`, `actualizaciones_vistas`), con
+   `ddl()` y sin clave foránea; ni una columna en `User` (#360). Retirar borra la
+   fila y sus marcas.
+
+Lo prueba `scripts/banco-actualizaciones.sh`: la regla y un barrido, las
+acciones contra Postgres, y en Chromium las cuatro tarjetas (orden y simetría a
+1440/1280/1024/390) y la ventana. `MODO=roto` pinta la página de `ANTES_REF` y
+afirma «Plantillas IA» dentro y ninguna ventana.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
