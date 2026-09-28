@@ -8,6 +8,7 @@ import { useModuleStore } from "@/stores/modules/useModuleStore";
 import {
     BANDEJAS,
     dondeVaElSelector,
+    HUECO_DE_LA_BARRA_PX,
     laBandejaActiva,
     seVeLaBarritaDeBandejas,
 } from "@/lib/alternar-bandejas";
@@ -16,8 +17,9 @@ import { cn } from "@/lib/utils";
 
 const ICONO = { chats: MessageCircle, correo: Mail } as const;
 
-/** Hueco entre el selector y lo que tiene a cada lado. */
-const HUECO_PX = 8;
+/** Hueco entre el selector y lo que tiene a cada lado: el MISMO que hay
+ *  entre la casita y el menú (`gap-2` en la barra). */
+const HUECO_PX = HUECO_DE_LA_BARRA_PX;
 
 /**
  * El selector de la barra de arriba para pasar de Chats a Correos y de vuelta.
@@ -28,8 +30,11 @@ const HUECO_PX = 8;
  * se mide esa columna (`data-columna-de-chats`, la llevan Chats y Correos) y,
  * donde no la hay, la columna que habría —`--ancho-lateral` desde el borde
  * izquierdo del contenido—. Así sale en el mismo píxel en todas las pantallas.
- * Dónde exactamente, y si cabe con sus palabras o solo con los iconos, lo
- * decide `dondeVaElSelector`, que es pura.
+ * Dónde exactamente, cuánto mide y si cabe con sus palabras o solo con los
+ * iconos, lo decide `dondeVaElSelector`, que es pura: arranca a un hueco del
+ * menú —el mismo que hay entre la casita y el menú— y se estira hasta que su
+ * centro cae en el de la columna. Mide lo que los botones de la derecha
+ * (`h-9`), no menos.
  *
  * Es `absolute` dentro de la barra (que es `relative`): así no empuja nada y la
  * casita y el menú no se mueven.
@@ -62,7 +67,7 @@ export function AlternarBandeja({
     const seVe = useSeVeLaBarritaDeBandejas();
     const activa = laBandejaActiva(pathname);
     const sonda = useRef<HTMLDivElement>(null);
-    const [sitio, setSitio] = useState<{ izquierda: number; compacto: boolean } | null>(null);
+    const [sitio, setSitio] = useState<{ izquierda: number; ancho: number; compacto: boolean } | null>(null);
 
     const medir = useCallback(() => {
         const b = barra.current?.getBoundingClientRect();
@@ -88,7 +93,12 @@ export function AlternarBandeja({
             maximo: d.left - b.left - HUECO_PX,
         });
         setSitio((antes) =>
-            antes && antes.izquierda === siguiente.izquierda && antes.compacto === siguiente.compacto ? antes : siguiente,
+            antes &&
+            antes.izquierda === siguiente.izquierda &&
+            antes.ancho === siguiente.ancho &&
+            antes.compacto === siguiente.compacto
+                ? antes
+                : { izquierda: siguiente.izquierda, ancho: siguiente.ancho, compacto: siguiente.compacto },
         );
     }, [barra, izquierda, derecha]);
 
@@ -129,8 +139,8 @@ export function AlternarBandeja({
                 data-alternar-bandeja
                 data-compacto={compacto ? "" : undefined}
                 aria-label="Cambiar entre Chats y Correos"
-                style={{ left: sitio?.izquierda ?? 0, visibility: sitio ? "visible" : "hidden" }}
-                className="absolute top-1/2 flex h-7 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-muted/60 p-px"
+                style={{ left: sitio?.izquierda ?? 0, width: sitio?.ancho, visibility: sitio ? "visible" : "hidden" }}
+                className="absolute top-1/2 flex h-9 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-muted/60 p-px"
             >
                 {BANDEJAS.map((b) => {
                     const Icono = ICONO[b.clave];
@@ -143,15 +153,14 @@ export function AlternarBandeja({
                             aria-current={esLaActiva ? "page" : undefined}
                             title={b.nombre}
                             className={cn(
-                                "flex h-6 items-center justify-center gap-1.5 rounded-[5px] text-xs transition-colors",
-                                compacto ? "w-8" : "w-[5.5rem]",
+                                "flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-[5px] px-1.5 text-sm transition-colors",
                                 esLaActiva
                                     ? "bg-background font-semibold text-primary shadow-sm"
                                     : "font-medium text-muted-foreground hover:text-foreground",
                             )}
                         >
-                            <Icono className="h-3.5 w-3.5 shrink-0" />
-                            {!compacto && <span>{b.nombre}</span>}
+                            <Icono className="h-4 w-4 shrink-0" />
+                            {!compacto && <span className="whitespace-nowrap">{b.nombre}</span>}
                         </Link>
                     );
                 })}

@@ -10,8 +10,11 @@
 #  2. En Chromium, sobre el CSS del build, la `Breadcrumbs` de VERDAD en /chats,
 #     /correo, /sessions y /schedule a 1440/1280/1024/390, con y sin tutoriales.
 #
+# Y los tres de la izquierda van SIMÉTRICOS: casita → menú → selector con el
+# mismo hueco, y el selector mide lo que Soporte (h-9).
+#
 # `MODO=roto` monta la barra de un commit PINCHADO (`ANTES_REF`, nunca
-# `origin/main`) y afirma los fallos.
+# `origin/main`) y afirma los fallos: huecos dispares y el selector más bajo.
 #
 # Necesita el build (`npm run build`) para el CSS.
 set -euo pipefail
@@ -22,7 +25,7 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
 export MODO
-ANTES_REF="${ANTES_REF:-97ae916}"
+ANTES_REF="${ANTES_REF:-51664e1}"
 
 C=lib/__tests__/.compilado/barra-de-arriba
 A=lib/__tests__/.antes/barra-de-arriba
@@ -32,6 +35,7 @@ npx -y esbuild lib/alternar-bandejas.ts --format=esm --outfile="$C/alternar-band
 COMUNES=(
   --alias:next/navigation=./lib/__tests__/fingido/next-navigation-con-ruta.ts
   --alias:@/actions/guide-actions=./lib/__tests__/fingido/bandejas/guias.ts
+  --alias:@/actions/notification-center-actions=./lib/__tests__/fingido/barra-de-arriba/campana.ts
 )
 if [ "$MODO" = "roto" ]; then
   git show "$ANTES_REF:components/custom/Breadcrumbs.tsx" \

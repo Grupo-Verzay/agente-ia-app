@@ -22161,12 +22161,26 @@ todas las pantallas y se lee así:
    escritos en `lib/alternar-bandejas.ts` y el banco los compara con lo pintado.
 5. **Todo botón de la barra es un rectángulo de esquinas redondeadas**
    (`rounded-md`): ni el selector ni la campana son ya píldoras.
+6. **Casita → menú → selector van con el MISMO hueco** (`HUECO_DE_LA_BARRA_PX`,
+   8 px: el `gap-2` de la barra y el que deja el selector tras el menú). Y
+   sigue centrado en la columna porque lo que cambia es su ANCHO: arranca a un
+   hueco del menú y mide dos veces lo que hay del menú al centro de la columna
+   (`dondeVaElSelector` devuelve `ancho`). Se acota entre dos iconos y
+   `ANCHO_MAXIMO_DEL_SELECTOR`; si centrado se saldría por la derecha (un
+   teléfono) conserva el hueco y se acorta. **Mide `h-9`, lo que Ver tutoriales,
+   Soporte y la campana**, con letra `text-sm`; con menos de
+   `ANCHO_CON_PALABRAS` enseña solo los iconos. Medido: 8/8 px y centrado
+   exacto a 1440, 1280 y 1024 (218, 218 y 186 px de ancho, con sus palabras).
 
 Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador y la
 `Breadcrumbs` real en Chromium en /chats, /correo, /sessions y /schedule a
-1440/1280/1024/390, con y sin tutoriales. `MODO=roto` monta la barra de
-`ANTES_REF` y afirma la ruta de texto, la casita moviéndose, el selector solo en
-dos pantallas y la campana en píldora.
+1440/1280/1024/390, con y sin tutoriales, con Poppins cargada (sirve
+`.next/static/media`: con la letra de respaldo, «Correos» cabría donde en
+producción no). `MODO=roto` monta la barra de `ANTES_REF` (`51664e1`) y afirma
+los huecos dispares (4 px contra ~30) y el selector más bajo que los botones de
+la derecha. La campanita del arnés lleva su acción fingida con forma de verdad
+(`fingido/barra-de-arriba/campana.ts`): con la muda (`data: []`) revienta el
+árbol y la barra no se pinta.
 
 ## La encuesta de satisfacción (NPS): se cuelga de RESOLVER, y la respuesta se va a BUSCAR
 
