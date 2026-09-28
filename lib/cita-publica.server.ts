@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { programarLosRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita.server";
 import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
 import { enviarConHistorial } from "@/lib/envio-con-historial.server";
 import {
@@ -8,7 +9,6 @@ import {
     elAvisoAlDueno,
     elDiaElegido,
     laConfirmacionAlCliente,
-    losRecordatoriosDeLaCita,
     sePuedeConfirmarLaCita,
     type DatosDeLaCita,
 } from "@/lib/cita-publica";
@@ -147,31 +147,13 @@ export async function confirmarLaCitaPublica(input: {
     const servidor = await laClaveDelServidorDeLaCuenta(cita.userId);
     const url = servidor ? `${servidor.url}/message/sendText/${encodeURIComponent(linea)}` : undefined;
 
-    // 1) Los recordatorios de la agenda, como seguimientos. La clave la pone
-    //    el servidor: la de la cuenta dueña, nunca una que llegue de fuera.
-    const recordatorios = await db.reminders.findMany({
-        where: { userId: cita.userId, isCampaign: false, isSchedule: true },
-        select: { description: true, time: true },
-    });
-    const programados = losRecordatoriosDeLaCita(recordatorios, datos);
-    for (const r of programados) {
-        try {
-            await db.seguimiento.create({
-                data: {
-                    idNodo: "",
-                    serverurl: servidor?.url ?? "",
-                    instancia: linea,
-                    apikey: servidor?.key ?? "",
-                    remoteJid,
-                    mensaje: r.mensaje,
-                    tipo: "text",
-                    time: r.cuando,
-                },
-            });
-        } catch (error) {
-            console.error("[cita-publica] no se pudo programar un recordatorio", { appointmentId: id, error });
-        }
-    }
+    // 1) Los recordatorios de la agenda. Los programa la MISMA función que en
+    //    el chat y en el agente (`createAppointment` ya la llamó al crear la
+    //    cita); aquí se vuelve a pedir porque es idempotente —cada recordatorio
+    //    lleva la llave única de su cita— y así esta respuesta dice cuántos hay.
+    //    Antes eran otra copia: con `idNodo` vacío y la hora en la zona del
+    //    navegador de quien reservaba en vez de la de la cuenta.
+    const { programados } = await programarLosRecordatoriosDeLaCita(cita.id, ahora);
 
     // 2) El aviso al dueño y a sus contactos de notificación.
     const telefonos: string[] = [];
@@ -230,7 +212,7 @@ export async function confirmarLaCitaPublica(input: {
     return {
         success: true,
         message: confirmacionEnviada ? "Confirmación enviada." : "La cita quedó agendada, pero no se pudo enviar la confirmación.",
-        recordatorios: programados.length,
+        recordatorios: programados,
         avisos,
         confirmacionEnviada,
     };

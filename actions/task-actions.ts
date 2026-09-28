@@ -1,9 +1,12 @@
 "use server";
 
 import { z } from "zod";
-import { format } from "date-fns";
+import { deInstanteAReloj } from "@/lib/zona-de-la-cuenta";
+import { laZonaHorariaDeLaCuenta } from "@/lib/zona-de-la-cuenta.server";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { laLineaDeWhatsappDeLaCuenta } from "@/lib/linea-de-whatsapp";
+import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
 import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
 import { writeAuditLog } from "@/actions/audit-log-actions";
@@ -198,39 +201,39 @@ export async function createTaskAction(
     // Recordatorio WhatsApp al asesor asignado
     if (parsed.sendWhatsApp) {
       try {
-        const [advisor, instance] = await Promise.all([
+        // La línea por QR de la cuenta, sea del proveedor que sea, y su clave
+        // desde la CUENTA. Antes pedía `Instancias.apiKeyId`, que esa tabla no
+        // tiene: Prisma rechazaba la consulta, el `catch` lo callaba y ningún
+        // recordatorio de tarea se llegaba a crear.
+        const [advisor, { linea }] = await Promise.all([
           db.user.findUnique({
             where: { id: parsed.assignedToId },
             select: { notificationNumber: true },
           }),
-          (db as any).instancia.findFirst({
-            where: {
-              userId: ownerId,
-              instanceType: { in: ["Whatsapp", null] },
-            },
-            select: { instanceName: true, apiKeyId: true },
-          }),
+          laLineaDeWhatsappDeLaCuenta(ownerId),
         ]);
 
         const phone = advisor?.notificationNumber?.replace(/\D/g, "");
-        const apiKey = instance?.apiKeyId
-          ? await db.apiKey.findUnique({
-              where: { id: instance.apiKeyId },
-              select: { key: true, url: true },
-            })
-          : null;
+        const instance = linea ? { instanceName: linea.instanceName } : null;
+        const apiKey = linea ? await lasCredencialesDeLaLinea(ownerId, linea.instanceName) : null;
+        if (!instance) console.warn("[createTaskAction] la cuenta no tiene línea de WhatsApp para el recordatorio", { ownerId });
 
         if (phone && phone.length >= 7 && instance && apiKey) {
           const contact = parsed.contactName ? ` con ${parsed.contactName}` : "";
-          const msg = `📋 *Recordatorio de tarea*\n\n*${parsed.type}:* ${parsed.title}${contact}\n🕐 ${format(new Date(parsed.dueDate), "dd/MM/yyyy HH:mm")}`;
+          // La hora se enseña en la zona de la CUENTA y se guarda como instante
+          // (ISO/UTC). Antes era `format` a secas —la zona del servidor— y el
+          // motor la releía en hora de Colombia.
+          const zona = await laZonaHorariaDeLaCuenta(ownerId);
+          const vence = new Date(parsed.dueDate);
+          const msg = `📋 *Recordatorio de tarea*\n\n*${parsed.type}:* ${parsed.title}${contact}\n🕐 ${deInstanteAReloj(vence, zona)}`;
           await db.seguimiento.create({
             data: {
               remoteJid: `${phone}@s.whatsapp.net`,
               instancia: instance.instanceName,
-              apikey: apiKey.key,
-              serverurl: apiKey.url,
+              apikey: apiKey.apikey,
+              serverurl: apiKey.serverurl,
               mensaje: msg,
-              time: format(new Date(parsed.dueDate), "dd/MM/yyyy HH:mm"),
+              time: vence.toISOString(),
               tipo: "task-reminder",
               followUpStatus: "pending",
               idNodo: `task-reminder-${Date.now()}`,

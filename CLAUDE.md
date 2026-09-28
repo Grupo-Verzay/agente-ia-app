@@ -18812,6 +18812,53 @@ todos al abrir y los paga la hija aunque abra la madre; sin nadie abriendo no se
 consume nada; reabrir no repaga; sin créditos no se llama a la IA. `MODO=roto`
 lee `ANTES_REF` y afirma que la lista y el cron analizaban sin cobrar.
 
+## Recordatorios: salen a SU hora, en la zona de la CUENTA, y una cita siempre los programa
+
+Cuatro fallos reportados juntos (2026-09-28), y cada uno con su causa:
+
+| lo que se veía | la causa |
+| --- | --- |
+| el recordatorio de la cita salía tarde, o el de 1 h antes que el de 3 h | el motor de seguimientos (backend) tomaba 25 por vuelta **por antigüedad**, y de noche los ocupaban seguimientos de flujo que esperan horario laboral |
+| los manuales y los de tareas salían a la hora de Colombia en cualquier cuenta | se guardaban como reloj de pared («dd/MM/yyyy HH:mm») y el motor los leía con `FOLLOW_UP_TIMEZONE_OFFSET` fijo; y el texto de la cita decía la hora del **país del teléfono** del cliente |
+| la acción «Recordatorio» de automatizaciones no mandaba nada y aparecía uno de más ~34 min antes de cada cita | escribía una fila `Reminders` con `isSchedule` y hora ISO; el motor no la mandaba, y las rutas de citas la leían como plantilla con `parseInt("2026-…")` = **2026 segundos** |
+| una cita agendada desde el chat no tenía ningún recordatorio | `createAppointment` no programaba nada; solo lo hacían el agente y la página pública, cada uno con su copia |
+
+Seis reglas que hay que mantener:
+
+1. **Los recordatorios con hora van en su PROPIO carril** del motor
+   (`prioridad-de-la-vuelta.ts` en el backend): citas, reservas, tareas, los
+   manuales, las confirmaciones y los de automatizaciones salen siempre, por
+   hora, sin contar contra el cupo y sin esperar horario laboral. Lo que está
+   fuera de ventana o esperando turno **no ocupa puesto**.
+2. **Todo se lee y se enseña en la zona de la CUENTA** (`User.timezone`, con la
+   del dueño si es del equipo; `lib/zona-de-la-cuenta.ts` aquí y
+   `src/utils/zona-horaria.util.ts` allí). Lo que la App escribe en
+   `seguimientos.time` es un **instante ISO** (`laHoraParaElMotor`); el reloj de
+   pared viejo lo sigue entendiendo el motor, ahora en la zona de su cuenta.
+   `Reminders.time` sigue siendo el reloj de pared de la pantalla.
+3. **Los recordatorios de UNA cita los programa `programarLosRecordatoriosDeLaCita`**
+   (`lib/recordatorios-de-la-cita.server.ts`), y la llaman los tres caminos: el
+   chat (por `createAppointment`), el agente y la página pública. Es
+   idempotente por `idempotencyKey` (`appt-reminder:<cita>:<plantilla>`), así
+   que llamarla dos veces no duplica; mover la cita borra los pendientes y los
+   vuelve a programar.
+4. **Cuánto antes sale una plantilla lo decide `segundosAntesDeLaCita`, y es
+   estricta**: solo `unidad-número` (`hours-3`). Una hora ISO o un número
+   suelto valen 0 y no programan nada. La usa también la ruta de reservas.
+5. **La acción «Recordatorio» escribe un seguimiento `auto-reminder-`**, no una
+   plantilla: sin retraso manda al momento. La migración del backend
+   `20260928120000_recordatorio_de_automatizacion` rescató los futuros y borró
+   las plantillas basura y sus recordatorios de 34 minutos.
+6. **El recordatorio de una TAREA sale por la línea por QR de la cuenta**
+   (`laLineaDeWhatsappDeLaCuenta` + `lasCredencialesDeLaLinea`). Pedía
+   `Instancias.apiKeyId`, que esa tabla no tiene: Prisma lo rechazaba, el
+   `catch` lo callaba y **ninguno se llegaba a crear**.
+
+Lo prueban `scripts/banco-recordatorios-de-cita.sh` aquí (reglas y las acciones
+contra Postgres; `MODO=roto` contra `626a48c` afirma los fallos) y
+`scripts/banco-recordatorios-a-su-hora.sh` en el backend (el motor con 60 flujos
+esperando horario, las zonas de México y Madrid, la acción y la migración).
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
