@@ -22437,6 +22437,51 @@ menú y la acción contra Postgres; `MODO=roto` lee el menú de `59f08b4` y
 afirma que dentro de un desplegable no había número— y el caso de sin leer de
 `scripts/banco-correo.sh`, con los tres proveedores fingidos.
 
+## Equipo: la auto-asignación tiene TRES modos, y «Por porcentaje» es un contador continuo
+
+En la barra de Auto-asignación la cuenta elige UNO de tres modos, excluyentes:
+**Máx. chats** (tope por asesor), **Ilimitado** y **Por porcentaje**. Los dos
+primeros son los de siempre y no cambian: salen de `auto_assign_max_chats`
+(0 = ilimitado) y reparten 1-1-1. El tercero pone un campo de porcentaje junto a
+cada asesor de la tabla, y los **disponibles** tienen que sumar 100.
+
+> **Cada chat nuevo va al asesor que esté más lejos de su proporción ideal
+> ACUMULADA desde que se activó el modo** (`elegirPorPorcentaje`,
+> `lib/reparto-por-porcentaje.ts`). Ni lotería ni bloques de 10 o 100: un
+> contador por asesor que no se reinicia mientras el modo siga activo. La
+> desviación de cada asesor nunca pasa de un chat, y a la larga el reparto es
+> exactamente el configurado.
+
+Seis cosas que hay que mantener:
+
+1. **La regla está copiada byte a byte en el backend**
+   (`src/modules/webhook/services/auto-assign/reparto-por-porcentaje.ts`), que
+   es quien reparte los chats que ENTRAN (`tryAssign`); la App la usa al guardar
+   y en «Asignar sin atender». Los dos bancos comparan los ficheros.
+2. **El modo vive en tablas de la App** (`reparto_porcentaje`,
+   `reparto_porcentaje_asesor`, `lib/reparto-por-porcentaje-db.ts`), sin clave
+   foránea y ni una columna en `User` (#360). Sin fila —o sin tabla, 42P01— es
+   lo de siempre. Activarlo NO toca `auto_assign_max_chats`: es el tope que
+   vuelve al cambiar de modo.
+3. **Activar el modo pone los contadores a cero** («desde que se activó»);
+   cambiar un porcentaje con el modo activo NO. Apagarlo conserva los
+   porcentajes para la próxima vez.
+4. **Un asesor NO disponible se salta y conserva su contador**: los disponibles
+   se reparten entre ellos en su proporción, y al volver se pone al día.
+5. **Elegir, asignar y sumar el contador van en UNA transacción con
+   `pg_advisory_xact_lock('reparto-porcentaje:<cuenta>')`**, el mismo texto en
+   los dos repositorios: sin él, dos chats a la vez caen en el mismo asesor.
+6. **La gente del reparto es la del backend**: el equipo con papel y las
+   vinculadas marcadas `agente` (`entraEnElReparto` en `getTeamAdvisors`). Una
+   vinculada administradora no recibe porcentaje, y «Asignar sin atender» de la
+   App dejó de repartirle chats (el backend ya no lo hacía).
+
+Lo prueban `scripts/banco-reparto-por-porcentaje.sh` aquí (regla, barrido y las
+acciones contra Postgres) y el del mismo nombre en `api-webhook` (el servicio
+contra Postgres: 50/30/20 exacto, 40 chats a la vez, asesor desactivado, y
+Máx. chats e Ilimitado iguales). Los dos con `MODO=roto` contra un commit
+pinchado, que afirma que no había tercer modo.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

@@ -74,6 +74,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { sugiereNuevoOcupante } from "@/lib/historial-del-equipo";
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import {
+  repartoAPartesIguales,
+  sumaDeLosDisponibles,
+  TOTAL_DEL_REPARTO,
+  type ModoDeReparto,
+} from "@/lib/reparto-por-porcentaje";
 
 function StatCell({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
@@ -106,7 +112,30 @@ function getInitials(name: string | null, email: string) {
 }
 
 type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
-type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number };
+type AutoAssignSettings = {
+  autoAssignEnabled: boolean;
+  autoAssignMaxChats: number;
+  modo: ModoDeReparto;
+  porcentajes: Record<string, { porcentaje: number; asignados: number }>;
+};
+
+/** Los tres modos, en el orden en que se leen en la barra. Excluyentes. */
+const MODOS: { valor: ModoDeReparto; etiqueta: string }[] = [
+  { valor: "maximo", etiqueta: "Máx. chats" },
+  { valor: "ilimitado", etiqueta: "Ilimitado" },
+  { valor: "porcentaje", etiqueta: "Por porcentaje" },
+];
+
+/**
+ * La forma de un botón de un grupo segmentado de la barra. Es la MISMA que la
+ * del grupo Tabla / Pipeline, para que los dos grupos de la fila se lean igual.
+ */
+function claseDelSegmento(activo: boolean) {
+  return cn(
+    "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+    activo ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+  );
+}
 
 type Props = {
   userId: string;
@@ -160,17 +189,66 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(initialAutoAssign.autoAssignEnabled);
   const [autoAssignMaxChats, setAutoAssignMaxChats] = useState(initialAutoAssign.autoAssignMaxChats);
   const [autoAssignSaving, setAutoAssignSaving] = useState(false);
+  const [modo, setModo] = useState<ModoDeReparto>(initialAutoAssign.modo);
+  const [porcentajes, setPorcentajes] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      Object.entries(initialAutoAssign.porcentajes).map(([id, v]) => [id, v.porcentaje]),
+    ),
+  );
+  const [asignadosPorPorcentaje, setAsignadosPorPorcentaje] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      Object.entries(initialAutoAssign.porcentajes).map(([id, v]) => [id, v.asignados]),
+    ),
+  );
+
+  // La gente del reparto y la suma que decide si se puede guardar. Es la MISMA
+  // regla que el servidor (`sumaDeLosDisponibles`): solo cuentan los disponibles.
+  const delReparto = advisors.filter((a) => a.entraEnElReparto);
+  const filasDelReparto = delReparto.map((a) => ({
+    id: a.id,
+    porcentaje: porcentajes[a.id] ?? 0,
+    asignados: asignadosPorPorcentaje[a.id] ?? 0,
+    disponible: a.advisorAvailable,
+  }));
+  const sumaDisponibles = sumaDeLosDisponibles(filasDelReparto);
+  const repartoValido = sumaDisponibles === TOTAL_DEL_REPARTO && filasDelReparto.some((a) => a.disponible);
+  const totalRepartidos = filasDelReparto
+    .filter((a) => a.disponible)
+    .reduce((t, a) => t + a.asignados, 0);
 
   /* «Soltar los escalados sin respuesta» se mudo a Perfil > Comportamiento,
    * junto a «Apagar la IA al escalar», que es de lo que depende. Aqui no podia
    * quedarse: los planes sin equipo no ven esta pantalla y tambien escalan. */
 
+  function guardar(args: {
+    enabled: boolean;
+    maxChats: number;
+    modo: ModoDeReparto;
+    porcentajes?: Record<string, number>;
+    avisar?: boolean;
+  }) {
+    setAutoAssignSaving(true);
+    saveAutoAssignSettings({
+      enabled: args.enabled,
+      maxChats: args.maxChats,
+      modo: args.modo,
+      porcentajes: args.porcentajes,
+    }).then((res) => {
+      if (!res.success) toast.error(res.message);
+      else if (args.avisar) toast.success("Configuración guardada.");
+      setAutoAssignSaving(false);
+    });
+  }
+
   function handleAutoAssignToggle(enabled: boolean) {
     setAutoAssignEnabled(enabled);
-    setAutoAssignSaving(true);
-    saveAutoAssignSettings({ enabled, maxChats: autoAssignMaxChats }).then((res) => {
-      if (!res.success) toast.error(res.message);
-      setAutoAssignSaving(false);
+    // Con el modo por porcentaje y una suma a medio escribir, no se manda la
+    // lista: el servidor se queda con la última que sí era válida.
+    guardar({
+      enabled,
+      maxChats: autoAssignMaxChats,
+      modo,
+      porcentajes: modo === "porcentaje" && repartoValido ? porcentajes : undefined,
     });
   }
 
@@ -180,24 +258,51 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     setAutoAssignMaxChats(n);
   }
 
-  function persistAutoAssign(maxChats: number) {
-    setAutoAssignSaving(true);
-    saveAutoAssignSettings({ enabled: autoAssignEnabled, maxChats }).then((res) => {
-      if (!res.success) toast.error(res.message);
-      else toast.success("Configuración guardada.");
-      setAutoAssignSaving(false);
-    });
-  }
-
   function handleMaxChatsBlur() {
-    persistAutoAssign(autoAssignMaxChats);
+    guardar({ enabled: autoAssignEnabled, maxChats: autoAssignMaxChats, modo: "maximo", avisar: true });
   }
 
-  // Ilimitado = 0 (sin tope). Al desmarcar, vuelve a un valor por defecto (5).
-  function handleUnlimitedToggle(checked: boolean) {
-    const next = checked ? 0 : 5;
-    setAutoAssignMaxChats(next);
-    persistAutoAssign(next);
+  /**
+   * Cambia de modo. Son excluyentes: el servidor apaga los otros dos. Al pasar
+   * a «Por porcentaje» se parte de lo último guardado si todavía suma 100 entre
+   * los disponibles; si no, de los disponibles a partes iguales, que siempre
+   * suma 100 y deja el modo activo desde el primer clic.
+   */
+  function cambiarModo(siguiente: ModoDeReparto) {
+    if (siguiente === modo) return;
+    if (siguiente === "porcentaje") {
+      const disponibles = delReparto.filter((a) => a.advisorAvailable).map((a) => a.id);
+      if (disponibles.length === 0) {
+        toast.error("No hay ningún asesor disponible para repartir los chats.");
+        return;
+      }
+      const inicial =
+        repartoValido && sumaDisponibles === TOTAL_DEL_REPARTO
+          ? porcentajes
+          : { ...Object.fromEntries(delReparto.map((a) => [a.id, 0])), ...repartoAPartesIguales(disponibles) };
+      setPorcentajes(inicial);
+      // Activar el modo pone los contadores a cero: «desde que se activó».
+      setAsignadosPorPorcentaje({});
+      setModo("porcentaje");
+      guardar({ enabled: autoAssignEnabled, maxChats: autoAssignMaxChats, modo: "porcentaje", porcentajes: inicial, avisar: true });
+      return;
+    }
+    const tope = siguiente === "ilimitado" ? 0 : autoAssignMaxChats > 0 ? autoAssignMaxChats : 5;
+    setAutoAssignMaxChats(tope);
+    setModo(siguiente);
+    guardar({ enabled: autoAssignEnabled, maxChats: tope, modo: siguiente, avisar: true });
+  }
+
+  function cambiarPorcentaje(asesorId: string, valor: string) {
+    const n = valor.trim() === "" ? 0 : parseInt(valor, 10);
+    if (isNaN(n)) return;
+    setPorcentajes((prev) => ({ ...prev, [asesorId]: Math.max(0, Math.min(TOTAL_DEL_REPARTO, n)) }));
+  }
+
+  /** Se guarda al salir del campo, y solo si la suma de los disponibles es 100. */
+  function guardarPorcentajes() {
+    if (!repartoValido) return;
+    guardar({ enabled: autoAssignEnabled, maxChats: autoAssignMaxChats, modo: "porcentaje", porcentajes, avisar: true });
   }
 
   function downloadCsv() {
@@ -402,30 +507,55 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           />
           {autoAssignEnabled && (
             <div className="flex items-center gap-2">
-              <Label htmlFor="max-chats" className="text-xs text-muted-foreground whitespace-nowrap">
-                Máx. chats
-              </Label>
-              <Input
-                id="max-chats"
-                type="number"
-                min={1}
-                max={500}
-                disabled={autoAssignMaxChats <= 0}
-                className="h-8 w-16 text-sm disabled:opacity-50"
-                value={autoAssignMaxChats <= 0 ? "" : autoAssignMaxChats}
-                placeholder="∞"
-                onChange={(e) => handleMaxChatsChange(e.target.value)}
-                onBlur={handleMaxChatsBlur}
-              />
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-emerald-600 cursor-pointer"
-                  checked={autoAssignMaxChats <= 0}
-                  onChange={(e) => handleUnlimitedToggle(e.target.checked)}
+              {/* Los tres modos, excluyentes, con la MISMA forma que el grupo
+                  Tabla / Pipeline de al lado. */}
+              <div
+                role="radiogroup"
+                aria-label="Modo de reparto"
+                data-grupo="modo-de-reparto"
+                className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0"
+              >
+                {MODOS.map((m) => (
+                  <button
+                    key={m.valor}
+                    type="button"
+                    role="radio"
+                    aria-checked={modo === m.valor}
+                    data-modo={m.valor}
+                    onClick={() => cambiarModo(m.valor)}
+                    className={claseDelSegmento(modo === m.valor)}
+                  >
+                    {m.etiqueta}
+                  </button>
+                ))}
+              </div>
+              {modo === "maximo" && (
+                <Input
+                  id="max-chats"
+                  type="number"
+                  min={1}
+                  max={500}
+                  aria-label="Máximo de chats por asesor"
+                  className="h-8 w-16 text-sm"
+                  value={autoAssignMaxChats <= 0 ? "" : autoAssignMaxChats}
+                  onChange={(e) => handleMaxChatsChange(e.target.value)}
+                  onBlur={handleMaxChatsBlur}
                 />
-                Ilimitado
-              </label>
+              )}
+              {modo === "porcentaje" && (
+                <span
+                  data-suma-del-reparto
+                  title="La suma de los porcentajes de los asesores disponibles tiene que ser 100%."
+                  className={cn(
+                    "text-xs tabular-nums whitespace-nowrap rounded-md px-2 py-1 border",
+                    repartoValido
+                      ? "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400"
+                      : "border-red-200 text-red-600 dark:border-red-900 dark:text-red-400",
+                  )}
+                >
+                  Suma {sumaDisponibles}%{repartoValido ? "" : ` · debe ser ${TOTAL_DEL_REPARTO}%`}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -436,10 +566,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             <button
               type="button"
               onClick={() => setView("tabla")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                view === "tabla" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
+              className={claseDelSegmento(view === "tabla")}
             >
               <Table2 className="h-3.5 w-3.5" />
               Tabla
@@ -447,10 +574,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             <button
               type="button"
               onClick={() => setView("pipeline")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                view === "pipeline" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
+              className={claseDelSegmento(view === "pipeline")}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               Pipeline
@@ -537,6 +661,9 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                   <TableHead className="pl-4 whitespace-nowrap">Asesor</TableHead>
                   <TableHead className="whitespace-nowrap">Rol</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Disponible</TableHead>
+                  {autoAssignEnabled && modo === "porcentaje" && (
+                    <TableHead className="text-center whitespace-nowrap" data-columna="porcentaje">Porcentaje</TableHead>
+                  )}
                   <TableHead className="text-center whitespace-nowrap">Activas</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Cerradas</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Calientes</TableHead>
@@ -565,7 +692,8 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                             <p className="text-sm font-medium leading-tight truncate">{advisor.name ?? advisor.email}</p>
                             {/* Barra de carga */}
                             {autoAssignEnabled && (() => {
-                              const unlimited = autoAssignMaxChats <= 0;
+                              // Solo «Máx. chats» tiene tope; Ilimitado y Por porcentaje no.
+                              const unlimited = modo !== "maximo" || autoAssignMaxChats <= 0;
                               const loadPct = unlimited ? 0 : Math.min((advisor.activeCount / autoAssignMaxChats) * 100, 100);
                               const loadColor = loadPct >= 80 ? "bg-red-500" : loadPct >= 50 ? "bg-amber-400" : "bg-emerald-400";
                               return (
@@ -618,6 +746,50 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                           }}
                         />
                       </TableCell>
+                      {autoAssignEnabled && modo === "porcentaje" && (
+                        <TableCell className="text-center" data-celda-porcentaje={advisor.id}>
+                          {advisor.entraEnElReparto ? (() => {
+                            const recibidos = asignadosPorPorcentaje[advisor.id] ?? 0;
+                            const real = advisor.advisorAvailable && totalRepartidos > 0
+                              ? Math.round((recibidos / totalRepartidos) * 100)
+                              : null;
+                            return (
+                              <div
+                                className={cn("inline-flex flex-col items-center gap-0.5", !advisor.advisorAvailable && "opacity-50")}
+                                title={
+                                  advisor.advisorAvailable
+                                    ? `${recibidos} chat${recibidos === 1 ? "" : "s"} repartido${recibidos === 1 ? "" : "s"} desde que se activó el modo`
+                                    : "No disponible: se salta en el reparto y conserva su contador para cuando vuelva."
+                                }
+                              >
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={TOTAL_DEL_REPARTO}
+                                    aria-label={`Porcentaje de ${advisor.name ?? advisor.email}`}
+                                    className="h-7 w-16 text-sm text-center"
+                                    value={porcentajes[advisor.id] ?? 0}
+                                    onChange={(e) => cambiarPorcentaje(advisor.id, e.target.value)}
+                                    onBlur={guardarPorcentajes}
+                                  />
+                                  <span className="text-xs text-muted-foreground">%</span>
+                                </div>
+                                <span className="text-[10px] text-muted-foreground tabular-nums">
+                                  {recibidos} chats{real != null ? ` · ${real}%` : ""}
+                                </span>
+                              </div>
+                            );
+                          })() : (
+                            <span
+                              className="text-xs text-muted-foreground"
+                              title="Cuenta vinculada con papel de administrador: no entra en el reparto de chats."
+                            >
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-center">
                         <StatCell value={advisor.activeCount} max={maxActive} colorClass="bg-emerald-500" />
                       </TableCell>
@@ -735,7 +907,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       })()}
 
       {/* Gráficas */}
-      {metrics && <TeamCharts metrics={metrics} maxChats={autoAssignMaxChats} />}
+      {metrics && <TeamCharts metrics={metrics} maxChats={modo === "maximo" ? autoAssignMaxChats : 0} />}
 
       </div>
       ) : (
