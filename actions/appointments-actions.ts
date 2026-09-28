@@ -18,6 +18,8 @@ import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import { lasCitasPorEstado } from '@/lib/citas-por-estado.server';
 import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
+import { comoFranjaNueva, elEstadoAlReagendar, laDuracionDeLaCita } from '@/lib/reagendar-cita';
+import { reprogramarLosRecordatoriosDeLaCita } from '@/lib/reagendar-cita.server';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —y en
@@ -576,6 +578,16 @@ export async function updateAppointmentDetails(
             },
         });
 
+        // Mover la cita en el tiempo rehace sus recordatorios, igual que
+        // reagendar: sin esto al cliente le llegarían los de la hora vieja.
+        if (data.startTime) {
+            try {
+                await reprogramarLosRecordatoriosDeLaCita(id);
+            } catch (error) {
+                console.error('[reagendar] no se pudieron reprogramar los recordatorios al editar la cita', { id, error });
+            }
+        }
+
         // Reflejar la reprogramación/cambio de servicio en Google Calendar.
         void updateAppointmentCalendarEvent(id).catch(() => {});
 
@@ -583,6 +595,161 @@ export async function updateAppointmentDetails(
     } catch (error) {
         console.error('Error al actualizar cita:', error);
         return { success: false, message: 'Error al actualizar la cita.' };
+    }
+}
+
+/**
+ * Lo que el selector de «Reagendar» necesita saber de una cita: de qué cuenta
+ * es (los huecos libres son los de SU agenda, no los de quien mira), en qué
+ * zona se pintan las horas y cuánto dura —reagendar conserva la duración—.
+ */
+export async function datosParaReagendarAction(id: string): Promise<{
+    success: boolean;
+    message?: string;
+    data?: {
+        cuentaId: string;
+        zona: string;
+        duracionMinutos: number;
+        inicio: string;
+        fin: string;
+        cliente: string;
+        estado: AppointmentStatus;
+    };
+}> {
+    try {
+        if (!(await laCuentaDeLaCita(id))) return { success: false, message: 'No autorizado.' };
+        const cita = await db.appointment.findUnique({
+            where: { id },
+            select: {
+                userId: true,
+                startTime: true,
+                endTime: true,
+                status: true,
+                clientName: true,
+                timezone: true,
+                session: { select: { pushName: true } },
+                user: { select: { timezone: true, meetingDuration: true } },
+            },
+        });
+        if (!cita) return { success: false, message: 'La cita ya no existe.' };
+        return {
+            success: true,
+            data: {
+                cuentaId: cita.userId,
+                zona: cita.user?.timezone || cita.timezone || 'America/Bogota',
+                duracionMinutos: laDuracionDeLaCita(cita.startTime, cita.endTime, cita.user?.meetingDuration || 60),
+                inicio: cita.startTime.toISOString(),
+                fin: cita.endTime.toISOString(),
+                cliente: (cita.clientName || cita.session?.pushName || '').trim(),
+                estado: cita.status,
+            },
+        };
+    } catch (error) {
+        console.error('[reagendar] no se pudieron leer los datos de la cita', { id, error });
+        return { success: false, message: 'No se pudo abrir la cita para reagendarla.' };
+    }
+}
+
+/**
+ * Reagendar: la MISMA cita a otra fecha y hora. Ver `lib/reagendar-cita.ts`.
+ *
+ * Se guarda la nueva franja en la fila que ya existe —su historial, su evento
+ * de Google Calendar y su conversación se quedan—, se comprueba que no pise
+ * otra cita de la cuenta (la misma comprobación que al agendar, sin contarse a
+ * sí misma), y se rehacen sus recordatorios desde la nueva hora.
+ */
+export async function reagendarCitaAction(
+    id: string,
+    startTime: string,
+    endTime: string,
+): Promise<{
+    success: boolean;
+    message: string;
+    data?: Appointment;
+    recordatorios?: { borrados: number; creados: number; motivo?: string };
+}> {
+    try {
+        if (!(await laCuentaDeLaCita(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+        const actual = await db.appointment.findUnique({
+            where: { id },
+            select: { userId: true, startTime: true, endTime: true, status: true },
+        });
+        if (!actual) return { success: false, message: 'La cita ya no existe.' };
+
+        const nueva = comoFranjaNueva(startTime, endTime, { inicio: actual.startTime, fin: actual.endTime });
+        if (!nueva.ok) return { success: false, message: nueva.motivo };
+        const { inicio, fin } = nueva.franja;
+        const estado = elEstadoAlReagendar(actual.status);
+
+        // El mismo candado y la misma comprobación de solape que al agendar:
+        // dos reagendamientos a la vez no pueden caer en el mismo hueco.
+        const updated = await db.$transaction(async (tx) => {
+            try {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`appt:${actual.userId}`}))`;
+            } catch (lockErr) {
+                console.warn('[reagendar] advisory lock no disponible, continúo sin él:', lockErr);
+            }
+            const pisa = await tx.appointment.findFirst({
+                where: {
+                    userId: actual.userId,
+                    id: { not: id },
+                    status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
+                    startTime: { lt: fin },
+                    endTime: { gt: inicio },
+                },
+                select: { id: true },
+            });
+            if (pisa) return null;
+            return tx.appointment.update({
+                where: { id },
+                data: { startTime: inicio, endTime: fin, status: estado },
+            });
+        });
+
+        if (!updated) {
+            return { success: false, message: 'Ya existe una cita registrada en ese horario.' };
+        }
+
+        await writeAuditLog({
+            userId: updated.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'appointment',
+            entityId: id,
+            action: 'rescheduled',
+            summary: 'Reagendo la cita',
+            metadata: {
+                antes: { startTime: actual.startTime.toISOString(), endTime: actual.endTime.toISOString(), status: actual.status },
+                ahora: { startTime: updated.startTime.toISOString(), endTime: updated.endTime.toISOString(), status: updated.status },
+            },
+        });
+
+        // Si el estado volvió a Pendiente, corren sus automatizaciones como
+        // en cualquier otro cambio de estado.
+        if (estado !== actual.status) void triggerApptAutomations(updated.sessionId, estado);
+
+        let recordatorios: { borrados: number; creados: number; motivo?: string };
+        try {
+            recordatorios = await reprogramarLosRecordatoriosDeLaCita(id);
+        } catch (error) {
+            console.error('[reagendar] la cita se movió pero no se reprogramaron sus recordatorios', { id, error });
+            recordatorios = { borrados: 0, creados: 0, motivo: 'No se pudieron reprogramar los recordatorios.' };
+        }
+
+        void updateAppointmentCalendarEvent(id).catch(() => {});
+
+        return {
+            success: true,
+            message: recordatorios.motivo
+                ? `Cita reagendada. ${recordatorios.motivo}`
+                : `Cita reagendada. ${recordatorios.creados} recordatorio(s) programado(s).`,
+            data: updated,
+            recordatorios,
+        };
+    } catch (error) {
+        console.error('[reagendar] error al reagendar la cita', { id, error });
+        return { success: false, message: 'No se pudo reagendar la cita.' };
     }
 }
 

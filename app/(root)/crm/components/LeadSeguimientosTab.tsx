@@ -1,5 +1,7 @@
 "use client";
 
+import { DialogoDeReagendar } from "@/components/shared/DialogoDeReagendar";
+import { ROTULO_REAGENDAR } from "@/lib/reagendar-cita";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw, Trash2, XCircle, ChevronDown, ChevronRight, Pencil, Check, X as XIcon } from "lucide-react";
 
@@ -497,6 +499,7 @@ function AppointmentCard({
   const [editEnd, setEditEnd] = useState(toLocalInputValue(item.endTime));
   const [services, setServices] = useState<{ id: string; name: string }[]>([]);
   const [editServiceId, setEditServiceId] = useState("");
+  const [reagendando, setReagendando] = useState(false);
 
   const nextStatuses = APPT_NEXT_STATUSES[item.status] ?? [];
 
@@ -605,7 +608,7 @@ function AppointmentCard({
         </div>
       )}
 
-      {nextStatuses.length > 0 && !editing && (
+      {!editing && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {nextStatuses.map((s) => (
             <button
@@ -618,8 +621,26 @@ function AppointmentCard({
               → {APPT_STATUS_LABELS[s] ?? s}
             </button>
           ))}
+          {/* Reagendar va al lado de los estados, como en Agenda, en su
+              tablero y en la cabecera del chat: el mismo diálogo en los cuatro. */}
+          <button
+            type="button"
+            disabled={updating}
+            data-opcion-reagendar=""
+            onClick={() => setReagendando(true)}
+            className="rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors hover:opacity-80 disabled:opacity-50 border-slate-300 bg-slate-50 text-slate-700"
+          >
+            ↻ {ROTULO_REAGENDAR}
+          </button>
         </div>
       )}
+
+      <DialogoDeReagendar
+        citaId={reagendando ? item.id : null}
+        open={reagendando}
+        onOpenChange={setReagendando}
+        alReagendar={() => onUpdated()}
+      />
     </div>
   );
 }

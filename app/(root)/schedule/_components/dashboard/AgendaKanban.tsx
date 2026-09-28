@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, User, Search, X, Calendar, Clock, Tag, Settings2 } from 'lucide-react';
+import { Loader2, RefreshCw, User, Search, X, Calendar, CalendarClock, Clock, Tag, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import { format } from 'date-fns';
@@ -33,6 +33,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { ApptAutomationsPanel } from '@/app/(root)/crm/rules/components/ApptAutomationsPanel';
 import { InsigniaDeLinea } from '@/components/shared/InsigniaDeLinea';
 import { laInsigniaDeLaFila } from '@/lib/agenda-de-la-familia';
+import { DialogoDeReagendar } from '@/components/shared/DialogoDeReagendar';
+import { ROTULO_REAGENDAR } from '@/lib/reagendar-cita';
 
 // ─── Column config ─────────────────────────────────────────────────────────────
 
@@ -72,10 +74,14 @@ function AgendaCardItem({
     card,
     isDragging = false,
     insignia = null,
+    onReagendar,
 }: {
     card: AgendaKanbanCard;
     isDragging?: boolean;
     insignia?: InsigniaDeTarjeta;
+    /** Abre el selector de fecha y hora sobre ESTA cita. Sin él (la copia que
+     *  se arrastra) no se pinta el botón. */
+    onReagendar?: (card: AgendaKanbanCard) => void;
 }) {
     return (
         <div className={cn(
@@ -108,6 +114,25 @@ function AgendaCardItem({
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Calendar className="h-3 w-3 shrink-0" />
                 {fmtDate(card.startTime)}
+                {onReagendar && (
+                    // El tablero cambia el estado arrastrando; reagendar es la
+                    // otra acción sobre la cita y va en su tarjeta. Se corta el
+                    // `pointerdown` para que pulsarlo no empiece un arrastre.
+                    <button
+                        type="button"
+                        data-reagendar-tarjeta=""
+                        title={`${ROTULO_REAGENDAR} cita`}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onReagendar(card);
+                        }}
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-accent"
+                    >
+                        <CalendarClock className="h-3 w-3" />
+                        {ROTULO_REAGENDAR}
+                    </button>
+                )}
             </div>
 
             {card.serviceName && (
@@ -146,7 +171,15 @@ function AgendaCardItem({
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card, insignia }: { card: AgendaKanbanCard; insignia: InsigniaDeTarjeta }) {
+function DraggableCard({
+    card,
+    insignia,
+    onReagendar,
+}: {
+    card: AgendaKanbanCard;
+    insignia: InsigniaDeTarjeta;
+    onReagendar: (card: AgendaKanbanCard) => void;
+}) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
         data: { card },
@@ -158,7 +191,7 @@ function DraggableCard({ card, insignia }: { card: AgendaKanbanCard; insignia: I
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <AgendaCardItem card={card} isDragging={isDragging} insignia={insignia} />
+            <AgendaCardItem card={card} isDragging={isDragging} insignia={insignia} onReagendar={onReagendar} />
         </div>
     );
 }
@@ -170,11 +203,13 @@ function AgendaColumn({
     cards,
     userId,
     insigniaDe,
+    onReagendar,
 }: {
     col: (typeof COLUMNS)[number];
     cards: AgendaKanbanCard[];
     userId: string;
     insigniaDe: (card: AgendaKanbanCard) => InsigniaDeTarjeta;
+    onReagendar: (card: AgendaKanbanCard) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
     const [automationsOpen, setAutomationsOpen] = useState(false);
@@ -214,7 +249,7 @@ function AgendaColumn({
                     isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
             >
-                {cards.map((card) => <DraggableCard key={card.id} card={card} insignia={insigniaDe(card)} />)}
+                {cards.map((card) => <DraggableCard key={card.id} card={card} insignia={insigniaDe(card)} onReagendar={onReagendar} />)}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
                         Sin citas
@@ -253,6 +288,7 @@ export function AgendaKanban({
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
     const pendingRef = useRef(false);
+    const [citaAReagendar, setCitaAReagendar] = useState<string | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -463,7 +499,7 @@ export function AgendaKanban({
                             <div className="overflow-x-auto w-full h-full pb-3" style={{ minHeight: 0 }}>
                                 <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                                     {COLUMNS.map((col) => (
-                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} userId={userId} insigniaDe={insigniaDe} />
+                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} userId={userId} insigniaDe={insigniaDe} onReagendar={(c) => setCitaAReagendar(c.id)} />
                                     ))}
                                 </div>
                             </div>
@@ -478,6 +514,12 @@ export function AgendaKanban({
                     </DndContext>
                 </div>
             </div>
+            <DialogoDeReagendar
+                citaId={citaAReagendar}
+                open={citaAReagendar !== null}
+                onOpenChange={(abierto) => { if (!abierto) setCitaAReagendar(null); }}
+                alReagendar={() => { void loadCards(); }}
+            />
         </TooltipProvider>
     );
 }

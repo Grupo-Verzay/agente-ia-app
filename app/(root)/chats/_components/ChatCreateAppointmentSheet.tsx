@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarPlus, Clock, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { CalendarPlus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Sheet,
@@ -21,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { getUserScheduleConfig, createAppointment } from '@/actions/appointments-actions';
-import { getAvailableSlots } from '@/actions/getAvailableSlots-actions';
+import { SelectorDeFechaYHora, type HuecoDeAgenda } from '@/components/shared/SelectorDeFechaYHora';
 
 interface Props {
   open: boolean;
@@ -35,7 +33,7 @@ interface Props {
 }
 
 type Config = { timezone: string; meetingDuration: number; services: { id: string; name: string }[] };
-type Slot = { startTime: string; endTime: string };
+type Slot = HuecoDeAgenda;
 
 export function ChatCreateAppointmentSheet({
   open,
@@ -50,9 +48,6 @@ export function ChatCreateAppointmentSheet({
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [config, setConfig] = useState<Config | null>(null);
   const [serviceId, setServiceId] = useState('');
-  const [dateYmd, setDateYmd] = useState('');
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -60,8 +55,6 @@ export function ChatCreateAppointmentSheet({
     onOpenChange(isOpen);
     if (!isOpen) {
       setServiceId('');
-      setDateYmd('');
-      setSlots([]);
       setSelectedSlot(null);
       return;
     }
@@ -73,20 +66,6 @@ export function ChatCreateAppointmentSheet({
       else toast.error(res.message ?? 'Error al cargar servicios');
     } finally {
       setLoadingConfig(false);
-    }
-  };
-
-  const handleDateChange = async (date: string) => {
-    setDateYmd(date);
-    setSlots([]);
-    setSelectedSlot(null);
-    if (!config || !date) return;
-    setLoadingSlots(true);
-    try {
-      const res = await getAvailableSlots(userId, date, config.meetingDuration, config.timezone);
-      if (res.success && res.data) setSlots(res.data);
-    } finally {
-      setLoadingSlots(false);
     }
   };
 
@@ -117,8 +96,6 @@ export function ChatCreateAppointmentSheet({
       setSaving(false);
     }
   };
-
-  const todayYmd = new Date().toISOString().split('T')[0];
 
   return (
     <Sheet open={open} onOpenChange={handleOpen}>
@@ -160,56 +137,13 @@ export function ChatCreateAppointmentSheet({
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Fecha</Label>
-                <input
-                  type="date"
-                  value={dateYmd}
-                  min={todayYmd}
-                  onChange={(e) => void handleDateChange(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-
-              {dateYmd && (
-                <div className="space-y-1.5">
-                  <Label>Horario disponible</Label>
-
-                  {loadingSlots && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Cargando horarios...
-                    </div>
-                  )}
-
-                  {!loadingSlots && slots.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Sin horarios disponibles para este día.</p>
-                  )}
-
-                  {!loadingSlots && slots.length > 0 && (
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {slots.map((slot) => {
-                        const label = format(new Date(slot.startTime), 'HH:mm', { locale: es });
-                        const active = selectedSlot?.startTime === slot.startTime;
-                        return (
-                          <button
-                            key={slot.startTime}
-                            type="button"
-                            onClick={() => setSelectedSlot(slot)}
-                            className={`flex items-center justify-center gap-1 text-xs py-1.5 rounded-md border transition-colors ${
-                              active
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-background hover:bg-accent border-input'
-                            }`}
-                          >
-                            <Clock className="h-2.5 w-2.5 opacity-70 shrink-0" />
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+              <SelectorDeFechaYHora
+                cuentaId={userId}
+                zona={config.timezone}
+                duracionMinutos={config.meetingDuration}
+                valor={selectedSlot}
+                alCambiar={setSelectedSlot}
+              />
             </>
           )}
         </div>
