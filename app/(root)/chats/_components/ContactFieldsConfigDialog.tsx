@@ -178,14 +178,22 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
       return;
     }
     setSaving(true);
-    const res = await saveContactFieldsConfig(userId, cleaned);
-    setSaving(false);
-    if (res.success) {
-      toast.success('Campos guardados');
-      onSaved(cleaned);
-      onOpenChange(false);
-    } else {
-      toast.error(res.message);
+    try {
+      const res = await saveContactFieldsConfig(userId, cleaned);
+      if (res.success) {
+        toast.success('Campos guardados');
+        onSaved(cleaned);
+        onOpenChange(false);
+      } else {
+        toast.error(res.message);
+      }
+    } catch (error) {
+      // Una acción que revienta (red, despliegue a medias) no puede dejar el
+      // botón en «Guardando…» para siempre ni callarse.
+      console.warn('[ficha] no se pudo guardar la configuración de campos', { error });
+      toast.error('No se pudo guardar la configuración de campos. Revisa la conexión.');
+    } finally {
+      setSaving(false);
     }
   };
 

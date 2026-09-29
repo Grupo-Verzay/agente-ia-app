@@ -277,6 +277,26 @@ respuesta salga en el orden en que se pidió aunque terminen desordenadas.
 La regla, corta: **si se acota la concurrencia, se acota con una cola, nunca con
 lotes.**
 
+## Chats: la ficha de contacto se LEE y se GUARDA por la misma puerta
+
+«Configurar campos de la ficha» contestaba «No autorizado» —y a veces «No se
+pudo guardar»— a administradores de la cuenta principal. `getContactFieldsConfig`
+y todas las acciones de la ficha (Sheets, datos externos) pasan por
+`laCuentaDeLaAccion`; `saveContactFieldsConfig` llevaba su propia comprobación
+(mismo id, el rol de la PERSONA, y `linked_accounts` mirado hacia ARRIBA). Así
+el administrador del equipo —rol `user` en su fila— veía la ficha de una
+conversación de una cuenta hija y no podía guardarla, y una hija guardaba la de
+su madre, que ni podía leer.
+
+> **Guardar va por `laCuentaDeLaAccion`, igual que leer.** Quien lee una ficha
+> la guarda, y quien no la lee no la guarda. Una cuenta que no existe se dice
+> (`updateMany` + `count`), y el `catch` escribe el error con su código: antes
+> era mudo y el «No se pudo guardar» no dejaba rastro.
+
+Lo prueba `scripts/banco-campos-de-la-ficha.sh`, contra Postgres con la familia
+de producción; `MODO=roto` empaqueta la acción de `8e41502` y afirma los dos
+fallos.
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
