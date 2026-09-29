@@ -19459,6 +19459,23 @@ acciones contra Postgres (ida y vuelta, nadie desarchiva una ajena) y la barra
 real en Chromium. `MODO=roto` lee y monta `16e81b7` y afirma que con la nota
 archivada el botón seguía diciendo «Archivar nota».
 
+## El entorno de los agentes NO es un contenedor de Portainer
+
+Claude Code corre en la nube de Anthropic (claude.ai/code, entorno «Default»),
+no en Portainer: no hay ningún servicio suyo en los dos Portainer. Lo que lo
+conecta son cuatro piezas —la aplicación de Claude en GitHub (los tres
+repositorios, sin *deploy keys*), GitHub Actions → ghcr.io → webhook de
+Portainer, y el entorno con las variables `PORTAINER_URL`, `PORTAINER_TOKEN`,
+`PORTAINER_EVO_URL` y `PORTAINER_EVO_TOKEN` y una red que solo deja pasar los
+dos paneles—. Cómo montarlo desde cero: `docs/entorno-claude-code-agentes.md`.
+
+Se comprueba, solo leyendo y sin imprimir llaves, con
+`scripts/comprobar-entorno-de-agentes.sh`; y la guía, el comprobador y los
+flujos de despliegue los mantiene de acuerdo `scripts/banco-entorno-de-agentes.sh`
+(`MODO=roto` afirma que antes de `8c898bd` no existían). Dos asimetrías
+conocidas, anotadas en la guía: astracalls se despliega a mano, y las llaves de
+Portainer son de administrador.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
