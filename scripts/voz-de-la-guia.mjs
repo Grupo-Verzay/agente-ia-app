@@ -5,13 +5,14 @@
  *
  * # La voz
  *
- * Se sintetiza en esta máquina, sin ningún servicio de fuera: `espeak-ng` con
- * la voz MBROLA `mb-es3` (española, femenina). Es la única voz en español que
- * se puede instalar sin internet más allá de los repositorios del sistema
- * (`apt-get install espeak-ng mbrola mbrola-es3`). Sin MBROLA cae en la voz de
- * formantes `es-419`, que se entiende pero suena más robótica, y lo dice.
- * `VOZ_GUIA` elige otra. Lo que se lee en voz alta puede escribirse distinto
- * de lo que se ve (`dicho` en el guion): «Lids», «guatsap».
+ * Por defecto, **Cedar de OpenAI** (`scripts/voz-cedar.mjs`): la misma voz del
+ * asistente de «Llamar con IA», y la estándar de toda guía nueva. Las frases
+ * salen de su caché; si falta alguna se dice, nunca se cae a otra voz.
+ *
+ * La voz de antes —`espeak-ng` con MBROLA `mb-es3`, sintetizada en la máquina—
+ * se conserva solo si se pide a propósito (`VOZ_GUIA=mb-es3` o `es-419`). Con
+ * ella, lo que no es español se escribe como suena (`comoSeDice`); Cedar lo
+ * lee bien tal cual, y sus instrucciones le dicen cómo.
  *
  * # La sincronía
  *
@@ -25,9 +26,13 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { VOZ_CEDAR, wavDeLaCache } from "./voz-cedar.mjs";
 
 const VELOCIDAD = Number(process.env.VELOCIDAD_GUIA ?? 148);
-let VOZ = process.env.VOZ_GUIA ?? "mb-es3";
+let VOZ = process.env.VOZ_GUIA ?? VOZ_CEDAR.voz;
+
+/** Si la narración va con Cedar (lo normal) o con la voz local de antes. */
+export const usaCedar = () => VOZ === VOZ_CEDAR.voz;
 
 /** Lee un WAV PCM de 16 bits: recorre los trozos hasta `fmt ` y `data`. */
 export function leerWav(buf) {
@@ -156,6 +161,11 @@ function hayDifonoEnEs3(x, y) {
 
 /** Sintetiza una frase y devuelve su audio ya leído. */
 export function sintetizar(texto, archivo) {
+    if (usaCedar()) {
+        const wav = wavDeLaCache(texto);
+        writeFileSync(archivo, wav);
+        return leerWav(wav);
+    }
     if (VOZ === "mb-es3" && !existsSync(BASE_ES3)) {
         console.warn(`[guia] falta la voz MBROLA es3 (apt-get install mbrola mbrola-es3); se narra con es-419`);
         VOZ = "es-419";

@@ -19,7 +19,7 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}"
+export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}" ANTES_VOZ_REF="${ANTES_VOZ_REF:-9e38996}"
 
 if [ "$MODO" = "roto" ]; then
   node --test lib/__tests__/guia-leads.test.mjs lib/__tests__/video-guia-leads.test.mjs

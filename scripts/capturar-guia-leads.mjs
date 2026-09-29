@@ -30,7 +30,8 @@ import path from "node:path";
 import { CURSOR } from "./cursor-de-la-guia.mjs";
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
-import { guardarWav, mezclar, montarLaPista, sintetizar } from "./voz-de-la-guia.mjs";
+import { guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -615,8 +616,11 @@ async function video(navegador, estado) {
 
     // Las frases se sintetizan ANTES de grabar: así se sabe cuánto dura cada
     // una y el guion espera a que termine de sonar antes de seguir.
+    // Con Cedar, lo que falte se pide a OpenAI (o se dice por qué no se pudo).
+    if (usaCedar()) await llenarLaCache(Object.values(NARRACION).map((n) => n.texto));
+    const dicho = (texto) => (usaCedar() ? texto : comoSeDice(texto));
     const voz = Object.fromEntries(
-        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(comoSeDice(n.texto), path.join(dir, `${id}.wav`)) }]),
+        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(dicho(n.texto), path.join(dir, `${id}.wav`)) }]),
     );
     const ctx = await navegador.newContext({
         viewport: { width: 1280, height: 800 },
@@ -711,6 +715,17 @@ async function video(navegador, estado) {
     const destino = path.join(SALIDA, "demostracion.webm");
     mezclar(mudo, pista, destino);
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
+    // Qué voz lleva el vídeo publicado: el banco lo compara con el guion de hoy.
+    writeFileSync(
+        path.join(import.meta.dirname, "voz-de-la-guia", "leads.json"),
+        JSON.stringify(
+            usaCedar()
+                ? { voz: VOZ_CEDAR.voz, modelo: VOZ_CEDAR.modelo, frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)) }
+                : { voz: process.env.VOZ_GUIA, frases: [] },
+            null,
+            2,
+        ) + "\n",
+    );
     console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
