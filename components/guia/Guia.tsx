@@ -34,27 +34,65 @@ export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]
     return <Icono className={className} aria-hidden />;
 }
 
-export function CabeceraDeLaGuia({ volver }: { volver?: { href: string; texto: string } }) {
+/**
+ * La barra de arriba de toda guía: UNA sola fila compacta, y simétrica.
+ *
+ *   [Guía de la plataforma]   [▶ Demostración en 1 minuto]   [Módulo X]
+ *
+ * Es una rejilla de tres columnas con los dos lados IGUALES
+ * (`minmax(0,1fr) auto minmax(0,1fr)`): el centro cae en el centro de la barra
+ * pase lo que mida cada lado. En el índice el centro es el enlace a la
+ * demostración —el vídeo va justo debajo, sin un título aparte que lo repita—;
+ * en una sección no hay vídeo y el centro queda vacío. En un teléfono el
+ * «Guía de la plataforma» se queda en su icono para que quepan los tres. Lo
+ * mide `scripts/probar-cabecera-de-la-guia.mjs`.
+ */
+export function CabeceraDeLaGuia({
+    volver,
+    demostracion,
+    modulo = "Leads",
+}: {
+    volver?: { href: string; texto: string };
+    /** El ancla del vídeo del índice: si viene, la barra la ofrece en el centro. */
+    demostracion?: { href: string; texto: string };
+    modulo?: string;
+}) {
     return (
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-            <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 sm:px-6">
-                {volver ? (
-                    <Link
-                        href={volver.href}
-                        className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        <header data-cabecera-de-la-guia className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+            <div className="mx-auto grid h-14 w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:gap-3 sm:px-6">
+                <div data-lado="izquierdo" className="flex min-w-0 justify-self-start">
+                    {volver ? (
+                        <Link
+                            href={volver.href}
+                            className="-ml-2 inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                            <span className="truncate">{volver.texto}</span>
+                        </Link>
+                    ) : (
+                        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900" title="Guía de la plataforma">
+                            <BookOpen className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                            <span className={demostracion ? "sr-only truncate sm:not-sr-only" : "truncate"}>Guía de la plataforma</span>
+                        </span>
+                    )}
+                </div>
+                {demostracion ? (
+                    <a
+                        href={demostracion.href}
+                        data-lado="centro"
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[13px] font-semibold text-slate-900 hover:bg-slate-100 sm:gap-2 sm:text-sm"
                     >
-                        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="truncate">{volver.texto}</span>
-                    </Link>
+                        <PlayCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                        {demostracion.texto}
+                    </a>
                 ) : (
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-                        <BookOpen className="h-4 w-4 text-blue-600" aria-hidden />
-                        Guía de la plataforma
-                    </span>
+                    <span data-lado="centro" aria-hidden />
                 )}
-                <span className="ml-auto shrink-0 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                    Módulo Leads
-                </span>
+                <div data-lado="derecho" className="flex min-w-0 justify-self-end">
+                    <span className="truncate rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                        Módulo {modulo}
+                    </span>
+                </div>
             </div>
         </header>
     );
@@ -315,7 +353,7 @@ export function CuadriculaDeSecciones({
  * que se pinta. Toda guía nueva usa las dos; lo comprueba
  * `lib/__tests__/fin-de-la-guia.test.mjs`.
  */
-export const CONTENEDOR_DEL_INDICE = "mx-auto w-full max-w-5xl space-y-10 px-4 pt-8 sm:px-6 sm:pt-12";
+export const CONTENEDOR_DEL_INDICE = "mx-auto w-full max-w-5xl space-y-10 px-4 pt-4 sm:px-6 sm:pt-6";
 
 export function FinDeLaGuia() {
     return <hr data-fin-de-la-guia className="border-0 border-t border-slate-200" />;
