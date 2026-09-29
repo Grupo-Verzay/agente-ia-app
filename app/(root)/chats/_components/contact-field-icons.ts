@@ -3,12 +3,12 @@
 // CONTACT_ICON_NAMES de lib/contact-fields.ts.
 import {
   Building2, Briefcase, CreditCard, Phone, Mail, Calendar, Flag, MapPin,
-  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag,
+  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag, User,
 } from 'lucide-react';
 
 export const CONTACT_ICON_MAP: Record<string, React.ElementType> = {
   Building2, Briefcase, CreditCard, Phone, Mail, Calendar, Flag, MapPin,
-  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag,
+  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag, User,
 };
 
 export const resolveContactIcon = (name: string): React.ElementType =>

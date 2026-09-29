@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { GripVertical, Plus, Trash2, Loader2 } from 'lucide-react';
+import { GripVertical, Plus, Trash2, Loader2, Lock } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -18,7 +18,7 @@ import {
   SortableContext, useSortable, arrayMove, verticalListSortingStrategy, sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ContactFieldDef, DEFAULT_CONTACT_SECTIONS, pickIconForLabel } from '@/lib/contact-fields';
+import { CAMPOS_FIJOS, ContactFieldDef, DEFAULT_CONTACT_SECTIONS, pickIconForLabel } from '@/lib/contact-fields';
 import { saveContactFieldsConfig } from '@/actions/contact-fields-actions';
 import { resolveContactIcon } from './contact-field-icons';
 
@@ -28,6 +28,34 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   fields: ContactFieldDef[];
   onSaved: (fields: ContactFieldDef[]) => void;
+}
+
+// Nombre y Teléfono: la MISMA anatomía que una fila editable (mismos huecos y
+// mismos anchos, así las etiquetas caen en la misma columna), pero sin
+// arrastre, sin interruptor y con un candado donde va la papelera. Son el
+// nombre y el número del contacto en toda la plataforma: se editan donde
+// aparezcan, no aquí.
+function FilaFija({ label, icon }: { label: string; icon: string }) {
+  const Icon = resolveContactIcon(icon);
+  const porQue = 'Campo fijo: es el mismo dato en toda la plataforma y se edita donde aparezca';
+  return (
+    <div
+      data-campo-fijo={label}
+      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5"
+      title={porQue}
+    >
+      <span className="h-7 w-5 shrink-0" aria-hidden />
+      <span className="h-6 w-11 shrink-0" aria-hidden />
+      <span className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <Input value={label} readOnly disabled className="h-8 flex-1 min-w-0 disabled:opacity-100" />
+      <span className="h-8 w-28 shrink-0 flex items-center px-2 text-xs text-muted-foreground">Fijo</span>
+      <span className="h-7 w-7 shrink-0 flex items-center justify-center text-muted-foreground" aria-label={porQue}>
+        <Lock className="h-3.5 w-3.5" />
+      </span>
+    </div>
+  );
 }
 
 function SortableRow({
@@ -85,9 +113,9 @@ function SortableRow({
         value={field.label}
         onChange={(e) => {
           const label = e.target.value;
-          // El sistema asigna el ícono automáticamente según el nombre (solo
-          // para campos personalizados; los base conservan su ícono curado).
-          onChange({ ...field, label, icon: field.custom ? pickIconForLabel(label) : field.icon });
+          // El sistema asigna el ícono según el nombre, igual en todos: desde la
+          // versión 2 no quedan campos «de fábrica» con un ícono aparte.
+          onChange({ ...field, label, icon: pickIconForLabel(label), custom: true });
         }}
         placeholder="Etiqueta"
         className="h-8 flex-1 min-w-0"
@@ -105,10 +133,9 @@ function SortableRow({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-30"
+        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
         onClick={onRemove}
-        disabled={!field.custom}
-        title={field.custom ? 'Eliminar campo' : 'Los campos base no se pueden eliminar (puedes ocultarlos)'}
+        title="Eliminar campo"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </Button>
@@ -173,10 +200,7 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
     const cleaned = draft
       .map((f, i) => ({ ...f, label: f.label.trim(), section: f.section.trim() || 'Libre', order: i }))
       .filter((f) => f.label.length > 0);
-    if (cleaned.length === 0) {
-      toast.error('Debe quedar al menos un campo con etiqueta');
-      return;
-    }
+    // Una lista vacía es válida: la ficha se queda con Nombre y Teléfono.
     setSaving(true);
     try {
       const res = await saveContactFieldsConfig(userId, cleaned);
@@ -203,7 +227,7 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
         <DialogHeader>
           <DialogTitle>Configurar campos de la ficha</DialogTitle>
           <DialogDescription className="text-xs">
-            Activa u oculta campos, renómbralos, cámbialos de sección, reordénalos arrastrando o agrega campos propios.
+            Nombre y Teléfono son fijos. Los demás campos se activan u ocultan, se renombran, se cambian de sección, se reordenan arrastrando y se eliminan.
           </DialogDescription>
         </DialogHeader>
 
@@ -212,6 +236,9 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
         </datalist>
 
         <ScrollArea className="max-h-[55vh] pr-3 -mr-3">
+          <div className="space-y-1.5 mb-1.5">
+            {CAMPOS_FIJOS.map((c) => <FilaFija key={c.key} label={c.label} icon={c.icon} />)}
+          </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={draft.map((f) => f.key)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">

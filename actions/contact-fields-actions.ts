@@ -4,13 +4,17 @@ import { db } from '@/lib/db';
 import {
   ContactFieldDef,
   DEFAULT_CONTACT_FIELDS,
+  comoSeGuardaLaFicha,
   normalizeContactFieldsConfig,
 } from '@/lib/contact-fields';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 
 /**
- * Devuelve la config de campos de la ficha de contacto del usuario.
- * Si no tiene config guardada, devuelve los campos por defecto.
+ * Devuelve la lista EDITABLE de campos de la ficha de una cuenta (Nombre y
+ * Teléfono son fijos y no viajan en ella). Sin config guardada la lista es
+ * vacía. Una lista de ANTES (arreglo a secas) se migra al leerla —fuera los
+ * apagados de fábrica— y se deja escrita ya migrada, para que la cuenta quede
+ * en la versión 2 aunque nadie pulse Guardar.
  */
 export async function getContactFieldsConfig(userId: string): Promise<ContactFieldDef[]> {
   try {
@@ -25,7 +29,18 @@ export async function getContactFieldsConfig(userId: string): Promise<ContactFie
       select: { contactFieldsConfig: true },
     });
     if (!u?.contactFieldsConfig) return DEFAULT_CONTACT_FIELDS;
-    return normalizeContactFieldsConfig(u.contactFieldsConfig);
+    const campos = normalizeContactFieldsConfig(u.contactFieldsConfig);
+    if (Array.isArray(u.contactFieldsConfig)) {
+      // Best-effort y condicionado a que siga siendo la lista vieja: si otra
+      // pestaña guardó entre medias, no se pisa lo suyo.
+      await db.$executeRaw`
+        UPDATE "User" SET "contact_fields_config" = ${JSON.stringify(comoSeGuardaLaFicha(campos))}::jsonb
+        WHERE "id" = ${cuenta} AND jsonb_typeof("contact_fields_config") = 'array'`
+        .catch((error) => console.warn('[ficha] no se pudo dejar migrada la lista de campos', {
+          cuenta, error: error instanceof Error ? error.message : String(error),
+        }));
+    }
+    return campos;
   } catch {
     return DEFAULT_CONTACT_FIELDS;
   }
@@ -54,7 +69,9 @@ export async function saveContactFieldsConfig(
     };
   }
   try {
-    const normalized = normalizeContactFieldsConfig(fields);
+    // Siempre la forma de la versión 2: una lista vacía se guarda vacía (antes
+    // se convertía en los 14 campos de fábrica) y nunca lleva los dos fijos.
+    const normalized = comoSeGuardaLaFicha(fields);
     // `updateMany` y no `update`: una cuenta que no existe no es una excepción
     // que se trague el `catch`, es un caso que se dice con su nombre.
     const { count } = await db.user.updateMany({
