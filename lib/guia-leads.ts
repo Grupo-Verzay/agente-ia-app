@@ -40,7 +40,12 @@ export type Seccion = {
     resumen: string;
     /** Nombre de un icono de lucide-react (ver `IconoDeSeccion`). */
     icono: "LayoutDashboard" | "Columns3" | "ToggleRight" | "Filter" | "Search" | "Download" | "UserPlus";
-    /** La captura de la tarjeta en el índice. */
+    /**
+     * La captura de la tarjeta en el índice: `mini-<slug>.webp`, PROPIA de la
+     * tarjeta y no la de un paso. Lleva el enfoque —la zona de la sección
+     * nítida y en su recuadro, el resto atenuado— y es 16:9 como la tarjeta
+     * (`capturar-guia-leads.mjs › miniaturas`).
+     */
     miniatura: string;
     pasos: Paso[];
     /** Lo que conviene saber y no cabe en un paso. Corto. */
@@ -88,7 +93,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "La pantalla de un vistazo",
             resumen: "Qué hay en la barra de arriba y qué hay en la tabla.",
             icono: "LayoutDashboard",
-            miniatura: "vista-general.webp",
+            miniatura: "mini-vista-general.webp",
             pasos: [
                 {
                     titulo: "Todo en una pantalla",
@@ -124,7 +129,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Qué muestra cada columna",
             resumen: "Las nueve columnas de la tabla, una por una.",
             icono: "Columns3",
-            miniatura: "col-whatsapp.webp",
+            miniatura: "mini-columnas.webp",
             pasos: [
                 {
                     titulo: "WhatsApp",
@@ -206,7 +211,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Activar o desactivar la sesión y el agente",
             resumen: "Los dos interruptores de cada contacto y qué cambia con cada uno.",
             icono: "ToggleRight",
-            miniatura: "sesion-interruptor.webp",
+            miniatura: "mini-sesion-y-agente.webp",
             pasos: [
                 {
                     titulo: "El interruptor de Sesión",
@@ -246,7 +251,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Filtrar con los contadores",
             resumen: "Los números de la barra también son filtros.",
             icono: "Filter",
-            miniatura: "filtros-activo.webp",
+            miniatura: "mini-filtros.webp",
             pasos: [
                 {
                     titulo: "Cuatro contadores",
@@ -283,7 +288,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Buscar un contacto",
             resumen: "Por nombre o por número, mientras escribes.",
             icono: "Search",
-            miniatura: "buscar-resultado.webp",
+            miniatura: "mini-buscar.webp",
             pasos: [
                 {
                     titulo: "El buscador",
@@ -311,7 +316,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Exportar a CSV",
             resumen: "Descarga todos tus contactos para abrirlos en Excel o Google Sheets.",
             icono: "Download",
-            miniatura: "exportar-aviso.webp",
+            miniatura: "mini-exportar.webp",
             pasos: [
                 {
                     titulo: "Pulsa «Exportar CSV»",
@@ -342,7 +347,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             titulo: "Crear un contacto nuevo",
             resumen: "Añade a alguien a mano, con su número y su nombre.",
             icono: "UserPlus",
-            miniatura: "nuevo-creado.webp",
+            miniatura: "mini-nuevo-contacto.webp",
             pasos: [
                 {
                     titulo: "Pulsa «+ Nuevo»",
