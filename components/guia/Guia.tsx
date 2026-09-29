@@ -1,0 +1,204 @@
+import Link from "next/link";
+import {
+    ArrowLeft,
+    ArrowRight,
+    BookOpen,
+    Columns3,
+    Download,
+    Filter,
+    LayoutDashboard,
+    Lightbulb,
+    Maximize2,
+    Search,
+    ToggleRight,
+    UserPlus,
+} from "lucide-react";
+
+import { laRutaDeLaCaptura, type Paso, type Seccion } from "@/lib/guia-leads";
+
+/**
+ * Las piezas de la guía pública. Sin `"use client"`: no hay nada que hacer en
+ * el navegador, así que llega entera como HTML, que es lo que carga rápido en
+ * un teléfono. Mobile-first: se pinta para 360 px y de `sm` para arriba gana
+ * aire.
+ */
+
+const ICONOS = { LayoutDashboard, Columns3, ToggleRight, Filter, Search, Download, UserPlus } as const;
+
+export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
+    const Icono = ICONOS[nombre];
+    return <Icono className={className} aria-hidden />;
+}
+
+export function CabeceraDeLaGuia({ volver }: { volver?: { href: string; texto: string } }) {
+    return (
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+            <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 sm:px-6">
+                {volver ? (
+                    <Link
+                        href={volver.href}
+                        className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    >
+                        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="truncate">{volver.texto}</span>
+                    </Link>
+                ) : (
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <BookOpen className="h-4 w-4 text-blue-600" aria-hidden />
+                        Guía de la plataforma
+                    </span>
+                )}
+                <span className="ml-auto shrink-0 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                    Módulo Leads
+                </span>
+            </div>
+        </header>
+    );
+}
+
+/** Una captura: con borde, sombra y un enlace para verla a tamaño completo. */
+export function Captura({ imagen, alt, prioridad = false }: { imagen: string; alt: string; prioridad?: boolean }) {
+    const src = laRutaDeLaCaptura(imagen);
+    return (
+        <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-blue-500/0 transition hover:shadow-md hover:ring-2 hover:ring-blue-500/30"
+            title="Ver la imagen a tamaño completo"
+        >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={src}
+                alt={alt}
+                loading={prioridad ? "eager" : "lazy"}
+                decoding="async"
+                className="block h-auto w-full"
+            />
+            <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-slate-900/70 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition group-hover:opacity-100">
+                <Maximize2 className="h-3 w-3" aria-hidden />
+                Ampliar
+            </span>
+        </a>
+    );
+}
+
+export function TarjetaDeSeccion({ seccion, numero }: { seccion: Seccion; numero: number }) {
+    return (
+        <Link
+            href={`/guia/leads/${seccion.slug}`}
+            data-tarjeta-de-seccion={seccion.slug}
+            className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+        >
+            <div className="aspect-[16/9] overflow-hidden border-b border-slate-100 bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src={laRutaDeLaCaptura(seccion.miniatura)}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover object-left-top transition duration-300 group-hover:scale-[1.02]"
+                />
+            </div>
+            <div className="flex flex-1 flex-col gap-2 p-4">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        <IconoDeSeccion nombre={seccion.icono} className="h-4 w-4" />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Sección {numero}
+                    </span>
+                </div>
+                <h2 className="text-base font-semibold leading-snug text-slate-900">{seccion.titulo}</h2>
+                <p className="text-sm leading-relaxed text-slate-600">{seccion.resumen}</p>
+                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium text-blue-600">
+                    Ver la guía
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+                </span>
+            </div>
+        </Link>
+    );
+}
+
+export function PasoDeLaGuia({ paso, numero }: { paso: Paso; numero: number }) {
+    return (
+        <li data-paso className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                    {numero}
+                </span>
+                <div className="min-w-0 space-y-1 pt-0.5">
+                    <h3 className="text-base font-semibold leading-snug text-slate-900">{paso.titulo}</h3>
+                    <p className="text-sm leading-relaxed text-slate-600">{paso.texto}</p>
+                </div>
+            </div>
+            <Captura imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
+        </li>
+    );
+}
+
+export function Consejos({ consejos }: { consejos: string[] }) {
+    if (consejos.length === 0) return null;
+    return (
+        <aside className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+            <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <Lightbulb className="h-4 w-4" aria-hidden />
+                Bueno saber
+            </p>
+            <ul className="space-y-1.5 text-sm leading-relaxed text-amber-900/90">
+                {consejos.map((c) => (
+                    <li key={c} className="flex gap-2">
+                        <span aria-hidden>•</span>
+                        <span>{c}</span>
+                    </li>
+                ))}
+            </ul>
+        </aside>
+    );
+}
+
+export function NavegacionEntreSecciones({
+    anterior,
+    siguiente,
+}: {
+    anterior: Seccion | null;
+    siguiente: Seccion | null;
+}) {
+    return (
+        <nav className="grid gap-3 sm:grid-cols-2" aria-label="Otras secciones">
+            {anterior ? (
+                <Link
+                    href={`/guia/leads/${anterior.slug}`}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"
+                >
+                    <ArrowLeft className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    <span className="min-w-0">
+                        <span className="block text-xs text-slate-500">Anterior</span>
+                        <span className="block truncate text-sm font-medium text-slate-900">{anterior.titulo}</span>
+                    </span>
+                </Link>
+            ) : (
+                <span className="hidden sm:block" />
+            )}
+            {siguiente ? (
+                <Link
+                    href={`/guia/leads/${siguiente.slug}`}
+                    className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
+                >
+                    <span className="min-w-0">
+                        <span className="block text-xs text-slate-500">Siguiente</span>
+                        <span className="block truncate text-sm font-medium text-slate-900">{siguiente.titulo}</span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                </Link>
+            ) : (
+                <Link
+                    href="/guia/leads"
+                    className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
+                >
+                    <span className="block text-sm font-medium text-slate-900">Volver al índice</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                </Link>
+            )}
+        </nav>
+    );
+}

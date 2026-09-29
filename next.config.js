@@ -128,6 +128,16 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
         ],
       },
+      {
+        // La documentación pública (/guia/...), con el mismo criterio que una
+        // propuesta: además del `robots` de su metadata, en la CABECERA, que
+        // también alcanza a las capturas y al vídeo que viven debajo.
+        source: "/guia/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
     ];
   },
 };
