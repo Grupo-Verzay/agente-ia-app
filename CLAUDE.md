@@ -22500,6 +22500,36 @@ contra Postgres: 50/30/20 exacto, 40 chats a la vez, asesor desactivado, y
 Máx. chats e Ilimitado iguales). Los dos con `MODO=roto` contra un commit
 pinchado, que afirma que no había tercer modo.
 
+## Documentación pública: `/guia/<módulo>`, generada desde la App real
+
+Prueba piloto con Leads (`/guia/leads`): un índice con el vídeo y una tarjeta
+por sección, y una página por sección con sus pasos y sus capturas. Mismo
+sistema que una Propuesta comercial: prefijo público en el middleware,
+`robots` noindex en `app/guia/layout.tsx` y `X-Robots-Tag` en `next.config.js`
+(también alcanza a las imágenes). No lee nada de la base.
+
+> **El contenido vive en `lib/guia-leads.ts` y las capturas NO se hacen a
+> mano**: `scripts/generar-guia-leads.sh` siembra datos de ejemplo, sirve el
+> build, y `capturar-guia-leads.mjs` sigue una receta por imagen —abre, pulsa,
+> resalta— dibujando recuadros, números y flechas con una capa SVG sobre la
+> pantalla real, y graba el vídeo. Las marcas se localizan por `data-zona`,
+> encabezados y `aria-label`, no por coordenadas.
+
+Tres cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara las columnas,
+   los contadores y las columnas del CSV documentadas con las de
+   `Columns.tsx`, `FilterLeadsByStats.tsx` y `sessions-content.tsx`. Si la
+   pantalla cambia, se pone en rojo y hay que regenerar.
+2. **Regenerar = `npm run build && scripts/generar-guia-leads.sh`, y después
+   volver a construir**: `next start` solo sirve lo que había en `public/` al
+   construir. El script se cae si falta una imagen que la guía enseña.
+3. **Quitar un aviso de sonner del DOM a mano lo rompe**: el script espera a
+   que se vayan solos.
+
+Lo prueba `scripts/banco-guia-leads.sh` (reglas y la guía servida sin sesión
+a 390 y 1440); `MODO=roto` afirma que en `73f991f` no existía.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

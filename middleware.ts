@@ -158,7 +158,12 @@ export default auth((req) => {
     // cliente por WhatsApp, y ese cliente no tiene cuenta. El token (192 bits)
     // es la única puerta y lo que se enseña se elige campo por campo en
     // `laPropuestaPublica`. No se indexa (metadata y `X-Robots-Tag`).
-    currentPath.startsWith("/propuesta/");
+    currentPath.startsWith("/propuesta/") ||
+    // Documentación pública (/guia/...): la guía de un módulo, que se le pasa
+    // a quien todavía no tiene cuenta. No lee nada de la base —todo sale de
+    // `lib/guia-leads.ts`— y no se indexa (metadata y `X-Robots-Tag`).
+    currentPath === "/guia" ||
+    currentPath.startsWith("/guia/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {
