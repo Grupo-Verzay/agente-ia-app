@@ -22553,6 +22553,18 @@ fuera de la zona nada pasa de gris medio, dentro hay blanco y en el borde el
 azul del recuadro. `MODO=roto` lee `98a247c` y afirma que las tarjetas usaban
 la captura de un paso.
 
+### El índice termina en la línea divisoria, y nada debajo
+
+Debajo de las tarjetas de cierre había una nota —«Las capturas se toman
+automáticamente de la plataforma real, con datos de ejemplo»— que es interna y
+al cliente no le dice nada. Se fue, y con ella el relleno de abajo: **el índice
+de toda guía termina en `FinDeLaGuia`** (la línea divisoria) dentro de
+`CONTENEDOR_DEL_INDICE` (sin `pb-*`), los dos de `components/guia/Guia.tsx`.
+Una guía nueva usa las dos y no escribe su propio pie. Lo prueba
+`lib/__tests__/fin-de-la-guia.test.mjs` (desde `banco-guia-leads.sh`), que
+barre todas las guías de `app/guia/*`, y la sonda servida mide que no queda
+nada debajo de la línea; `MODO=roto` lee `9e38996` y afirma la nota.
+
 ### La introducción ocupa el ancho del contenedor, como el vídeo
 
 El párrafo de introducción del índice (`IntroduccionDeLaGuia`) llevaba un

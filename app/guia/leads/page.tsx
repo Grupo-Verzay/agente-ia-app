@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { PlayCircle } from "lucide-react";
 
-import { CabeceraDeLaGuia, CuadriculaDeSecciones, IntroduccionDeLaGuia } from "@/components/guia/Guia";
+import {
+    CabeceraDeLaGuia,
+    CONTENEDOR_DEL_INDICE,
+    CuadriculaDeSecciones,
+    FinDeLaGuia,
+    IntroduccionDeLaGuia,
+} from "@/components/guia/Guia";
 import { GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
 import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
 import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
@@ -33,7 +39,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
     return (
         <>
             <CabeceraDeLaGuia />
-            <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+            <div className={CONTENEDOR_DEL_INDICE}>
                 <section id="demostracion" data-demostracion className="scroll-mt-20 space-y-3" aria-labelledby="titulo-demostracion">
                     <h2 id="titulo-demostracion" className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
                         <PlayCircle className="h-5 w-5 text-blue-600" aria-hidden />
@@ -71,9 +77,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
                     />
                 </section>
 
-                <footer className="border-t border-slate-200 pt-6 text-center text-xs text-slate-400">
-                    Las capturas se toman automáticamente de la plataforma real, con datos de ejemplo.
-                </footer>
+                <FinDeLaGuia />
             </div>
         </>
     );
