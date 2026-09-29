@@ -34,9 +34,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarraDeAcciones, BotonDeCrear } from "@/components/shared/BarraDeAcciones";
+import { cn } from "@/lib/utils";
+import { ordenarPlantillas, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
 import {
+    borrarPlantillaAction,
     borrarPropuestaAction,
+    crearPlantillaAction,
     crearPropuestaAction,
+    editarPlantillaAction,
     editarPropuestaAction,
     enviarPropuestaPorWhatsappAction,
     ponerEsloganAction,
@@ -52,6 +57,7 @@ import {
     TOPE_DE_ESLOGAN,
     type Propuesta,
 } from "@/lib/propuestas";
+import { FormularioDePlantilla, type BorradorDePlantilla } from "./FormularioDePlantilla";
 import { FormularioDePropuesta, type BorradorDePropuesta, type LineaDelFormulario } from "./FormularioDePropuesta";
 import { copiarAlPortapapeles } from "./copiar-enlace";
 
@@ -75,12 +81,22 @@ export function PropuestasClient({
     origen,
     lineas,
     esloganInicial,
+    plantillasIniciales = [],
 }: {
     inicial: Propuesta[];
     origen: string;
     lineas: LineaDelFormulario[];
     esloganInicial: string;
+    plantillasIniciales?: PlantillaDePlan[];
 }) {
+    // Dos secciones en la misma pantalla: las propuestas y las plantillas de
+    // planes. La barra y la tabla son las mismas; cambia lo que hay dentro.
+    const [vista, setVista] = useState<"propuestas" | "plantillas">("propuestas");
+    const [plantillas, setPlantillas] = useState<PlantillaDePlan[]>(() => ordenarPlantillas(plantillasIniciales));
+    const [plantillaAbierta, setPlantillaAbierta] = useState(false);
+    const [plantillaEnEdicion, setPlantillaEnEdicion] = useState<PlantillaDePlan | null>(null);
+    const [guardandoPlantilla, setGuardandoPlantilla] = useState(false);
+    const [plantillaABorrar, setPlantillaABorrar] = useState<PlantillaDePlan | null>(null);
     const [propuestas, setPropuestas] = useState<Propuesta[]>(inicial);
     const [enviando, setEnviando] = useState<string | null>(null);
     const [eslogan, setEslogan] = useState(esloganInicial);
@@ -102,9 +118,50 @@ export function PropuestasClient({
         return q ? propuestas.filter((p) => normalizar(p.cliente).includes(q)) : propuestas;
     }, [propuestas, busqueda]);
 
+    const plantillasVisibles = useMemo(() => {
+        const q = normalizar(busqueda.trim());
+        return q ? plantillas.filter((p) => normalizar(p.nombre).includes(q)) : plantillas;
+    }, [plantillas, busqueda]);
+
     const abrirNueva = () => {
+        if (vista === "plantillas") {
+            setPlantillaEnEdicion(null);
+            setPlantillaAbierta(true);
+            return;
+        }
         setEnEdicion(null);
         setFormAbierto(true);
+    };
+
+    const guardarPlantilla = async (b: BorradorDePlantilla) => {
+        setGuardandoPlantilla(true);
+        const r = await pedir(() =>
+            plantillaEnEdicion ? editarPlantillaAction(plantillaEnEdicion.id, b) : crearPlantillaAction(b),
+        );
+        setGuardandoPlantilla(false);
+        if (!r.success) {
+            toast.error(r.message);
+            return;
+        }
+        const p = r.data;
+        setPlantillas((l) => ordenarPlantillas(plantillaEnEdicion ? l.map((x) => (x.id === p.id ? p : x)) : [...l, p]));
+        setPlantillaAbierta(false);
+        toast.success(plantillaEnEdicion ? "Plantilla guardada. Las propuestas ya hechas no cambian." : "Plantilla creada.");
+    };
+
+    const borrarPlantilla = async () => {
+        const p = plantillaABorrar;
+        if (!p) return;
+        setPlantillaABorrar(null);
+        // Se quita al momento y vuelve si el servidor dice que no.
+        setPlantillas((l) => l.filter((x) => x.id !== p.id));
+        const r = await pedir(() => borrarPlantillaAction(p.id));
+        if (!r.success) {
+            setPlantillas((l) => ordenarPlantillas([...l, p]));
+            toast.error(r.message);
+            return;
+        }
+        toast.success("Plantilla eliminada. Las propuestas que la usaron no cambian.");
     };
 
     const guardar = async (b: BorradorDePropuesta) => {
@@ -199,9 +256,30 @@ export function PropuestasClient({
                     <Input
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
-                        placeholder="Buscar cliente…"
-                        className="h-10 w-56 sm:w-72"
+                        placeholder={vista === "plantillas" ? "Buscar plan…" : "Buscar cliente…"}
+                        // Más estrecho en el teléfono que en otras pantallas: aquí el
+                        // carril lleva las dos secciones, y con `w-56` le quedaban
+                        // 36 px —justo lo que tapan sus flechas— y no se podía pulsar
+                        // ninguna. Medido en el banco de plantillas a 390.
+                        className="h-10 w-32 sm:w-72"
                     />
+                }
+                filtros={
+                    <>
+                        <PastillaDeSeccion
+                            etiqueta="Propuestas"
+                            cuantas={propuestas.length}
+                            activa={vista === "propuestas"}
+                            alPulsar={() => setVista("propuestas")}
+                        />
+                        <PastillaDeSeccion
+                            etiqueta="Plantillas de planes"
+                            corta="Plantillas"
+                            cuantas={plantillas.length}
+                            activa={vista === "plantillas"}
+                            alPulsar={() => setVista("plantillas")}
+                        />
+                    </>
                 }
                 secundarias={
                     <Button
@@ -222,6 +300,82 @@ export function PropuestasClient({
                 crear={<BotonDeCrear onClick={abrirNueva}>Nuevo</BotonDeCrear>}
             />
 
+            {vista === "plantillas" ? (
+                <div data-seccion-plantillas className="min-h-0 flex-1 overflow-auto rounded-lg border">
+                    <Table>
+                        <TableHeader className="sticky top-0 z-10 bg-background">
+                            <TableRow>
+                                <TableHead>Plan</TableHead>
+                                <TableHead className="text-right">Precio</TableHead>
+                                <TableHead>Características</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {plantillasVisibles.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
+                                        {plantillas.length === 0
+                                            ? "Todavía no has creado ninguna plantilla de plan."
+                                            : "Ninguna plantilla coincide con la búsqueda."}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {plantillasVisibles.map((p) => (
+                                <TableRow key={p.id} data-plantilla-fila={p.id}>
+                                    <TableCell className="max-w-[16rem]">
+                                        <button
+                                            type="button"
+                                            className="line-clamp-1 text-left font-medium hover:underline"
+                                            title={p.nombre}
+                                            onClick={() => {
+                                                setPlantillaEnEdicion(p);
+                                                setPlantillaAbierta(true);
+                                            }}
+                                        >
+                                            {p.nombre}
+                                        </button>
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                                        {comoSeLeeElImporte(p.precio, p.moneda)}
+                                    </TableCell>
+                                    <TableCell className="max-w-[28rem]">
+                                        <div className="line-clamp-2 text-sm text-muted-foreground" title={p.caracteristicas.join("\n")}>
+                                            {p.caracteristicas.length === 0 ? "—" : p.caracteristicas.join(" · ")}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Más acciones">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                    onSelect={() => {
+                                                        setPlantillaEnEdicion(p);
+                                                        setPlantillaAbierta(true);
+                                                    }}
+                                                >
+                                                    <Pencil className="mr-2 h-4 w-4" /> Editar
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive"
+                                                    onSelect={() => setPlantillaABorrar(p)}
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            ) : (
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
                 <Table>
                     <TableHeader className="sticky top-0 z-10 bg-background">
@@ -386,12 +540,38 @@ export function PropuestasClient({
                     </TableBody>
                 </Table>
             </div>
+            )}
+
+            <FormularioDePlantilla
+                abierto={plantillaAbierta}
+                plantilla={plantillaEnEdicion}
+                guardando={guardandoPlantilla}
+                onCerrar={() => setPlantillaAbierta(false)}
+                onGuardar={(b) => void guardarPlantilla(b)}
+            />
+
+            <AlertDialog open={Boolean(plantillaABorrar)} onOpenChange={(o) => !o && setPlantillaABorrar(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar la plantilla?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            La plantilla «{plantillaABorrar?.nombre}» se borra. Las propuestas que ya la usaron no cambian:
+                            guardan su propia copia.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => void borrarPlantilla()}>Eliminar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <FormularioDePropuesta
                 abierto={formAbierto}
                 propuesta={enEdicion}
                 lineas={lineas}
                 origen={base}
+                plantillas={plantillas}
                 guardando={guardando}
                 onCerrar={() => setFormAbierto(false)}
                 onGuardar={(b) => void guardar(b)}
@@ -449,5 +629,45 @@ export function PropuestasClient({
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+    );
+}
+
+/** Las dos secciones de la pantalla: la misma pastilla que Reuniones usa para las suyas. */
+function PastillaDeSeccion({
+    etiqueta,
+    corta,
+    cuantas,
+    activa,
+    alPulsar,
+}: {
+    etiqueta: string;
+    /** En un teléfono el carril es estrecho: la palabra corta, y la larga en el `title`. */
+    corta?: string;
+    cuantas: number;
+    activa: boolean;
+    alPulsar: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={alPulsar}
+            aria-pressed={activa}
+            data-seccion={etiqueta}
+            title={etiqueta}
+            className={cn(
+                "shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+                activa ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+        >
+            {corta ? (
+                <>
+                    <span className="sm:hidden">{corta}</span>
+                    <span className="hidden sm:inline">{etiqueta}</span>
+                </>
+            ) : (
+                etiqueta
+            )}
+            <span className="ml-1.5 text-xs tabular-nums opacity-70">{cuantas}</span>
+        </button>
     );
 }

@@ -15,12 +15,17 @@ import {
     type DatosDePropuesta,
     type Propuesta,
 } from "@/lib/propuestas";
+import { comoPlantilla, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
 import {
+    borrarPlantilla,
     borrarPropuesta,
+    crearPlantilla,
     crearPropuesta,
+    editarPlantilla,
     editarPropuesta,
     elEsloganDe,
     EnlaceOcupado,
+    lasPlantillasDe,
     laPropuestaDeLaCuenta,
     lasLineasParaEnviar,
     lasPropuestasDe,
@@ -59,18 +64,19 @@ const ENLACE_OCUPADO = "Ese enlace personalizado ya lo usa otra propuesta: elige
 const NO_AUTORIZADO = { success: false as const, message: "No autorizado." };
 
 export async function listarPropuestasAction(): Promise<
-    Respuesta<{ propuestas: Propuesta[]; origen: string; lineas: LineaParaEnviar[]; eslogan: string }>
+    Respuesta<{ propuestas: Propuesta[]; origen: string; lineas: LineaParaEnviar[]; eslogan: string; plantillas: PlantillaDePlan[] }>
 > {
     const q = await quienManda();
     if (!q) return NO_AUTORIZADO;
     try {
-        const [propuestas, origen, lineas, eslogan] = await Promise.all([
+        const [propuestas, origen, lineas, eslogan, plantillas] = await Promise.all([
             lasPropuestasDe(q.cuenta),
             elOrigenDeLaApp(),
             lasLineasParaEnviar(q.cuenta),
             elEsloganDe(q.cuenta),
+            lasPlantillasDe(q.cuenta),
         ]);
-        return { success: true, data: { propuestas, origen, lineas, eslogan } };
+        return { success: true, data: { propuestas, origen, lineas, eslogan, plantillas } };
     } catch (error) {
         console.error("[propuestas] no se pudieron leer", { cuenta: q.cuenta, error: String(error) });
         return { success: false, message: "No se pudieron cargar las propuestas." };
@@ -138,6 +144,59 @@ export async function borrarPropuestaAction(id: unknown): Promise<Respuesta<null
     } catch (error) {
         console.error("[propuestas] no se pudo borrar", { cuenta: q.cuenta, id, error: String(error) });
         return { success: false, message: "No se pudo eliminar la propuesta." };
+    }
+}
+
+/**
+ * Las PLANTILLAS DE PLANES: crear, editar y eliminar, con la MISMA puerta que
+ * las propuestas (quien administra la cuenta) y acotadas por la cuenta de la
+ * sesión. Sin tope de cuántas. Ninguna toca una propuesta: las propuestas
+ * guardan su copia.
+ */
+export async function crearPlantillaAction(raw: unknown): Promise<Respuesta<PlantillaDePlan>> {
+    const q = await quienManda();
+    if (!q) return NO_AUTORIZADO;
+    const v = comoPlantilla(raw);
+    if (!v.ok) return { success: false, message: v.motivo };
+    try {
+        const p = await crearPlantilla({ ...v.datos, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
+        revalidatePath(RUTA);
+        return { success: true, data: p };
+    } catch (error) {
+        console.error("[propuestas] no se pudo crear la plantilla", { cuenta: q.cuenta, error: String(error) });
+        return { success: false, message: "No se pudo crear la plantilla." };
+    }
+}
+
+export async function editarPlantillaAction(id: unknown, raw: unknown): Promise<Respuesta<PlantillaDePlan>> {
+    const q = await quienManda();
+    if (!q) return NO_AUTORIZADO;
+    if (typeof id !== "string" || !id.trim()) return { success: false, message: "Plantilla no encontrada." };
+    const v = comoPlantilla(raw);
+    if (!v.ok) return { success: false, message: v.motivo };
+    try {
+        const p = await editarPlantilla(q.cuenta, id, v.datos);
+        if (!p) return { success: false, message: "Plantilla no encontrada." };
+        revalidatePath(RUTA);
+        return { success: true, data: p };
+    } catch (error) {
+        console.error("[propuestas] no se pudo editar la plantilla", { cuenta: q.cuenta, id, error: String(error) });
+        return { success: false, message: "No se pudo guardar la plantilla." };
+    }
+}
+
+export async function borrarPlantillaAction(id: unknown): Promise<Respuesta<null>> {
+    const q = await quienManda();
+    if (!q) return NO_AUTORIZADO;
+    if (typeof id !== "string" || !id.trim()) return { success: false, message: "Plantilla no encontrada." };
+    try {
+        const ok = await borrarPlantilla(q.cuenta, id);
+        if (!ok) return { success: false, message: "Plantilla no encontrada." };
+        revalidatePath(RUTA);
+        return { success: true, data: null };
+    } catch (error) {
+        console.error("[propuestas] no se pudo borrar la plantilla", { cuenta: q.cuenta, id, error: String(error) });
+        return { success: false, message: "No se pudo eliminar la plantilla." };
     }
 }
 
