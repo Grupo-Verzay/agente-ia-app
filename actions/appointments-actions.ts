@@ -21,6 +21,7 @@ import { lasCitasPorEstado } from '@/lib/citas-por-estado.server';
 import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
 import { comoFranjaNueva, elEstadoAlReagendar, laDuracionDeLaCita } from '@/lib/reagendar-cita';
 import { reprogramarLosRecordatoriosDeLaCita } from '@/lib/reagendar-cita.server';
+import { dispararLasAutomatizacionesDeCita } from '@/lib/automatizaciones-de-cita.server';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —y en
@@ -444,25 +445,8 @@ export async function sendAppointmentStatusNotification(
     }
 }
 
-/**
- * Dispara (fire-and-forget) las automatizaciones configuradas para un estado
- * de cita. Espeja triggerStageAutomations.
- */
-async function triggerApptAutomations(sessionId: number | null | undefined, apptStatus: string): Promise<void> {
-    if (!sessionId) return;
-    const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
-    if (!backendUrl) return;
-    const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
-    try {
-        await fetch(`${backendUrl}/appt-automations/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
-            body: JSON.stringify({ sessionId, apptStatus }),
-        });
-    } catch (error) {
-        console.error('[triggerApptAutomations]', error);
-    }
-}
+/** Las automatizaciones de un estado: la MISMA función que Multiagenda. */
+const triggerApptAutomations = dispararLasAutomatizacionesDeCita;
 
 export async function updateAppointmentStatus(
     id: string,

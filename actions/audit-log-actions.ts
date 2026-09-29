@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
 
-export type AuditEntityType = "crm" | "appointment" | "note" | "task" | "project";
+export type AuditEntityType = "crm" | "appointment" | "booking_appointment" | "note" | "task" | "project";
 export type AuditAction =
   | "created"
   | "updated"

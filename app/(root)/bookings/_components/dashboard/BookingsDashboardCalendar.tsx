@@ -18,13 +18,16 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { DialogoDeReagendar } from '@/components/shared/DialogoDeReagendar';
+import { OPCION_REAGENDAR, ROTULO_REAGENDAR, esLaOpcionDeReagendar } from '@/lib/reagendar-cita';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { STATUS_LABELS } from '@/types/schedule';
 import {
     getBookingAppointments, updateBookingAppointmentStatus, deleteBookingAppointment,
+    sendBookingStatusNotification,
 } from '@/actions/bookings-actions';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -75,6 +78,8 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
     const [changingStatus, setChangingStatus] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+    const [citaAReagendar, setCitaAReagendar] = useState<string | null>(null);
     const [agendaMode, setAgendaMode] = useState(true);
     const [agendaDate, setAgendaDate] = useState(() => startOfDay(new Date()));
     const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
@@ -124,14 +129,32 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
         setNewStatus(appt.status);
     };
 
+    /**
+     * El aviso al cliente lo manda el SERVIDOR, desde la cuenta dueña del
+     * equipo: el mismo camino y el mismo mensaje que en Agenda.
+     */
+    const notifyChangeStatus = async (id: string, status: AppointmentStatus) => {
+        try {
+            const result = await sendBookingStatusNotification(id, status);
+            if (result.success) toast.success(result.message);
+            else toast.info(`No se envió el mensaje de notificación: ${result.message}`);
+        } catch (error) {
+            console.error('[multiagenda] error al notificar la cita:', error);
+            toast.error('Ocurrió un error al intentar notificar la cita.');
+        }
+    };
+
     const handleStatusChange = async () => {
         if (!selected) return;
         setChangingStatus(true);
-        const res = await updateBookingAppointmentStatus(selected.id, newStatus);
+        const id = selected.id;
+        const status = newStatus;
+        const res = await updateBookingAppointmentStatus(id, status);
         if (res.success) {
-            setAppts((prev) => prev.map((a) => a.id === selected.id ? { ...a, status: newStatus } : a));
-            setSelected({ ...selected, status: newStatus });
+            setAppts((prev) => prev.map((a) => a.id === id ? { ...a, status } : a));
+            setSelected({ ...selected, status });
             toast.success('Estado actualizado');
+            if (status !== 'FINALIZADO' && status !== 'DESCARTADO') await notifyChangeStatus(id, status);
         } else {
             toast.error(res.message);
         }
@@ -336,7 +359,20 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                                     </p>
                                 </CardHeader>
                                 <CardContent>
-                                    <Select value={newStatus} onValueChange={(v) => setNewStatus(v as AppointmentStatus)}>
+                                    <Select
+                                        value={newStatus}
+                                        onValueChange={(v) => {
+                                            // «Reagendar» no es un estado: abre el selector
+                                            // de fecha y hora sobre esta misma cita, como en Agenda.
+                                            if (esLaOpcionDeReagendar(v)) {
+                                                if (!selected) return;
+                                                setCitaAReagendar(selected.id);
+                                                setSelected(null);
+                                                return;
+                                            }
+                                            setNewStatus(v as AppointmentStatus);
+                                        }}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
@@ -344,6 +380,8 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                                             {ALL_STATUSES.map((s) => (
                                                 <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
                                             ))}
+                                            <SelectSeparator />
+                                            <SelectItem value={OPCION_REAGENDAR} data-opcion-reagendar="">{ROTULO_REAGENDAR}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </CardContent>
@@ -352,6 +390,11 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                                 <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
                                 <Button
                                     onClick={async () => {
+                                        // Cancelar quita sus recordatorios: se confirma antes, como en Agenda.
+                                        if (newStatus === 'CANCELADA') {
+                                            setConfirmCancel(true);
+                                            return;
+                                        }
                                         await handleStatusChange();
                                         setSelected(null);
                                     }}
@@ -412,6 +455,39 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                     </Tabs>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+                <AlertDialogContent className="border-border">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar cancelacion</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminaran todos los recordatorios/seguimientos del agendamiento asociados.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            data-confirmar-cancelacion=""
+                            onClick={async () => {
+                                setConfirmCancel(false);
+                                await handleStatusChange();
+                                setSelected(null);
+                            }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <DialogoDeReagendar
+                de="reserva"
+                citaId={citaAReagendar}
+                open={citaAReagendar !== null}
+                onOpenChange={(abierto) => { if (!abierto) setCitaAReagendar(null); }}
+                alReagendar={() => { void load(); }}
+            />
 
             <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
                 <AlertDialogContent className="border-border">

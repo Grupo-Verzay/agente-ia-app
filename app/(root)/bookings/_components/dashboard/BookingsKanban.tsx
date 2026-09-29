@@ -9,13 +9,17 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, User, Calendar, Wrench, Search, X, Clock, Settings2 } from 'lucide-react';
+import { Loader2, RefreshCw, User, Calendar, CalendarClock, Wrench, Search, X, Clock, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { AppointmentStatus } from '@prisma/client';
-import { getBookingAppointments, updateBookingAppointmentStatus, deleteBookingAppointment } from '@/actions/bookings-actions';
+import {
+    getBookingAppointments, updateBookingAppointmentStatus, deleteBookingAppointment, sendBookingStatusNotification,
+} from '@/actions/bookings-actions';
+import { DialogoDeReagendar } from '@/components/shared/DialogoDeReagendar';
+import { ROTULO_REAGENDAR } from '@/lib/reagendar-cita';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -51,10 +55,13 @@ interface BookingCard {
 
 // ─── Card UI ─────────────────────────────────────────────────────────────────
 
-function BookingCardItem({ card, isDragging = false, onDelete }: {
+function BookingCardItem({ card, isDragging = false, onDelete, onReagendar }: {
     card: BookingCard;
     isDragging?: boolean;
     onDelete?: (id: string) => void;
+    /** Abre el selector de fecha y hora sobre ESTA cita, como la tarjeta de
+     *  Agenda. Sin él (la copia que se arrastra) no se pinta el botón. */
+    onReagendar?: (card: BookingCard) => void;
 }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -101,6 +108,25 @@ function BookingCardItem({ card, isDragging = false, onDelete }: {
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Calendar className="h-3 w-3 shrink-0" />
                     {format(localStart, "dd MMM · HH:mm", { locale: es })}
+                    {onReagendar && !isDragging && (
+                        // El tablero cambia el estado arrastrando; reagendar es la
+                        // otra acción sobre la cita y va en su tarjeta, como en
+                        // Agenda. Se corta el `pointerdown` para no empezar un arrastre.
+                        <button
+                            type="button"
+                            data-reagendar-tarjeta=""
+                            title={`${ROTULO_REAGENDAR} cita`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onReagendar(card);
+                            }}
+                            className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-accent"
+                        >
+                            <CalendarClock className="h-3 w-3" />
+                            {ROTULO_REAGENDAR}
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1 flex-wrap">
@@ -147,7 +173,11 @@ function BookingCardItem({ card, isDragging = false, onDelete }: {
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card, onDelete }: { card: BookingCard; onDelete: (id: string) => void }) {
+function DraggableCard({ card, onDelete, onReagendar }: {
+    card: BookingCard;
+    onDelete: (id: string) => void;
+    onReagendar: (card: BookingCard) => void;
+}) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
         data: { card },
@@ -159,17 +189,18 @@ function DraggableCard({ card, onDelete }: { card: BookingCard; onDelete: (id: s
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <BookingCardItem card={card} isDragging={isDragging} onDelete={onDelete} />
+            <BookingCardItem card={card} isDragging={isDragging} onDelete={onDelete} onReagendar={onReagendar} />
         </div>
     );
 }
 
 // ─── Droppable Column ─────────────────────────────────────────────────────────
 
-function BookingColumn({ col, cards, onDelete, userId }: {
+function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
     col: (typeof COLUMNS)[number];
     cards: BookingCard[];
     onDelete: (id: string) => void;
+    onReagendar: (card: BookingCard) => void;
     userId: string;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
@@ -211,7 +242,7 @@ function BookingColumn({ col, cards, onDelete, userId }: {
                 )}
             >
                 {cards.map((card) => (
-                    <DraggableCard key={card.id} card={card} onDelete={onDelete} />
+                    <DraggableCard key={card.id} card={card} onDelete={onDelete} onReagendar={onReagendar} />
                 ))}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
@@ -235,6 +266,7 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
     const [activeCard, setActiveCard] = useState<BookingCard | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
+    const [citaAReagendar, setCitaAReagendar] = useState<string | null>(null);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -314,6 +346,8 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
             setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, status: card.status } : c)));
         } else {
             toast.success(`Cita movida a ${STATUS_LABELS[newStatus]}`);
+            // El aviso al cliente, como al arrastrar en el tablero de Agenda.
+            void sendBookingStatusNotification(cardId, newStatus).catch(() => undefined);
         }
     };
 
@@ -432,6 +466,7 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
                                             col={col}
                                             cards={filteredCards.filter((c) => c.status === col.id)}
                                             onDelete={handleDelete}
+                                            onReagendar={(c) => setCitaAReagendar(c.id)}
                                             userId={userId}
                                         />
                                     ))}
@@ -449,6 +484,14 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
                     </DndContext>
                 </div>
             </div>
+
+            <DialogoDeReagendar
+                de="reserva"
+                citaId={citaAReagendar}
+                open={citaAReagendar !== null}
+                onOpenChange={(abierto) => { if (!abierto) setCitaAReagendar(null); }}
+                alReagendar={() => { void load(); }}
+            />
         </TooltipProvider>
     );
 }
