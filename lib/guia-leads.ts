@@ -65,6 +65,38 @@ export const COLUMNAS_DOCUMENTADAS = [
     "Acciones",
 ] as const;
 
+/**
+ * Las partes de la BARRA DE ARRIBA, en su orden, con el componente que pinta
+ * cada una en `components/custom/Breadcrumbs.tsx`. El banco lee esa barra y
+ * exige que tenga exactamente estas, en este orden: un botón nuevo arriba sin
+ * su nombre en la guía la pone en rojo, que es como se quedó la primera
+ * versión —la barra salía en las capturas y la guía no nombraba ni una parte—.
+ */
+export const PARTES_DE_LA_BARRA_DE_ARRIBA = [
+    { nombre: "Abrir o recoger el menú", componente: "SidebarTrigger" },
+    { nombre: "Pasar a Chats o a Correos", componente: "AlternarBandeja" },
+    { nombre: "Ver tutoriales", componente: "Ver tutoriales" },
+    { nombre: "Buscar en toda la plataforma", componente: "GlobalSearch" },
+    { nombre: "Soporte", componente: "BotonDeSoporte" },
+    { nombre: "Tus notificaciones", componente: "NotificationCenter" },
+] as const;
+
+/**
+ * Las cinco ZONAS de la pantalla, en el orden en que se leen, tal como las
+ * numera la captura de «Todo en una pantalla». Cada una tiene su paso en la
+ * sección (la tabla, su sección entera).
+ */
+export const ZONAS_DE_LA_PANTALLA = [
+    "El menú de la plataforma",
+    "La barra de arriba",
+    "La barra de trabajo",
+    "La tabla",
+    "El pie",
+] as const;
+
+/** Dónde vive Leads en el menú. El banco lo compara con el menú sembrado. */
+export const MODULO_DE_LEADS = "Contactos";
+
 /** Las pastillas de conteo. El banco las compara con `FilterLeadsByStats.tsx`. */
 export const PASTILLAS_DOCUMENTADAS = ["Total", "Clientes activos", "Clientes inactivos", "Agente activo"] as const;
 
@@ -91,17 +123,33 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
         {
             slug: "vista-general",
             titulo: "La pantalla de un vistazo",
-            resumen: "Qué hay en la barra de arriba y qué hay en la tabla.",
+            resumen: "El menú, la barra de arriba, la barra de trabajo, la tabla y el pie de página.",
             icono: "LayoutDashboard",
             miniatura: "mini-vista-general.webp",
             pasos: [
                 {
                     titulo: "Todo en una pantalla",
                     texto:
-                        "Del 1 al 6, la barra de trabajo: buscar, filtrar, exportar y crear. El 7 es la tabla, " +
-                        "con un contacto por fila y 20 por página.",
+                        "1 El menú de la plataforma · 2 La barra de arriba, la misma en todas las pantallas · " +
+                        "3 La barra de trabajo de Leads · 4 La tabla, un contacto por fila · 5 El pie, para pasar de página.",
                     imagen: "vista-general.webp",
-                    alt: "La pantalla de Leads con sus partes numeradas",
+                    alt: "La pantalla de Leads con sus cinco partes numeradas",
+                },
+                {
+                    titulo: "El menú de la plataforma",
+                    texto:
+                        "Todos los módulos de la plataforma. Leads está dentro de Contactos. Al entrar a una pantalla " +
+                        "el menú se recoge en sus iconos; las dos flechas de arriba lo abren entero.",
+                    imagen: "menu-lateral.webp",
+                    alt: "El menú de la izquierda abierto, con Leads dentro de Contactos",
+                },
+                {
+                    titulo: "La barra de arriba",
+                    texto:
+                        "1 Abrir o recoger el menú · 2 Pasar a Chats o a Correos · 3 Ver tutoriales · " +
+                        "4 Buscar en toda la plataforma · 5 Soporte · 6 Tus notificaciones.",
+                    imagen: "barra-de-arriba.webp",
+                    alt: "La barra de arriba con cada botón numerado",
                 },
                 {
                     titulo: "La barra de trabajo",
@@ -109,7 +157,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
                         "1 Buscador · 2 Contadores que filtran · 3 Línea (si tienes varias) · 4 Exportar CSV · " +
                         "5 Nuevo contacto · 6 Acciones para todos los contactos a la vez.",
                     imagen: "barra.webp",
-                    alt: "La barra de arriba con cada botón numerado",
+                    alt: "La barra de trabajo con cada botón numerado",
                 },
                 {
                     titulo: "Pasar de página",
@@ -120,6 +168,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
                 },
             ],
             consejos: [
+                "El menú y la barra de arriba son los mismos en todas las pantallas: desde cualquiera llegas a Leads por Contactos.",
                 "La lista se actualiza sola cada 30 segundos: no hace falta recargar la página.",
                 "Pulsa el nombre de cualquier columna para ordenar la tabla por ella; vuelve a pulsar para invertir el orden.",
             ],

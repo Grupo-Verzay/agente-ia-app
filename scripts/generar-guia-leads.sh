@@ -33,6 +33,12 @@ if [ ! -d .next/static/css ]; then
   echo "No hay build ('npm run build')." >&2
   exit 1
 fi
+# El vídeo pega la narración con ffmpeg: sin él se caería al FINAL, después de
+# todas las capturas. Mejor decirlo antes de empezar.
+if [ "${SIN_VIDEO:-}" != "1" ] && [ "${SOLO_MINIATURAS:-}" != "1" ] && ! command -v ffmpeg >/dev/null; then
+  echo "Falta ffmpeg, que hace falta para el vídeo (apt-get install -y ffmpeg). O SIN_VIDEO=1." >&2
+  exit 1
+fi
 
 if [ ! -d "$PGDIR" ]; then
   mkdir -p "$PGDIR"

@@ -48,6 +48,8 @@ const SOLO_MINIATURAS = process.env.SOLO_MINIATURAS === "1";
 const SOLO_VIDEO = process.env.SOLO_VIDEO === "1";
 /** Dónde quedó el recuadro dentro de cada miniatura: lo lee el banco para medir el enfoque. */
 const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-leads.json");
+/** Lo que pinta el menú recogido en las capturas: lo lee el banco. */
+const MENU = path.join(RAIZ, "scripts", "menu-guia-leads.json");
 
 mkdirSync(SALIDA, { recursive: true });
 mkdirSync(TMP, { recursive: true });
@@ -176,6 +178,75 @@ async function celdaDe(p, nombre, rotulo) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Lo que rodea a la pantalla: el menú y la barra de arriba            */
+/* ------------------------------------------------------------------ */
+
+/** El menú de la izquierda que se VE (en un teléfono hay otro, dentro de una hoja). */
+const elMenuLateral = (p) => p.locator('[data-sidebar="sidebar"]').filter({ visible: true }).first();
+const LA_BARRA_DE_ARRIBA = "[data-barra-de-arriba]";
+/** El velo de `marcar` (rgba(15,23,42,0.55)) sobre el fondo blanco. */
+const VELO_SOBRE_BLANCO = "#7b7f8a";
+
+/**
+ * Las partes de la barra de arriba, en el orden de `PARTES_DE_LA_BARRA_DE_ARRIBA`
+ * (`lib/guia-leads.ts`): el banco exige que sean las mismas y en ese orden.
+ */
+const lasPartesDeArriba = (p) => [
+    p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]'),
+    p.locator("[data-alternar-bandeja]"),
+    p.locator("[data-botones-de-la-barra] button", { hasText: "Ver tutoriales" }),
+    p.locator('button[title="Buscar clientes, chats, tareas, productos o flujos"]'),
+    p.locator('button[aria-label="Pedir soporte"]'),
+    p.locator('button[aria-label="Centro de notificaciones"]'),
+];
+
+/** El pie de la tabla: «Mostrando…» y las flechas de página. */
+async function elPie(p) {
+    return p.evaluate(() => {
+        const t = [...document.querySelectorAll("div")].find((d) => d.classList.contains("border-t") && /Mostrando/.test(d.textContent ?? ""));
+        const r = t.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+    });
+}
+
+/** La tabla hasta donde se VE: del encabezado al pie (las filas de más se desplazan por dentro). */
+async function laTablaHastaElPie(p, pie) {
+    return p.evaluate((pie) => {
+        const r = document.querySelector("table thead").getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: pie.y - 6 - r.top };
+    }, pie);
+}
+
+/** El borde de abajo del último módulo del menú: debajo queda hueco para el número. */
+async function dondeAcabaElMenu(p) {
+    return p.evaluate(() => {
+        const menu = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((m) => m.getBoundingClientRect().width > 0);
+        const botones = [...menu.querySelectorAll('[data-sidebar="content"] [data-sidebar="menu-button"]')];
+        return Math.max(...botones.map((b) => b.getBoundingClientRect().bottom));
+    });
+}
+
+/**
+ * Lo que pinta el menú RECOGIDO, módulo por módulo: su nombre y si lleva
+ * icono. Se guarda en `scripts/menu-guia-leads.json` y lo lee el banco: un
+ * módulo sin icono sale como letras recortadas («C…»), que es exactamente como
+ * se veía la primera versión de la guía.
+ */
+async function loQuePintaElMenu(p) {
+    return p.evaluate(() => {
+        const menu = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((m) => m.getBoundingClientRect().width > 0);
+        const botones = [...menu.querySelectorAll('[data-sidebar="content"] [data-sidebar="menu-button"]')];
+        return {
+            recogido: menu.getBoundingClientRect().width < 80,
+            modulos: botones.map((b) => ({
+                nombre: (b.textContent ?? "").trim(),
+                conIcono: b.firstElementChild?.tagName.toLowerCase() === "svg",
+            })),
+        };
+    });
+}
+
+/* ------------------------------------------------------------------ */
 /* Marcar                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -219,13 +290,22 @@ async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
                 for (const { c } of marcas) el("rect", { x: c.x - PAD, y: c.y - PAD, width: c.w + 2 * PAD, height: c.h + 2 * PAD, rx: RX, fill: "black" }, m);
                 el("rect", { x: 0, y: 0, width: W, height: H, fill: "rgba(15,23,42,0.55)", mask: "url(#velo)" });
             }
-            for (const { c, n, texto, lado = "arriba", esquina = "izquierda" } of marcas) {
+            for (const { c, n, texto, lado = "arriba", esquina = "izquierda", borde = "arriba", numeroEn, soloLuz } of marcas) {
+                // `soloLuz`: se ve sin velo, pero sin recuadro (el menú entero
+                // alrededor de la parte que se señala).
+                if (soloLuz) continue;
                 const r = { x: c.x - PAD, y: c.y - PAD, w: c.w + 2 * PAD, h: c.h + 2 * PAD };
                 el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 * escala });
                 el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: AZUL, "stroke-width": 3 * escala });
                 if (n !== undefined) {
-                    const cx = Math.min(Math.max(esquina === "derecha" ? r.x + r.w : r.x, 15), W - 15);
-                    const cy = Math.min(Math.max(r.y, 15), H - 15);
+                    // Dónde va el número: por defecto en la esquina de arriba.
+                    // `borde: "abajo"` para lo que está pegado al borde de la
+                    // pantalla (la barra de arriba no tiene «encima»), y
+                    // `numeroEn` para ponerlo donde no tape nada (el menú).
+                    const bx = numeroEn ? numeroEn.x : esquina === "derecha" ? r.x + r.w : esquina === "centro" ? r.x + r.w / 2 : r.x;
+                    const by = numeroEn ? numeroEn.y : borde === "abajo" ? r.y + r.h : r.y;
+                    const cx = Math.min(Math.max(bx, 15), W - 15);
+                    const cy = Math.min(Math.max(by, 15), H - 15);
                     el("circle", { cx, cy, r: 13, fill: AZUL, stroke: "white", "stroke-width": 2.5 });
                     const t = el("text", { x: cx, y: cy + 5, "text-anchor": "middle", fill: "white", "font-size": 14, "font-weight": 700, "font-family": "Poppins, Arial, sans-serif" });
                     t.textContent = String(n);
@@ -271,8 +351,14 @@ async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
 const desmarcar = (p) => p.evaluate(() => document.getElementById("__guia")?.remove());
 
 /** Foto → webp. Las de pantalla completa se bajan a 1600 de ancho; los zoom conservan su nitidez. */
-async function guardar(p, nombre, clip) {
-    const buf = await p.screenshot(clip ? { clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } } : {});
+async function guardar(p, nombre, clip, { margenArriba = 0, fondo = "#ffffff" } = {}) {
+    let buf = await p.screenshot(clip ? { clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } } : {});
+    // Lo que va pegado al borde de arriba de la pantalla (la barra de arriba)
+    // no tiene «encima»: se le añade un margen para que su recuadro se vea entero.
+    if (margenArriba) {
+        const porPx = (await sharp(buf).metadata()).width / (clip ? clip.w : p.viewportSize().width);
+        buf = await sharp(buf).extend({ top: Math.round(margenArriba * porPx), background: fondo }).toBuffer();
+    }
     const ancho = (await sharp(buf).metadata()).width;
     await sharp(buf)
         .resize({ width: Math.min(ancho, 1600), withoutEnlargement: true })
@@ -346,17 +432,23 @@ async function capturas(p) {
     // Portada del vídeo: la pantalla limpia.
     await guardar(p, "portada.webp");
 
-    // 1. Vista general
+    // 1. Vista general: las cinco zonas, en el orden de `ZONAS_DE_LA_PANTALLA`.
+    // El menú y la barra de arriba van metidos unos píxeles: pegados al borde
+    // de la pantalla, su recuadro se saldría y se montaría sobre el del vecino.
+    const dentro = (c, px) => ({ x: c.x + px, y: c.y + px, w: c.w - 2 * px, h: c.h - 2 * px });
+    const cMenuLateral = await caja(p, elMenuLateral(p));
+    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
+    const cPie = await elPie(p);
+    const bajoElMenu = await dondeAcabaElMenu(p);
     await marcar(p, [
-        { c: cBuscador, n: 1 },
-        { c: cPastillas, n: 2 },
-        { c: cLinea, n: 3 },
-        { c: cExportar, n: 4 },
-        { c: cNuevo, n: 5 },
-        { c: cMasivas, n: 6 },
-        { c: await laTabla(p, 10), n: 7 },
+        { c: dentro(cMenuLateral, 6), n: 1, numeroEn: { x: cMenuLateral.x + cMenuLateral.w / 2, y: bajoElMenu + 34 } },
+        { c: dentro(cCabecera, 6), n: 2, esquina: "centro" },
+        { c: barra, n: 3 },
+        { c: await laTablaHastaElPie(p, cPie), n: 4 },
+        { c: cPie, n: 5 },
     ]);
     await guardar(p, "vista-general.webp");
+    writeFileSync(MENU, JSON.stringify(await loQuePintaElMenu(p), null, 2) + "\n");
     await marcar(p, [
         { c: cBuscador, n: 1 },
         { c: cPastillas, n: 2 },
@@ -366,11 +458,7 @@ async function capturas(p) {
         { c: cMasivas, n: 6 },
     ]);
     await guardar(p, "barra.webp", holgura(barra, 34, vista));
-    const pie = await p.evaluate(() => {
-        const t = [...document.querySelectorAll("div")].find((d) => d.classList.contains("border-t") && /Mostrando/.test(d.textContent ?? ""));
-        const r = t.getBoundingClientRect();
-        return { x: r.left, y: r.top, w: r.width, h: r.height };
-    });
+    const pie = cPie;
     await marcar(p, [
         { c: await caja(p, p.locator("text=/Mostrando/").first()), texto: "Cuántos ves de cuántos hay", lado: "arriba" },
         { c: await caja(p, p.locator("text=/Página/").first().locator("xpath=..")), texto: "Cambiar de página", lado: "arriba" },
@@ -564,6 +652,74 @@ async function capturas(p) {
     await guardar(p, "nuevo-creado.webp");
     await desmarcar(p);
     await quitarAvisos(p);
+
+    await elMarcoDeLaPantalla(p);
+}
+
+/**
+ * El marco que rodea a Leads —la barra de arriba y el menú de la izquierda—,
+ * fotografiado en una ventana de PORTÁTIL. A 1440 la barra sale en una tira
+ * tan larga que en la página sus iconos se leen de 6 px, y el menú abierto
+ * de alto entero ocupa más de una pantalla de la guía. Se vuelve a la
+ * ventana de antes al terminar.
+ */
+async function elMarcoDeLaPantalla(p) {
+    const vista = p.viewportSize();
+    const cambiarA = async (tam) => {
+        await p.setViewportSize(tam);
+        await espera(p, 1200);
+    };
+
+    // La barra de arriba: pegada al borde, así que los números van DEBAJO.
+    await cambiarA({ width: 1024, height: 700 });
+    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
+    const cajasDeArriba = [];
+    for (const parte of lasPartesDeArriba(p)) cajasDeArriba.push(await caja(p, parte.first()));
+    await marcar(p, cajasDeArriba.map((c, i) => ({ c, n: i + 1, borde: "abajo" })), { atenuar: true });
+    // El margen de arriba lleva el color del velo sobre blanco: así continúa la pantalla.
+    await guardar(p, "barra-de-arriba.webp", { x: cCabecera.x - 12, y: 0, w: cCabecera.w + 12, h: cCabecera.h + 16 }, { margenArriba: 12, fondo: VELO_SOBRE_BLANCO });
+    await desmarcar(p);
+
+    // El menú, ABIERTO con las dos flechas, como lo abre un cliente: entero y
+    // a la vista, con Contactos señalado; lo de al lado, bajo el velo. Abrirlo
+    // corre la pantalla, así que se vuelve a recoger antes de seguir (y el
+    // vídeo, que sale del estado de esta sesión, lo encuentra recogido: el
+    // menú se guarda en una cookie).
+    await cambiarA({ width: 1280, height: 720 });
+    await elMenuAbierto(p, true);
+    const lateral = elMenuLateral(p);
+    const cLateral = await caja(p, lateral);
+    const contactos = lateral.locator('[data-sidebar="menu-item"]', {
+        has: p.locator('[data-sidebar="menu-button"]', { hasText: "Contactos" }),
+    });
+    await marcar(
+        p,
+        [{ c: cLateral, soloLuz: true }, { c: await caja(p, contactos.first()), texto: "Leads está en Contactos", lado: "derecha" }],
+        { atenuar: true },
+    );
+    await guardar(p, "menu-lateral.webp", { x: 0, y: 0, w: Math.min(1280, cLateral.w + 520), h: 720 });
+    await desmarcar(p);
+    await elMenuAbierto(p, false);
+    await cambiarA(vista);
+}
+
+/** Abre o recoge el menú con las dos flechas de la barra, y espera a que termine de moverse. */
+async function elMenuAbierto(p, abierto) {
+    const ancho = async () => (await caja(p, elMenuLateral(p))).w;
+    if ((await ancho()) > 80 === abierto) return;
+    await p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]').click();
+    await p.waitForFunction(
+        (abierto) => {
+            const m = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((x) => x.getBoundingClientRect().width > 0);
+            return m && m.getBoundingClientRect().width > 80 === abierto;
+        },
+        abierto,
+        { timeout: 10000 },
+    );
+    // La transición del ancho dura 200 ms; se deja que acabe y que el contenido se recoloque.
+    await espera(p, 700);
+    const { width, height } = p.viewportSize();
+    await p.mouse.move(width / 2, height - 20);
 }
 
 async function pintarElCsv(p, fichero, nombre) {
@@ -656,6 +812,28 @@ async function video(navegador, estado) {
     await p.mouse.move(640, 400, { steps: 8 });
     await decir("intro");
     await espera(p, 1200);
+
+    // El menú de la izquierda: se abre con las dos flechas, se señala dónde
+    // está Leads y se vuelve a recoger, que es como se trabaja.
+    const flechas = p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]');
+    await decir("menu");
+    await espera(p, 1400);
+    await pulsar(p, flechas);
+    await espera(p, 1100);
+    await mover(p, elMenuLateral(p).locator('[data-sidebar="menu-button"]', { hasText: "Contactos" }).first());
+    await callar(600);
+    await pulsar(p, flechas);
+    await espera(p, 900);
+
+    // La barra de arriba: el buscador general, soporte y la campana.
+    const [, , , buscarTodo, soporte, campana] = lasPartesDeArriba(p);
+    await decir("barraDeArriba");
+    for (const parte of [buscarTodo, soporte, campana]) {
+        await mover(p, parte.first());
+        await espera(p, 1200);
+    }
+    await callar(400);
+    await p.mouse.move(640, 400, { steps: 12 });
 
     const pastillas = p.locator('[data-zona="filtros"] button');
     await decir("contadores");
