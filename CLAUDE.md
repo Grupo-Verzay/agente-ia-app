@@ -22604,15 +22604,17 @@ Postgres (ocho plantillas, otra cuenta y un agente no tocan nada, independencia
 en los dos sentidos) y la pantalla real en Chromium a 1440/1024/390. `MODO=roto`
 lee `f8057cb` y afirma que no había plantillas.
 
-### La cabecera: el eslogan va a la altura del CENTRO del logo, y en negrilla
+### La cabecera: solo el logo y el eslogan, a la misma altura
 
-El bloque del logo con «Propuesta comercial» debajo y el eslogan de la cuenta
-comparten línea: la cabecera va `items-center` (iba `items-start` con un `pt-1`
-en el eslogan, que lo dejaba 23 px por encima del centro del bloque) y el
-eslogan en `font-bold`. El rótulo sigue debajo del logo. Lo prueba
-`scripts/banco-cabecera-de-la-propuesta.sh` en Chromium (con y sin imagen,
-eslogan corto y largo, 390/768/1024/1440); `MODO=roto` monta el de `7e7d399`
-y afirma el desfase y el peso 500.
+La cabecera lleva **el logo a la izquierda y el eslogan de la cuenta a la
+derecha, y nada más**: ni el nombre de la cuenta ni el rótulo «Propuesta
+comercial» debajo del logo, en ninguna anchura —la página entera ya es la
+propuesta—. Van `items-center` (centro del logo = centro del eslogan) y el
+eslogan en `font-bold` con `ESLOGAN_DE_LA_PROPUESTA`: 16 px en el teléfono, 18
+en tableta y 20 en escritorio. Iba a 14, más pequeño que cualquier otro texto
+de la página. Lo prueba `scripts/banco-cabecera-de-la-propuesta.sh` en Chromium
+(con y sin imagen, eslogan corto y largo, 390/768/1024/1440); `MODO=roto` monta
+el de `153f64f` y afirma el rótulo y los 14 px.
 
 ### El ancho: crece en escritorio por escalones, y el párrafo se topa
 

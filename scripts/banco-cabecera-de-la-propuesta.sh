@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# La CABECERA de la página pública de una propuesta: el bloque del logo con
-# «Propuesta comercial» debajo y el eslogan de la cuenta tienen que quedar a la
-# MISMA altura (centros alineados), y el eslogan en negrilla.
+# La CABECERA de la página pública de una propuesta: SOLO el logo a la
+# izquierda y el eslogan de la cuenta a la derecha, a la MISMA altura (centros
+# alineados), el eslogan en negrilla y con letra que crece con la pantalla
+# (16/18/20 px). Nada de «Propuesta comercial» debajo del logo.
 #
-# Antes la cabecera iba `items-start` y el eslogan con `pt-1`: quedaba pegado
-# arriba, a la altura del logo, descolgado del rótulo. Monta el componente REAL
+# Antes (ANTES_REF) el logo llevaba ese rótulo debajo y el eslogan iba a 14 px,
+# más pequeño que cualquier otro texto de la página. Monta el componente REAL
 # sobre el CSS del build en Chromium, con logo de iniciales y con imagen, eslogan
 # corto y largo, a 390/768/1024/1440. `MODO=roto` monta el de ANTES_REF
-# (pinchado a un commit, nunca `origin/main`) y afirma el desfase.
+# (pinchado a un commit, nunca `origin/main`) y afirma el rótulo y los 14 px.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,7 +16,7 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 export MODO="${MODO:-bueno}"
-ANTES_REF="${ANTES_REF:-7e7d399}"
+ANTES_REF="${ANTES_REF:-153f64f}"
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
