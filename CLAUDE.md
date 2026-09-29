@@ -22936,12 +22936,91 @@ la misma voz del asistente de «Llamar con IA» (`lib/voicebot-voices.ts`), y es
    conserva solo a pedido (`VOZ_GUIA=mb-es3`). Y `scripts/voz-de-la-guia/leads.json`
    dice con qué voz y qué guion se narró el vídeo publicado: el banco falla si
    no es Cedar o si el guion cambió sin regenerar.
-3. **El guion no sigue hasta que la frase terminó de sonar**: así la voz y la
-   acción no se separan aunque la pantalla tarde.
+3. **Una frase no empieza hasta que la anterior terminó de sonar**: nunca
+   suenan dos a la vez. Pero lo que se HACE en pantalla ocurre mientras suena
+   (ver *El ritmo de la narración*, abajo): esperar a que acabe cada frase
+   para actuar es lo que la dejaba cortada.
 
 Lo prueba `lib/__tests__/video-guia-leads.test.mjs` (en `banco-guia-leads.sh`);
 `MODO=roto` lee `153f64f` y afirma la bolita con halo y el vídeo mudo, y
 `9e38996` para afirmar que la voz era espeak y no Cedar.
+
+### El ritmo de la narración: el de una llamada, no el de un tutorial
+
+La misma voz que habla fluido en «Llamar con IA» sonaba pausada y cortada en el
+vídeo. Medido: ~145 palabras por minuto, pausas de medio segundo a 0,8 s DENTRO
+de cada frase, huecos de hasta 2,5 s ENTRE frases y 4 s mudos al empezar. Eran
+cuatro causas, y se arreglan las cuatro:
+
+| causa | arreglo |
+| --- | --- |
+| las instrucciones pedían «ritmo pausado de tutorial» | piden el ritmo fluido de una llamada por WhatsApp (`VOZ_CEDAR.instrucciones`) |
+| el modelo mete pausas largas en cada coma, y no siempre obedece | `acortarLasPausas` (`voz-de-la-guia.mjs`) deja cada pausa interior en `RITMO.pausaMaximaMs` (280 ms) y los bordes en 30/60 ms. **Solo quita silencio**: la voz sale entera |
+| el guion esperaba a que acabara cada frase, respiraba 450-1200 ms, hacía la acción y solo entonces hablaba | las acciones van DENTRO de la frase, en la palabra que las nombra (`alDecir("Clientes inactivos")`), y entre frases solo `RESPIRO_ENTRE_FRASES_MS` (250) |
+| frases sueltas de cuatro palabras («Y con Total vuelves a verlos todos») | una frase por idea, como se habla: «…y con Total vuelves a verlos todos» va dentro de la de los contadores |
+
+Y lo grabado antes de la primera palabra —la página cargando— se recorta
+(`mezclar(…, { desdeMs })`), cortando vídeo y pista en el mismo instante para
+no mover la sincronía; por eso el vídeo se vuelve a codificar (VP8). Y el
+vídeo acaba con la narración (`-shortest`): la grabación seguía mientras se
+cerraba el navegador y dejaba 4-5 s mudos al final.
+
+Cinco cosas que hay que mantener:
+
+1. **`speed` no sirve con `gpt-4o-mini-tts`**: se probó y no cambia nada. El
+   ritmo sale de las instrucciones y del recorte de pausas.
+2. **Dónde cae una palabra se estima por su posición en el texto**, que con las
+   pausas ya acortadas va casi parejo. `alDecir` se cae si el trozo no está en
+   la frase que suena, y el banco lo comprueba leyendo el guion.
+3. **Nada de esperas mudas en el vídeo**: ni `quitarAvisos` (los avisos se van
+   solos mientras se sigue hablando) ni un `callar(n)` largo antes de la
+   última frase.
+4. **El ritmo queda escrito con el vídeo** (`leads.json`: `RITMO` y el respiro).
+   El banco falla si el publicado se hizo con otro: se regenera.
+5. **Sintetizar sigue siendo desde el contenedor de la App** (la red de aquí no
+   llega a OpenAI): se pide `laPeticion(texto)` con la llave «IA CRM» y el Opus
+   se guarda en `rutaDeLaFrase(texto)`. Cambiar las instrucciones cambia la
+   llave de TODAS las frases: se vuelven a sintetizar todas y se borran las
+   viejas (el banco falla si queda un `.ogg` que ninguna guía dice).
+
+Lo prueba `lib/__tests__/video-guia-leads.test.mjs`: el recorte con audio de
+prueba, cada frase ya acortada (ninguna pausa por encima del máximo; el
+conjunto ≥ 160 palabras por minuto), el guion y el vídeo publicado medido con
+`silencedetect` (≤ 0,7 s mudo al empezar, ningún hueco de más de 1,2 s).
+`MODO=roto` lee `c3ae539` y afirma el ritmo de antes.
+
+### Y la imagen se iba quedando DETRÁS de la voz: `recordVideo` estira
+
+Medido en el vídeo, con el rótulo de abajo —que cambia justo cuando empieza
+cada frase— como marca: la imagen iba **0,3 s** detrás de la voz al empezar y
+**5 s** al final, y el vídeo duraba 4-5 s más que su narración. No era el
+guion: era cómo graba Playwright.
+
+`recordVideo` escribe, por cada fotograma que manda el navegador,
+`max(1, round(25 · Δt))` fotogramas (`videoRecorder.js`). Cuando el navegador
+pinta más deprisa que 25 por segundo —el cursor moviéndose, un texto
+escribiéndose, un menú abriéndose— cada uno cuenta **40 ms aunque hayan pasado
+16**: diez segundos de animación salen como veinticuatro. Y como el desfase se
+acumula donde hay movimiento, no es un retraso fijo que se pueda restar.
+
+> **El vídeo se graba con `scripts/grabadora-de-la-guia.mjs`**: el MISMO
+> screencast (CDP `Page.startScreencast`, JPEG al 90 %), pero cada fotograma
+> se coloca por su hora de pintar con redondeo ACUMULADO (`fotogramasHasta`):
+> el fotograma k enseña lo último pintado antes de `inicio + k · 40 ms`. El
+> fotograma 0 es `t0`, el mismo instante desde el que se coloca la voz, así
+> que las dos pistas comparten origen.
+
+Tres cosas que hay que mantener:
+
+1. **Nada de `recordVideo` en el vídeo de una guía.** Las capturas fijas no
+   graban nada y no les afecta.
+2. **Los JPEG van tal cual a un MKV** (`-c:v copy`) y `mezclar` codifica una
+   sola vez, al recortar. Y el vídeo acaba con la narración (`-shortest`).
+3. **`leads.json` dice dónde empieza cada frase en el vídeo publicado**
+   (`empiezanEnMs`), y el banco busca ahí el cambio del rótulo en la imagen: si
+   la imagen se despega de la voz más de medio segundo, se pone en rojo.
+   `MODO=roto` afirma que el vídeo de antes se grababa con `recordVideo` y su
+   imagen duraba más de 3 s que su voz.
 
 ### La pantalla va con su MARCO: el menú y la barra de arriba de un cliente
 
@@ -22989,6 +23068,41 @@ Cinco cosas que hay que mantener:
 Lo prueba `lib/__tests__/menu-de-la-guia.test.mjs` (en `banco-guia-leads.sh`);
 `MODO=roto` lee `8e41502` y afirma la semilla con iconos que el menú no conoce
 y la guía sin pasos para el menú ni la barra de arriba.
+
+### Las acciones masivas: el «⋯» de la barra también es de la guía
+
+La primera guía documentaba los cinco mandos de la barra de trabajo y se dejaba
+el sexto: el menú «⋯» del final (`BulkActionsDropdown.tsx`), con Exportar a
+Excel y a Google Sheets, Activar y Desactivar clientes, Limpiar leads vacíos y
+las de riesgo alto. Ni tarjeta, ni captura, ni frase en el vídeo — y nada lo
+comparaba, así que nadie se enteró.
+
+> **El menú se documenta como las columnas: contra el código.**
+> `ACCIONES_MASIVAS_DOCUMENTADAS` (`lib/guia-leads.ts`) tiene los grupos y sus
+> acciones en su orden, y el banco los compara con los que pinta
+> `BulkActionsDropdown.tsx` (leídos del marcado). Una acción nueva en ese menú
+> sin su nombre en la guía la pone en rojo.
+
+Cuatro cosas que hay que mantener:
+
+1. **Es la octava sección, y la última**, porque es el último mando de la
+   barra; la barra de la vista general lo numera como su sexto. Con ocho, el
+   cierre del índice es solo «Contáctanos» (1 hueco a 3 columnas, ninguno a 2):
+   `probar-guia-leads.mjs` lo calcula con `losHuecos` en vez de dar por hecho
+   las siete de antes.
+2. **Las capturas leen los grupos del menú PINTADO** (`losGruposDelMenu`),
+   cortados por sus separadores, y la miniatura lo enseña ABIERTO: cerrado es
+   un icono de 40 px que no dice nada.
+3. **La confirmación se CANCELA, en las capturas y en el vídeo**: nada de esta
+   sección cambia los datos de ejemplo. El banco falla si el guion pulsa
+   «Confirmar».
+4. **Los nombres se buscan con `exact: true`**: «Activar clientes» está dentro
+   de «Desactivar clientes», y sin él Playwright encuentra los dos.
+
+Lo prueba `lib/__tests__/guia-leads.test.mjs` (y el vídeo, en su banco);
+`MODO=roto` lee `c3ae539` y afirma que la guía no tenía la sección ni nombraba
+los grupos ni las acciones de exportar y de riesgo alto (Activar y Desactivar
+clientes sí salían, de pasada, en un consejo de Sesión).
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 

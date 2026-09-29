@@ -2,10 +2,13 @@
 # El banco de la GUÍA PÚBLICA de Leads (`/guia/leads`). Dos mitades:
 #
 #   1. `lib/__tests__/guia-leads.test.mjs`: la guía documenta EXACTAMENTE las
-#      columnas, los contadores y el CSV que pinta la pantalla (leídos del
-#      código), cada captura existe y la ruta es pública y no indexable.
+#      columnas, los contadores, el CSV y el menú «⋯» de acciones masivas que
+#      pinta la pantalla (leídos del código), cada captura existe y la ruta es
+#      pública y no indexable (ANTES_MASIVAS_REF: la guía sin acciones masivas).
 #   2. `lib/__tests__/video-guia-leads.test.mjs`: el vídeo lleva el cursor de
-#      verdad (flecha, manito, «I») sin adornos, y narración que se oye.
+#      verdad (flecha, manito, «I») sin adornos, y narración que se oye, con
+#      el ritmo de una llamada: sin pausas largas dentro de una frase ni
+#      huecos entre frases (ANTES_RITMO_REF: la narración pausada y cortada).
 #   2b. `lib/__tests__/fin-de-la-guia.test.mjs`: todo índice de guía termina
 #      en la línea divisoria, sin nota interna ni relleno debajo (ANTES_FIN_REF).
 #   2c. `lib/__tests__/menu-de-la-guia.test.mjs`: el menú de la izquierda y la
@@ -24,7 +27,8 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}" ANTES_VOZ_REF="${ANTES_VOZ_REF:-9e38996}" ANTES_FIN_REF="${ANTES_FIN_REF:-9e38996}" ANTES_MENU_REF="${ANTES_MENU_REF:-8e41502}"
+export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}" ANTES_VOZ_REF="${ANTES_VOZ_REF:-9e38996}" ANTES_FIN_REF="${ANTES_FIN_REF:-9e38996}" ANTES_MENU_REF="${ANTES_MENU_REF:-8e41502}" \
+       ANTES_MASIVAS_REF="${ANTES_MASIVAS_REF:-c3ae539}" ANTES_RITMO_REF="${ANTES_RITMO_REF:-c3ae539}"
 
 if [ "$MODO" = "roto" ]; then
   node --test lib/__tests__/guia-leads.test.mjs lib/__tests__/video-guia-leads.test.mjs lib/__tests__/fin-de-la-guia.test.mjs lib/__tests__/menu-de-la-guia.test.mjs
@@ -34,6 +38,7 @@ fi
 OUT=lib/__tests__/.compilado/guia-leads
 mkdir -p "$OUT"
 npx esbuild lib/guia-leads.ts --bundle --platform=node --format=esm --outfile="$OUT/guia-leads.mjs" --log-level=warning
+npx esbuild lib/cierre-de-la-guia.ts --bundle --platform=node --format=esm --outfile="$OUT/cierre-de-la-guia.mjs" --log-level=warning
 node --test lib/__tests__/guia-leads.test.mjs
 node --test lib/__tests__/video-guia-leads.test.mjs
 node --test lib/__tests__/fin-de-la-guia.test.mjs

@@ -14,6 +14,11 @@ const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
 const BASE = process.env.BASE ?? "http://localhost:3941";
+// Cuántas secciones enseña la guía lo dice su contenido (compilado por el
+// banco), no un número escrito aquí: una sección nueva no puede quedarse
+// fuera del índice sin que esto lo cante.
+const { SECCIONES } = await import(new URL("../lib/__tests__/.compilado/guia-leads/guia-leads.mjs", import.meta.url).href);
+const { losHuecos } = await import(new URL("../lib/__tests__/.compilado/guia-leads/cierre-de-la-guia.mjs", import.meta.url).href);
 const fallos = [];
 const exigir = (bien, que) => {
     if (!bien) fallos.push(que);
@@ -38,7 +43,11 @@ try {
         const tag = `${vista.width}px`;
         exigir(/noindex/.test(await p.getAttribute('meta[name="robots"]', "content")), `${tag}: meta robots noindex`);
         const tarjetas = await p.$$eval("[data-tarjeta-de-seccion]", (els) => els.map((e) => e.getAttribute("href")));
-        exigir(tarjetas.length === 7, `${tag}: el índice tiene 7 secciones (${tarjetas.length})`);
+        exigir(tarjetas.length === SECCIONES.length, `${tag}: el índice tiene ${SECCIONES.length} secciones (${tarjetas.length})`);
+        exigir(
+            JSON.stringify(tarjetas) === JSON.stringify(SECCIONES.map((s) => `/guia/leads/${s.slug}`)),
+            `${tag}: las tarjetas van en el orden de la guía (${tarjetas.join(", ")})`,
+        );
         const duracion = await p.$eval("[data-video-de-la-guia]", (v) => new Promise((ok) => {
             if (v.readyState >= 1) return ok(v.duration);
             v.addEventListener("loadedmetadata", () => ok(v.duration), { once: true });
@@ -68,7 +77,9 @@ try {
         exigir(contacto.visible && /^https:\/\/wa\.me\/\d+\?text=/.test(contacto.href), `${tag}: «Contáctanos» lleva a WhatsApp (${contacto.href})`);
         const video = await p.$('[data-tarjeta-de-cierre="video"]');
         const videoVisible = video ? await video.evaluate((a) => getComputedStyle(a).display !== "none") : false;
-        exigir(videoVisible === (vista.width >= 1024), `${tag}: «Ver el vídeo» solo donde deja dos huecos (7 secciones a 3 columnas)`);
+        const columnas = vista.width >= 1024 ? 3 : vista.width >= 640 ? 2 : 1;
+        const dosHuecos = columnas > 1 && losHuecos(SECCIONES.length, columnas) === 2;
+        exigir(videoVisible === dosHuecos, `${tag}: «Ver el vídeo» solo donde deja dos huecos (${SECCIONES.length} secciones a ${columnas} columnas)`);
         if (videoVisible) {
             await video.click();
             await p.waitForTimeout(600);

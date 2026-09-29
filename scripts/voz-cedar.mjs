@@ -38,11 +38,20 @@ export const VOZ_CEDAR = Object.freeze({
     voz: "cedar",
     formato: "opus",
     frecuencia: 24000,
+    // El RITMO es el de la misma voz en una llamada con un cliente, no el de un
+    // tutorial. Con «a ritmo pausado de tutorial» (lo de antes) salía a unas 135
+    // palabras por minuto y con pausas de medio segundo en cada coma: la
+    // narración sonaba cortada al lado de la voz en vivo. Las instrucciones
+    // piden lo fluido; `RITMO` (voz-de-la-guia.mjs) acota después las pausas
+    // que aun así se cuelen, porque el modelo no siempre obedece al ritmo.
     instrucciones:
-        "Habla en español latinoamericano neutro, con voz cálida, clara y cercana, " +
-        "a ritmo pausado de tutorial, como quien le enseña una pantalla a un cliente. " +
+        "Habla en español latinoamericano neutro, con voz cálida, cercana y segura. " +
+        "Ritmo: el natural y fluido de una llamada por WhatsApp con un cliente; ágil y continuo, " +
+        "sin arrastrar las palabras ni hacer pausas largas: enlaza las ideas de corrido y respira " +
+        "solo donde lo haría una persona hablando. Tono conversacional y claro, como quien le " +
+        "muestra la pantalla a alguien que tiene al lado; nada de locutor ni de lectura en voz alta. " +
         "Pronuncia «Leads» como en inglés («lids»), «WhatsApp» como «guatsap», " +
-        "«CSV» letra por letra («se, ese, uve») e «IA» como «i, a».",
+        "«CSV» letra por letra («se, ese, uve»), «Google Sheets» en inglés e «IA» como «i, a».",
 });
 
 export const CACHE_CEDAR = path.resolve(import.meta.dirname, "voz-de-la-guia", "cedar");

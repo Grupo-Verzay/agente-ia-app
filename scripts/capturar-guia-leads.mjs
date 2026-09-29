@@ -28,9 +28,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, r
 import path from "node:path";
 
 import { CURSOR } from "./cursor-de-la-guia.mjs";
+import { grabar } from "./grabadora-de-la-guia.mjs";
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
-import { guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { RITMO, guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
 import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
@@ -247,6 +248,61 @@ async function loQuePintaElMenu(p) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Las acciones masivas: el menú «⋯» del final de la barra             */
+/* ------------------------------------------------------------------ */
+
+/** El botón «⋯» de la barra (el hueco `acciones` de `BarraDeAcciones`). */
+const MASIVAS = '[data-zona="acciones"] button';
+
+/** Abre el menú «⋯» y devuelve su contenido (Radix lo pinta en un portal). */
+async function abrirLasMasivas(p) {
+    await p.locator(MASIVAS).first().click();
+    const menu = p.locator('[role="menu"]').last();
+    await menu.waitFor({ state: "visible", timeout: 10000 });
+    await espera(p, 500); // la animación de entrada mueve y encoge el menú: se mide quieto
+    return menu;
+}
+
+/** Cierra un menú o un diálogo que siga abierto, sin tocar nada de la página. */
+async function cerrarLoAbierto(p) {
+    for (let i = 0; i < 3; i += 1) {
+        const abierto = await p.$('[role="menu"], [role="alertdialog"]');
+        if (!abierto) break;
+        await p.keyboard.press("Escape");
+        await espera(p, 350);
+    }
+}
+
+/**
+ * Los grupos del menú «⋯», en su orden: el título y sus acciones, cortados
+ * por los separadores. Se lee del menú PINTADO, así que un grupo nuevo en
+ * `BulkActionsDropdown.tsx` sale en la captura aunque nadie toque esto.
+ */
+async function losGruposDelMenu(p) {
+    return p.evaluate(() => {
+        const menu = [...document.querySelectorAll('[role="menu"]')].pop();
+        const grupos = [];
+        let actual = [];
+        for (const hijo of menu.children) {
+            if (hijo.getAttribute("role") === "separator") {
+                if (actual.length) grupos.push(actual);
+                actual = [];
+            } else actual.push(hijo);
+        }
+        if (actual.length) grupos.push(actual);
+        return grupos.map((g) => {
+            const r = g.map((e) => e.getBoundingClientRect());
+            const x = Math.min(...r.map((q) => q.left));
+            const y = Math.min(...r.map((q) => q.top));
+            return {
+                titulo: g[0].textContent.trim(),
+                c: { x, y, w: Math.max(...r.map((q) => q.right)) - x, h: Math.max(...r.map((q) => q.bottom)) - y },
+            };
+        });
+    });
+}
+
+/* ------------------------------------------------------------------ */
 /* Marcar                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -390,6 +446,9 @@ async function miniaturas(p) {
         ["buscar", async () => caja(p, '[data-zona="buscador"] input')],
         ["exportar", async () => caja(p, 'button[aria-label="Exportar CSV"]')],
         ["nuevo-contacto", async () => caja(p, p.getByRole("button", { name: "+ Nuevo" }))],
+        // El botón «⋯» con su menú ABIERTO: cerrado es un icono de 40 px y no
+        // dice qué hay dentro.
+        ["acciones-masivas", async () => unir(await caja(p, MASIVAS), await caja(p, await abrirLasMasivas(p)))],
     ];
     const focos = {};
     for (const [slug, zona] of zonas) {
@@ -403,6 +462,7 @@ async function miniaturas(p) {
         // En fracción de la miniatura: así el banco mide sin saber el tamaño de la vista.
         focos[nombre] = { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h };
         console.log("  ✓", nombre);
+        await cerrarLoAbierto(p);
     }
     await desmarcar(p);
     writeFileSync(FOCOS, JSON.stringify(focos, null, 2) + "\n");
@@ -419,7 +479,7 @@ async function capturas(p) {
     const linea = 'button[title="Filtrar por línea"]';
     const exportar = 'button[aria-label="Exportar CSV"]';
     const nuevo = p.getByRole("button", { name: "+ Nuevo" });
-    const masivas = '[data-zona="acciones"] button';
+    const masivas = MASIVAS;
 
     const barra = unir(await caja(p, buscador), await caja(p, masivas));
     const cBuscador = await caja(p, buscador);
@@ -653,6 +713,43 @@ async function capturas(p) {
     await desmarcar(p);
     await quitarAvisos(p);
 
+    // 8. Acciones masivas: el menú «⋯» del final de la barra. Se enseña
+    // abierto y grupo por grupo, y la ventana de confirmación se CANCELA:
+    // nada de esta sección cambia los datos de ejemplo.
+    const zonaDelBoton = holgura(unir(cLinea, cMasivas, { ...cMasivas, y: cMasivas.y + 110, h: 1 }), 22, vista);
+    await marcar(p, [{ c: cMasivas, texto: "Acciones masivas", lado: "abajo" }]);
+    await guardar(p, "masivas-boton.webp", zonaDelBoton);
+    await desmarcar(p);
+    const menuMasivas = await abrirLasMasivas(p);
+    const cMenuMasivas = await caja(p, menuMasivas);
+    const grupos = await losGruposDelMenu(p);
+    if (grupos.length !== 3) throw new Error(`el menú «⋯» tiene ${grupos.length} grupos: ${grupos.map((g) => g.titulo).join(", ")}`);
+    // El menú y, a su izquierda, un trozo de la tabla: se ve de dónde sale.
+    const zonaDelMenu = holgura(unir(cMenuMasivas, cMasivas, { ...cMenuMasivas, x: cMenuMasivas.x - 300 }), 26, vista);
+    // Los números van a la IZQUIERDA de cada grupo: en su esquina taparían el título.
+    await marcar(p, grupos.map((g, i) => ({ c: g.c, n: i + 1, numeroEn: { x: g.c.x - 30, y: g.c.y + 14 } })));
+    await guardar(p, "masivas-menu.webp", zonaDelMenu);
+    for (const [i, nombre] of ["masivas-exportar.webp", "masivas-gestion.webp", "masivas-riesgo.webp"].entries()) {
+        await marcar(p, [{ c: grupos[i].c }], { atenuar: true });
+        await guardar(p, nombre, zonaDelMenu);
+    }
+    await desmarcar(p);
+    await menuMasivas.getByRole("menuitem", { name: "Activar clientes", exact: true }).click();
+    const alerta = p.locator('[role="alertdialog"]');
+    await alerta.waitFor({ state: "visible", timeout: 10000 });
+    await espera(p, 600);
+    const cAlerta = await caja(p, alerta);
+    const cancelar = alerta.getByRole("button", { name: "Cancelar" });
+    await marcar(p, [
+        { c: await caja(p, cancelar), texto: "No cambia nada", lado: "abajo" },
+        { c: await caja(p, alerta.getByRole("button", { name: "Confirmar" })), texto: "Lo aplica a todos", lado: "abajo" },
+    ]);
+    await guardar(p, "masivas-confirmar.webp", holgura(unir(cAlerta, { ...cAlerta, y: cAlerta.y + cAlerta.h + 84, h: 1 }), 26, vista));
+    await desmarcar(p);
+    await cancelar.click();
+    await alerta.waitFor({ state: "hidden", timeout: 10000 });
+    await espera(p, 400);
+
     await elMarcoDeLaPantalla(p);
 }
 
@@ -767,6 +864,16 @@ async function pulsar(p, locator) {
 }
 const rotulo = (p, t) => p.evaluate((t) => window.__rotulo?.(t), t);
 
+/**
+ * Entre una frase y la siguiente, lo que respira una persona hablando. Era
+ * 450-1200 ms y, sumado a esperar que acabara cada acción, dejaba huecos de
+ * hasta dos segundos y medio: la narración sonaba cortada. Queda escrito en
+ * `voz-de-la-guia/leads.json` con el vídeo.
+ */
+const RESPIRO_ENTRE_FRASES_MS = 250;
+/** El vídeo arranca esto antes de la primera palabra; lo de antes (la carga) se recorta. */
+const INICIO_ANTES_DE_HABLAR_MS = 300;
+
 async function video(navegador, estado) {
     const dir = path.join(TMP, "video");
     rmSync(dir, { recursive: true, force: true });
@@ -785,24 +892,44 @@ async function video(navegador, estado) {
         locale: "es-CO",
         timezoneId: "America/Bogota",
         storageState: estado,
-        recordVideo: { dir, size: { width: 1280, height: 800 } },
         acceptDownloads: true,
     });
     await ctx.addInitScript(CURSOR);
     const p = await ctx.newPage();
+    // No `recordVideo`: estiraba el vídeo cada vez que el navegador pintaba
+    // deprisa y la imagen se iba quedando detrás de la voz (ver la grabadora).
+    const mudo = path.join(dir, "pantalla.mkv");
+    const grabadora = await grabar(p, mudo, { ancho: 1280, alto: 800 });
     const t0 = Date.now();
+    grabadora.empezarEn(t0);
     const tramos = [];
     let calla = 0;
+    /** La frase que suena: con ella `alDecir` sabe en qué palabra va. */
+    let frase = null;
     /** Empieza una frase ahora mismo; lo que venga detrás ocurre MIENTRAS suena. */
     const decir = async (id) => {
         await callar();
         const n = voz[id];
         await rotulo(p, n.rotulo);
-        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: Date.now() - t0 });
-        calla = Date.now() + n.audio.ms;
+        const ahora = Date.now();
+        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: ahora - t0 });
+        frase = { texto: n.texto, inicio: ahora, ms: n.audio.ms };
+        calla = ahora + n.audio.ms;
     };
-    /** Espera a que la frase en curso termine, más un respiro. */
-    const callar = async (respiro = 450) => {
+    /**
+     * Espera a que la frase que suena llegue a `fragmento`, y `adelanto` ms
+     * antes —lo que tarda el ratón en llegar—: así se pulsa en la palabra que
+     * lo nombra y no después de callar. Dónde cae la palabra se estima por su
+     * posición en el texto, que con las pausas ya acortadas va casi parejo.
+     */
+    const alDecir = async (fragmento, adelanto = 450) => {
+        const i = frase ? frase.texto.indexOf(fragmento) : -1;
+        if (i < 0) throw new Error(`[guia] «${fragmento}» no está en la frase que suena: ${frase?.texto}`);
+        const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
+        if (falta > 0) await espera(p, falta);
+    };
+    /** Espera a que la frase en curso termine, más un respiro corto: las frases se ENLAZAN. */
+    const callar = async (respiro = RESPIRO_ENTRE_FRASES_MS) => {
         const falta = calla + respiro - Date.now();
         if (calla && falta > 0) await espera(p, falta);
         calla = 0;
@@ -810,97 +937,141 @@ async function video(navegador, estado) {
 
     await abrirLeads(p);
     await p.mouse.move(640, 400, { steps: 8 });
+    // Lo grabado hasta aquí es la página cargando: el vídeo empieza justo
+    // antes de la primera palabra.
+    const desdeMs = Math.max(0, Date.now() - t0 - INICIO_ANTES_DE_HABLAR_MS);
     await decir("intro");
-    await espera(p, 1200);
+    await alDecir("todos los contactos", 600);
+    await p.mouse.move(760, 520, { steps: 30 });
 
     // El menú de la izquierda: se abre con las dos flechas, se señala dónde
-    // está Leads y se vuelve a recoger, que es como se trabaja.
+    // está Leads y se vuelve a recoger —al empezar la frase siguiente, que es
+    // la de la barra donde viven las flechas—.
     const flechas = p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]');
+    const contactos = elMenuLateral(p).locator('[data-sidebar="menu-button"]', { hasText: "Contactos" }).first();
     await decir("menu");
-    await espera(p, 1400);
+    await alDecir("con estas dos flechas");
     await pulsar(p, flechas);
-    await espera(p, 1100);
-    await mover(p, elMenuLateral(p).locator('[data-sidebar="menu-button"]', { hasText: "Contactos" }).first());
-    await callar(600);
-    await pulsar(p, flechas);
-    await espera(p, 900);
+    await alDecir("dentro de Contactos", 600);
+    await mover(p, contactos);
 
-    // La barra de arriba: el buscador general, soporte y la campana.
     const [, , , buscarTodo, soporte, campana] = lasPartesDeArriba(p);
     await decir("barraDeArriba");
-    for (const parte of [buscarTodo, soporte, campana]) {
-        await mover(p, parte.first());
-        await espera(p, 1200);
-    }
-    await callar(400);
-    await p.mouse.move(640, 400, { steps: 12 });
+    await pulsar(p, flechas);
+    await alDecir("el buscador general");
+    await mover(p, buscarTodo.first());
+    await alDecir("el botón de soporte");
+    await mover(p, soporte.first());
+    await alDecir("tus notificaciones");
+    await mover(p, campana.first());
 
     const pastillas = p.locator('[data-zona="filtros"] button');
     await decir("contadores");
-    await espera(p, 1800);
+    await mover(p, pastillas.nth(0));
+    await alDecir("Clientes inactivos");
     await pulsar(p, pastillas.nth(2));
-    await espera(p, 1500);
-    await decir("todos");
+    await alDecir("con Total");
     await pulsar(p, pastillas.nth(0));
-    await espera(p, 800);
 
     const buscador = p.locator('[data-zona="buscador"] input');
     await decir("buscar");
     await pulsar(p, buscador);
-    await buscador.pressSequentially("María", { delay: 160 });
-    await callar(1200);
+    await buscador.pressSequentially("María", { delay: 120 });
+    await alDecir("por su número", 250);
     await buscador.fill("");
-    await espera(p, 800);
+    await buscador.pressSequentially("3004521", { delay: 70 });
 
+    // El buscador se vacía al empezar la frase siguiente: la lista vuelve
+    // mientras el ratón va hacia el interruptor.
+    const filaDelEjemplo = fila(p, "Juan Pablo Restrepo");
     const agente = (await celdaDe(p, "Juan Pablo Restrepo", "Agente")).locator('[role="switch"]');
-    await decir("agente");
-    await mover(p, agente);
-    await espera(p, 1400);
-    await pulsar(p, agente);
-    await decir("agenteOtraVez");
-    await espera(p, 1200);
-    await pulsar(p, agente);
-
-    await decir("exportar");
-    const exportar = p.locator('button[aria-label="Exportar CSV"]');
-    await espera(p, 600);
-    await Promise.all([p.waitForEvent("download", { timeout: 30000 }).catch(() => null), pulsar(p, exportar)]);
     await callar();
-    await quitarAvisos(p);
+    await buscador.fill("");
+    await decir("agente");
+    await filaDelEjemplo.waitFor({ state: "visible", timeout: 15000 });
+    await mover(p, agente);
+    await alDecir("apagado", 300);
+    await pulsar(p, agente);
+    await alDecir("lo pulsas otra vez", 300);
+    await pulsar(p, agente);
 
-    await decir("nuevo");
+    const exportar = p.locator('button[aria-label="Exportar CSV"]');
+    await decir("exportar");
+    await Promise.all([p.waitForEvent("download", { timeout: 30000 }).catch(() => null), pulsar(p, exportar)]);
+
     const nuevo = p.getByRole("button", { name: "+ Nuevo" });
+    await decir("nuevo");
     await pulsar(p, nuevo);
     await p.waitForSelector("#cc-phone");
-    await espera(p, 800);
-    await p.locator('[role="dialog"] select').selectOption("VENTAS");
+    const lineaDelDialogo = p.locator('[role="dialog"] select');
+    await alDecir("eliges la línea");
+    await mover(p, lineaDelDialogo);
+    await lineaDelDialogo.selectOption("VENTAS");
+    await alDecir("escribes el número");
     await pulsar(p, p.locator("#cc-phone"));
-    await p.locator("#cc-phone").pressSequentially("573009876543", { delay: 90 });
+    await p.locator("#cc-phone").pressSequentially("573009876543", { delay: 45 });
+    await alDecir("y el nombre", 300);
     await pulsar(p, p.locator("#cc-name"));
-    await p.locator("#cc-name").pressSequentially("Ana Demo", { delay: 110 });
-    await callar(600);
-    await decir("cierre");
+    await p.locator("#cc-name").pressSequentially("Ana Demo", { delay: 60 });
+
+    await decir("crear");
+    await mover(p, p.getByRole("button", { name: "Crear", exact: true }));
+    await alDecir("aquí lo cancelamos");
     await pulsar(p, p.getByRole("button", { name: "Cancelar" }));
-    await callar(900);
+
+    // Las acciones masivas: se abre el menú «⋯», se recorren sus tres grupos
+    // mientras se nombran, y la confirmación se CANCELA.
+    const menu = p.locator('[role="menu"]').last();
+    const accion = (nombre) => menu.getByRole("menuitem", { name: nombre, exact: true });
+    await decir("masivas");
+    await p.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 10000 });
+    await pulsar(p, p.locator(MASIVAS).first());
+    await menu.waitFor({ state: "visible", timeout: 10000 });
+    await alDecir("exportar a Excel");
+    await mover(p, accion("Exportar a Excel"));
+    await alDecir("Google Sheets", 250);
+    await mover(p, accion("Sincronizar a Google Sheets"));
+    await alDecir("activar o desactivar");
+    await mover(p, accion("Activar clientes"));
+    await alDecir("riesgo alto");
+    await mover(p, accion("Borrar historial"));
+
+    const alerta = p.locator('[role="alertdialog"]');
+    await decir("cierre");
+    await pulsar(p, accion("Activar clientes"));
+    await alerta.waitFor({ state: "visible", timeout: 10000 });
+    await alDecir("siempre puedes cancelar");
+    await pulsar(p, alerta.getByRole("button", { name: "Cancelar" }));
+    await callar(700);
     await rotulo(p, "");
-    await espera(p, 700);
+    await espera(p, 500);
 
     const totalMs = Date.now() - t0;
-    const mudo = await p.video().path();
+    const grabado = await grabadora.parar();
+    console.log(`  · grabados ${grabado.fotogramas} fotogramas (${(grabado.fotogramas / 25).toFixed(1)} s) de ${grabado.recibidos} pintados, en ${(totalMs / 1000).toFixed(1)} s`);
     await ctx.close();
 
     const { wav, colocados } = montarLaPista(tramos, totalMs);
     const pista = path.join(dir, "narracion.wav");
     guardarWav(pista, wav);
     const destino = path.join(SALIDA, "demostracion.webm");
-    mezclar(mudo, pista, destino);
+    mezclar(mudo, pista, destino, { desdeMs });
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
     // Qué voz lleva el vídeo publicado: el banco lo compara con el guion de hoy.
     writeFileSync(
         path.join(import.meta.dirname, "voz-de-la-guia", "leads.json"),
         JSON.stringify(
             usaCedar()
-                ? { voz: VOZ_CEDAR.voz, modelo: VOZ_CEDAR.modelo, frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)) }
+                ? {
+                      voz: VOZ_CEDAR.voz,
+                      modelo: VOZ_CEDAR.modelo,
+                      ritmo: { ...RITMO, respiroEntreFrasesMs: RESPIRO_ENTRE_FRASES_MS },
+                      frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)),
+                      // Dónde empieza cada frase EN EL VÍDEO PUBLICADO (ms). En ese
+                      // instante cambia el rótulo de abajo: el banco lo busca en la
+                      // imagen y así comprueba que la imagen no se despega de la voz.
+                      empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
+                  }
                 : { voz: process.env.VOZ_GUIA, frases: [] },
             null,
             2,

@@ -10,6 +10,7 @@ import {
     Lightbulb,
     Maximize2,
     MessageCircle,
+    MoreHorizontal,
     PlayCircle,
     Search,
     ToggleRight,
@@ -27,7 +28,7 @@ import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
  * aire.
  */
 
-const ICONOS = { LayoutDashboard, Columns3, ToggleRight, Filter, Search, Download, UserPlus } as const;
+const ICONOS = { LayoutDashboard, Columns3, ToggleRight, Filter, Search, Download, UserPlus, MoreHorizontal } as const;
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
     const Icono = ICONOS[nombre];
