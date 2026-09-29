@@ -30,6 +30,15 @@ import {
 export const AZUL_DE_LA_PROPUESTA = "bg-gradient-to-br from-blue-500 to-blue-400";
 
 /**
+ * La letra del eslogan de la cabecera. Iba en `text-sm` (14 px), por debajo de
+ * los títulos de sección (16) y del texto de cada servicio: se leía como una
+ * nota al pie. Sube con la pantalla: 16 px en el teléfono (con 70 % del ancho
+ * no puede ser más sin partirse en tres líneas), 18 en tableta y 20 en
+ * escritorio. Clases literales: Tailwind solo genera lo que ve escrito.
+ */
+export const ESLOGAN_DE_LA_PROPUESTA = "text-base leading-snug sm:text-lg lg:text-xl";
+
+/**
  * El ancho del contenedor. Hasta `md` (teléfono y tableta) es el de siempre,
  * `max-w-2xl`; en escritorio crece por escalones —896, 1024 y 1152 px— para
  * no quedar como una tira de 672 px en medio de una pantalla de 1440 o 1920,
@@ -54,32 +63,31 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
 
     return (
         <article data-propuesta className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8`}>
-            {/* Cabecera: el logo con «Propuesta comercial» debajo, y a la
-                derecha el eslogan de la cuenta si lo tiene. El nombre de la
-                cuenta ya no va aquí: el logo lo dice, y sale en el pie.
-                `items-center`: el eslogan va a la altura del CENTRO del bloque
-                del logo, no pegado arriba (con `items-start` y un `pt-1` quedaba
-                a la altura del logo y descolgado del rótulo). */}
+            {/* Cabecera: solo el logo a la izquierda y, a la derecha, el
+                eslogan de la cuenta si lo tiene. Ni el nombre de la cuenta (el
+                logo lo dice, y sale en el pie) ni el rótulo «Propuesta
+                comercial» debajo del logo: la página entera ya lo es.
+                `items-center`: el eslogan va a la altura del CENTRO del logo.
+                Su letra es `ESLOGAN_DE_LA_PROPUESTA`: a 14 px se leía menor
+                que cualquier otro texto de la página. */}
             <header data-cabecera className="flex items-center justify-between gap-4">
-                <div className="flex shrink-0 flex-col items-start gap-1.5">
-                    {negocio.logo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={negocio.logo}
-                            alt={negocio.nombre || "Logo"}
-                            className="h-12 w-12 shrink-0 rounded-xl border bg-white object-contain"
-                        />
-                    ) : (
-                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold text-white ${AZUL_DE_LA_PROPUESTA}`}>
-                            {lasIniciales(negocio.nombre)}
-                        </div>
-                    )}
-                    <p data-rotulo-propuesta className="text-xs font-medium text-slate-500">Propuesta comercial</p>
-                </div>
+                {negocio.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        data-logo-propuesta
+                        src={negocio.logo}
+                        alt={negocio.nombre || "Logo"}
+                        className="h-12 w-12 shrink-0 rounded-xl border bg-white object-contain"
+                    />
+                ) : (
+                    <div data-logo-propuesta className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold text-white ${AZUL_DE_LA_PROPUESTA}`}>
+                        {lasIniciales(negocio.nombre)}
+                    </div>
+                )}
                 {negocio.eslogan ? (
                     <p
                         data-eslogan
-                        className="min-w-0 max-w-[60%] break-words text-right text-sm font-bold leading-snug text-slate-700"
+                        className={`min-w-0 max-w-[70%] break-words text-right font-bold text-slate-700 ${ESLOGAN_DE_LA_PROPUESTA}`}
                     >
                         {negocio.eslogan}
                     </p>
