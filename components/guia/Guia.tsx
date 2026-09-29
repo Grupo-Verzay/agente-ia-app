@@ -9,12 +9,16 @@ import {
     LayoutDashboard,
     Lightbulb,
     Maximize2,
+    MessageCircle,
+    PlayCircle,
     Search,
     ToggleRight,
     UserPlus,
 } from "lucide-react";
 
 import { laRutaDeLaCaptura, type Paso, type Seccion } from "@/lib/guia-leads";
+import { lasClasesDelCierre } from "@/lib/cierre-de-la-guia";
+import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
 
 /**
  * Las piezas de la guía pública. Sin `"use client"`: no hay nada que hacer en
@@ -83,10 +87,18 @@ export function Captura({ imagen, alt, prioridad = false }: { imagen: string; al
     );
 }
 
-export function TarjetaDeSeccion({ seccion, numero }: { seccion: Seccion; numero: number }) {
+export function TarjetaDeSeccion({
+    seccion,
+    numero,
+    moduloPath = "/guia/leads",
+}: {
+    seccion: Seccion;
+    numero: number;
+    moduloPath?: string;
+}) {
     return (
         <Link
-            href={`/guia/leads/${seccion.slug}`}
+            href={`${moduloPath}/${seccion.slug}`}
             data-tarjeta-de-seccion={seccion.slug}
             className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
         >
@@ -200,5 +212,89 @@ export function NavegacionEntreSecciones({
                 </Link>
             )}
         </nav>
+    );
+}
+
+/** El bloque de introducción del índice. El texto es editable (ver `lib/introduccion-de-la-guia.ts`). */
+export function IntroduccionDeLaGuia({ introduccion }: { introduccion: Introduccion }) {
+    return (
+        <section data-introduccion-de-la-guia className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Guía del módulo</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{introduccion.titulo}</h1>
+            <p className="text-lg font-medium text-slate-700">{introduccion.subtitulo}</p>
+            <div className="max-w-3xl space-y-3">
+                {losParrafos(introduccion.descripcion).map((p, i) => (
+                    <p key={i} className="text-base leading-relaxed text-slate-600">
+                        {p}
+                    </p>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+/** Sin `display`: cada tarjeta pone el suyo (la del vídeo nace `hidden`). */
+const MARCO_DE_TARJETA =
+    "flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md";
+
+/**
+ * La cuadrícula de secciones CON sus tarjetas de cierre. Qué tarjetas van y
+ * cuánto ocupa cada una en cada anchura lo decide `lasClasesDelCierre`: aquí
+ * solo se pintan. Vale para la guía de cualquier módulo.
+ */
+export function CuadriculaDeSecciones({
+    secciones,
+    moduloPath,
+    contactoHref,
+    videoHref,
+}: {
+    secciones: readonly Seccion[];
+    moduloPath: string;
+    contactoHref: string;
+    videoHref: string;
+}) {
+    const cierre = lasClasesDelCierre(secciones.length);
+    return (
+        <div data-cuadricula-de-secciones className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {secciones.map((s, i) => (
+                <TarjetaDeSeccion key={s.slug} seccion={s} numero={i + 1} moduloPath={moduloPath} />
+            ))}
+            <a
+                href={contactoHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-tarjeta-de-cierre="contacto"
+                className={`flex ${cierre.contacto} group ${MARCO_DE_TARJETA} border-blue-200 bg-gradient-to-br from-blue-600 to-blue-500 text-white hover:border-blue-300`}
+            >
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+                    <MessageCircle className="h-5 w-5" aria-hidden />
+                </span>
+                <h2 className="text-base font-semibold leading-snug">¿Te quedó alguna duda?</h2>
+                <p className="max-w-md text-sm leading-relaxed text-blue-50">
+                    Escríbenos y te ayudamos a sacarle todo el provecho al módulo.
+                </p>
+                <span className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-blue-700">
+                    Contáctanos
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+                </span>
+            </a>
+            {cierre.video ? (
+                <a
+                    href={videoHref}
+                    data-tarjeta-de-cierre="video"
+                    className={`${cierre.video} group ${MARCO_DE_TARJETA} border-slate-200 bg-white hover:border-blue-300`}
+                >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <PlayCircle className="h-5 w-5" aria-hidden />
+                    </span>
+                    <h2 className="text-base font-semibold leading-snug text-slate-900">Ver el vídeo de nuevo</h2>
+                    <p className="max-w-md text-sm leading-relaxed text-slate-600">La demostración completa del módulo en un minuto.</p>
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-blue-600">
+                        Ir al vídeo
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+                    </span>
+                </a>
+            ) : null}
+        </div>
     );
 }
