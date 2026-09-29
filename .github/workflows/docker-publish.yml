@@ -4,7 +4,18 @@ on:
   push:
     branches:
       - main
+  # Lo usa también el vigilante (despliegue-perdido.yml) para lanzar la
+  # construcción de un commit cuyo aviso de push se perdió. No quitarlo.
   workflow_dispatch:
+
+# En FILA, nunca a la vez. Sin esto dos fusiones seguidas construyen en
+# paralelo y queda desplegada la que TERMINA última, que no tiene por qué ser la
+# más nueva: producción atrás sin que nada lo diga. Con `cancel-in-progress:
+# false` la que corre termina, y de las que esperan solo sigue la más nueva
+# (que ya lleva dentro a las de antes).
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:

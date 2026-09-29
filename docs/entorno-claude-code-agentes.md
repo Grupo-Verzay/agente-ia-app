@@ -133,6 +133,13 @@ Esto **ya está hecho en los repositorios** (los archivos
 `.github/workflows/…`). Si usas los mismos repositorios, sáltalo. Si son
 repositorios nuevos, copia esos archivos tal cual.
 
+En `agente-ia-app` hay además un segundo flujo, **`despliegue-perdido`**, que
+cada diez minutos mira si el último commit de `main` tiene su corrida de
+`docker-publish` y, si no tiene NINGUNA, la lanza. Existe porque el aviso de
+push de GitHub se puede perder: el 29-09 la fusión del #1047 se quedó sin
+corrida y producción siguió una versión atrás sin que nada lo dijera. No
+relanza una corrida en rojo ni una cancelada. Cópialo también.
+
 Lo único que hay que revisar en cada repositorio:
 
 1. GitHub → el repositorio → **Settings → Actions → General**.
@@ -258,7 +265,9 @@ Si sale **MAL** en algo:
 1. Pide a la sesión un cambio pequeño en `agente-ia-app` (por ejemplo, una línea
    en esta guía), que abra el PR y lo fusione.
 2. En GitHub → **Actions**, el flujo **docker-publish** tiene que terminar en
-   verde (tarda unos 8 minutos).
+   verde (tarda unos 8 minutos). Si al minuto no aparece ninguna corrida para
+   ese commit, el aviso de GitHub se perdió: el flujo **despliegue-perdido**
+   lo detecta y la lanza solo en un máximo de unos 20 minutos (ver abajo).
 3. Vuelve a correr el comprobador: en el punto 3 tiene que decir que la App
    corre el commit recién fusionado.
 
