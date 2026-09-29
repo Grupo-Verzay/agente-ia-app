@@ -45,7 +45,7 @@ import {
     comoSeLeeElImporte,
     comoSeLeeLaFecha,
     elEnlaceDeWhatsapp,
-    elEnlacePublico,
+    elEnlaceDeLaPropuesta,
     elMensajeDeWhatsapp,
     elTotal,
     losRotulosDeItems,
@@ -119,16 +119,22 @@ export function PropuestasClient({
         setPropuestas((lista) => (enEdicion ? lista.map((x) => (x.id === p.id ? p : x)) : [p, ...lista]));
         setFormAbierto(false);
         if (enEdicion) {
-            toast.success("Propuesta guardada. El enlace sigue siendo el mismo.");
+            // Cambiar el enlace personalizado se dice con el enlace nuevo delante;
+            // el del código sigue abriendo la misma propuesta.
+            toast.success(
+                p.slug !== enEdicion.slug
+                    ? `Propuesta guardada. Su enlace ahora es ${elEnlaceDeLaPropuesta(base, p)}`
+                    : "Propuesta guardada. El enlace sigue siendo el mismo.",
+            );
         } else {
             // Al crearla, lo siguiente que se hace es mandarla: el enlace va copiado ya.
-            const ok = await copiarAlPortapapeles(elEnlacePublico(base, p.token));
+            const ok = await copiarAlPortapapeles(elEnlaceDeLaPropuesta(base, p));
             toast.success(ok ? "Propuesta creada. Enlace copiado: pégalo en WhatsApp." : "Propuesta creada.");
         }
     };
 
     const copiar = async (p: Propuesta) => {
-        const ok = await copiarAlPortapapeles(elEnlacePublico(base, p.token));
+        const ok = await copiarAlPortapapeles(elEnlaceDeLaPropuesta(base, p));
         if (ok) toast.success("Enlace copiado. Pégalo en WhatsApp.");
         else toast.error("No se pudo copiar. Abre la propuesta y copia la dirección desde el navegador.");
     };
@@ -239,7 +245,7 @@ export function PropuestasClient({
                             </TableRow>
                         )}
                         {visibles.map((p) => {
-                            const enlace = elEnlacePublico(base, p.token);
+                            const enlace = elEnlaceDeLaPropuesta(base, p);
                             return (
                                 <TableRow key={p.id} data-propuesta-fila={p.id}>
                                     <TableCell className="max-w-[16rem]">
@@ -385,6 +391,7 @@ export function PropuestasClient({
                 abierto={formAbierto}
                 propuesta={enEdicion}
                 lineas={lineas}
+                origen={base}
                 guardando={guardando}
                 onCerrar={() => setFormAbierto(false)}
                 onGuardar={(b) => void guardar(b)}
