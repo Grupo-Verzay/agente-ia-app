@@ -8,6 +8,7 @@ import type { Plan } from '@prisma/client';
 import { PLAN_LEVEL_LABELS } from '@/types/plans';
 import { etiquetaDePlanParaCuenta } from '@/lib/plan-pricing';
 import { db } from '@/lib/db';
+import { laCuentaActiva } from '@/lib/cuenta-activa';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,15 +58,18 @@ export default async function MyDataPage() {
 
   if (!user) redirect('/login');
 
+  // Mis datos se lee y se guarda con la CUENTA ACTIVA, como el entrenamiento y
+  // Perfil: nunca con la fila de la persona (ver `lib/cuenta-activa.ts`).
+  const cuenta = laCuentaActiva(user);
   const userPlan = user.plan;
   const hasAccess = ALLOWED_PLANS.includes(userPlan);
 
   if (!hasAccess) {
-    const cuenta = await db.user
-      .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+    const fila = await db.user
+      .findUnique({ where: { id: cuenta }, select: { demoResellerId: true } })
       .catch(() => null);
     const planLabel =
-      (await etiquetaDePlanParaCuenta(userPlan, cuenta?.demoResellerId ?? null).catch(() => null)) ??
+      (await etiquetaDePlanParaCuenta(userPlan, fila?.demoResellerId ?? null).catch(() => null)) ??
       PLAN_LEVEL_LABELS[userPlan];
 
     return (
@@ -82,7 +86,7 @@ export default async function MyDataPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <MyDataContent userId={user.id} />
+      <MyDataContent userId={cuenta} />
     </div>
   );
 }

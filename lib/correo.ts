@@ -951,13 +951,16 @@ export const TOPE_DE_DESTINATARIOS = 20;
  * así que se valida en el servidor: direcciones de verdad, sin repetir y con
  * tope. Separadas por coma, punto y coma o espacio.
  */
-export function comoDestinatarios(valor: unknown): { ok: true; lista: string[] } | { ok: false; motivo: string } {
+export function comoDestinatarios(
+    valor: unknown,
+    sinNadie = "Escribe a quién reenviarlo.",
+): { ok: true; lista: string[] } | { ok: false; motivo: string } {
     const crudo = Array.isArray(valor) ? valor.join(",") : typeof valor === "string" ? valor : "";
     const partes = crudo
         .split(/[\s,;]+/)
         .map((p) => p.trim().replace(/^<|>$/g, "").toLowerCase())
         .filter(Boolean);
-    if (!partes.length) return { ok: false, motivo: "Escribe a quién reenviarlo." };
+    if (!partes.length) return { ok: false, motivo: sinNadie };
     const malas = partes.filter((p) => !CORREO_VALIDO.test(p));
     if (malas.length) return { ok: false, motivo: `No es una dirección válida: ${malas[0]}` };
     const lista = [...new Set(partes)];
@@ -1000,6 +1003,46 @@ export function elCuerpoDelReenvio(
         original.html?.trim() ? original.html : `<pre style="white-space:pre-wrap">${escaparHtml(original.texto ?? "")}</pre>`,
     ].join("");
     return { texto, html };
+}
+
+/* ── Redactar un correo NUEVO ──────────────────────────────────────────────── */
+
+/** El asunto de un correo nuevo: una línea, con tope. Los saltos se aplastan. */
+export const TOPE_DEL_ASUNTO = 250;
+
+export function comoAsunto(valor: unknown): string {
+    if (typeof valor !== "string") return "";
+    return valor.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim().slice(0, TOPE_DEL_ASUNTO);
+}
+
+/**
+ * Lo que llega del navegador para un correo NUEVO. Aquí, como al reenviar, el
+ * destinatario SÍ lo elige la persona, así que pasa por la MISMA regla
+ * (`comoDestinatarios`): direcciones de verdad, sin repetir y con tope. Y hace
+ * falta algo que mandar: un correo sin asunto y sin texto no sale.
+ */
+export function comoCorreoNuevo(raw: {
+    para: unknown;
+    asunto: unknown;
+    texto: unknown;
+    conAdjuntos?: boolean;
+}): { ok: true; para: string[]; asunto: string; texto: string } | { ok: false; motivo: string } {
+    const para = comoDestinatarios(raw.para, "Escribe a quién enviarlo.");
+    if (!para.ok) return para;
+    const asunto = comoAsunto(raw.asunto);
+    const texto = typeof raw.texto === "string" ? raw.texto.replace(/\r\n/g, "\n").trim().slice(0, TOPE_DE_LA_RESPUESTA) : "";
+    if (!asunto && !texto && !raw.conAdjuntos) return { ok: false, motivo: "Escribe el asunto o el mensaje." };
+    return { ok: true, para: para.lista, asunto, texto };
+}
+
+/**
+ * Si la flecha de un correo nuevo se enciende. La misma regla que el servidor:
+ * hace falta a quién, y algo que mandar (asunto, texto o un archivo). La
+ * pantalla no valida las direcciones —eso lo dice el servidor con su motivo—.
+ */
+export function hayAlgoEnElCorreoNuevo(c: { para: string; asunto: string; texto: string; adjuntos: number }): boolean {
+    if (!c.para.trim()) return false;
+    return Boolean(c.asunto.trim() || c.texto.trim() || c.adjuntos > 0);
 }
 
 /* ── Adjuntar a una respuesta o a un reenvío ──────────────────────────────── */

@@ -114,6 +114,10 @@ export async function reenviarCorreoAction(buzonId: unknown, correoId: unknown, 
     apuntar("reenviar", { buzonId, correoId, para, texto, adjuntos: (adjuntos ?? []).map((a) => a.nombre) });
     return { success: true, enviado: true, para: String(para).split(/[\s,]+/) };
 }
+export async function enviarCorreoNuevoAction(buzonId: unknown, para: unknown, asunto: unknown, texto: unknown, adjuntos?: any[]) {
+    apuntar("nuevo", { buzonId, para, asunto, texto, adjuntos: (adjuntos ?? []).map((a) => a.nombre) });
+    return { success: true, enviado: true, para: String(para).split(/[\s,;]+/).filter(Boolean) };
+}
 export async function marcarNoLeidoAction(buzonId: unknown, correoId: unknown) {
     apuntar("noLeido", { buzonId, correoId });
     await new Promise((r) => setTimeout(r, 100));

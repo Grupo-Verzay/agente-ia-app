@@ -15,6 +15,7 @@ import {
     Paperclip,
     Pin,
     RefreshCw,
+    SquarePen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,7 @@ import {
 import { FilaDeCorreo, type AccionesDeLaFila } from "./FilaDeCorreo";
 import { AVISO_DEL_CORREO, ConectarCorreo } from "./ConectarCorreo";
 import { LecturaDelCorreo } from "./LecturaDelCorreo";
+import { RedactarCorreo } from "./RedactarCorreo";
 import { useExportarCorreos } from "@/hooks/useExportarCorreos";
 
 /**
@@ -362,6 +364,14 @@ function Bandeja({
     const deLaVista = useMemo(() => (unificada ? buzones : buzones.filter((b) => b.id === vista)), [unificada, buzones, vista]);
     const porId = useMemo(() => new Map(buzones.map((b) => [b.id, b])), [buzones]);
     const direcciones = useMemo(() => buzones.map((b) => b.direccion), [buzones]);
+    /**
+     * Desde qué buzón nace un correo nuevo: el que se está mirando, y en la
+     * unificada el primero que sigue conectado. Se puede cambiar dentro.
+     */
+    const buzonParaRedactar = useMemo(
+        () => (unificada ? (buzones.find((b) => b.estado !== "reconectar") ?? buzones[0])?.id : vista) ?? null,
+        [unificada, buzones, vista],
+    );
 
     const [filtro, setFiltro] = useState<FiltroDeCorreo>("todos");
     // «Archivados» no filtra lo cargado: es OTRA carpeta del proveedor.
@@ -394,6 +404,9 @@ function Bandeja({
     // Si estaba sin leer AL ABRIRLO: se pinta leído al momento, y la acción
     // solo pide marcar cuando hace falta.
     const [abiertoSinLeer, setAbiertoSinLeer] = useState(false);
+    // Redactar un correo NUEVO ocupa el mismo sitio que un correo abierto: las
+    // dos cosas no pueden estar a la vez, así que abrir una cierra la otra.
+    const [redactando, setRedactando] = useState(false);
     const [aEliminar, setAEliminar] = useState<CorreoDeLaBandeja | null>(null);
     const [eliminarLote, setEliminarLote] = useState(false);
     // La selección múltiple, por LLAVE (con el buzón delante): dos buzones
@@ -481,11 +494,17 @@ function Bandeja({
             const llave = laLlaveDelCorreo(c);
             setAbiertoSinLeer(c.sinLeer);
             setAbierto({ llave, buzonId: c.buzonId, id: c.id });
+            setRedactando(false);
             // Se pinta leído YA; si el proveedor dice que no, `alMarcar` lo devuelve.
             if (c.sinLeer) cambiarEn(c.buzonId, (l) => conLeido(l, llave));
         },
         [cambiarEn],
     );
+
+    const redactar = useCallback(() => {
+        setAbierto(null);
+        setRedactando(true);
+    }, []);
 
     const alMarcar = useCallback(
         (buzonId: string, id: string, r: { leido: boolean; motivo: string | null; reconectar: boolean }) => {
@@ -921,6 +940,17 @@ function Bandeja({
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent {...panelDeMasFiltros.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
+                    {/* El primero, como «Nuevo mensaje» en la flecha de Chats. */}
+                    <DropdownMenuItem
+                        data-nuevo-correo
+                        onSelect={redactar}
+                        disabled={!buzonParaRedactar}
+                        className="flex cursor-pointer items-center gap-1.5 py-1 text-xs"
+                    >
+                        <SquarePen className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        Nuevo correo
+                    </DropdownMenuItem>
+                    <div className="my-1 border-t border-border/50" />
                     {FILTROS_EN_LA_FLECHA.map((f) => {
                         const Icono = ICONO_DEL_FILTRO[f];
                         return (
@@ -1003,7 +1033,7 @@ function Bandeja({
                     {...{ [MARCA_DE_LA_COLUMNA]: "" }}
                     className={cn(
                         "flex min-h-0 w-full flex-col border-border md:w-[var(--ancho-lateral)] md:shrink-0 md:border-r",
-                        abierto && "hidden md:flex",
+                        (abierto || redactando) && "hidden md:flex",
                     )}
                 >
                     <div
@@ -1093,6 +1123,14 @@ function Bandeja({
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent {...panelDeAcciones.props} className={cn(RELLENO_DEL_MENU, PANEL_QUE_SE_DESPLAZA)}>
+                                    {/* Redactar va en los menús y NO como un icono más de la
+                                        fila: con un cuarto icono el buscador sale más angosto
+                                        que el de Chats, y la barra deja de ser la misma. */}
+                                    <DropdownMenuItem data-redactar onSelect={redactar} disabled={!buzonParaRedactar}>
+                                        <SquarePen className="mr-2 h-4 w-4" />
+                                        Nuevo correo
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuItem disabled={exportando || visibles.length === 0} onSelect={exportarLaLista}>
                                         {exportando ? "Exportando…" : `Exportar los de la lista (${visibles.length})`}
                                     </DropdownMenuItem>
@@ -1195,8 +1233,15 @@ function Bandeja({
                         ) : null}
                     </div>
                 </div>
-                <div className={cn("min-h-0 min-w-0 flex-1", !abierto && "hidden md:flex")}>
-                    {abierto && porId.get(abierto.buzonId) ? (
+                <div className={cn("min-h-0 min-w-0 flex-1", !abierto && !redactando && "hidden md:flex")}>
+                    {redactando && buzonParaRedactar ? (
+                        <RedactarCorreo
+                            buzones={buzones}
+                            buzonInicial={buzonParaRedactar}
+                            alCerrar={() => setRedactando(false)}
+                            alCambiarFirma={alCambiarFirma}
+                        />
+                    ) : abierto && porId.get(abierto.buzonId) ? (
                         <LecturaDelCorreo
                             key={abierto.llave}
                             buzon={porId.get(abierto.buzonId)!}
