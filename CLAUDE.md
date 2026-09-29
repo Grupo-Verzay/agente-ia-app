@@ -8468,6 +8468,46 @@ navegador, y la burbuja y el panel reales en Chromium a 1440/1024/390.
 `MODO=roto` lee y monta la burbuja de `ANTES_REF` y afirma que no había forma
 de reenviar.
 
+## Chats: una ubicación compartida es una TARJETA con mapa, como un documento
+
+El cliente compartía su ubicación y la conversación no enseñaba nada útil. Eran
+tres fallos, uno por proveedor:
+
+| | qué pasaba |
+| --- | --- |
+| **Evolution** | se guardaba bien (`locationMessage` con `degreesLatitude`/`degreesLongitude`) y la burbuja pintaba «[Mensaje locationMessage]» |
+| **Waha, Meta, Telegram** | el normalizador del backend solo sabía de texto y adjuntos: la ubicación se tiraba y **no llegaba ni a la base** |
+| **el guardado temprano del backend** | no tenía etiqueta de ubicación, así que en Evolution solo aparecía cuando la App sincronizaba |
+
+> **La forma común es la de Evolution** (`locationMessage` / `liveLocationMessage`,
+> sin la miniatura). La decide `lib/ubicacion-de-whatsapp.ts`, **copiado byte a
+> byte** en `api-webhook/src/modules/webhook/utils/ubicacion-de-whatsapp.ts`: el
+> backend traduce con él lo de Waha, Meta y Telegram, y la App lo lee. Si se toca
+> uno, se copia al otro; los dos bancos los comparan.
+
+Cinco cosas que hay que mantener:
+
+1. **La tarjeta (`TarjetaDeUbicacion`) es la anatomía de un documento**: el mismo
+   marco (`MARCO_DE_UN_ADJUNTO`), el mismo ancho (`ANCHO_DE_LA_NOTA`), 150 px de
+   vista previa y debajo icono, nombre y dirección (o coordenadas).
+2. **El mapa son teselas de OpenStreetMap** (`lib/mapa-de-la-ubicacion.ts`, puro):
+   sin clave, sin `iframe`, `loading="lazy"`, colocadas respecto al CENTRO para
+   que el pin siga en medio si la caja se estrecha. Sin red queda el fondo con el
+   pin y el texto.
+3. **El enlace se ARMA con las coordenadas** (`elEnlaceDelMapa`), nunca con el
+   `url` que trae el mensaje: ese lo escribió alguien de fuera.
+4. **Reenviar y copiar la mandan como TEXTO con el enlace** (`laUbicacionEnTexto`),
+   y la exportación la nombra como un documento con ese enlace. Mandar una
+   ubicación nativa pide un envío por proveedor que no existe.
+5. **La IA sigue sin leerla** (`[UNKNOWN_MESSAGE_TYPE]` en el backend), a
+   propósito: esto es de la pantalla.
+
+Lo prueban `scripts/banco-ubicacion-compartida.sh` aquí (las reglas, un barrido
+que compara las dos copias si el backend está al lado, y las burbujas reales en
+Chromium a 1440/1024/390; `MODO=roto` contra `4a5502b` afirma el tipo crudo y
+ningún mapa) y el del mismo nombre en `api-webhook` (los tres normalizadores y el
+guardado contra Postgres; su `MODO=roto` afirma que se tiraban).
+
 ## Chats → equipo: la conversación se SEÑALA, no se cuenta
 
 Para que el equipo viera un caso de WhatsApp, el asesor copiaba el texto a mano

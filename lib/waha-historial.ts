@@ -1,4 +1,5 @@
 import type { MensajeDeWaha } from '@/lib/waha';
+import { ETIQUETA_DE_UBICACION, ubicacionDeWaha } from '@/lib/ubicacion-de-whatsapp';
 
 /**
  * Un mensaje de Waha, traducido a lo que guarda nuestra base.
@@ -82,7 +83,16 @@ export function mensajeDeWahaParaGuardar(
   let content: string | null = texto || null;
   const message: Record<string, unknown> = {};
 
-  if (m.hasMedia) {
+  // Una ubicación: sin archivo y con el cuerpo vacío (o, en algunos motores, la
+  // miniatura en base64 dentro de `body`), así que caía como un texto vacío y la
+  // burbuja salía «Mensaje eliminado». Se guarda con la forma de Evolution, la
+  // misma que deja el webhook (ver `lib/ubicacion-de-whatsapp.ts`).
+  const ubicacion = ubicacionDeWaha(m);
+  if (ubicacion) {
+    messageType = ubicacion.tipo;
+    content = ETIQUETA_DE_UBICACION[ubicacion.tipo];
+    message[ubicacion.tipo] = ubicacion.datos;
+  } else if (m.hasMedia) {
     const mimetype = m.media?.mimetype ?? '';
     messageType = tipoPorMimetype(mimetype);
     // El archivo NO se trae: pedirselo a Waha obliga a descargarlo y volverlo a

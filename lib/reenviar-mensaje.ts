@@ -27,6 +27,8 @@
  * levantar nada.
  */
 
+import { laUbicacionEnTexto, type Ubicacion } from "./ubicacion-de-whatsapp";
+
 /** Lo poco que hace falta saber de la burbuja que se reenvía. */
 export type MensajeParaReenviar = {
     id: string;
@@ -43,6 +45,12 @@ export type MensajeParaReenviar = {
     clientDeleted?: boolean;
     /** Una nota interna no es un mensaje: no se le mandó a nadie. */
     esNota?: boolean;
+    /**
+     * Una ubicación compartida. Se reenvía como TEXTO con el enlace del mapa
+     * (`laUbicacionEnTexto`): mandar una ubicación nativa pide un camino de envío
+     * por proveedor que no existe, y el enlace llega igual a cualquier teléfono.
+     */
+    ubicacion?: Ubicacion | null;
 };
 
 export type TipoDeMedia = "image" | "video" | "audio" | "document";
@@ -95,6 +103,8 @@ const TEXTOS_QUE_NO_SON_MENSAJE: ReadonlySet<string> = new Set(["Mensaje elimina
 export function loQueSeReenvia(mensaje: MensajeParaReenviar | null | undefined): Reenvio | null {
     if (!mensaje || mensaje.esNota || mensaje.clientDeleted) return null;
     if (mensaje.kind === "call" || mensaje.kind === "reaction" || mensaje.kind === "sticker") return null;
+
+    if (mensaje.ubicacion) return { kind: "text", text: laUbicacionEnTexto(mensaje.ubicacion) };
 
     const media = mensaje.media;
     if (media) {
