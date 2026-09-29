@@ -22530,6 +22530,91 @@ Tres cosas que hay que mantener:
 Lo prueba `scripts/banco-guia-leads.sh` (reglas y la guía servida sin sesión
 a 390 y 1440); `MODO=roto` afirma que en `73f991f` no existía.
 
+## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
+
+Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
+(`lib/propuestas.ts` puro, `lib/propuestas-db.ts`, `actions/propuestas-actions.ts`).
+Cada una puede llevar, todo opcional: empresa, WhatsApp del cliente, la línea
+de la cuenta desde la que se envía, correo, vigencia, nota interna o pública,
+método y medio de pago (el par de Instancias, sin días de licencia) y si la
+sección se titula «Servicios» o «Productos». El eslogan del encabezado es de la
+CUENTA (`propuestas_ajustes`), no de una propuesta.
+
+Cinco cosas que hay que mantener:
+
+1. **El botón de WhatsApp ENVÍA** (`enviarPropuestaPorWhatsappAction`): al
+   número y desde la línea guardados en la propuesta, por el despachador del
+   servidor. Solo llega el id; número y línea se leen de la base. **Nunca por
+   otra línea**: si la elegida no está conectada se dice (el despachador caería
+   a otra). Abrir `wa.me` sin enviar queda en el «⋯».
+2. **La línea tiene que ser de la cuenta** (`lasLineasParaEnviar`, la misma
+   regla que el despachador), al guardar y al enviar.
+3. **La página pública no lleva WhatsApp, correo ni línea**, y la nota solo si
+   es pública (`laNotaQueSeEnsena`). Lo que no se entiende es interna.
+4. Los campos nuevos entran con `ADD COLUMN IF NOT EXISTS`: la tabla ya está
+   en producción.
+5. El azul de la cabecera es `AZUL_DE_LA_PROPUESTA` (blue-500 → blue-400), uno
+   para la cabecera y las iniciales; y junto al logo va solo «Propuesta
+   comercial», no el nombre de la cuenta.
+
+Lo prueba `scripts/banco-propuestas.sh`; `MODO=roto` lee `73f991f` y afirma la
+cabecera oscura, el nombre junto al logo y el botón que solo abría `wa.me`.
+
+### El enlace personalizado (`slug`): opcional, único, y el token no se va
+
+En el formulario se puede poner un texto corto («clinica-sonrisa») y el enlace
+pasa a ser `/propuesta/clinica-sonrisa`, como el de una landing. Cinco cosas:
+
+1. **Sin personalizar sigue siendo el token** de 32 caracteres: no adivinable.
+2. **Con slug, el token SIGUE abriendo la propuesta**: lo ya mandado no se rompe.
+3. **Un slug mide de 3 a 30 y un token exactamente 32**, así que nunca tienen la
+   misma forma y `laPropuestaPublica` pregunta por UNA columna, nunca por las dos.
+4. **Único en toda la plataforma** (la URL es global), con índice único PARCIAL
+   (`WHERE "slug" <> ''`); el choque se traduce a «ya lo usa otra propuesta».
+   Ojo: en SQL en crudo el 23505 no trae el nombre del índice, dice
+   `Key (slug)=`; se miran los dos.
+5. **El enlace lo arma una función** (`elEnlaceDeLaPropuesta`): copiar, WhatsApp
+   y el aviso al guardar. Se normaliza como el de la landing (minúsculas, sin
+   acentos, guiones) y se guarda así; tecleado en mayúsculas abre igual.
+
+`MODO=roto` lee también `f8057cb` y afirma que no había campo ni columna.
+
+### Plantillas de planes: la propuesta guarda una COPIA, nunca el id
+
+Panel › Propuestas tiene una segunda sección, **Plantillas de planes** (una
+pastilla al lado de «Propuestas» en la barra), independiente de Productos y
+**sin tope de cuántas**: cada plantilla es un plan (Lite, Básico, Business…) con
+nombre, precio, moneda y características, una por línea. Tabla de la App
+`propuestas_plantillas`, sin clave foránea; las acciones pasan por la misma
+puerta que las propuestas (`quienManda`) y van acotadas por la cuenta.
+
+Al crear o editar una propuesta, «Cargar plan» la mete en la sección de
+servicios o productos con `conLaPlantillaCargada` (`lib/plantillas-de-planes.ts`,
+pura): **cadenas nuevas**, las filas en blanco se sustituyen y lo escrito se
+queda. La propuesta no guarda el id de la plantilla, así que lo cargado se edita
+en la propuesta sin tocar la plantilla, y editar o borrar la plantilla no mueve
+ninguna propuesta hecha. La moneda del plan solo se adopta si no había nada
+escrito; si no, se avisa.
+
+En el teléfono el buscador de esta pantalla va a `w-32`: con `w-56` al carril
+de las dos secciones le quedaban 36 px, justo lo que tapan sus flechas.
+
+Lo prueba `scripts/banco-plantillas-de-planes.sh`: la regla, las acciones contra
+Postgres (ocho plantillas, otra cuenta y un agente no tocan nada, independencia
+en los dos sentidos) y la pantalla real en Chromium a 1440/1024/390. `MODO=roto`
+lee `f8057cb` y afirma que no había plantillas.
+
+### El ancho: crece en escritorio por escalones, y el párrafo se topa
+
+Era una tira de 672 px (`max-w-2xl`) en medio de cualquier pantalla. Ahora
+`ANCHO_DE_LA_PROPUESTA` crece solo desde `lg`: 896, 1024 (`xl`) y 1152 px
+(`2xl`), centrado y siempre con margen a los lados; hasta `md` —tableta y
+móvil— no cambia nada. Y los párrafos largos (alcance, nota, condiciones,
+pago) llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea):
+con el contenedor ancho se leerían a 140. Lo prueba
+`scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
+1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
