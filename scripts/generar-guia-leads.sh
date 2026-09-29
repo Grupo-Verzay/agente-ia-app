@@ -14,6 +14,7 @@
 #
 # Uso:  npm run build && scripts/generar-guia-leads.sh
 #       SIN_VIDEO=1 scripts/generar-guia-leads.sh   (solo capturas)
+#       SOLO_VIDEO=1 scripts/generar-guia-leads.sh  (solo el vídeo: p. ej. al cambiar la narración)
 #
 # Después hay que volver a construir: `next start` solo sirve lo que había en
 # `public/` al construir.

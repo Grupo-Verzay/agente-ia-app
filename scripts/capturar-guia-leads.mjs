@@ -30,7 +30,8 @@ import path from "node:path";
 import { CURSOR } from "./cursor-de-la-guia.mjs";
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
-import { guardarWav, mezclar, montarLaPista, sintetizar } from "./voz-de-la-guia.mjs";
+import { guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -43,6 +44,8 @@ const TMP = process.env.TMP_GUIA ?? "/tmp/guia-leads";
 const SIN_VIDEO = process.env.SIN_VIDEO === "1";
 /** Solo las miniaturas del índice: no rehace los pasos ni el vídeo. */
 const SOLO_MINIATURAS = process.env.SOLO_MINIATURAS === "1";
+// Solo el vídeo (p. ej. al cambiar la narración): las imágenes se conservan del disco.
+const SOLO_VIDEO = process.env.SOLO_VIDEO === "1";
 /** Dónde quedó el recuadro dentro de cada miniatura: lo lee el banco para medir el enfoque. */
 const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-leads.json");
 
@@ -615,8 +618,11 @@ async function video(navegador, estado) {
 
     // Las frases se sintetizan ANTES de grabar: así se sabe cuánto dura cada
     // una y el guion espera a que termine de sonar antes de seguir.
+    // Con Cedar, lo que falte se pide a OpenAI (o se dice por qué no se pudo).
+    if (usaCedar()) await llenarLaCache(Object.values(NARRACION).map((n) => n.texto));
+    const dicho = (texto) => (usaCedar() ? texto : comoSeDice(texto));
     const voz = Object.fromEntries(
-        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(comoSeDice(n.texto), path.join(dir, `${id}.wav`)) }]),
+        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(dicho(n.texto), path.join(dir, `${id}.wav`)) }]),
     );
     const ctx = await navegador.newContext({
         viewport: { width: 1280, height: 800 },
@@ -711,6 +717,17 @@ async function video(navegador, estado) {
     const destino = path.join(SALIDA, "demostracion.webm");
     mezclar(mudo, pista, destino);
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
+    // Qué voz lleva el vídeo publicado: el banco lo compara con el guion de hoy.
+    writeFileSync(
+        path.join(import.meta.dirname, "voz-de-la-guia", "leads.json"),
+        JSON.stringify(
+            usaCedar()
+                ? { voz: VOZ_CEDAR.voz, modelo: VOZ_CEDAR.modelo, frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)) }
+                : { voz: process.env.VOZ_GUIA, frases: [] },
+            null,
+            2,
+        ) + "\n",
+    );
     console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
@@ -727,8 +744,8 @@ try {
     });
     const p = await entrar(ctx);
     await abrirLeads(p);
-    await miniaturas(p);
-    if (!SOLO_MINIATURAS) await capturas(p);
+    if (!SOLO_VIDEO) await miniaturas(p);
+    if (!SOLO_MINIATURAS && !SOLO_VIDEO) await capturas(p);
     const estado = await ctx.storageState();
     await ctx.close();
     if (!SIN_VIDEO && !SOLO_MINIATURAS) await video(navegador, estado);
@@ -739,7 +756,7 @@ try {
 // Las que la guía enseña tienen que estar TODAS.
 const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
 // Con SOLO_MINIATURAS, lo demás se conserva del disco: basta con que esté.
-const faltan = esperadas.filter((n) => !tomadas.has(n) && !(SOLO_MINIATURAS && existsSync(path.join(SALIDA, n))));
+const faltan = esperadas.filter((n) => !tomadas.has(n) && !((SOLO_MINIATURAS || SOLO_VIDEO) && existsSync(path.join(SALIDA, n))));
 const sobran = readdirSync(SALIDA).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
 if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
 if (faltan.length) {

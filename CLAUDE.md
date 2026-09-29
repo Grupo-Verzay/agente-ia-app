@@ -22596,22 +22596,34 @@ sobre lo que se pulsa y la «I» en un campo —lo que pintaría el navegador,
 decidido por el `cursor` calculado y el tipo de elemento—. **Sin halo, sin
 círculo y sin encogerse al pulsar**: con cursor real y voz, las marcas sobran.
 
-La narración (`scripts/narracion-guia-leads.mjs`) se sintetiza en la máquina
-con `espeak-ng` + MBROLA `es3` (`apt-get install espeak-ng mbrola
-mbrola-es3`; no hay voz neuronal instalable sin internet) y la pega `ffmpeg`
-en Opus (`scripts/voz-de-la-guia.mjs`). Tres cosas:
+La narración (`scripts/narracion-guia-leads.mjs`) va con **Cedar de OpenAI**,
+la misma voz del asistente de «Llamar con IA» (`lib/voicebot-voices.ts`), y es
+**la voz estándar de toda guía nueva** (`scripts/voz-cedar.mjs`: modelo
+`gpt-4o-mini-tts`, sus instrucciones de tono y pronunciación). La pega
+`ffmpeg` en Opus (`scripts/voz-de-la-guia.mjs`). Tres cosas:
 
-1. **La tabla de espeak para es3 está descuadrada**: pide fonemas que es3 no
-   tiene (`h` por la «r», `L`, `R2`, `tS`) y MBROLA los rellena con silencio
-   —cortes a mitad de palabra sin ningún error—. Se pide `--pho`, se corrige
-   (`arreglarPho`) y MBROLA corre SIN permiso para rellenar.
-2. **Lo que no es español se escribe como suena** (`comoSeDice`: «Lids»,
-   «guatsap»); el subtítulo enseña la palabra de verdad.
+1. **Cada frase sintetizada va a una caché COMITEADA**
+   (`scripts/voz-de-la-guia/cedar/<llave>.ogg`), con la llave sacada de modelo,
+   voz, instrucciones y texto: regenerar no repaga lo que no cambió, cambiar
+   una frase nunca suena con la vieja, y el vídeo se regenera sin red hacia
+   OpenAI. Lo que falte se llena con
+   `node scripts/sintetizar-voz-de-la-guia.mjs [narración]`, con red hacia
+   `api.openai.com` —que el entorno de trabajo en la nube NO tiene— y la llave
+   **«IA CRM» de Panel › API keys** (`verzay_api_keys`), no la variable de
+   entorno: `OPENAI_SYSTEM_API_KEY` es la de «Grupo Verzay» (…g6QA) y OpenAI la
+   rechaza (401). La primera vez se sintetizó desde el contenedor de la App,
+   leyendo esa llave por su nombre con Prisma.
+2. **Sin la frase NO se cae a otra voz**: se dice qué falta. La voz de antes
+   —`espeak-ng` + MBROLA `es3`, con su `arreglarPho` y su `comoSeDice`— se
+   conserva solo a pedido (`VOZ_GUIA=mb-es3`). Y `scripts/voz-de-la-guia/leads.json`
+   dice con qué voz y qué guion se narró el vídeo publicado: el banco falla si
+   no es Cedar o si el guion cambió sin regenerar.
 3. **El guion no sigue hasta que la frase terminó de sonar**: así la voz y la
    acción no se separan aunque la pantalla tarde.
 
 Lo prueba `lib/__tests__/video-guia-leads.test.mjs` (en `banco-guia-leads.sh`);
-`MODO=roto` lee `153f64f` y afirma la bolita con halo y el vídeo mudo.
+`MODO=roto` lee `153f64f` y afirma la bolita con halo y el vídeo mudo, y
+`9e38996` para afirmar que la voz era espeak y no Cedar.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
