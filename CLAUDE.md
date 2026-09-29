@@ -8899,6 +8899,23 @@ La página no desborda en ninguna, el resumen se queda en cuatro tarjetas por
 fila y la cuenta recorta con puntos suspensivos, con el nombre entero en su
 `title`.
 
+## Mis datos se lee y se guarda con la CUENTA ACTIVA
+
+La página le pasaba `user.id` a sus pestañas (importar de Google Sheets,
+gestión, base de conocimiento). Para una persona del equipo esa es SU fila, así
+que un asesor no veía los datos de su cuenta y lo que importaba quedaba bajo él:
+el agente de la cuenta no lo leía y la base de conocimiento ni siquiera sacaba
+embeddings (la clave de OpenAI es de la cuenta). Ahora pasa
+`laCuentaActiva(user)` (`lib/cuenta-activa.ts`: `effectiveId`, la misma que el
+entrenamiento del agente y Perfil). Con «Ingresar» o el conmutador ya era la
+cuenta elegida y no cambia. Lo guardado antes bajo la fila de un asesor no se
+movió.
+
+Lo prueba `scripts/banco-mis-datos.sh`, con las acciones de verdad contra
+Postgres: un asesor y el administrador del equipo leen lo de su cuenta, importan
+y guardan en ella, el conmutador lee la hija y la puerta no se afloja.
+`MODO=roto` les da el id de antes y afirma el fallo.
+
 ## Documentación: lo que se menciona tiene que poder ENCONTRARSE
 
 `/documentos` es la documentación interna de una cuenta: espacios, documentos
@@ -18726,6 +18743,38 @@ los tres proveedores contra Postgres (otra persona no marca, no destaca, no
 archiva, no reenvía, no ancla ni cambia la firma de un buzón ajeno) y la
 pantalla en Chromium a 1440/1280/1024/390. `MODO=roto` lee el Correo de un
 commit pinchado (`ANTES_DE_LO_COMPLETO`) y afirma que nada de esto existía.
+
+### Redactar un correo NUEVO: el tercer envío, por el mismo camino
+
+Solo se podía responder o reenviar. Ahora se redacta desde cero: «Nuevo
+correo» es la primera opción de la flecha «⌄» —igual que «Nuevo mensaje» en la
+flecha de Chats— y del «⋯» de la columna. **No va como un icono más en la fila
+del buscador**: con un cuarto icono el buscador sale más angosto que el de
+Chats y `banco-barra-de-correo.sh` lo caza. Se abre **en el sitio del correo abierto y con su anatomía**
+(`RedactarCorreo.tsx`): cabecera del panel (78 px) con «Correo nuevo» y el
+buzón **desde el que sale** —elegible si hay varios; en la unificada nace en
+el primero conectado—, «Para» y «Asunto» donde el abierto enseña sus
+destinatarios, el cuerpo en el hueco del correo, y abajo la misma barra (firma,
+clip, flecha azul; Ctrl+Enter manda). Redactar y leer no conviven: abrir uno
+cierra el otro.
+
+1. **`enviarCorreoNuevoAction` es responder y reenviar con otra forma**: el
+   buzón por `elMio` (la persona en el WHERE; con el id del buzón de otro
+   contesta «no está», súper administrador incluido), los destinatarios por
+   `comoCorreoNuevo` → `comoDestinatarios` (la regla de reenviar), los archivos
+   por `comoAdjuntosParaEnviar` y la firma la pone el servidor. Hace falta a
+   quién y algo que mandar (asunto, texto o un archivo), y la flecha se
+   enciende con la MISMA regla (`hayAlgoEnElCorreoNuevo`).
+2. **Los tres proveedores tienen `enviar`**: Gmail un MIME sin hilo por
+   `messages/send`, Outlook `sendMail` (queda en Enviados) e IMAP su SMTP.
+3. **Los archivos y la firma son UNA pieza** (`PiezasDeEscribir.tsx`:
+   `useAdjuntosParaEnviar`, `AdjuntosParaEnviar`, `ControlDeLaFirma`), y la
+   barra de responder la usa también. Estaban escritas dentro de la lectura.
+
+Lo prueba `scripts/banco-correo.sh`: la regla y un barrido, los tres
+proveedores contra Postgres, y la pantalla en Chromium (mide la cabecera y la
+barra contra las de un correo abierto a 1440/1280/1024/390). `MODO=roto` lee
+`16e81b7` y afirma que no había forma de redactar.
 
 ### Y la segunda vuelta: cuatro pastillas, la fila de Chats, selección y el panel que empuja
 

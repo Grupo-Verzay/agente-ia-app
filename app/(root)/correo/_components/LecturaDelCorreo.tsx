@@ -1,16 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Archive,
     ArrowLeft,
-    Check,
     Download,
     Forward,
     Loader2,
     Mail,
     MoreHorizontal,
-    PenLine,
     Pin,
     PinOff,
     Reply,
@@ -23,9 +21,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -41,17 +37,15 @@ import {
     useBarraCompacta,
 } from "@/components/shared/BarraDeEscribir";
 // El clip es EL de Chats: el mismo menú de imagen, vídeo, documento y audio.
-import { AttachmentMenu, type ComposeMedia } from "@/app/(root)/chats/_components/attachment-menu";
+import { AttachmentMenu } from "@/app/(root)/chats/_components/attachment-menu";
+import { AdjuntosParaEnviar, ControlDeLaFirma, useAdjuntosParaEnviar } from "./PiezasDeEscribir";
 import { useExportarCorreos } from "@/hooks/useExportarCorreos";
 import { CAJA_DEL_MANDO, TONO_DEL_MANDO, type MandoDelCorreo } from "@/lib/mandos-del-correo";
 import { cn } from "@/lib/utils";
-import { suelto, PANEL_QUE_SE_DESPLAZA } from "@/lib/paneles-flotantes";
 import {
     BOTON_DE_ENVIAR,
-    BOTON_DE_HERRAMIENTA,
     FILA_DE_LA_BARRA,
     MARCO_DE_LA_BARRA,
-    archivosDelPortapapeles,
 } from "@/lib/barra-de-escribir";
 import {
     CABECERA_DEL_PANEL,
@@ -65,18 +59,13 @@ import {
 } from "@/lib/cabeceras-de-chats";
 import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from "@/lib/nombre-del-contacto";
 import {
-    TOPE_DE_ADJUNTOS,
-    TOPE_DE_BYTES_DEL_ENVIO,
-    comoFirma,
     elDocumentoDelCorreo,
     elTamanoLegible,
     lasInicialesDelRemitente,
-    losBytesDeUnBase64,
     type CorreoCompleto,
 } from "@/lib/correo";
 import type { BuzonVisible } from "@/lib/correo-db";
 import {
-    guardarFirmaAction,
     leerCorreoAction,
     reenviarCorreoAction,
     responderCorreoAction,
@@ -420,7 +409,6 @@ function BarraDeResponder({
     const buzonId = buzon.id;
     const [texto, setTexto] = useState("");
     const [para, setPara] = useState("");
-    const [adjuntos, setAdjuntos] = useState<ComposeMedia[]>([]);
     const [enviando, setEnviando] = useState(false);
     const [herramientas, setHerramientas] = useState(false);
     const [sugerencia, setSugerencia] = useState("");
@@ -436,58 +424,15 @@ function BarraDeResponder({
         if (!compacta) setHerramientas(false);
     }, [compacta]);
 
-    const bytesAdjuntos = adjuntos.reduce((n, a) => n + losBytesDeUnBase64(a.dataUrl.replace(/^data:[^,]*,/, "")), 0);
-
-    const adjuntar = useCallback(
-        (m: ComposeMedia | null) => {
-            if (!m) return;
-            if (adjuntos.length >= TOPE_DE_ADJUNTOS) {
-                toast.error(`Como mucho ${TOPE_DE_ADJUNTOS} archivos por correo.`);
-                return;
-            }
-            const bytes = losBytesDeUnBase64(m.dataUrl.replace(/^data:[^,]*,/, ""));
-            // Se dice ANTES de subir nada: el servidor lo volvería a rechazar,
-            // pero después de un rato de barra sin decir por qué.
-            if (bytesAdjuntos + bytes > TOPE_DE_BYTES_DEL_ENVIO) {
-                toast.error("Los adjuntos pasan de 25 MB: es el tope de un correo.");
-                return;
-            }
-            setAdjuntos((a) => [...a, m]);
-            setHerramientas(false);
-        },
-        [adjuntos.length, bytesAdjuntos],
-    );
-
-    /** Pegar una captura la ADJUNTA, como en Chats. Solo si el portapapeles trae archivos: el texto se pega como siempre. */
-    const pegar = useCallback(
-        async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-            const [fichero] = archivosDelPortapapeles(e.clipboardData?.items);
-            if (!fichero) return;
-            e.preventDefault();
-            const dataUrl = await new Promise<string>((resolve, reject) => {
-                const fr = new FileReader();
-                fr.onload = () => resolve(String(fr.result));
-                fr.onerror = reject;
-                fr.readAsDataURL(fichero);
-            });
-            // Una captura pegada se llama siempre «image.png»: con la hora se distinguen.
-            const nombre = fichero.name && fichero.name !== "image.png" ? fichero.name : `captura-${new Date().toTimeString().slice(0, 8).replace(/:/g, "")}.png`;
-            adjuntar({
-                mediatype: fichero.type.startsWith("image/") ? "image" : "document",
-                dataUrl,
-                mimeType: fichero.type || "application/octet-stream",
-                fileName: nombre,
-            });
-        },
-        [adjuntar],
-    );
+    // Los archivos son LOS de redactar un correo nuevo: tope, pegar y quitar.
+    const { adjuntos, adjuntar, pegar, quitar, vaciar, paraEnviar } = useAdjuntosParaEnviar(() => setHerramientas(false));
 
     const hayAlgoQueEnviar = modo === "reenviar" ? para.trim().length > 0 : texto.trim().length > 0;
 
     async function enviar() {
         if (!hayAlgoQueEnviar || enviando) return;
         setEnviando(true);
-        const archivos = adjuntos.map((a) => ({ nombre: a.fileName, tipo: a.mimeType, base64: a.dataUrl }));
+        const archivos = paraEnviar();
         try {
             const r =
                 modo === "reenviar"
@@ -500,7 +445,7 @@ function BarraDeResponder({
             toast.success(modo === "reenviar" ? "Correo reenviado." : "Respuesta enviada.");
             setTexto("");
             setPara("");
-            setAdjuntos([]);
+            vaciar();
             setSugerencia("");
             alCambiarModo("responder");
         } catch {
@@ -590,24 +535,7 @@ function BarraDeResponder({
                         </button>
                     </div>
                 ) : null}
-                {adjuntos.length ? (
-                    <div data-adjuntos-para-enviar className="mb-2 flex flex-wrap gap-1.5">
-                        {adjuntos.map((a, i) => (
-                            <div key={`${a.fileName}-${i}`} className="flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs">
-                                <span className="max-w-[12rem] truncate font-medium" title={a.fileName}>{a.fileName}</span>
-                                <span className="shrink-0 text-muted-foreground">{elTamanoLegible(losBytesDeUnBase64(a.dataUrl.replace(/^data:[^,]*,/, "")))}</span>
-                                <button
-                                    type="button"
-                                    aria-label={`Quitar ${a.fileName}`}
-                                    onClick={() => setAdjuntos((l) => l.filter((_, j) => j !== i))}
-                                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                ) : null}
+                <AdjuntosParaEnviar adjuntos={adjuntos} alQuitar={quitar} />
                 <div className={FILA_DE_LA_BARRA}>
                     <ZonaDeHerramientas compacta={compacta} abierta={herramientas} alAlternar={() => setHerramientas((v) => !v)} fijo={firma}>
                         <div className={cn(compacta ? "block" : "sm:hidden")}>
@@ -665,96 +593,5 @@ function BarraDeResponder({
                 </div>
             </div>
         </>
-    );
-}
-
-/**
- * La firma del BUZÓN: el mismo botón de pluma que la firma del asesor en
- * Chats, azul cuando está activa. La que se usa la pone el servidor al enviar
- * (`conLaFirma`); aquí solo se escribe y se enciende.
- */
-function ControlDeLaFirma({
-    buzon,
-    alCambiarFirma,
-}: {
-    buzon: BuzonVisible;
-    alCambiarFirma: (firma: string | null, activa: boolean) => void;
-}) {
-    const [texto, setTexto] = useState(buzon.firma ?? "");
-    const [guardando, setGuardando] = useState(false);
-    const activa = buzon.firmaActiva;
-
-    async function guardar(firma: string, encendida: boolean) {
-        setGuardando(true);
-        try {
-            const r = await guardarFirmaAction(buzon.id, firma, encendida);
-            if (!r.success) {
-                toast.error(r.message);
-                return;
-            }
-            alCambiarFirma(r.firma, r.firmaActiva);
-            if (encendida && !r.firmaActiva) toast.error("Escribe una firma antes de activarla.");
-        } catch {
-            toast.error("No se pudo guardar la firma. Revisa la conexión.");
-        } finally {
-            setGuardando(false);
-        }
-    }
-
-    return (
-        <Popover onOpenChange={(abierto) => abierto && setTexto(buzon.firma ?? "")}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    aria-label="Firma del correo"
-                    title={activa ? "Firma activa" : "Configurar la firma"}
-                    className={cn(
-                        BOTON_DE_HERRAMIENTA,
-                        activa
-                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                >
-                    <PenLine className="h-4 w-4" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent {...suelto("popover", "top", "start")} className={cn("w-72 space-y-3 p-3", PANEL_QUE_SE_DESPLAZA)}>
-                <p className="text-xs font-semibold text-foreground">Firma de {buzon.direccion}</p>
-                <Textarea
-                    value={texto}
-                    onChange={(e) => setTexto(e.target.value)}
-                    placeholder={"Ana Pérez\nVentas · Verzay"}
-                    aria-label="Texto de la firma"
-                    rows={3}
-                    disabled={guardando}
-                    className="resize-none text-sm"
-                />
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <Switch
-                            checked={activa}
-                            onCheckedChange={(v) => void guardar(texto, v)}
-                            disabled={guardando || (!comoFirma(texto) && !activa)}
-                            aria-label="Añadir la firma a mis correos"
-                        />
-                        <span className="text-xs text-muted-foreground">Añadir a mis correos</span>
-                    </div>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        type="button"
-                        className="h-8 w-8 shrink-0 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
-                        onClick={() => void guardar(texto, activa)}
-                        disabled={guardando}
-                        aria-label="Guardar firma"
-                        title="Guardar firma"
-                    >
-                        <Check className="h-4 w-4" />
-                    </Button>
-                </div>
-            </PopoverContent>
-        </Popover>
     );
 }

@@ -31,7 +31,7 @@ import {
 
 /**
  * Los tres proveedores detrás de UNA interfaz: bandeja, leer, marcar como
- * leído, eliminar, adjunto y responder. La pantalla y las acciones no saben cuál hay debajo, y eso es lo
+ * leído, eliminar, adjunto, responder, reenviar y enviar uno NUEVO. La pantalla y las acciones no saben cuál hay debajo, y eso es lo
  * que hace que las tres se comporten igual: lo que cambia es cómo se le
  * pregunta a cada uno, no lo que se enseña.
  *
@@ -516,6 +516,16 @@ const gmail = {
             body: JSON.stringify({ raw: crudo.toString("base64url") }),
         });
     },
+
+    async enviar(buzon: Buzon, para: string[], asunto: string, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        const token = await elTokenVigente(buzon, "gmail");
+        const crudo = await componerElNuevo(buzon.direccion, para, asunto, texto, adjuntos);
+        await pedir(`${GMAIL}/messages/send`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ raw: crudo.toString("base64url") }),
+        });
+    },
 };
 
 /* ── Outlook (Microsoft Graph) ───────────────────────────────────────────── */
@@ -689,6 +699,22 @@ const outlook = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(cuerpo),
+        });
+    },
+
+    async enviar(buzon: Buzon, para: string[], asunto: string, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        const token = await elTokenVigente(buzon, "outlook");
+        // `sendMail` lo deja en Enviados, como `reply` y `forward`.
+        const message: Record<string, unknown> = {
+            subject: asunto,
+            body: { contentType: "HTML", content: elHtmlDeUnTexto(texto) },
+            toRecipients: para.map((address) => ({ emailAddress: { address } })),
+        };
+        if (adjuntos.length) message.attachments = paraGraph(adjuntos);
+        await pedir(`${GRAPH}/sendMail`, token, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message, saveToSentItems: true }),
         });
     },
 };
@@ -953,9 +979,18 @@ const imap = {
             attachments: paraNodemailer([...delOriginal, ...adjuntos]),
         });
     },
+
+    async enviar(buzon: Buzon, para: string[], asunto: string, texto: string, adjuntos: AdjuntoParaEnviar[] = []): Promise<void> {
+        await enviarPorSmtp(buzon, {
+            to: para.join(", "),
+            subject: asunto,
+            text: texto,
+            attachments: paraNodemailer(adjuntos),
+        });
+    },
 };
 
-/** Mandar por el SMTP del buzón: responder y reenviar salen por aquí, con el mismo trato del error. */
+/** Mandar por el SMTP del buzón: responder, reenviar y el correo nuevo salen por aquí, con el mismo trato del error. */
 async function enviarPorSmtp(buzon: Buzon, mensaje: Record<string, unknown>): Promise<void> {
     const c = lasCredencialesImap(buzon);
     const nodemailer = await import("nodemailer");
@@ -1010,6 +1045,25 @@ async function componerElReenvio(
         subject: elAsuntoDelReenvio(original.asunto),
         text: cuerpo.texto,
         html: cuerpo.html,
+        attachments: paraNodemailer(adjuntos),
+    });
+    return mensaje.compile().build();
+}
+
+/** El MIME de un correo NUEVO, para Gmail: sin hilo, sin original debajo. */
+async function componerElNuevo(
+    desde: string,
+    para: string[],
+    asunto: string,
+    texto: string,
+    adjuntos: AdjuntoParaEnviar[],
+): Promise<Buffer> {
+    const { default: MailComposer } = (await import("nodemailer/lib/mail-composer")) as any;
+    const mensaje = new MailComposer({
+        from: desde,
+        to: para.join(", "),
+        subject: asunto,
+        text: texto,
         attachments: paraNodemailer(adjuntos),
     });
     return mensaje.compile().build();

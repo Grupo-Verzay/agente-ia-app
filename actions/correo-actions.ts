@@ -5,6 +5,7 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import {
     comoAccionEnLote,
     comoAdjuntosParaEnviar,
+    comoCorreoNuevo,
     comoCarpeta,
     comoDatosDeImap,
     comoLoteDeCorreos,
@@ -417,6 +418,43 @@ export async function reenviarCorreoAction(
         return { success: true, enviado: true, para: destinatarios.lista };
     } catch (error) {
         return fallo(error, "no se pudo reenviar");
+    }
+}
+
+/**
+ * Redactar un correo NUEVO desde uno de los buzones de la persona. Es la
+ * tercera forma de mandar y va por el MISMO camino que responder y reenviar:
+ * el buzón se busca con la persona en el WHERE (`elMio`), el destinatario pasa
+ * por la misma regla que al reenviar (`comoCorreoNuevo` → `comoDestinatarios`),
+ * los archivos por `comoAdjuntosParaEnviar` y la FIRMA la pone el servidor.
+ */
+export async function enviarCorreoNuevoAction(
+    buzonId: unknown,
+    para: unknown,
+    asunto: unknown,
+    texto: unknown,
+    adjuntos?: unknown,
+): Promise<Resultado<{ enviado: true; para: string[] }>> {
+    try {
+        const r = await elMio(buzonId);
+        if ("error" in r) return { success: false, message: r.error! };
+        if (r.buzon.estado === "reconectar") {
+            return { success: false, message: r.buzon.ultimoError || "Vuelve a conectar este correo.", reconectar: true };
+        }
+        const archivos = comoAdjuntosParaEnviar(adjuntos);
+        if (!archivos.ok) return { success: false, message: archivos.motivo };
+        const nuevo = comoCorreoNuevo({ para, asunto, texto, conAdjuntos: archivos.lista.length > 0 });
+        if (!nuevo.ok) return { success: false, message: nuevo.motivo };
+        await elProveedorDe(r.buzon).enviar(
+            r.buzon,
+            nuevo.para,
+            nuevo.asunto,
+            conLaFirma(nuevo.texto, r.buzon.firma, r.buzon.firmaActiva),
+            archivos.lista,
+        );
+        return { success: true, enviado: true, para: nuevo.para };
+    } catch (error) {
+        return fallo(error, "no se pudo enviar el correo nuevo");
     }
 }
 
