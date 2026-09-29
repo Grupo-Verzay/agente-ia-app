@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { db } from "@/lib/db";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
+import { comoCaracteristicas, ordenarPlantillas, type DatosDePlantilla, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
 import {
     comoEslogan,
     comoMoneda,
@@ -93,6 +94,27 @@ function asegurarLasTablas(): Promise<void> {
                 ADD COLUMN IF NOT EXISTS "notaVisibilidad" TEXT NOT NULL DEFAULT 'interna',
                 ADD COLUMN IF NOT EXISTS "metodoPago" TEXT NOT NULL DEFAULT '',
                 ADD COLUMN IF NOT EXISTS "medioPago" TEXT NOT NULL DEFAULT ''
+        `);
+        // Las PLANTILLAS DE PLANES de la cuenta: independientes de Productos y
+        // sin tope de cuántas. Una propuesta no guarda su id: guarda una COPIA
+        // (ver `lib/plantillas-de-planes.ts`), así que editarlas o borrarlas no
+        // mueve ninguna propuesta ya hecha.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "propuestas_plantillas" (
+                "id" TEXT PRIMARY KEY,
+                "cuentaId" TEXT NOT NULL,
+                "nombre" TEXT NOT NULL,
+                "precio" NUMERIC(18,2) NOT NULL DEFAULT 0,
+                "moneda" TEXT NOT NULL DEFAULT 'COP',
+                "caracteristicas" JSONB NOT NULL DEFAULT '[]'::jsonb,
+                "creadoPorId" TEXT,
+                "creadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "actualizadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "propuestas_plantillas_cuenta_idx"
+            ON "propuestas_plantillas" ("cuentaId")
         `);
         // El eslogan es de la CUENTA, no de una propuesta: sale en todas.
         await ddl(() => db.$executeRaw`
@@ -449,4 +471,95 @@ export async function lasLineasParaEnviar(cuentaId: string): Promise<LineaParaEn
             nombre: i.displayName?.trim() || i.instanceName!,
             tipo: (i.instanceType ?? "Whatsapp").toString(),
         }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plantillas de planes
+// ─────────────────────────────────────────────────────────────────────────────
+
+type FilaDePlantilla = {
+    id: string;
+    nombre: string;
+    precio: unknown;
+    moneda: string;
+    caracteristicas: unknown;
+    creadaEn: Date;
+    actualizadaEn: Date;
+};
+
+const COLUMNAS_DE_PLANTILLA = `"id", "nombre", "precio", "moneda", "caracteristicas", "creadaEn", "actualizadaEn"`;
+
+function comoPlantillaDeLaFila(f: FilaDePlantilla): PlantillaDePlan {
+    const car = typeof f.caracteristicas === "string" ? safeParse(f.caracteristicas) : f.caracteristicas;
+    return {
+        id: f.id,
+        nombre: f.nombre,
+        precio: Number(f.precio) || 0,
+        moneda: comoMoneda(f.moneda),
+        caracteristicas: comoCaracteristicas(car),
+        creadaEn: new Date(f.creadaEn).toISOString(),
+        actualizadaEn: new Date(f.actualizadaEn).toISOString(),
+    };
+}
+
+/** Todas las plantillas de una cuenta, sin tope de cuántas, en orden de precio. */
+export async function lasPlantillasDe(cuentaId: string): Promise<PlantillaDePlan[]> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRawUnsafe<FilaDePlantilla[]>(
+            `SELECT ${COLUMNAS_DE_PLANTILLA} FROM "propuestas_plantillas" WHERE "cuentaId" = $1`,
+            cuentaId,
+        );
+        return ordenarPlantillas(filas.map(comoPlantillaDeLaFila));
+    });
+}
+
+export async function crearPlantilla(
+    datos: DatosDePlantilla & { cuentaId: string; creadoPorId: string | null },
+): Promise<PlantillaDePlan> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRawUnsafe<FilaDePlantilla[]>(
+            `INSERT INTO "propuestas_plantillas" ("id", "cuentaId", "nombre", "precio", "moneda", "caracteristicas", "creadoPorId")
+             VALUES ($1, $2, $3, $4::numeric, $5, $6::jsonb, $7)
+             RETURNING ${COLUMNAS_DE_PLANTILLA}`,
+            randomUUID(),
+            datos.cuentaId,
+            datos.nombre,
+            datos.precio,
+            datos.moneda,
+            JSON.stringify(datos.caracteristicas),
+            datos.creadoPorId,
+        );
+        return comoPlantillaDeLaFila(filas[0]!);
+    });
+}
+
+/** Edita una plantilla de ESA cuenta. No toca ninguna propuesta: guardan su copia. */
+export async function editarPlantilla(cuentaId: string, id: string, datos: DatosDePlantilla): Promise<PlantillaDePlan | null> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRawUnsafe<FilaDePlantilla[]>(
+            `UPDATE "propuestas_plantillas" SET
+                "nombre" = $3, "precio" = $4::numeric, "moneda" = $5, "caracteristicas" = $6::jsonb,
+                "actualizadaEn" = CURRENT_TIMESTAMP
+             WHERE "id" = $1 AND "cuentaId" = $2
+             RETURNING ${COLUMNAS_DE_PLANTILLA}`,
+            id,
+            cuentaId,
+            datos.nombre,
+            datos.precio,
+            datos.moneda,
+            JSON.stringify(datos.caracteristicas),
+        );
+        return filas[0] ? comoPlantillaDeLaFila(filas[0]) : null;
+    });
+}
+
+export async function borrarPlantilla(cuentaId: string, id: string): Promise<boolean> {
+    return conLasTablas(async () => {
+        const n = await db.$executeRawUnsafe(
+            `DELETE FROM "propuestas_plantillas" WHERE "id" = $1 AND "cuentaId" = $2`,
+            id,
+            cuentaId,
+        );
+        return n > 0;
+    });
 }

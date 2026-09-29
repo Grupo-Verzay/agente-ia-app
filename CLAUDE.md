@@ -22530,6 +22530,31 @@ Cinco cosas que hay que mantener:
 Lo prueba `scripts/banco-propuestas.sh`; `MODO=roto` lee `73f991f` y afirma la
 cabecera oscura, el nombre junto al logo y el botón que solo abría `wa.me`.
 
+### Plantillas de planes: la propuesta guarda una COPIA, nunca el id
+
+Panel › Propuestas tiene una segunda sección, **Plantillas de planes** (una
+pastilla al lado de «Propuestas» en la barra), independiente de Productos y
+**sin tope de cuántas**: cada plantilla es un plan (Lite, Básico, Business…) con
+nombre, precio, moneda y características, una por línea. Tabla de la App
+`propuestas_plantillas`, sin clave foránea; las acciones pasan por la misma
+puerta que las propuestas (`quienManda`) y van acotadas por la cuenta.
+
+Al crear o editar una propuesta, «Cargar plan» la mete en la sección de
+servicios o productos con `conLaPlantillaCargada` (`lib/plantillas-de-planes.ts`,
+pura): **cadenas nuevas**, las filas en blanco se sustituyen y lo escrito se
+queda. La propuesta no guarda el id de la plantilla, así que lo cargado se edita
+en la propuesta sin tocar la plantilla, y editar o borrar la plantilla no mueve
+ninguna propuesta hecha. La moneda del plan solo se adopta si no había nada
+escrito; si no, se avisa.
+
+En el teléfono el buscador de esta pantalla va a `w-32`: con `w-56` al carril
+de las dos secciones le quedaban 36 px, justo lo que tapan sus flechas.
+
+Lo prueba `scripts/banco-plantillas-de-planes.sh`: la regla, las acciones contra
+Postgres (ocho plantillas, otra cuenta y un agente no tocan nada, independencia
+en los dos sentidos) y la pantalla real en Chromium a 1440/1024/390. `MODO=roto`
+lee `f8057cb` y afirma que no había plantillas.
+
 ### El ancho: crece en escritorio por escalones, y el párrafo se topa
 
 Era una tira de 672 px (`max-w-2xl`) en medio de cualquier pantalla. Ahora
