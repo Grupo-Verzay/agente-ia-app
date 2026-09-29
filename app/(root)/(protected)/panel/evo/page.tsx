@@ -1,18 +1,16 @@
 import AccessDenied from "@/app/AccessDenied";
 import { currentUser } from "@/lib/auth";
-import { isAdminLike } from "@/lib/rbac";
 import { MainEvo } from "./_components/MainEvo";
-import { cuentaQueManda } from "@/lib/cuenta-que-manda";
+import { MOTIVO_SIN_EVOLUTION } from "@/lib/puerta-de-evolution";
+import { laSesionAdministraEvolution } from "@/lib/puerta-de-evolution.server";
 
 const EvoManagementPage = async () => {
     const user = await currentUser();
 
-    // Quien manda aqui es la CUENTA, no la persona: su administrador actua por
-    // ella (ver `lib/cuenta-que-manda.ts`). Con su propio rol —`user`— esta
-    // pantalla le contestaba «Acceso Denegado» aunque el menu se la enseñara.
-    const cuenta = user ? await cuentaQueManda(user) : null;
-    if (!user || !cuenta || !isAdminLike(cuenta.role)) {
-        return <AccessDenied />;
+    // La MISMA puerta que `/evo` (ver `lib/puerta-de-evolution.ts`): quien
+    // manda aqui es la CUENTA, no la persona.
+    if (!user || !(await laSesionAdministraEvolution(user))) {
+        return <AccessDenied detalle={MOTIVO_SIN_EVOLUTION} />;
     }
 
     return (
