@@ -22530,6 +22530,16 @@ Tres cosas que hay que mantener:
 Lo prueba `scripts/banco-guia-leads.sh` (reglas y la guía servida sin sesión
 a 390 y 1440); `MODO=roto` afirma que en `73f991f` no existía.
 
+### La introducción ocupa el ancho del contenedor, como el vídeo
+
+El párrafo de introducción del índice (`IntroduccionDeLaGuia`) llevaba un
+`max-w-3xl` (768 px) que en escritorio lo cortaba antes que el vídeo y la
+cuadrícula, dejando un hueco a la derecha. Ya no tiene tope: mide lo que el
+contenedor (`max-w-5xl`). En tablet y móvil el contenedor ya era más estrecho
+que 768, así que allí no cambia nada. Lo prueba
+`scripts/probar-introduccion-de-la-guia.mjs` (desde `banco-guia-simetrica.sh`),
+a 390/768/1024/1280/1440; `MODO=roto` pinta la de `98a247c` y afirma el hueco.
+
 ### El vídeo: el cursor de VERDAD y narración, sin marcas encima
 
 Chromium sin cabeza no graba el puntero, así que se dibuja
