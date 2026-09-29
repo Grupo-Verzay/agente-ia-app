@@ -196,6 +196,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           avatarSrc={message.avatarSrc}
           timestamp={message.ts}
           media={message.media}
+          ubicacion={message.ubicacion}
           status={message.status}
           kind={message.kind}
           call={message.call}
@@ -263,6 +264,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
   // o anuncio), re-renderizamos por seguridad para nunca mostrar algo viejo.
   if (
     a.media || b.media ||
+    a.ubicacion || b.ubicacion ||
     a.call || b.call ||
     a.quotedMessage || b.quotedMessage ||
     a.adPreview || b.adPreview

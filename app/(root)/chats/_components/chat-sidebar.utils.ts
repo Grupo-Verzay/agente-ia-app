@@ -419,6 +419,8 @@ function normalizePreviewText(text: string): string {
     "documento": "📄 Documento",
     "[sticker]": "🏷️ Sticker",
     "sticker": "🏷️ Sticker",
+    "[ubicación]": "📍 Ubicación",
+    "[ubicación en vivo]": "📍 Ubicación en vivo",
     "[media]": "📎 Archivo",
     "media": "📎 Archivo",
   };
@@ -445,6 +447,7 @@ const TIPOS_CON_ETIQUETA_PROPIA = new Set([
   "documentMessage",
   "fileMessage",
   "locationMessage",
+  "liveLocationMessage",
   "stickerMessage",
   "lottieStickerMessage",
   "reactionMessage",
@@ -497,6 +500,9 @@ export function lastTextFrom(chat: ChatData): {
         break;
       case "locationMessage":
         text = "📍 Ubicación";
+        break;
+      case "liveLocationMessage":
+        text = "📍 Ubicación en vivo";
         break;
       // En la lista solo cabe una línea, así que aquí va el NOMBRE del contacto y
       // no su teléfono: es lo que permite reconocer la conversación de un vistazo.

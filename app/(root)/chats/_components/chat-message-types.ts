@@ -1,5 +1,6 @@
 import type { Traduccion } from '@/lib/traduccion-de-chats';
 import type { MediaType } from './attachment-menu';
+import type { Ubicacion } from '@/lib/ubicacion-de-whatsapp';
 
 /* ─── Outgoing payload types ─── */
 export type OutgoingTextPayload = {
@@ -88,6 +89,12 @@ export type UIBubble = {
   avatarSrc?: string;
   ts?: number;
   media?: MediaData;
+  /**
+   * La ubicación que se compartió, ya leída. Se pinta como tarjeta con mapa
+   * (`TarjetaDeUbicacion`), con la misma anatomía que un documento. No va en
+   * `media` a propósito: no hay archivo que descargar, ni visor, ni galería.
+   */
+  ubicacion?: Ubicacion;
   status?: MessageDeliveryState;
   kind?: 'sticker' | 'reaction' | 'call';
   /** Info de llamada (cuando kind === 'call') */

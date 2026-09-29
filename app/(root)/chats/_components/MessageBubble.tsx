@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Check, CheckCheck, CircleAlert, Clock, Forward, Reply, PhoneMissed, PhoneOutgoing, Video, Phone, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer, anchoDelAdjunto } from './MediaRenderer';
+import { TarjetaDeUbicacion } from './TarjetaDeUbicacion';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
@@ -98,6 +99,8 @@ interface MessageBubbleProps {
   avatarSrc?: string;
   timestamp?: number;
   media?: MediaData;
+  /** Una ubicación compartida: se pinta como tarjeta con mapa. */
+  ubicacion?: UIBubble['ubicacion'];
   status?: MessageDeliveryState;
   kind?: UIBubble['kind'];
   call?: UIBubble['call'];
@@ -148,6 +151,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   avatarSrc,
   timestamp,
   media,
+  ubicacion,
   status,
   kind,
   call,
@@ -568,6 +572,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             pieDeLaNota={laNota.debajoDelAudio}
           />
         )}
+        {ubicacion && <TarjetaDeUbicacion ubicacion={ubicacion} />}
         {message && (
           <div
             className={cn(
@@ -579,6 +584,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               // mas ancha que ella. Con el mismo tope, el texto salta de linea
               // justo donde acaba la imagen.
               media && anchoDelAdjunto(media.type),
+              ubicacion && anchoDelAdjunto('document'),
             )}
           >
             <ExpandableText message={message} isUserMessage={isUserMessage} />

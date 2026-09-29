@@ -4,6 +4,7 @@ import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-mes
 import { miniaturaDelAnuncio } from '@/lib/miniatura-del-anuncio';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import { comoTraduccion, type Traduccion } from '@/lib/traduccion-de-chats';
+import { ETIQUETA_DE_UBICACION, laUbicacionDelMensaje } from '@/lib/ubicacion-de-whatsapp';
 import { epochToMs } from './chat-sidebar.utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
@@ -692,7 +693,8 @@ function textoDelMensajeCitado(citado: Record<string, any> | null | undefined): 
     ['audioMessage', 'Audio'],
     ['documentMessage', 'Documento'],
     ['stickerMessage', 'Sticker'],
-    ['locationMessage', 'Ubicacion'],
+    ['locationMessage', 'Ubicación'],
+    ['liveLocationMessage', 'Ubicación en vivo'],
     ['contactMessage', 'Contacto'],
   ];
   for (const [clave, etiqueta] of adjuntos) {
@@ -832,6 +834,7 @@ export function toUIMessages(
     const ts = m.messageTimestamp;
     let content = '';
     let media: MediaData | null = null;
+    let ubicacion: UIBubble['ubicacion'] | null = null;
     let kind: UIBubble['kind'];
     let call: UIBubble['call'];
     const messageData = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
@@ -885,6 +888,15 @@ export function toUIMessages(
       case 'documentMessage':
         media = extractMediaInfo(messageData, 'document');
         content = pieDelAdjunto(media, messageData) || (media ? '' : etiquetaDeAdjuntoSinArchivo('document', messageData));
+        break;
+      // Una ubicación compartida. Caía en el `default` y salía como
+      // «[Mensaje locationMessage]»: sin mapa y sin forma de abrirla, aunque
+      // las coordenadas estaban guardadas. Se pinta como tarjeta con mapa; si
+      // las coordenadas no se entienden, al menos se dice qué era.
+      case 'locationMessage':
+      case 'liveLocationMessage':
+        ubicacion = laUbicacionDelMensaje(messageData);
+        content = ubicacion ? '' : ETIQUETA_DE_UBICACION[tipoDelMensaje].replace(/^\[|\]$/g, '');
         break;
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
@@ -973,7 +985,7 @@ export function toUIMessages(
     // terminaba de sincronizar (varios minutos después).
     const textLikeTypes = new Set(['conversation', 'extendedTextMessage']);
     const isTextLike = !m.messageType || textLikeTypes.has(m.messageType);
-    const isEmptyDeletedStub = !content && !media && !kind && !call && isTextLike;
+    const isEmptyDeletedStub = !content && !media && !ubicacion && !kind && !call && isTextLike;
     if (isEmptyDeletedStub) {
       content = 'Mensaje eliminado';
     }
@@ -1019,6 +1031,7 @@ export function toUIMessages(
       // mensaje no habia llegado. `epochToMs` acepta las dos unidades.
       ts: epochToMs(ts) || undefined,
       media: media || undefined,
+      ...(ubicacion ? { ubicacion } : {}),
       status: isUser ? normalizeDeliveryState(resolveEvolutionMessageStatus(m)) : undefined,
       kind,
       call,
@@ -1071,6 +1084,12 @@ export function toUIMessages(
       content: b.content,
       fromMe: b.sender === 'user',
       ...(b.media?.type ? { mediaType: b.media.type } : {}),
+      // Una ubicación no tiene texto: sin esto la cita salía en blanco. Se
+      // nombra igual que cuando la cita llega de WhatsApp (`textoDelMensajeCitado`),
+      // con el sitio detrás si lo trae.
+      ...(b.ubicacion
+        ? { mediaType: b.ubicacion.enVivo ? 'Ubicación en vivo' : 'Ubicación', content: b.ubicacion.nombre ?? '' }
+        : {}),
       // En un grupo escriben varios: quién lo dijo forma parte de la cita. En
       // un chat de uno a uno no hace falta, que es el de la cabecera.
       ...(b.groupSenderName ? { author: b.groupSenderName } : {}),

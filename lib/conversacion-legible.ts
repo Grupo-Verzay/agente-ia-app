@@ -27,6 +27,8 @@
  *    las 14:05 de su reloj.
  */
 
+import { elEnlaceDelMapa, lasCoordenadasEnTexto, laUbicacionDelMensaje } from "./ubicacion-de-whatsapp";
+
 export type QuienHabla = "contacto" | "asesor" | "ia";
 
 export interface MensajeLegible {
@@ -69,16 +71,25 @@ export function aMensajeLegible(ev: any, opciones?: { esGrupo?: boolean }): Mens
         cuerpo.documentWithCaptionMessage?.message?.documentMessage?.caption ||
         "";
     const ts = Number(ev?.messageTimestamp);
+    // Una ubicación no tiene archivo: su «enlace» es el del mapa y su «nombre»
+    // el sitio (o las coordenadas). Así el `.txt` y el PDF la nombran y la dejan
+    // abrir igual que a un documento, sin una rama propia en cada uno.
+    const ubicacion = laUbicacionDelMensaje(cuerpo);
     return {
         ts: Number.isFinite(ts) ? (ts > 1e12 ? Math.floor(ts / 1000) : ts) : 0,
         quien: fromMe ? (ev?.sentByAi ? "ia" : "asesor") : "contacto",
         texto: typeof texto === "string" ? texto : "",
         tipo: typeof ev?.messageType === "string" ? ev.messageType : "conversation",
-        mediaUrl: typeof cuerpo.mediaUrl === "string" ? cuerpo.mediaUrl : null,
+        mediaUrl: ubicacion
+            ? elEnlaceDelMapa(ubicacion)
+            : typeof cuerpo.mediaUrl === "string"
+              ? cuerpo.mediaUrl
+              : null,
         transcripcion: typeof ev?.transcripcion === "string" ? ev.transcripcion : null,
         eliminado: Boolean(ev?.clientDeleted),
         notaInterna: Boolean(ev?.notaInterna),
         nombreDelArchivo:
+            (ubicacion ? ubicacion.nombre || ubicacion.direccion || lasCoordenadasEnTexto(ubicacion) : null) ||
             cuerpo.documentMessage?.fileName ||
             cuerpo.documentWithCaptionMessage?.message?.documentMessage?.fileName ||
             null,

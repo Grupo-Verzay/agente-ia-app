@@ -65,6 +65,7 @@ import dynamic from 'next/dynamic';
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-visible';
 import { elAvisoDeLaCajaDeEscribir } from '@/lib/traduccion-de-chats';
 import { useTraduccionDeLaConversacion } from './hooks/useTraduccionDeLaConversacion';
+import { laUbicacionEnTexto } from '@/lib/ubicacion-de-whatsapp';
 
 // Notas nativas dentro del chat (pestaña "Notas"). Carga diferida: el editor
 // (BlockNote) solo se descarga cuando el usuario abre la pestaña, para no
@@ -988,9 +989,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   /* ─── Message actions ─── */
   const handleCopyMessage = useCallback((bubble: UIBubble) => {
-    const text = bubble.media
-      ? `[${bubble.media.type}]${bubble.content ? ` ${bubble.content}` : ''}`
-      : bubble.content;
+    // Una ubicación se copia con su enlace del mapa: su burbuja no trae texto,
+    // y copiar un hueco se lee como que el botón no hizo nada.
+    const text = bubble.ubicacion
+      ? laUbicacionEnTexto(bubble.ubicacion)
+      : bubble.media
+        ? `[${bubble.media.type}]${bubble.content ? ` ${bubble.content}` : ''}`
+        : bubble.content;
     void navigator.clipboard.writeText(text).then(() => toast.success('Copiado al portapapeles.'));
   }, []);
 
