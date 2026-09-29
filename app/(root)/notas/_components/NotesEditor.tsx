@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Archive, ArrowLeft, Check, Download, FileText, Loader2,
+  Archive, ArchiveRestore, ArrowLeft, Check, Download, FileText, Loader2,
   PanelLeftClose, PanelLeftOpen, Pin, PinOff, Smile,
   Trash2, User, UserPlus, X, Maximize2, Minimize2, Users, Eye,
 } from 'lucide-react'
@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 // en cada una, el dia que se afine como sale una lista de tareas se afina en
 // una y la otra se queda atras.
 import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from '@/lib/exportar-documento'
+import { elMandoDeArchivo } from '@/lib/archivo-de-notas'
 import type { UserNoteWithContent } from '@/actions/notes-actions'
 
 const TiptapEditor = dynamic(
@@ -110,7 +111,8 @@ interface Props {
   onSave: (content: object, title: string) => void
   onTogglePin: (id: string, isPinned: boolean) => void
   onDelete: (id: string) => void
-  onArchive: (id: string) => void
+  /** Archiva o desarchiva según `note.isArchived`: un mando, dos caras. */
+  onToggleArchive: (id: string, estaArchivada: boolean) => void
   onEmojiChange: (id: string, emoji: string | null) => void
   onColorChange: (id: string, color: string | null) => void
   onContactChange: (id: string, contactJid: string | null, contactName: string | null) => void
@@ -132,7 +134,7 @@ function countWords(content: object): number {
 
 export function NotesEditor({
   note, saving, sidebarOpen, currentUserId, canEdit, isOwner, ownerName,
-  onSave, onTogglePin, onDelete, onArchive, onEmojiChange,
+  onSave, onTogglePin, onDelete, onToggleArchive, onEmojiChange,
   onColorChange, onContactChange, onToggleSidebar, onBackToList, onApplyTemplate,
 }: Props) {
   const [title, setTitle] = useState(note.title)
@@ -177,6 +179,7 @@ export function NotesEditor({
     : undefined
 
   const noteColor = note.color ?? undefined
+  const mandoDeArchivo = elMandoDeArchivo(note.isArchived)
 
   return (
     <div
@@ -338,9 +341,17 @@ export function NotesEditor({
                 {note.isPinned ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4 text-amber-500" />}
               </Button>
 
-              {/* Archivar */}
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onArchive(note.id)} title="Archivar nota">
-                <Archive className="h-4 w-4 text-muted-foreground" />
+              {/* Archivar / Desarchivar: el mismo botón en el mismo sitio. */}
+              <Button
+                variant="ghost" size="icon" className="h-8 w-8"
+                data-mando-archivo={mandoDeArchivo.accion}
+                onClick={() => onToggleArchive(note.id, note.isArchived)}
+                title={mandoDeArchivo.titulo}
+                aria-label={mandoDeArchivo.titulo}
+              >
+                {mandoDeArchivo.accion === 'desarchivar'
+                  ? <ArchiveRestore className="h-4 w-4 text-muted-foreground" />
+                  : <Archive className="h-4 w-4 text-muted-foreground" />}
               </Button>
 
               {/* Eliminar */}
