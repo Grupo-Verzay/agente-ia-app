@@ -331,7 +331,8 @@ function FichaDeContacto({
     let cancelled = false;
     getContactFieldsConfig(ownerId).then((defs) => {
       if (cancelled) return;
-      const value = Array.isArray(defs) && defs.length ? defs : DEFAULT_CONTACT_FIELDS;
+      // Una lista vacía es válida: la ficha se queda con Nombre y Teléfono.
+      const value = Array.isArray(defs) ? defs : DEFAULT_CONTACT_FIELDS;
       fieldsConfigCache = { userId: ownerId, value };
       setFieldDefs(value);
     });

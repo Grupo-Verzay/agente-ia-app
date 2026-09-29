@@ -7,8 +7,29 @@
 # Las acciones de verdad contra Postgres; lo único fingido es `currentUser()`.
 # Corre dos veces: la segunda con `MODO=roto`, que empaqueta la acción de
 # `ANTES_REF` (pinchado a un commit, nunca origin/main) y AFIRMA el fallo.
+#
+# Y la versión 2 de la ficha (Nombre y Teléfono fijos, el resto borrable, las
+# cuentas nuevas sin campos prellenados y la migración de las listas viejas):
+#   1. la REGLA pura (`lib/contact-fields.ts`);
+#   2. la MIGRACIÓN contra Postgres, con la acción de verdad;
+#   3. el DIÁLOGO real en Chromium, sobre el Tailwind del repo.
+# Su «antes» es `ANTES_FICHA_REF`, también pinchado.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export PATH="/opt/node22/bin:$PATH"
+export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
+export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
+RAIZ="$(pwd)"
+ANTES_FICHA_REF="${ANTES_FICHA_REF:-a147eaf}"
+OUT="$RAIZ/lib/__tests__/.compilado/campos-de-la-ficha"
+mkdir -p "$OUT"
+
+# ── 1. La regla ──────────────────────────────────────────────────────────
+npx esbuild lib/contact-fields.ts --bundle --platform=node --format=esm --outfile="$OUT/reglas.js" --log-level=error
+git show "$ANTES_FICHA_REF:lib/contact-fields.ts" > "$OUT/antes-reglas.ts"
+npx esbuild "$OUT/antes-reglas.ts" --bundle --platform=node --format=esm --outfile="$OUT/antes-reglas.js" --log-level=error
+node --test lib/__tests__/campos-de-la-ficha-reglas.test.mjs
+MODO=roto node --test lib/__tests__/campos-de-la-ficha-reglas.test.mjs
 
 B=/usr/lib/postgresql/16/bin
 PGDIR=/tmp/pgcamposficha
@@ -48,6 +69,7 @@ empaquetar() { # $1 = carpeta de salida, $2.. = alias extra
 
 empaquetar lib/__tests__/.compilado/campos-de-la-ficha
 node --test lib/__tests__/campos-de-la-ficha-db.test.mjs "$@"
+node --test lib/__tests__/campos-de-la-ficha-migracion-db.test.mjs
 
 echo
 echo "── con la acción de ANTES ($ANTES_REF): tiene que afirmar el fallo ──"
@@ -57,3 +79,19 @@ trap 'rm -f "$ANTES"' EXIT
 empaquetar lib/__tests__/.compilado/campos-de-la-ficha-antes \
   --alias:@/actions/contact-fields-actions=./$ANTES
 MODO=roto node --test lib/__tests__/campos-de-la-ficha-db.test.mjs
+
+# ── 3. El diálogo real, en Chromium ──────────────────────────────────────
+echo
+echo "── el diálogo en Chromium (ahora y $ANTES_FICHA_REF) ──"
+npx tailwindcss -i app/globals.css -o "$OUT/app.css" >/dev/null 2>&1
+node scripts/empaquetar-con-acciones-mudas.mjs lib/__tests__/campos-de-la-ficha/entrada.tsx "$OUT/harness.js"
+ARBOL="$(mktemp -d)/antes"
+git worktree add --detach "$ARBOL" "$ANTES_FICHA_REF" >/dev/null
+trap 'rm -f "$ANTES"; git worktree remove --force "$ARBOL" >/dev/null 2>&1 || true' EXIT
+ln -s "$RAIZ/node_modules" "$ARBOL/node_modules"
+mkdir -p "$ARBOL/lib/__tests__/campos-de-la-ficha"
+cp lib/__tests__/campos-de-la-ficha/entrada.tsx "$ARBOL/lib/__tests__/campos-de-la-ficha/"
+(cd "$ARBOL" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+    lib/__tests__/campos-de-la-ficha/entrada.tsx "$OUT/harness-antes.js")
+node --test lib/__tests__/campos-de-la-ficha.test.mjs
+MODO=roto node --test lib/__tests__/campos-de-la-ficha.test.mjs

@@ -297,6 +297,29 @@ Lo prueba `scripts/banco-campos-de-la-ficha.sh`, contra Postgres con la familia
 de producción; `MODO=roto` empaqueta la acción de `8e41502` y afirma los dos
 fallos.
 
+### Y solo Nombre y Teléfono son fijos; el resto es de la cuenta
+
+Arriba del diálogo van **Nombre y Teléfono, fijos** (`CAMPOS_FIJOS`,
+`lib/contact-fields.ts`): no se ocultan, no se renombran, no se mueven ni se
+borran, porque son el nombre y el número del contacto en toda la plataforma y
+se editan donde aparezcan. **Todo lo demás es editable y borrable** igual que un
+campo propio, y una cuenta que nunca tocó la ficha arranca **sin campos**
+(`DEFAULT_CONTACT_FIELDS` es `[]`): debajo de los dos fijos, solo «Agregar campo».
+
+1. **Se guarda como `{ version: 2, campos }`** (`comoSeGuardaLaFicha`), y la
+   versión es lo que separa «ocultado a propósito» de «lista de antes». Una
+   lista vacía se guarda vacía; antes se convertía en los 14 de fábrica.
+2. **Una lista de antes (un arreglo) se migra al leerla**
+   (`migrarLaListaDeAntes`): fuera los de fábrica apagados y el Teléfono de
+   fábrica; se quedan los encendidos y todos los creados por la cuenta. La
+   acción la deja escrita en v2, condicionada a que siga siendo un arreglo.
+3. **Las claves fijas nunca entran en la lista**, se manden como se manden. Los
+   datos que hubiera en `ExternalClientData` bajo una clave quitada no se borran.
+
+Lo prueba `scripts/banco-campos-de-la-ficha.sh`: la regla, la migración contra
+Postgres y el diálogo real en Chromium (filas fijas alineadas con las demás);
+su «antes» es `ANTES_FICHA_REF` y afirma los 14 de fábrica sin papelera.
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`

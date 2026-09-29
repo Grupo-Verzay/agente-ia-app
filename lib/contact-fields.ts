@@ -26,8 +26,25 @@ export const DEFAULT_CONTACT_SECTIONS: ContactSectionDef[] = [
   { title: 'Libre', icon: 'FileText' },
 ];
 
-// Los 14 campos base (equivalentes al SECTIONS_CONFIG hardcodeado original).
-export const DEFAULT_CONTACT_FIELDS: ContactFieldDef[] = [
+// Los dos campos FIJOS de la ficha. No son datos de la ficha: son el mismo
+// nombre y el mismo número que la plataforma ya guarda de cada contacto (la
+// columna de chats, la cabecera, el CRM). Se editan donde aparezcan y el cambio
+// sale en todos lados porque es el MISMO dato. Por eso no viven en la lista
+// editable: no se ocultan, no se renombran, no se mueven y no se borran.
+export const CAMPOS_FIJOS: { key: string; label: string; icon: string }[] = [
+  { key: 'nombre', label: 'Nombre', icon: 'User' },
+  { key: 'telefono', label: 'Teléfono', icon: 'Phone' },
+];
+export const CLAVES_FIJAS = new Set(CAMPOS_FIJOS.map((c) => c.key));
+
+// Una cuenta que nunca tocó la ficha arranca SIN campos: solo los dos fijos y
+// el botón de agregar. No hay campos prellenados.
+export const DEFAULT_CONTACT_FIELDS: ContactFieldDef[] = [];
+
+// Los 14 campos que la ficha traía de fábrica antes de la versión 2. Ya no se
+// ofrecen: se conservan solo para saber qué era «de fábrica» al migrar una
+// lista vieja (los apagados de fábrica se quitan, los encendidos se quedan).
+export const CAMPOS_DE_FABRICA_DE_ANTES: ContactFieldDef[] = [
   { key: 'empresa',   label: 'Empresa',   section: 'Datos de negocio',  icon: 'Building2',  enabled: true, order: 0 },
   { key: 'cargo',     label: 'Cargo',     section: 'Datos de negocio',  icon: 'Briefcase',  enabled: true, order: 1 },
   { key: 'documento', label: 'Documento', section: 'Datos de negocio',  icon: 'CreditCard', enabled: true, order: 2 },
@@ -47,7 +64,7 @@ export const DEFAULT_CONTACT_FIELDS: ContactFieldDef[] = [
 // Nombres de ícono disponibles (deben existir en el ICON_MAP del cliente).
 export const CONTACT_ICON_NAMES = [
   'Building2', 'Briefcase', 'CreditCard', 'Phone', 'Mail', 'Calendar', 'Flag',
-  'MapPin', 'Home', 'Globe', 'AtSign', 'Share2', 'Linkedin', 'FileText', 'Tag',
+  'MapPin', 'Home', 'Globe', 'AtSign', 'Share2', 'Linkedin', 'FileText', 'Tag', 'User',
 ] as const;
 
 // Reglas palabra-clave → ícono para auto-asignar según la etiqueta del campo.
@@ -105,20 +122,23 @@ export function slugifyFieldKey(label: string): string {
   return base || `campo_${Math.abs(hashString(label))}`;
 }
 
-// Valida y normaliza una config arbitraria (de la BD) a ContactFieldDef[].
-// Si el valor no es válido o queda vacío, devuelve los defaults.
-export function normalizeContactFieldsConfig(raw: unknown): ContactFieldDef[] {
-  if (!Array.isArray(raw)) return DEFAULT_CONTACT_FIELDS;
+// Cómo se guarda la ficha desde la versión 2. La lista vieja era un arreglo a
+// secas; la nueva lleva su versión, y eso es lo que distingue «ya migrada»
+// (con sus campos apagados a propósito) de «lista de antes» (a migrar).
+export const VERSION_DE_LA_FICHA = 2;
+export type FichaGuardada = { version: 2; campos: ContactFieldDef[] };
 
+// Limpia una lista: claves y etiquetas válidas, sin repetidos y SIN las claves
+// fijas (esas no son de la lista). Una lista vacía se queda vacía.
+function limpiar(raw: unknown[]): ContactFieldDef[] {
   const seen = new Set<string>();
   const cleaned: ContactFieldDef[] = [];
-
   raw.forEach((item, i) => {
     if (!item || typeof item !== 'object') return;
     const f = item as Record<string, unknown>;
     const key = typeof f.key === 'string' ? f.key.trim() : '';
     const label = typeof f.label === 'string' ? f.label.trim() : '';
-    if (!key || !label || seen.has(key)) return;
+    if (!key || !label || seen.has(key) || CLAVES_FIJAS.has(key)) return;
     seen.add(key);
     cleaned.push({
       key,
@@ -131,6 +151,39 @@ export function normalizeContactFieldsConfig(raw: unknown): ContactFieldDef[] {
       custom: f.custom === true,
     });
   });
+  return cleaned.sort((a, b) => a.order - b.order).map((f, i) => ({ ...f, order: i }));
+}
 
-  return cleaned.length ? cleaned : DEFAULT_CONTACT_FIELDS;
+/** ¿Es la forma de la versión 2? */
+export function esFichaVersion2(raw: unknown): raw is FichaGuardada {
+  return !!raw && typeof raw === 'object' && !Array.isArray(raw)
+    && (raw as { version?: unknown }).version === VERSION_DE_LA_FICHA
+    && Array.isArray((raw as { campos?: unknown }).campos);
+}
+
+/**
+ * Migra una lista de ANTES (un arreglo a secas): se quitan los campos que la
+ * cuenta tenía apagados, se conservan los encendidos y TODOS los que creó ella
+ * (aunque los tuviera ocultos), y el Teléfono de fábrica se va porque ahora es
+ * uno de los dos fijos. Lo que queda pasa a ser editable y borrable como un
+ * campo propio. Es determinista: migrar dos veces da lo mismo.
+ */
+export function migrarLaListaDeAntes(raw: unknown[]): ContactFieldDef[] {
+  return limpiar(raw)
+    .filter((f) => f.custom || f.enabled)
+    .map((f, i) => ({ ...f, custom: true, order: i }));
+}
+
+// Valida y normaliza la config guardada (de la BD) a la lista editable. Sin
+// nada guardado —o con algo que no se entiende— la lista es VACÍA: una cuenta
+// nueva no recibe campos prellenados.
+export function normalizeContactFieldsConfig(raw: unknown): ContactFieldDef[] {
+  if (esFichaVersion2(raw)) return limpiar(raw.campos);
+  if (Array.isArray(raw)) return migrarLaListaDeAntes(raw);
+  return [];
+}
+
+/** Lo que se escribe en la columna: siempre la forma de la versión 2. */
+export function comoSeGuardaLaFicha(campos: unknown): FichaGuardada {
+  return { version: VERSION_DE_LA_FICHA, campos: Array.isArray(campos) ? limpiar(campos) : [] };
 }
