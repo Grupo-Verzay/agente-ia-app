@@ -44,6 +44,8 @@ const TMP = process.env.TMP_GUIA ?? "/tmp/guia-leads";
 const SIN_VIDEO = process.env.SIN_VIDEO === "1";
 /** Solo las miniaturas del índice: no rehace los pasos ni el vídeo. */
 const SOLO_MINIATURAS = process.env.SOLO_MINIATURAS === "1";
+// Solo el vídeo (p. ej. al cambiar la narración): las imágenes se conservan del disco.
+const SOLO_VIDEO = process.env.SOLO_VIDEO === "1";
 /** Dónde quedó el recuadro dentro de cada miniatura: lo lee el banco para medir el enfoque. */
 const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-leads.json");
 
@@ -742,8 +744,8 @@ try {
     });
     const p = await entrar(ctx);
     await abrirLeads(p);
-    await miniaturas(p);
-    if (!SOLO_MINIATURAS) await capturas(p);
+    if (!SOLO_VIDEO) await miniaturas(p);
+    if (!SOLO_MINIATURAS && !SOLO_VIDEO) await capturas(p);
     const estado = await ctx.storageState();
     await ctx.close();
     if (!SIN_VIDEO && !SOLO_MINIATURAS) await video(navegador, estado);
@@ -754,7 +756,7 @@ try {
 // Las que la guía enseña tienen que estar TODAS.
 const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
 // Con SOLO_MINIATURAS, lo demás se conserva del disco: basta con que esté.
-const faltan = esperadas.filter((n) => !tomadas.has(n) && !(SOLO_MINIATURAS && existsSync(path.join(SALIDA, n))));
+const faltan = esperadas.filter((n) => !tomadas.has(n) && !((SOLO_MINIATURAS || SOLO_VIDEO) && existsSync(path.join(SALIDA, n))));
 const sobran = readdirSync(SALIDA).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
 if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
 if (faltan.length) {

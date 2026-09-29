@@ -22582,9 +22582,12 @@ la misma voz del asistente de «Llamar con IA» (`lib/voicebot-voices.ts`), y es
    voz, instrucciones y texto: regenerar no repaga lo que no cambió, cambiar
    una frase nunca suena con la vieja, y el vídeo se regenera sin red hacia
    OpenAI. Lo que falte se llena con
-   `node scripts/sintetizar-voz-de-la-guia.mjs [narración]`, con la llave de la
-   plataforma (`OPENAI_SYSTEM_API_KEY`, o `OPENAI_API_KEY`) y red hacia
-   `api.openai.com`, que el entorno de trabajo en la nube NO tiene por defecto.
+   `node scripts/sintetizar-voz-de-la-guia.mjs [narración]`, con red hacia
+   `api.openai.com` —que el entorno de trabajo en la nube NO tiene— y la llave
+   **«IA CRM» de Panel › API keys** (`verzay_api_keys`), no la variable de
+   entorno: `OPENAI_SYSTEM_API_KEY` es la de «Grupo Verzay» (…g6QA) y OpenAI la
+   rechaza (401). La primera vez se sintetizó desde el contenedor de la App,
+   leyendo esa llave por su nombre con Prisma.
 2. **Sin la frase NO se cae a otra voz**: se dice qué falta. La voz de antes
    —`espeak-ng` + MBROLA `es3`, con su `arreglarPho` y su `comoSeDice`— se
    conserva solo a pedido (`VOZ_GUIA=mb-es3`). Y `scripts/voz-de-la-guia/leads.json`
