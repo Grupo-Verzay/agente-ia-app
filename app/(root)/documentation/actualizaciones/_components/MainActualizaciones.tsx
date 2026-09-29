@@ -23,7 +23,7 @@ import {
     type Actualizacion,
     type ArchivoDeActualizacion,
 } from '@/lib/actualizaciones';
-import { comoSeLeeElNombre, comoSeLeeElTamano } from '@/lib/adjuntos-del-equipo';
+import { comoSeLeeElNombre, comoSeLeeElTamano, elTipoConElQueSeGuarda } from '@/lib/adjuntos-del-equipo';
 import {
     listarActualizacionesAction,
     publicarActualizacionAction,
@@ -87,7 +87,11 @@ export function MainActualizaciones({ cuentaId }: { cuentaId: string }) {
             const r = await fetch('/api/upload', { method: 'POST', body: datos });
             const json = await r.json().catch(() => ({}));
             if (!r.ok || !json?.url) throw new Error(json?.error ?? `HTTP ${r.status}`);
-            setArchivo({ url: json.url, nombre: fichero.name, mime: fichero.type || null, tamano: fichero.size });
+            // El tipo se decide con la MISMA regla con la que la subida lo
+            // guarda en el bucket: el de verdad, no el de la extensión.
+            const cabecera = new Uint8Array(await fichero.slice(0, 16).arrayBuffer());
+            const mime = elTipoConElQueSeGuarda(fichero.name, fichero.type, cabecera);
+            setArchivo({ url: json.url, nombre: fichero.name, mime, tamano: fichero.size });
         } catch (error) {
             console.error('[actualizaciones] no se pudo subir el archivo', error);
             toast.error('No se pudo subir el archivo. Inténtalo de nuevo.');

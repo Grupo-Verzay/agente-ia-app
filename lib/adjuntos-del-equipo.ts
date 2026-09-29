@@ -74,12 +74,36 @@ export function laClaseDelAdjunto(adjunto: {
     const mime = (adjunto.mime ?? "").toLowerCase();
     if (mime.startsWith("image/")) return "imagen";
     if (mime.startsWith("video/")) return "video";
-    if (mime) return "archivo";
+    // Un mime GENÉRICO no dice nada: es el navegador reconociendo que no sabe
+    // qué es. Dándolo por bueno, un `.mp4` subido como `octet-stream` salía
+    // como documento, y al pulsarlo se DESCARGABA en vez de reproducirse. Con
+    // uno de estos manda la extensión, igual que con el mime vacío.
+    if (mime && !esUnMimeGenerico(mime)) return "archivo";
 
     const donde = (adjunto.nombre || adjunto.url || "").toLowerCase().split(/[?#]/)[0];
     if (/\.(png|jpe?g|gif|webp|avif|bmp|heic|heif)$/.test(donde)) return "imagen";
-    if (/\.(mp4|webm|mov|m4v|ogv)$/.test(donde)) return "video";
+    if (EXTENSION_DE_VIDEO.test(donde)) return "video";
     return "archivo";
+}
+
+/** Las extensiones que se pintan como reproductor. */
+export const EXTENSION_DE_VIDEO = /\.(mp4|webm|mov|m4v|ogv)$/;
+
+/**
+ * Los mime que no dicen qué es el fichero: `application/octet-stream` (el
+ * «no sé» de casi todos los navegadores), `binary/octet-stream` (el de S3) y
+ * los `x-unknown`. Con ellos se decide por la extensión.
+ */
+export function esUnMimeGenerico(mime: string | null | undefined): boolean {
+    const m = (mime ?? "").trim().toLowerCase().split(";")[0];
+    return (
+        !m ||
+        m === "application/octet-stream" ||
+        m === "binary/octet-stream" ||
+        m === "application/x-unknown" ||
+        m === "application/unknown" ||
+        m === "unknown/unknown"
+    );
 }
 
 /**
@@ -188,4 +212,75 @@ export function comoSeGuardaElAdjunto(
         mime: /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(mime) ? mime.slice(0, 120) : null,
         tamano,
     };
+}
+
+/** El tipo de cada extensión de medio que el navegador sabe pintar. */
+const TIPO_POR_EXTENSION: Record<string, string> = {
+    mp4: "video/mp4",
+    m4v: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+    ogv: "video/ogg",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    avif: "image/avif",
+    pdf: "application/pdf",
+};
+
+/**
+ * El contenedor de video que dicen los PRIMEROS BYTES del fichero, o `null`.
+ *
+ * Hace falta porque la extensión miente: se vio en producción un «Leads.mp4»
+ * que por dentro era un WebM (cabecera EBML), servido como `video/mp4`. Chrome
+ * lo reproduce igual, pero Safari se fía del tipo, intenta leerlo como MP4 y
+ * no arranca. El tipo que se guarda tiene que ser el de lo que HAY.
+ */
+export function elVideoDeLaCabecera(cabecera: Uint8Array | null | undefined): string | null {
+    if (!cabecera || cabecera.length < 12) return null;
+    // WebM / Matroska: EBML, 1A 45 DF A3.
+    if (cabecera[0] === 0x1a && cabecera[1] === 0x45 && cabecera[2] === 0xdf && cabecera[3] === 0xa3) {
+        return "video/webm";
+    }
+    // ISO BMFF: `ftyp` en los bytes 4..7; la marca `qt  ` es QuickTime.
+    const ftyp = String.fromCharCode(cabecera[4], cabecera[5], cabecera[6], cabecera[7]);
+    if (ftyp === "ftyp") {
+        const marca = String.fromCharCode(cabecera[8], cabecera[9], cabecera[10], cabecera[11]);
+        return marca === "qt  " ? "video/quicktime" : "video/mp4";
+    }
+    return null;
+}
+
+/**
+ * El `Content-Type` con el que se GUARDA un fichero en el bucket.
+ *
+ * Tres fuentes, en este orden:
+ *
+ * 1. **Los primeros bytes**, si dicen que es un video y el navegador también
+ *    creía que era video (o no sabía qué era): un WebM con nombre `.mp4` se
+ *    guarda como `video/webm`. No se usan para convertir en video algo que el
+ *    navegador dijo que era otra cosa.
+ * 2. **Lo que dijo el navegador**, salvo que sea genérico o venga vacío.
+ * 3. **La extensión**. Sin esto un video subido sin tipo quedaba servido como
+ *    `application/octet-stream`, y lo que se sirve así el navegador lo
+ *    DESCARGA en vez de reproducirlo o abrirlo.
+ */
+export function elTipoConElQueSeGuarda(
+    nombre: string | null | undefined,
+    tipo: string | null | undefined,
+    cabecera?: Uint8Array | null,
+): string {
+    const limpio = (tipo ?? "").trim();
+    const generico = esUnMimeGenerico(limpio);
+    const extension = /\.([a-z0-9]{1,8})$/i.exec((nombre ?? "").split(/[?#]/)[0])?.[1]?.toLowerCase() ?? "";
+    const porExtension = TIPO_POR_EXTENSION[extension];
+
+    const deLaCabecera = elVideoDeLaCabecera(cabecera);
+    const pareceVideo = limpio.toLowerCase().startsWith("video/") || (generico && porExtension?.startsWith("video/"));
+    if (deLaCabecera && pareceVideo) return deLaCabecera;
+
+    if (limpio && !generico) return limpio;
+    return porExtension ?? (limpio || "application/octet-stream");
 }

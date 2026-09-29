@@ -4,6 +4,7 @@ import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-
 import { Readable } from 'stream';
 import { minioClient } from '@/lib/minio';
 import { randomUUID } from 'crypto';
+import { elTipoConElQueSeGuarda } from '@/lib/adjuntos-del-equipo';
 
 export async function POST(req: Request) {
   // Sin esto, cualquiera -con o sin sesion- podia subir archivos al bucket.
@@ -31,6 +32,9 @@ export async function POST(req: Request) {
 
   try {
     const nameFormatted = file.name.replaceAll(' ', '_');
+    // Los primeros bytes dicen qué contenedor es de verdad (un WebM con nombre
+    // `.mp4` existe, y se vio en producción).
+    const cabecera = new Uint8Array(await file.slice(0, 16).arrayBuffer());
     const bucketName = process.env.S3_BUCKET_NAME || 'verzay-media';
     
     // Estructura: userID/workflowID/UUID-filename.ext
@@ -41,7 +45,9 @@ export async function POST(req: Request) {
       filePath,
       Readable.fromWeb(file.stream() as never),
       file.size,
-      { 'Content-Type': file.type }
+      // Un tipo vacío o genérico se saca de la extensión: servido como
+      // `octet-stream`, un video se descarga en vez de reproducirse.
+      { 'Content-Type': elTipoConElQueSeGuarda(file.name, file.type, cabecera) }
     );
 
     const fileUrl = `${process.env.S3_PUBLIC_URL}/${bucketName}/${filePath}`;

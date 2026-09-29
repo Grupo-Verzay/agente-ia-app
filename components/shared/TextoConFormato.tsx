@@ -79,6 +79,41 @@ export function TextoConFormato({
     return <>{conFormato(texto)}</>;
 }
 
+/**
+ * Un texto con sus direcciones pulsables y NADA MÁS: sin leer las marcas de
+ * WhatsApp.
+ *
+ * Es para el texto que escribe la casa —una actualización— y no viaja por
+ * WhatsApp: ahí un `*` es un asterisco, y leerlo como negrilla cambiaría lo
+ * que se publicó. Los enlaces son los MISMOS que en los chats (`partirPorEnlaces`
+ * y `Enlace`): la misma regla de qué es una dirección, de qué es de dentro y de
+ * cómo se abre lo de fuera.
+ */
+export function TextoConEnlaces({
+    texto,
+    origen = '',
+    claseDelEnlace,
+}: {
+    texto: string;
+    origen?: string;
+    /** El aspecto del enlace; por defecto el de los chats. */
+    claseDelEnlace?: string;
+}): React.ReactElement | null {
+    if (!texto) return null;
+    if (!pareceLlevarEnlaces(texto)) return <>{texto}</>;
+    return (
+        <>
+            {partirPorEnlaces(texto).map((parte, i) =>
+                parte.tipo === 'enlace' ? (
+                    <Enlace key={i} texto={parte.texto} href={parte.href} origen={origen} clase={claseDelEnlace} />
+                ) : (
+                    <React.Fragment key={i}>{parte.texto}</React.Fragment>
+                ),
+            )}
+        </>
+    );
+}
+
 function conFormato(texto: string): React.ReactNode {
     if (!texto) return null;
     if (!pareceLlevarFormato(texto)) return texto;
@@ -103,12 +138,14 @@ function Enlace({
     texto,
     href,
     origen,
+    clase,
 }: {
     texto: string;
     href: string;
     origen: string;
+    clase?: string;
 }): React.ReactElement {
-    const clases = 'break-all underline underline-offset-2 hover:opacity-80';
+    const clases = clase ?? 'break-all underline underline-offset-2 hover:opacity-80';
     const ruta = laRutaDeLaPlataforma(href, origen);
 
     if (ruta) {

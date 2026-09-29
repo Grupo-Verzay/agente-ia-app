@@ -96,7 +96,17 @@ export function AvisoDeActualizacion() {
                     </DialogDescription>
                 </DialogHeader>
 
-                <ContenidoDeLaActualizacion actualizacion={actualizacion} completa={completa} />
+                <ContenidoDeLaActualizacion
+                    actualizacion={actualizacion}
+                    completa={completa}
+                    // Pulsar un enlace es haberla leído. Uno de DENTRO navega en
+                    // esta pestaña, así que la ventana se cierra: si no, se
+                    // quedaría tapando la pantalla a la que lleva.
+                    alAbrirUnEnlace={(deDentro) => {
+                        marcar('vista');
+                        if (deDentro) setAbierta(false);
+                    }}
+                />
 
                 <DialogFooter>
                     <Button variant="outline" onClick={cerrar} data-boton-cerrar-actualizacion>

@@ -19414,6 +19414,30 @@ acciones contra Postgres, y en Chromium las cuatro tarjetas (orden y simetría a
 1440/1280/1024/390) y la ventana. `MODO=roto` pinta la página de `ANTES_REF` y
 afirma «Plantillas IA» dentro y ninguna ventana.
 
+### Enlaces en el texto, y el video se REPRODUCE en la tarjeta
+
+Las direcciones del texto se pintan con `TextoConEnlaces`
+(`components/shared/TextoConFormato.tsx`): la MISMA regla de enlaces que los
+chats (`partirPorEnlaces`, lo de dentro navega, lo de fuera abre pestaña con
+`noopener`) y SIN leer las marcas de WhatsApp: esto no viaja por WhatsApp. En la
+ventana, pulsar un enlace la marca como vista y uno de dentro la cierra.
+
+El video no se descargaba por el reproductor: se descargaba por salir como
+DOCUMENTO. Tres reglas:
+
+1. **Un mime genérico (`octet-stream`) no decide la clase**: manda la
+   extensión (`esUnMimeGenerico`, en `laClaseDelAdjunto`).
+2. **El bucket guarda el tipo de lo que HAY** (`elTipoConElQueSeGuarda`, con
+   los primeros bytes, en `/api/upload`). En producción se subió un
+   «Leads.mp4» que por dentro es un WebM, servido como `video/mp4`: Chrome lo
+   reproduce, Safari no.
+3. **Reproducir es un botón encima del video** (`data-reproducir-video`), no
+   el clic en la superficie, que Safari no atiende; y `controlsList="nodownload"`.
+
+Lo prueba `scripts/banco-contenido-de-actualizacion.sh`, en la tarjeta y en la
+ventana con ese mismo video servido como lo sirve el bucket; `MODO=roto` monta
+`0a3f714` y afirma el texto plano y la descarga.
+
 ## Mis notas: archivar y desarchivar son UN botón con dos caras
 
 Una nota archivada no tenía forma de volver a la lista activa. La acción de
