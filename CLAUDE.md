@@ -22530,6 +22530,17 @@ Cinco cosas que hay que mantener:
 Lo prueba `scripts/banco-propuestas.sh`; `MODO=roto` lee `73f991f` y afirma la
 cabecera oscura, el nombre junto al logo y el botón que solo abría `wa.me`.
 
+### El ancho: crece en escritorio por escalones, y el párrafo se topa
+
+Era una tira de 672 px (`max-w-2xl`) en medio de cualquier pantalla. Ahora
+`ANCHO_DE_LA_PROPUESTA` crece solo desde `lg`: 896, 1024 (`xl`) y 1152 px
+(`2xl`), centrado y siempre con margen a los lados; hasta `md` —tableta y
+móvil— no cambia nada. Y los párrafos largos (alcance, nota, condiciones,
+pago) llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea):
+con el contenedor ancho se leerían a 140. Lo prueba
+`scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
+1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
