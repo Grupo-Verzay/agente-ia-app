@@ -14,6 +14,20 @@
  * fecha, ni de un contador—: quien no tiene el enlace no tiene forma de llegar
  * a una propuesta ajena. `base64url` y no `base64`: va en una URL y un `+` o un
  * `/` se escapan por el camino.
+ *
+ * # El enlace PERSONALIZADO es opcional, y el token no se va
+ *
+ * Quien administra la cuenta puede ponerle a una propuesta un texto corto y
+ * legible (`slug`: «clinica-sonrisa»), como el de una landing. Tres cosas:
+ *
+ * 1. **Sin personalizar sigue siendo el token**: el enlace que se arma es el de
+ *    los 32 caracteres, y nada cambia para quien no toca el campo.
+ * 2. **Personalizado, el token SIGUE abriendo la propuesta.** El enlace que ya
+ *    se mandó por WhatsApp no se rompe por ponerle un nombre bonito después.
+ * 3. **Un slug nunca puede confundirse con un token**: va de 3 a
+ *    `TOPE_DE_SLUG` (30) caracteres y un token tiene exactamente 32, así que
+ *    un texto que alguien elige no puede tapar la puerta de otra propuesta.
+ *    Es ÚNICO entre todas las propuestas de la plataforma (la URL es global).
  */
 
 export const MONEDAS = ["COP", "USD", "EUR", "MXN", "PEN", "CLP", "ARS", "BRL", "GTQ", "DOP", "CRC", "BOB", "PYG", "UYU"] as const;
@@ -71,6 +85,42 @@ export function comoVisibilidadDeNota(v: unknown): VisibilidadDeNota {
 export const LARGO_DEL_TOKEN = 32;
 const FORMA_DEL_TOKEN = /^[A-Za-z0-9_-]{32}$/;
 
+export const MINIMO_DE_SLUG = 3;
+/** Por DEBAJO del largo del token a propósito: un slug nunca tiene su forma. */
+export const TOPE_DE_SLUG = 30;
+const FORMA_DEL_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * El enlace personalizado como lo teclea una persona: «Clínica Sonrisa 2026»
+ * pasa a «clinica-sonrisa-2026» —minúsculas, sin acentos, lo demás en guiones—,
+ * la MISMA normalización que el slug de una landing. `""` es «sin
+ * personalizar»; `null`, que lo escrito no da un enlace válido (menos de 3 o
+ * más de 30 caracteres después de limpiarlo).
+ */
+export function comoSlug(v: unknown): string | null {
+    if (typeof v !== "string") return "";
+    const crudo = v.trim();
+    if (!crudo) return "";
+    const limpio = crudo
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    if (limpio.length < MINIMO_DE_SLUG || limpio.length > TOPE_DE_SLUG) return null;
+    return limpio;
+}
+
+export function esSlugValido(v: unknown): v is string {
+    return typeof v === "string" && v.length >= MINIMO_DE_SLUG && v.length <= TOPE_DE_SLUG && FORMA_DEL_SLUG.test(v);
+}
+
+/** Lo que va detrás de `/propuesta/`: el slug si se personalizó, si no el token. */
+export function laLlaveDelEnlace(p: { token: string; slug?: string | null }): string {
+    return p.slug && esSlugValido(p.slug) ? p.slug : p.token;
+}
+
 export type ServicioDePropuesta = {
     nombre: string;
     alcance: string;
@@ -101,6 +151,8 @@ export type DatosDePropuesta = {
     notaVisibilidad: VisibilidadDeNota;
     metodoPago: string;
     medioPago: string;
+    /** El enlace personalizado; `""` = sin personalizar (se usa el token). */
+    slug: string;
 };
 
 export type Propuesta = DatosDePropuesta & {
@@ -119,7 +171,7 @@ export type Propuesta = DatosDePropuesta & {
  */
 export type PropuestaPublica = Omit<
     Propuesta,
-    "id" | "vecesAbierta" | "ultimaVezAbierta" | "creadaEn" | "whatsapp" | "linea" | "correo" | "notaVisibilidad"
+    "id" | "vecesAbierta" | "ultimaVezAbierta" | "creadaEn" | "whatsapp" | "linea" | "correo" | "notaVisibilidad" | "slug"
 > & {
     negocio: { nombre: string; logo: string | null; eslogan: string };
 };
@@ -285,6 +337,14 @@ export function comoPropuesta(raw: unknown): Veredicto {
         vigencia = crudaVig;
     }
 
+    const slug = comoSlug(r.slug);
+    if (slug === null) {
+        return {
+            ok: false,
+            motivo: `El enlace personalizado tiene que tener entre ${MINIMO_DE_SLUG} y ${TOPE_DE_SLUG} letras, números o guiones.`,
+        };
+    }
+
     return {
         ok: true,
         datos: {
@@ -305,6 +365,7 @@ export function comoPropuesta(raw: unknown): Veredicto {
             notaVisibilidad: comoVisibilidadDeNota(r.notaVisibilidad),
             metodoPago: linea(r.metodoPago, TOPE_DE_METODO_DE_PAGO),
             medioPago: texto(r.medioPago, TOPE_DE_MEDIO_DE_PAGO),
+            slug,
         },
     };
 }
@@ -354,6 +415,11 @@ export function laRutaPublica(token: string): string {
 
 export function elEnlacePublico(origen: string, token: string): string {
     return `${origen.replace(/\/+$/, "")}${laRutaPublica(token)}`;
+}
+
+/** El enlace que se copia y se manda: el personalizado si lo hay, si no el del token. */
+export function elEnlaceDeLaPropuesta(origen: string, p: { token: string; slug?: string | null }): string {
+    return elEnlacePublico(origen, laLlaveDelEnlace(p));
 }
 
 /** El texto que se abre en WhatsApp para mandar el enlace. */

@@ -9,7 +9,7 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
 import {
     comoPropuesta,
-    elEnlacePublico,
+    elEnlaceDeLaPropuesta,
     elJidDelWhatsapp,
     elMensajeDeWhatsapp,
     type DatosDePropuesta,
@@ -24,6 +24,7 @@ import {
     editarPlantilla,
     editarPropuesta,
     elEsloganDe,
+    EnlaceOcupado,
     lasPlantillasDe,
     laPropuestaDeLaCuenta,
     lasLineasParaEnviar,
@@ -57,6 +58,8 @@ async function quienManda(): Promise<{ cuenta: string; personaId: string } | nul
     if (!cuenta) return null;
     return { cuenta, personaId: laPersonaQueActua(user).id };
 }
+
+const ENLACE_OCUPADO = "Ese enlace personalizado ya lo usa otra propuesta: elige otro.";
 
 const NO_AUTORIZADO = { success: false as const, message: "No autorizado." };
 
@@ -103,6 +106,7 @@ export async function crearPropuestaAction(raw: unknown): Promise<Respuesta<Prop
         revalidatePath(RUTA);
         return { success: true, data: p };
     } catch (error) {
+        if (error instanceof EnlaceOcupado) return { success: false, message: ENLACE_OCUPADO };
         console.error("[propuestas] no se pudo crear", { cuenta: q.cuenta, error: String(error) });
         return { success: false, message: "No se pudo crear la propuesta." };
     }
@@ -122,6 +126,7 @@ export async function editarPropuestaAction(id: unknown, raw: unknown): Promise<
         revalidatePath(RUTA);
         return { success: true, data: p };
     } catch (error) {
+        if (error instanceof EnlaceOcupado) return { success: false, message: ENLACE_OCUPADO };
         console.error("[propuestas] no se pudo editar", { cuenta: q.cuenta, id, error: String(error) });
         return { success: false, message: "No se pudo guardar la propuesta." };
     }
@@ -249,7 +254,7 @@ export async function enviarPropuestaPorWhatsappAction(id: unknown): Promise<Res
             console.warn("[propuestas] la línea elegida no está conectada", { cuenta: q.cuenta, linea: p.linea, otra: dispatcher?.instanceName ?? null });
             return { success: false, message: `La línea «${deLaCuenta.nombre}» no está conectada ahora mismo. Conéctala y vuelve a intentarlo.` };
         }
-        const enlace = elEnlacePublico(await elOrigenDeLaApp(), p.token);
+        const enlace = elEnlaceDeLaPropuesta(await elOrigenDeLaApp(), p);
         const r = await sendViaWhatsAppDispatcher({
             dispatcher,
             remoteJid: elJidDelWhatsapp(p.whatsapp),

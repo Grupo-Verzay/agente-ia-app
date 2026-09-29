@@ -11,6 +11,7 @@ import {
     comoTipoDeItems,
     comoVisibilidadDeNota,
     esLineaParaEnviar,
+    esSlugValido,
     esTokenValido,
     laNotaQueSeEnsena,
     type DatosDePropuesta,
@@ -30,6 +31,10 @@ import {
  * - `token` es la puerta de la página pública, con índice ÚNICO. Lo genera el
  *   servidor (`randomBytes`) y no se regenera al editar: el enlace que ya se
  *   mandó por WhatsApp tiene que seguir llevando a la propuesta, ahora al día.
+ * - `slug` es el enlace PERSONALIZADO, opcional (`''` = sin personalizar), con
+ *   índice único PARCIAL (solo donde no está vacío): dos propuestas no pueden
+ *   tener el mismo, y las que no lo tienen no chocan entre ellas. El token no se
+ *   toca al ponerlo: los dos abren la misma propuesta.
  * - `servicios` va en JSONB: son las filas de UNA propuesta, se leen y se
  *   escriben siempre juntas y nunca se consultan por separado.
  */
@@ -94,6 +99,14 @@ function asegurarLasTablas(): Promise<void> {
                 ADD COLUMN IF NOT EXISTS "notaVisibilidad" TEXT NOT NULL DEFAULT 'interna',
                 ADD COLUMN IF NOT EXISTS "metodoPago" TEXT NOT NULL DEFAULT '',
                 ADD COLUMN IF NOT EXISTS "medioPago" TEXT NOT NULL DEFAULT ''
+        `);
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "propuestas_comerciales"
+                ADD COLUMN IF NOT EXISTS "slug" TEXT NOT NULL DEFAULT ''
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE UNIQUE INDEX IF NOT EXISTS "propuestas_comerciales_slug_key"
+            ON "propuestas_comerciales" ("slug") WHERE "slug" <> ''
         `);
         // Las PLANTILLAS DE PLANES de la cuenta: independientes de Productos y
         // sin tope de cuántas. Una propuesta no guarda su id: guarda una COPIA
@@ -178,12 +191,13 @@ type Fila = {
     notaVisibilidad: string | null;
     metodoPago: string | null;
     medioPago: string | null;
+    slug: string | null;
 };
 
 const COLUMNAS = `"id", "token", "cliente", "fecha", "moneda", "servicios", "mantenimientoMensual",
        "mantenimientoDescripcion", "condiciones", "vecesAbierta", "ultimaVezAbierta", "creadaEn", "actualizadaEn",
        "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota", "notaVisibilidad",
-       "metodoPago", "medioPago"`;
+       "metodoPago", "medioPago", "slug"`;
 
 function comoServicios(v: unknown): ServicioDePropuesta[] {
     const lista = Array.isArray(v) ? v : typeof v === "string" ? safeParse(v) : [];
@@ -234,6 +248,7 @@ function comoPropuestaDeLaFila(f: Fila): Propuesta {
         notaVisibilidad: comoVisibilidadDeNota(f.notaVisibilidad),
         metodoPago: f.metodoPago ?? "",
         medioPago: f.medioPago ?? "",
+        slug: f.slug ?? "",
         vecesAbierta: Number(f.vecesAbierta ?? 0) || 0,
         ultimaVezAbierta: f.ultimaVezAbierta ? new Date(f.ultimaVezAbierta).toISOString() : null,
         creadaEn: new Date(f.creadaEn).toISOString(),
@@ -254,7 +269,40 @@ function camposNuevos(d: DatosDePropuesta): unknown[] {
         d.notaVisibilidad,
         d.metodoPago,
         d.medioPago,
+        d.slug,
     ];
+}
+
+/**
+ * El enlace personalizado ya lo usa OTRA propuesta. Se distingue de cualquier
+ * otro fallo para que la pantalla diga qué cambiar, no «no se pudo guardar».
+ */
+export class EnlaceOcupado extends Error {
+    constructor() {
+        super("Ese enlace personalizado ya lo usa otra propuesta.");
+        this.name = "EnlaceOcupado";
+    }
+}
+
+/** Solo el choque con el índice del SLUG; cualquier otro 23505 sube tal cual. */
+function esEnlaceOcupado(error: unknown): boolean {
+    const e = error as { code?: unknown; meta?: { code?: unknown; message?: unknown }; message?: unknown };
+    const codigo = String(e?.meta?.code ?? e?.code ?? "");
+    const texto = `${String(e?.message ?? "")} ${String(e?.meta?.message ?? "")}`;
+    // En una consulta en crudo Prisma no trae el nombre del índice: el mensaje
+    // de Postgres dice la COLUMNA («Key (slug)=(…) already exists»). Se miran
+    // los dos, y cualquier otro 23505 —el token, que no se repite— sube tal cual.
+    const esDelSlug = texto.includes("propuestas_comerciales_slug_key") || texto.includes("Key (slug)=");
+    return (codigo === "23505" || texto.includes("23505")) && esDelSlug;
+}
+
+async function traduciendoElChoque<T>(hacer: () => Promise<T>): Promise<T> {
+    try {
+        return await hacer();
+    } catch (error) {
+        if (esEnlaceOcupado(error)) throw new EnlaceOcupado();
+        throw error;
+    }
 }
 
 /** Las de una cuenta, la más reciente primero. */
@@ -285,15 +333,15 @@ export async function laPropuestaDeLaCuenta(cuentaId: string, id: string): Promi
 }
 
 export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: string; creadoPorId: string | null }): Promise<Propuesta> {
-    return conLasTablas(async () => {
+    return conLasTablas(() => traduciendoElChoque(async () => {
         const filas = await db.$queryRawUnsafe<Fila[]>(
             `INSERT INTO "propuestas_comerciales"
                 ("id", "cuentaId", "token", "cliente", "fecha", "moneda", "servicios",
                  "mantenimientoMensual", "mantenimientoDescripcion", "condiciones", "creadoPorId",
                  "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota",
-                 "notaVisibilidad", "metodoPago", "medioPago")
+                 "notaVisibilidad", "metodoPago", "medioPago", "slug")
              VALUES ($1, $2, $3, $4, $5::date, $6, $7::jsonb, $8::numeric, $9, $10, $11,
-                     $12, $13, $14, $15, $16, $17::date, $18, $19, $20, $21)
+                     $12, $13, $14, $15, $16, $17::date, $18, $19, $20, $21, $22)
              RETURNING ${COLUMNAS}`,
             randomUUID(),
             datos.cuentaId,
@@ -309,7 +357,7 @@ export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: strin
             ...camposNuevos(datos),
         );
         return comoPropuestaDeLaFila(filas[0]!);
-    });
+    }));
 }
 
 /**
@@ -317,14 +365,14 @@ export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: strin
  * mandó sigue siendo el mismo y enseña la versión nueva.
  */
 export async function editarPropuesta(cuentaId: string, id: string, datos: DatosDePropuesta): Promise<Propuesta | null> {
-    return conLasTablas(async () => {
+    return conLasTablas(() => traduciendoElChoque(async () => {
         const filas = await db.$queryRawUnsafe<Fila[]>(
             `UPDATE "propuestas_comerciales" SET
                 "cliente" = $3, "fecha" = $4::date, "moneda" = $5, "servicios" = $6::jsonb,
                 "mantenimientoMensual" = $7::numeric, "mantenimientoDescripcion" = $8,
                 "condiciones" = $9, "tipoDeItems" = $10, "empresa" = $11, "whatsapp" = $12,
                 "linea" = $13, "correo" = $14, "vigencia" = $15::date, "nota" = $16,
-                "notaVisibilidad" = $17, "metodoPago" = $18, "medioPago" = $19,
+                "notaVisibilidad" = $17, "metodoPago" = $18, "medioPago" = $19, "slug" = $20,
                 "actualizadaEn" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "cuentaId" = $2
              RETURNING ${COLUMNAS}`,
@@ -340,7 +388,7 @@ export async function editarPropuesta(cuentaId: string, id: string, datos: Datos
             ...camposNuevos(datos),
         );
         return filas[0] ? comoPropuestaDeLaFila(filas[0]) : null;
-    });
+    }));
 }
 
 export async function borrarPropuesta(cuentaId: string, id: string): Promise<boolean> {
@@ -355,7 +403,10 @@ export async function borrarPropuesta(cuentaId: string, id: string): Promise<boo
 }
 
 /**
- * La propuesta de la página pública, por su token, y cuenta la visita.
+ * La propuesta de la página pública, por su token O por su enlace
+ * personalizado, y cuenta la visita. Las dos formas no se pisan: un token tiene
+ * 32 caracteres y un slug como mucho 30, así que se pregunta por la columna que
+ * toca y nunca por las dos.
  *
  * Lo que sale de aquí va a un navegador SIN sesión, así que se elige campo por
  * campo: ni el id de la fila, ni la cuenta, ni cuántas veces se abrió. Del
@@ -364,15 +415,19 @@ export async function borrarPropuesta(cuentaId: string, id: string): Promise<boo
  * propia fila: esa dirección la escribió la cuenta, y la página no le pide al
  * navegador del cliente nada que no sea nuestro.
  */
-export async function laPropuestaPublica(token: string): Promise<PropuestaPublica | null> {
-    if (!esTokenValido(token)) return null;
+export async function laPropuestaPublica(llave: string): Promise<PropuestaPublica | null> {
+    // El token distingue mayúsculas; un slug se guarda en minúsculas, así que
+    // «/propuesta/Clinica-Sonrisa» tecleado a mano abre igual.
+    const valor: string = typeof llave !== "string" ? "" : esTokenValido(llave) ? llave : String(llave).toLowerCase();
+    const columna = esTokenValido(valor) ? "token" : esSlugValido(valor) ? "slug" : null;
+    if (!columna) return null;
     return conLasTablas(async () => {
         const filas = await db.$queryRawUnsafe<(Fila & { cuentaId: string })[]>(
             `UPDATE "propuestas_comerciales"
              SET "vecesAbierta" = "vecesAbierta" + 1, "ultimaVezAbierta" = CURRENT_TIMESTAMP
-             WHERE "token" = $1
+             WHERE "${columna}" = $1
              RETURNING ${COLUMNAS}, "cuentaId"`,
-            token,
+            valor,
         );
         const f = filas[0];
         if (!f) return null;

@@ -33,6 +33,9 @@ import {
     TOPE_DE_NOTA,
     TOPE_DE_SERVICIOS,
     comoTipoDeItems,
+    comoSlug,
+    MINIMO_DE_SLUG,
+    TOPE_DE_SLUG,
     type Propuesta,
     type TipoDeItems,
     type VisibilidadDeNota,
@@ -63,6 +66,7 @@ export type BorradorDePropuesta = {
     notaVisibilidad: VisibilidadDeNota;
     metodoPago: string;
     medioPago: string;
+    slug: string;
 };
 
 const CAMPOS_NUEVOS_VACIOS = {
@@ -76,6 +80,7 @@ const CAMPOS_NUEVOS_VACIOS = {
     notaVisibilidad: "interna" as VisibilidadDeNota,
     metodoPago: "",
     medioPago: "",
+    slug: "",
 };
 
 const SERVICIO_VACIO: ServicioEnEdicion = { nombre: "", alcance: "", inversion: "" };
@@ -113,6 +118,7 @@ export function borradorDe(p: Propuesta | null): BorradorDePropuesta {
         notaVisibilidad: p.notaVisibilidad,
         metodoPago: p.metodoPago,
         medioPago: p.medioPago,
+        slug: p.slug ?? "",
     };
 }
 
@@ -125,6 +131,7 @@ export function FormularioDePropuesta({
     abierto,
     propuesta,
     lineas,
+    origen = "",
     plantillas = [],
     guardando,
     onCerrar,
@@ -133,6 +140,8 @@ export function FormularioDePropuesta({
     abierto: boolean;
     propuesta: Propuesta | null;
     lineas: LineaDelFormulario[];
+    /** Para enseñar el enlace como va a quedar. */
+    origen?: string;
     plantillas?: PlantillaDePlan[];
     guardando: boolean;
     onCerrar: () => void;
@@ -154,6 +163,8 @@ export function FormularioDePropuesta({
     const Rotulo = rotulos.singular.charAt(0).toUpperCase() + rotulos.singular.slice(1);
     // Una propuesta vieja puede apuntar a una línea que ya no está: se enseña
     // igual, para que se vea y se pueda cambiar, en vez de vaciarla callando.
+    const slugLimpio = comoSlug(b.slug);
+    const host = origen.replace(/^https?:\/\//, "").replace(/\/+$/, "");
     const lineaPerdida = b.linea && !lineas.some((l) => l.instanceName === b.linea) ? b.linea : null;
 
     /**
@@ -188,7 +199,7 @@ export function FormularioDePropuesta({
                     <DialogTitle>{propuesta ? "Editar propuesta" : "Nueva propuesta"}</DialogTitle>
                     <DialogDescription>
                         {propuesta
-                            ? "El enlace público no cambia: quien ya lo tiene verá la versión nueva."
+                            ? "Quien ya tiene el enlace verá la versión nueva."
                             : "Al crearla se genera su página pública con un enlace propio."}
                     </DialogDescription>
                 </DialogHeader>
@@ -304,6 +315,30 @@ export function FormularioDePropuesta({
                         {lineas.length === 0 ? (
                             <p className="text-xs text-muted-foreground">Esta cuenta no tiene líneas de WhatsApp conectadas.</p>
                         ) : null}
+                    </div>
+
+                    <div className="space-y-1.5" data-campo-slug>
+                        <Label htmlFor="propuesta-slug">Enlace personalizado (opcional)</Label>
+                        <div className="flex h-10 items-center rounded-md border border-input bg-background pl-3 text-sm">
+                            <span className="shrink-0 text-muted-foreground">/propuesta/</span>
+                            <Input
+                                id="propuesta-slug"
+                                value={b.slug}
+                                maxLength={TOPE_DE_SLUG * 2}
+                                autoComplete="off"
+                                spellCheck={false}
+                                onChange={(e) => setB((x) => ({ ...x, slug: e.target.value }))}
+                                placeholder="clinica-sonrisa"
+                                className="h-full min-w-0 border-0 bg-transparent pl-0.5 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground" data-vista-del-enlace>
+                            {slugLimpio === null
+                                ? `Tiene que tener entre ${MINIMO_DE_SLUG} y ${TOPE_DE_SLUG} letras, números o guiones.`
+                                : slugLimpio
+                                  ? `Quedará: ${host}/propuesta/${slugLimpio}${propuesta ? " — el enlace con el código sigue funcionando." : ""}`
+                                  : "Vacío: se usa un código aleatorio que nadie puede adivinar."}
+                        </p>
                     </div>
 
                     <div className="space-y-2">

@@ -22530,6 +22530,25 @@ Cinco cosas que hay que mantener:
 Lo prueba `scripts/banco-propuestas.sh`; `MODO=roto` lee `73f991f` y afirma la
 cabecera oscura, el nombre junto al logo y el botón que solo abría `wa.me`.
 
+### El enlace personalizado (`slug`): opcional, único, y el token no se va
+
+En el formulario se puede poner un texto corto («clinica-sonrisa») y el enlace
+pasa a ser `/propuesta/clinica-sonrisa`, como el de una landing. Cinco cosas:
+
+1. **Sin personalizar sigue siendo el token** de 32 caracteres: no adivinable.
+2. **Con slug, el token SIGUE abriendo la propuesta**: lo ya mandado no se rompe.
+3. **Un slug mide de 3 a 30 y un token exactamente 32**, así que nunca tienen la
+   misma forma y `laPropuestaPublica` pregunta por UNA columna, nunca por las dos.
+4. **Único en toda la plataforma** (la URL es global), con índice único PARCIAL
+   (`WHERE "slug" <> ''`); el choque se traduce a «ya lo usa otra propuesta».
+   Ojo: en SQL en crudo el 23505 no trae el nombre del índice, dice
+   `Key (slug)=`; se miran los dos.
+5. **El enlace lo arma una función** (`elEnlaceDeLaPropuesta`): copiar, WhatsApp
+   y el aviso al guardar. Se normaliza como el de la landing (minúsculas, sin
+   acentos, guiones) y se guarda así; tecleado en mayúsculas abre igual.
+
+`MODO=roto` lee también `f8057cb` y afirma que no había campo ni columna.
+
 ### Plantillas de planes: la propuesta guarda una COPIA, nunca el id
 
 Panel › Propuestas tiene una segunda sección, **Plantillas de planes** (una
