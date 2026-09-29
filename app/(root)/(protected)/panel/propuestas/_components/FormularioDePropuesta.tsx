@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import {
     type TipoDeItems,
     type VisibilidadDeNota,
 } from "@/lib/propuestas";
+import { conLaPlantillaCargada, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
 
 export type LineaDelFormulario = { instanceName: string; nombre: string; tipo: string };
 
@@ -123,6 +125,7 @@ export function FormularioDePropuesta({
     abierto,
     propuesta,
     lineas,
+    plantillas = [],
     guardando,
     onCerrar,
     onGuardar,
@@ -130,6 +133,7 @@ export function FormularioDePropuesta({
     abierto: boolean;
     propuesta: Propuesta | null;
     lineas: LineaDelFormulario[];
+    plantillas?: PlantillaDePlan[];
     guardando: boolean;
     onCerrar: () => void;
     onGuardar: (b: BorradorDePropuesta) => void;
@@ -151,6 +155,28 @@ export function FormularioDePropuesta({
     // Una propuesta vieja puede apuntar a una línea que ya no está: se enseña
     // igual, para que se vea y se pueda cambiar, en vez de vaciarla callando.
     const lineaPerdida = b.linea && !lineas.some((l) => l.instanceName === b.linea) ? b.linea : null;
+
+    /**
+     * Carga una PLANTILLA DE PLAN en la sección de servicios o productos. Es una
+     * copia (`conLaPlantillaCargada`): lo cargado se edita aquí sin tocar la
+     * plantilla. Las filas en blanco se sustituyen y lo ya escrito se conserva.
+     * La moneda del plan solo se adopta si no había nada escrito: con filas en
+     * otra moneda se avisa en vez de cambiarlas por debajo.
+     */
+    const cargarPlantilla = (id: string) => {
+        const plantilla = plantillas.find((p) => p.id === id);
+        if (!plantilla) return;
+        const r = conLaPlantillaCargada(b.servicios, plantilla, TOPE_DE_SERVICIOS);
+        if (!r.cabe) {
+            toast.error(`Ya hay ${TOPE_DE_SERVICIOS} ${rotulos.plural.toLowerCase()}: quita alguno antes de cargar otro plan.`);
+            return;
+        }
+        const sinNada = b.servicios.every((s) => !s.nombre.trim() && !s.alcance.trim() && !s.inversion.trim());
+        if (!sinNada && plantilla.moneda !== b.moneda) {
+            toast.warning(`El plan «${plantilla.nombre}» está en ${plantilla.moneda} y la propuesta en ${b.moneda}: revisa el importe.`);
+        }
+        setB((x) => ({ ...x, servicios: r.filas, moneda: sinNada ? plantilla.moneda : x.moneda }));
+    };
 
     const cambiarServicio = (i: number, campo: keyof ServicioEnEdicion, valor: string) =>
         setB((x) => ({ ...x, servicios: x.servicios.map((s, j) => (j === i ? { ...s, [campo]: valor } : s)) }));
@@ -301,6 +327,27 @@ export function FormularioDePropuesta({
                                 Total: <span data-total-del-formulario className="font-medium text-foreground">{comoSeLeeElImporte(total, b.moneda)}</span>
                             </span>
                         </div>
+                        {plantillas.length > 0 ? (
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor="propuesta-cargar-plan" className="shrink-0">
+                                    Cargar plan
+                                </Label>
+                                <select
+                                    id="propuesta-cargar-plan"
+                                    data-cargar-plan
+                                    value=""
+                                    onChange={(e) => cargarPlantilla(e.target.value)}
+                                    className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                                >
+                                    <option value="">Elige una plantilla de plan…</option>
+                                    {plantillas.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.nombre} · {comoSeLeeElImporte(p.precio, p.moneda)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : null}
                         {b.servicios.map((s, i) => (
                             <div key={i} data-servicio-del-formulario className="space-y-2 rounded-lg border p-3">
                                 <div className="grid gap-2 sm:grid-cols-[1fr_11rem_auto]">
