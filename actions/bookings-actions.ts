@@ -15,6 +15,17 @@ import { DEFAULT_SERVICE_REMINDERS } from '@/types/reminder';
 import { serviceDefaultMsg } from '@/app/(root)/schedule/_components/services/defaultServiceValues';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasReservasPorEstado } from '@/lib/citas-por-estado.server';
+import { getAuditActorId, writeAuditLog } from './audit-log-actions';
+import { laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
+import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
+import { comoFranjaNueva, elEstadoAlReagendar, laDuracionDeLaCita } from '@/lib/reagendar-cita';
+import { elEnlaceParaReservar } from '@/lib/recordatorios-de-la-reserva';
+import { dispararLasAutomatizacionesDeCita } from '@/lib/automatizaciones-de-cita.server';
+import {
+    elJidDelCliente,
+    laConversacionDeLaReserva,
+    reprogramarLosRecordatoriosDeLaReserva,
+} from '@/lib/reagendar-reserva.server';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId`, el
@@ -497,17 +508,348 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     }
 }
 
+/**
+ * Cambiar el estado de una reserva hace lo MISMO que en Agenda
+ * (`updateAppointmentStatus`): guarda, deja su historial, dispara las
+ * automatizaciones del estado —las del engranaje de cada columna, que ya se
+ * configuraban aquí pero no corrían nunca— y, al cancelar, quita sus
+ * recordatorios pendientes. El aviso al cliente va aparte
+ * (`sendBookingStatusNotification`), igual que en Agenda.
+ */
 export async function updateBookingAppointmentStatus(id: string, status: AppointmentStatus): Promise<OpResult> {
     try {
         if (!(await laCuentaDeLaReserva(id))) {
             return { success: false, message: 'No autorizado.' };
         }
 
-        await db.bookingAppointment.update({ where: { id }, data: { status } });
+        const updated = await db.bookingAppointment.update({
+            where: { id },
+            data: { status },
+            select: { id: true, clientPhone: true, team: { select: { userId: true } } },
+        });
+
+        const conversacion = await laConversacionDeLaReserva(updated.team.userId, updated.clientPhone).catch((error) => {
+            console.warn('[multiagenda] no se pudo buscar la conversación de la cita', { id, error });
+            return null;
+        });
+        void dispararLasAutomatizacionesDeCita(conversacion?.id, status);
+
+        await writeAuditLog({
+            userId: updated.team.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'booking_appointment',
+            entityId: id,
+            action: 'status_changed',
+            summary: `Cambio la cita a ${status}`,
+            metadata: { status, sessionId: conversacion?.id ?? null },
+        });
+
+        // Al cancelar: fuera sus recordatorios, como en Agenda.
+        if (status === 'CANCELADA') {
+            await reprogramarLosRecordatoriosDeLaReserva(id).catch((error) => {
+                console.error('[multiagenda] la cita se canceló pero no se quitaron sus recordatorios', { id, error });
+            });
+        }
+
         return { success: true, message: 'Estado actualizado.' };
     } catch (error) {
         console.error('[updateBookingAppointmentStatus]', error);
         return { success: false, message: 'Error al actualizar el estado.' };
+    }
+}
+
+/**
+ * Avisa al cliente del cambio de estado de su reserva: el MISMO mensaje que en
+ * Agenda (`buildStatusOwnerMessage`), desde la cuenta DUEÑA del equipo y por su
+ * línea (la de la conversación del cliente si es suya, y si no su línea por
+ * QR). Finalizado y Descartado no se notifican, como en Agenda.
+ */
+export async function sendBookingStatusNotification(
+    id: string,
+    status: AppointmentStatus,
+): Promise<{ success: boolean; message: string; instanceName?: string }> {
+    if (status === 'FINALIZADO' || status === 'DESCARTADO') {
+        return { success: true, message: 'Este estado no se notifica.' };
+    }
+    try {
+        const reserva = await db.bookingAppointment.findUnique({
+            where: { id },
+            select: {
+                clientName: true,
+                clientPhone: true,
+                startTime: true,
+                endTime: true,
+                timezone: true,
+                teamService: { select: { name: true } },
+                team: {
+                    select: {
+                        userId: true,
+                        user: {
+                            select: {
+                                timezone: true,
+                                apiKey: { select: { url: true, key: true } },
+                                instancias: { orderBy: { id: 'asc' }, select: { instanceName: true, instanceType: true } },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        if (!reserva) return { success: false, message: 'La cita ya no existe.' };
+        const cuenta = reserva.team.userId;
+        if (!(await laCuentaDeLaAccion(cuenta))) return { success: false, message: 'No autorizado.' };
+
+        const { esLineaDeWhatsappQr } = await import('@/lib/linea-de-whatsapp');
+        const conversacion = await laConversacionDeLaReserva(cuenta, reserva.clientPhone);
+        const instanceName = laLineaDeLaNotificacionDeCita({
+            lineaDeLaConversacion: conversacion?.instanceId,
+            lineasDeLaDuena: (reserva.team.user?.instancias ?? []).map((i) => ({
+                instanceName: i.instanceName,
+                esQr: esLineaDeWhatsappQr(i.instanceType),
+            })),
+        });
+        if (!instanceName) {
+            console.warn('[multiagenda] la cuenta dueña de la cita no tiene línea por la que avisar', { cita: id, cuenta });
+            return { success: false, message: 'La cuenta de esta cita no tiene una línea de WhatsApp conectada.' };
+        }
+
+        const { buildStatusOwnerMessage } = await import('@/app/(root)/schedule/helpers/buildStatusOwnerMessage');
+        const { enviarConHistorial } = await import('@/lib/envio-con-historial.server');
+
+        const message = buildStatusOwnerMessage({
+            appointment: {
+                startTime: reserva.startTime,
+                endTime: reserva.endTime,
+                timezone: laZonaDeLaCuenta(reserva.team.user?.timezone, laZonaDeLaCuenta(reserva.timezone)),
+                clientName: reserva.clientName,
+                service: { name: reserva.teamService?.name ?? '' },
+                session: { pushName: conversacion?.pushName ?? '' },
+            } as unknown as import('@/app/(root)/schedule/helpers/normalizeAppointmentsToEvents').AppointmentWithSession,
+            newStatus: status,
+            userId: cuenta,
+            scheduleUrl: elEnlaceParaReservar(cuenta),
+        });
+
+        const apiKeyUrl = reserva.team.user?.apiKey?.url;
+        const apiKeyValue = reserva.team.user?.apiKey?.key;
+        const result = await enviarConHistorial({
+            instanceName,
+            url: apiKeyUrl ? `https://${apiKeyUrl}/message/sendText/${instanceName}` : undefined,
+            apikey: apiKeyValue ?? undefined,
+            remoteJid: elJidDelCliente(reserva.clientPhone, conversacion),
+            message,
+            historyType: 'notification',
+            additionalKwargs: { source: 'BookingStatusChange', recipient: 'client', bookingAppointmentId: id, nextStatus: status },
+        });
+
+        if (!result.success) {
+            console.warn('[multiagenda] no salió el aviso de cambio de estado', {
+                cita: id,
+                cuenta,
+                linea: instanceName,
+                motivo: result.message,
+            });
+            return { success: false, message: result.message || 'No se envió la notificación.', instanceName };
+        }
+        return { success: true, message: 'Notificación enviada.', instanceName };
+    } catch (error) {
+        console.error('[multiagenda] fallo al avisar del cambio de estado', {
+            cita: id,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return { success: false, message: 'Ocurrió un error al notificar la cita.' };
+    }
+}
+
+/**
+ * Lo que el selector de «Reagendar» necesita de una reserva: la MISMA forma que
+ * `datosParaReagendarAction` de Agenda, para que el diálogo sea uno. La zona es
+ * la del EQUIPO, que es con la que se calculan sus huecos.
+ */
+export async function datosParaReagendarReservaAction(id: string): Promise<{
+    success: boolean;
+    message?: string;
+    data?: {
+        cuentaId: string;
+        zona: string;
+        duracionMinutos: number;
+        inicio: string;
+        fin: string;
+        cliente: string;
+        estado: AppointmentStatus;
+    };
+}> {
+    try {
+        if (!(await laCuentaDeLaReserva(id))) return { success: false, message: 'No autorizado.' };
+        const reserva = await db.bookingAppointment.findUnique({
+            where: { id },
+            select: {
+                startTime: true,
+                endTime: true,
+                status: true,
+                clientName: true,
+                timezone: true,
+                teamService: { select: { duration: true } },
+                team: { select: { userId: true, timezone: true } },
+            },
+        });
+        if (!reserva) return { success: false, message: 'La cita ya no existe.' };
+        return {
+            success: true,
+            data: {
+                cuentaId: reserva.team.userId,
+                zona: reserva.team.timezone || reserva.timezone || 'America/Bogota',
+                duracionMinutos: laDuracionDeLaCita(reserva.startTime, reserva.endTime, reserva.teamService?.duration || 60),
+                inicio: reserva.startTime.toISOString(),
+                fin: reserva.endTime.toISOString(),
+                cliente: (reserva.clientName || '').trim(),
+                estado: reserva.status,
+            },
+        };
+    } catch (error) {
+        console.error('[multiagenda] no se pudieron leer los datos de la cita', { id, error });
+        return { success: false, message: 'No se pudo abrir la cita para reagendarla.' };
+    }
+}
+
+/**
+ * Los huecos libres para mover una reserva: los de SU especialista, con la
+ * duración de la reserva, en la zona del equipo. La propia reserva no cuenta
+ * como ocupada: moverla media hora no puede chocar consigo misma.
+ */
+export async function huecosParaReagendarReservaAction(
+    id: string,
+    ymd: string,
+): Promise<{ success: boolean; message?: string; data?: BookingSlot[] }> {
+    try {
+        if (!(await laCuentaDeLaReserva(id))) return { success: false, message: 'No autorizado.' };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd ?? ''))) return { success: false, message: 'Fecha no válida.' };
+        const reserva = await db.bookingAppointment.findUnique({
+            where: { id },
+            select: {
+                teamMemberId: true,
+                startTime: true,
+                endTime: true,
+                timezone: true,
+                teamService: { select: { duration: true } },
+                team: { select: { timezone: true } },
+            },
+        });
+        if (!reserva) return { success: false, message: 'La cita ya no existe.' };
+        const duracion = laDuracionDeLaCita(reserva.startTime, reserva.endTime, reserva.teamService?.duration || 60);
+        return calcularHuecosDeReserva(
+            reserva.teamMemberId,
+            ymd,
+            duracion,
+            reserva.team.timezone || reserva.timezone || 'America/Bogota',
+            0,
+            id,
+        );
+    } catch (error) {
+        console.error('[multiagenda] no se pudieron calcular los huecos para reagendar', { id, error });
+        return { success: false, message: 'Error al calcular los horarios disponibles.' };
+    }
+}
+
+/**
+ * Reagendar una reserva: la MISMA fila, otra fecha y hora, con la MISMA regla
+ * que Agenda (`lib/reagendar-cita.ts`): franja futura y distinta, la duración se
+ * conserva, Pendiente y Confirmada se quedan y lo demás vuelve a Pendiente, el
+ * mismo candado y la misma comprobación de solape que al reservar (sin contarse
+ * a sí misma) y los recordatorios rehechos desde la nueva hora.
+ */
+export async function reagendarReservaAction(
+    id: string,
+    startTime: string,
+    endTime: string,
+): Promise<{
+    success: boolean;
+    message: string;
+    data?: { startTime: Date; endTime: Date; status: AppointmentStatus };
+    recordatorios?: { borrados: number; creados: number; motivo?: string };
+}> {
+    try {
+        if (!(await laCuentaDeLaReserva(id))) {
+            return { success: false, message: 'No autorizado.' };
+        }
+        const actual = await db.bookingAppointment.findUnique({
+            where: { id },
+            select: { teamMemberId: true, clientPhone: true, startTime: true, endTime: true, status: true, team: { select: { userId: true } } },
+        });
+        if (!actual) return { success: false, message: 'La cita ya no existe.' };
+
+        const nueva = comoFranjaNueva(startTime, endTime, { inicio: actual.startTime, fin: actual.endTime });
+        if (!nueva.ok) return { success: false, message: nueva.motivo };
+        const { inicio, fin } = nueva.franja;
+        const estado = elEstadoAlReagendar(actual.status);
+
+        const updated = await db.$transaction(async (tx) => {
+            try {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${actual.teamMemberId}`}))`;
+            } catch (lockErr) {
+                console.warn('[multiagenda] advisory lock no disponible, continúo sin él:', lockErr);
+            }
+            const pisa = await tx.bookingAppointment.findFirst({
+                where: {
+                    teamMemberId: actual.teamMemberId,
+                    id: { not: id },
+                    status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
+                    startTime: { lt: fin },
+                    endTime: { gt: inicio },
+                },
+                select: { id: true },
+            });
+            if (pisa) return null;
+            return tx.bookingAppointment.update({
+                where: { id },
+                data: { startTime: inicio, endTime: fin, status: estado },
+                select: { startTime: true, endTime: true, status: true },
+            });
+        });
+
+        if (!updated) {
+            return { success: false, message: 'El especialista ya tiene una cita en ese horario.' };
+        }
+
+        await writeAuditLog({
+            userId: actual.team.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'booking_appointment',
+            entityId: id,
+            action: 'rescheduled',
+            summary: 'Reagendo la cita',
+            metadata: {
+                antes: { startTime: actual.startTime.toISOString(), endTime: actual.endTime.toISOString(), status: actual.status },
+                ahora: { startTime: updated.startTime.toISOString(), endTime: updated.endTime.toISOString(), status: updated.status },
+            },
+        });
+
+        // Si el estado volvió a Pendiente, corren sus automatizaciones como en
+        // cualquier otro cambio de estado (igual que Agenda).
+        if (estado !== actual.status) {
+            const conversacion = await laConversacionDeLaReserva(actual.team.userId, actual.clientPhone).catch(() => null);
+            void dispararLasAutomatizacionesDeCita(conversacion?.id, estado);
+        }
+
+        let recordatorios: { borrados: number; creados: number; motivo?: string };
+        try {
+            recordatorios = await reprogramarLosRecordatoriosDeLaReserva(id);
+        } catch (error) {
+            console.error('[multiagenda] la cita se movió pero no se reprogramaron sus recordatorios', { id, error });
+            recordatorios = { borrados: 0, creados: 0, motivo: 'No se pudieron reprogramar los recordatorios.' };
+        }
+
+        return {
+            success: true,
+            message: recordatorios.motivo
+                ? `Cita reagendada. ${recordatorios.motivo}`
+                : `Cita reagendada. ${recordatorios.creados} recordatorio(s) programado(s).`,
+            data: updated,
+            recordatorios,
+        };
+    } catch (error) {
+        console.error('[multiagenda] error al reagendar la cita', { id, error });
+        return { success: false, message: 'No se pudo reagendar la cita.' };
     }
 }
 
@@ -540,6 +882,23 @@ export async function getAvailableBookingSlots(
     teamTimezone: string,
     minNoticeMinutes: number = 0,
 ): Promise<{ success: boolean; message?: string; data?: BookingSlot[] }> {
+    return calcularHuecosDeReserva(memberId, ymd, durationMinutes, teamTimezone, minNoticeMinutes);
+}
+
+/**
+ * Los huecos de un especialista. `excluirReservaId` deja fuera una reserva al
+ * contar lo ocupado: la que se está reagendando. No se exporta —en un fichero
+ * `'use server'` todo lo exportado es un endpoint—; la página pública entra por
+ * `getAvailableBookingSlots`, que no la pasa.
+ */
+async function calcularHuecosDeReserva(
+    memberId: string,
+    ymd: string,
+    durationMinutes: number,
+    teamTimezone: string,
+    minNoticeMinutes: number = 0,
+    excluirReservaId?: string,
+): Promise<{ success: boolean; message?: string; data?: BookingSlot[] }> {
     try {
         // Obtener disponibilidad del miembro para ese día de la semana
         const [year, month, day] = ymd.split('-').map(Number);
@@ -563,6 +922,7 @@ export async function getAvailableBookingSlots(
         const existing = await db.bookingAppointment.findMany({
             where: {
                 teamMemberId: memberId,
+                ...(excluirReservaId ? { id: { not: excluirReservaId } } : {}),
                 status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
                 startTime: { gte: dayStartUtc },
                 endTime: { lte: dayEndUtc },

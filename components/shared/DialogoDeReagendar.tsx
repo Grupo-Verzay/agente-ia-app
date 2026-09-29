@@ -14,10 +14,21 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { datosParaReagendarAction, reagendarCitaAction } from '@/actions/appointments-actions';
+import {
+  datosParaReagendarReservaAction,
+  huecosParaReagendarReservaAction,
+  reagendarReservaAction,
+} from '@/actions/bookings-actions';
 import { SelectorDeFechaYHora, type HuecoDeAgenda } from '@/components/shared/SelectorDeFechaYHora';
 import { ROTULO_REAGENDAR } from '@/lib/reagendar-cita';
 
 type Datos = NonNullable<Awaited<ReturnType<typeof datosParaReagendarAction>>['data']>;
+
+/** Con qué acciones habla el diálogo: una cita de Agenda o una reserva de Multiagenda. */
+const ACCIONES = {
+  cita: { datos: datosParaReagendarAction, reagendar: reagendarCitaAction },
+  reserva: { datos: datosParaReagendarReservaAction, reagendar: reagendarReservaAction },
+} as const;
 
 /**
  * El diálogo de «Reagendar», el MISMO en los cuatro sitios donde se cambia el
@@ -29,14 +40,21 @@ type Datos = NonNullable<Awaited<ReturnType<typeof datosParaReagendarAction>>['d
  * Guardar es `reagendarCitaAction`: la misma cita, con la nueva hora y sus
  * recordatorios rehechos. Lo que dice el servidor —cuántos recordatorios se
  * programaron, o por qué ninguno— se enseña tal cual.
+ *
+ * Multiagenda lo usa con `de="reserva"`: el MISMO diálogo y el MISMO selector,
+ * con sus acciones (`reagendarReservaAction`) y los huecos del especialista de
+ * la reserva. Las dos agendas reagendan igual porque es el mismo componente.
  */
 export function DialogoDeReagendar({
   citaId,
   open,
   onOpenChange,
   alReagendar,
+  de = 'cita',
 }: {
   citaId: string | null;
+  /** `reserva` para una cita de Multiagenda (`booking_appointments`). */
+  de?: 'cita' | 'reserva';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** La cita ya movida: quien abrió el diálogo recarga lo suyo. */
@@ -53,7 +71,7 @@ export function DialogoDeReagendar({
     setDatos(null);
     setHueco(null);
     setCargando(true);
-    datosParaReagendarAction(citaId)
+    ACCIONES[de].datos(citaId)
       .then((res) => {
         if (!vivo) return;
         if (res.success && res.data) setDatos(res.data);
@@ -74,13 +92,13 @@ export function DialogoDeReagendar({
     };
     // `onOpenChange` no decide qué se carga: solo la cita y si está abierto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, citaId]);
+  }, [open, citaId, de]);
 
   const guardar = async () => {
     if (!citaId || !hueco) return;
     setGuardando(true);
     try {
-      const res = await reagendarCitaAction(citaId, hueco.startTime, hueco.endTime);
+      const res = await ACCIONES[de].reagendar(citaId, hueco.startTime, hueco.endTime);
       if (res.success && res.data) {
         toast.success(res.message);
         onOpenChange(false);
@@ -129,6 +147,14 @@ export function DialogoDeReagendar({
               duracionMinutos={datos.duracionMinutos}
               valor={hueco}
               alCambiar={setHueco}
+              pedirHuecos={
+                de === 'reserva' && citaId
+                  ? async (ymd) => {
+                      const res = await huecosParaReagendarReservaAction(citaId, ymd);
+                      return res.success && res.data ? res.data : [];
+                    }
+                  : undefined
+              }
             />
           )}
         </div>

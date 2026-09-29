@@ -20,6 +20,10 @@ export type HuecoDeAgenda = { startTime: string; endTime: string };
  * Los huecos son los de la cuenta DUEÑA de la cita (`cuentaId`), no los de
  * quien mira: desde el tablero de la madre, reagendar una cita de una hija
  * mira la agenda de la hija.
+ *
+ * `pedirHuecos` cambia DE DÓNDE salen los huecos y nada más: Multiagenda los
+ * pide a la agenda del especialista de la reserva. El día, la rejilla y la
+ * elección son los mismos.
  */
 export function SelectorDeFechaYHora({
   cuentaId,
@@ -27,8 +31,10 @@ export function SelectorDeFechaYHora({
   duracionMinutos,
   valor,
   alCambiar,
+  pedirHuecos,
 }: {
   cuentaId: string;
+  pedirHuecos?: (ymd: string) => Promise<HuecoDeAgenda[]>;
   zona: string;
   duracionMinutos: number;
   valor: HuecoDeAgenda | null;
@@ -45,8 +51,12 @@ export function SelectorDeFechaYHora({
     if (!date) return;
     setLoadingSlots(true);
     try {
-      const res = await getAvailableSlots(cuentaId, date, duracionMinutos, zona);
-      if (res.success && res.data) setSlots(res.data);
+      if (pedirHuecos) {
+        setSlots(await pedirHuecos(date));
+      } else {
+        const res = await getAvailableSlots(cuentaId, date, duracionMinutos, zona);
+        if (res.success && res.data) setSlots(res.data);
+      }
     } catch (error) {
       console.error('[agenda] no se pudieron cargar los horarios', error);
     } finally {

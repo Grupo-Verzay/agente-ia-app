@@ -4,7 +4,8 @@ import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { laCiudadDeLaZona, laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
-import { elTextoDelRecordatorio, segundosAntesDeLaCita } from '@/lib/recordatorios-de-la-cita';
+import { elTextoDelRecordatorio } from '@/lib/recordatorios-de-la-cita';
+import { losRecordatoriosDeLaReserva } from '@/lib/recordatorios-de-la-reserva';
 import { createBookingAppointment } from '@/actions/bookings-actions';
 // El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
 // resuelta desde la base. La acción con puerta es para el navegador.
@@ -22,17 +23,6 @@ function isAuthorized(request: Request): boolean {
 
 function tzCityLabel(tz: string): string {
   return laCiudadDeLaZona(tz);
-}
-
-/**
- * Cuántos segundos antes de la cita. La regla ESTRICTA y compartida: la copia
- * indulgente de aquí se caía a `parseInt` y de una hora ISO sacaba 2026
- * segundos (~34 min antes de cada cita).
- */
-const normalizeTimeToSeconds = segundosAntesDeLaCita;
-
-function subtractSecondsFromTime(date: Date, seconds: number): string {
-  return new Date(date.getTime() - seconds * 1000).toISOString();
 }
 
 /** El texto con sus variables, con la hora en la zona de la CUENTA (no la del teléfono del cliente). */
@@ -91,15 +81,6 @@ async function runPostBookingTasks({
     db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
-
-  // Usar recordatorios del servicio si están configurados; si no, los globales
-  type ServiceReminder = { timeMinutes: number; message: string };
-  const serviceReminders: ServiceReminder[] = Array.isArray(service?.remindersConfig)
-    ? (service.remindersConfig as ServiceReminder[]).filter(
-        (r) => typeof r?.timeMinutes === 'number' && r.timeMinutes > 0 && typeof r?.message === 'string',
-      )
-    : [];
-  const reminders = serviceReminders.length > 0 ? null : globalReminders;
 
   const apiKey = user?.apiKeyId
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
@@ -201,60 +182,37 @@ async function runPostBookingTasks({
     );
   }
 
-  // 3. Recordatorios programados
-  if (serviceReminders.length > 0) {
-    // Recordatorios específicos del servicio
-    await Promise.allSettled(
-      serviceReminders.map(async (rem, idx) => {
-        const seconds = rem.timeMinutes * 60;
-        const reminderDate = new Date(new Date(startTime).getTime() - seconds * 1000);
-        if (reminderDate.getTime() <= Date.now()) return;
-
-        const seguimientoTime = subtractSecondsFromTime(new Date(startTime), seconds);
-        const mensaje = formatReminderMessage(rem.message, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
-
-        await db.seguimiento.create({
-          data: {
-            idNodo: `booking-svc-reminder-${serviceId}-${idx}`,
-            serverurl: serverUrl,
-            instancia: instanceName,
-            apikey: evolutionApiKey,
-            remoteJid: phone,
-            mensaje,
-            tipo: 'text',
-            time: seguimientoTime,
-          },
-        });
+  // 3. Recordatorios programados: la MISMA regla que al reagendar
+  //    (`losRecordatoriosDeLaReserva`): los del servicio si tiene, y si no los
+  //    de la agenda de la cuenta.
+  const programados = losRecordatoriosDeLaReserva({
+    servicioId: serviceId,
+    delServicio: service?.remindersConfig,
+    plantillas: globalReminders,
+    datos: {
+      nombreDelCliente: pushName,
+      inicio: new Date(startTime),
+      zona: accountTimezone,
+      duracionMinutos: slotDuration,
+      servicio: service?.name ?? '',
+    },
+  });
+  await Promise.allSettled(
+    programados.map((r) =>
+      db.seguimiento.create({
+        data: {
+          idNodo: r.idNodo,
+          serverurl: serverUrl,
+          instancia: instanceName,
+          apikey: evolutionApiKey,
+          remoteJid: phone,
+          mensaje: r.mensaje,
+          tipo: 'text',
+          time: r.cuando,
+        },
       }),
-    );
-  } else if (reminders && reminders.length > 0) {
-    // Recordatorios globales del usuario (isSchedule: true)
-    await Promise.allSettled(
-      reminders.map(async (rem) => {
-        const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
-        if (!normalizedSeconds) return;
-
-        const reminderDate = new Date(new Date(startTime).getTime() - normalizedSeconds * 1000);
-        if (reminderDate.getTime() <= Date.now()) return;
-
-        const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-        const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
-
-        await db.seguimiento.create({
-          data: {
-            idNodo: `booking-reminder-${rem.id}`,
-            serverurl: serverUrl,
-            instancia: instanceName,
-            apikey: evolutionApiKey,
-            remoteJid: phone,
-            mensaje,
-            tipo: 'text',
-            time: seguimientoTime,
-          },
-        });
-      }),
-    );
-  }
+    ),
+  );
 }
 
 /**

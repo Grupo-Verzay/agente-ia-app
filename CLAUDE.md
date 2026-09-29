@@ -21882,6 +21882,45 @@ cuatro sitios, y las acciones contra Postgres. `MODO=roto` lee y corre
 `ANTES_REF` y afirma que no había reagendar y que mover la hora dejaba los
 recordatorios viejos.
 
+### Y Multiagenda reagenda, avisa y dispara IGUAL que Agenda
+
+Multiagenda (`booking_appointments`) no tenía reagendar, y cambiar el estado de
+una reserva no avisaba al cliente ni disparaba las automatizaciones —aunque el
+engranaje de cada columna ya dejaba configurarlas—. Ahora es simétrico con
+Agenda, **con las mismas piezas, no copias**:
+
+| | Agenda | Multiagenda |
+| --- | --- | --- |
+| reagendar | `DialogoDeReagendar` | el MISMO, con `de="reserva"` |
+| huecos | agenda de la cuenta | los del especialista de la reserva (`pedirHuecos` del mismo selector), sin contar la propia reserva |
+| aviso al cliente | `sendAppointmentStatusNotification` | `sendBookingStatusNotification`, mismo mensaje (`buildStatusOwnerMessage`) y misma elección de línea |
+| automatizaciones | `dispararLasAutomatizacionesDeCita` | la MISMA (`lib/automatizaciones-de-cita.server.ts`) |
+| cancelar | quita recordatorios, con confirmación | igual |
+
+Cinco cosas que hay que mantener:
+
+1. **Una reserva no guarda su conversación**: se busca por el teléfono del
+   cliente en la cuenta dueña del equipo, por TODAS sus formas
+   (`laConversacionDeLaReserva`, `lib/reagendar-reserva.server.ts`). Sin
+   conversación no hay automatizaciones, pero el aviso sí sale.
+2. **Los recordatorios de una reserva los decide `losRecordatoriosDeLaReserva`**
+   (`lib/recordatorios-de-la-reserva.ts`, pura): los del servicio si tiene, y si
+   no las plantillas de agenda. La usan crear (la ruta del agente) y reagendar.
+3. **Reagendar y cancelar pasan por `reprogramarLosRecordatoriosDeLaReserva`**:
+   borra los `booking-reminder-*`/`booking-svc-reminder-*` de ese número en las
+   líneas de la cuenta y, si sigue viva, los rehace desde la hora actual por la
+   misma línea y la misma forma del número con que se crearon.
+4. **Reagendar sigue la regla de Agenda** (`lib/reagendar-cita.ts`): franja
+   futura y distinta, la duración se conserva, Pendiente/Confirmada se quedan y
+   lo demás vuelve a Pendiente; el candado y el solape son los del especialista.
+5. **La página pública no cambia**: `getAvailableBookingSlots` sigue contando
+   todas las reservas; solo el diálogo excluye la propia.
+
+Lo prueba `scripts/banco-reagendar-reserva.sh`: la regla y un barrido, y las
+acciones contra Postgres. `MODO=roto` corre las acciones de `ANTES_REF` y afirma
+que no había reagendar, ni aviso, ni automatizaciones, y que cancelar dejaba los
+recordatorios.
+
 ### Dos PR verdes por separado pueden tumbar el despliegue juntos
 
 #998 (Reagendar) y #999 (recordatorios a su hora) se fusionaron con minutos de
