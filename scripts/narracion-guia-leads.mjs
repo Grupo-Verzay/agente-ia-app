@@ -5,8 +5,9 @@
  * letra por letra lo que no es español —«Leads» sonaría «le-ads»—, así que lo
  * que se pronuncia pasa por `comoSeDice`.
  *
- * Las frases hablan de lo que la pantalla tiene de verdad —los contadores, el
- * buscador, el interruptor del agente, Exportar CSV y «+ Nuevo»— y el banco
+ * Las frases hablan de lo que la pantalla tiene de verdad —el menú de la
+ * izquierda, la barra de arriba, los contadores, el buscador, el interruptor
+ * del agente, Exportar CSV y «+ Nuevo»— y el banco
  * (`lib/__tests__/video-guia-leads.test.mjs`) comprueba que el guion las dice
  * todas y en este orden.
  */
@@ -14,6 +15,14 @@ export const NARRACION = {
     intro: {
         rotulo: "Leads: todos tus contactos de WhatsApp",
         texto: "Esta es la pantalla de Leads. Aquí están todos los contactos que te han escrito por WhatsApp, en una sola lista.",
+    },
+    menu: {
+        rotulo: "El menú: Leads está en Contactos",
+        texto: "A la izquierda está el menú de la plataforma. Con estas dos flechas lo abres: Leads está dentro de Contactos.",
+    },
+    barraDeArriba: {
+        rotulo: "La barra de arriba, la misma en todas las pantallas",
+        texto: "Arriba tienes el buscador de toda la plataforma, el botón de soporte y tus notificaciones. Esa barra es la misma en todas las pantallas.",
     },
     contadores: {
         rotulo: "Los contadores también filtran",

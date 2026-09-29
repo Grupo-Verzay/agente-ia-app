@@ -10,24 +10,90 @@
  *
  * Son 26 a propósito: la tabla va de 20 en 20, así que hay una segunda página
  * y el pie de paginación dice algo.
+ *
+ * Y lo que rodea a la pantalla —el menú de la izquierda y la barra de arriba—
+ * es el de una cuenta CLIENTE de verdad: la cuenta pasa a `user` con plan
+ * `personalizado`, el menú sale de `menu-de-un-cliente.mjs` y la barra lleva
+ * «Ver tutoriales» y «Soporte». Una guía que enseña la pantalla sin su marco
+ * deja al cliente sin saber dónde está.
  */
 import { PrismaClient } from "@prisma/client";
+import { MENU_DE_UN_CLIENTE, comoFilaDeModulo } from "./menu-de-un-cliente.mjs";
 
 const db = new PrismaClient();
-const dueno = await db.user.findUniqueOrThrow({ where: { email: "jefe@banco.test" } });
+const encontrado = await db.user.findUniqueOrThrow({ where: { email: "jefe@banco.test" } });
 
-// La pantalla de Leads, en el menú. Sin ella el layout no la enseña.
-if (!(await db.module.findFirst({ where: { route: "/sessions" } }))) {
-    await db.module.create({
-        data: {
-            label: "Leads",
-            route: "/sessions",
-            icon: "Users",
-            order: 3,
-            moduleItems: { create: [{ title: "Leads", url: "/sessions" }] },
-        },
-    });
+/*
+ * La cuenta es la de un CLIENTE, no la de la casa: la guía es para clientes, y
+ * lo que decide qué menú y qué panel se ven es el rol. Con `admin` (lo que deja
+ * `sembrar-barra.mjs`) saldría el panel del equipo. `personalizado` es el plan
+ * sin ningún candado, para que el menú no lleve cerraduras que distraigan.
+ */
+const dueno = await db.user.update({
+    where: { id: encontrado.id },
+    data: { role: "user", plan: "personalizado", name: "Mi Negocio", company: "Mi Negocio" },
+});
+
+/*
+ * El MENÚ, el de un cliente de verdad (`menu-de-un-cliente.mjs`), en vez de
+ * los dos o tres módulos sueltos de antes: con iconos que el menú no conocía,
+ * la barra de la izquierda salía con letras recortadas y la guía parecía no
+ * tener menú. Se borra lo que hubiera —los módulos de `sembrar-barra.mjs`—
+ * para que el menú sea este y nada más.
+ */
+await db.userNavPreference.deleteMany({});
+await db.userModule.deleteMany({});
+await db.moduleItem.deleteMany({});
+await db.module.deleteMany({});
+const base = Date.now() - 3_600_000;
+for (const m of MENU_DE_UN_CLIENTE) {
+    const modulo = await db.module.create({ data: comoFilaDeModulo(m) });
+    // Los apartados se ordenan por fecha de creación: cada uno con la suya,
+    // o dos con el mismo instante se ordenarían por id, o sea al azar.
+    for (const [i, it] of m.items.entries()) {
+        await db.moduleItem.create({
+            data: {
+                moduleId: modulo.id,
+                title: it.title,
+                url: it.url,
+                lockedPlans: it.lockedPlans ?? [],
+                createdAt: new Date(base + m.order * 1000 + i * 10),
+            },
+        });
+    }
 }
+
+/*
+ * La BARRA DE ARRIBA de un cliente lleva además «Ver tutoriales» (hay
+ * tutorial para Leads) y «Soporte» (hay una cuenta que atiende los tickets).
+ * Sin estas dos filas la barra de la guía salía con dos botones menos que la
+ * de verdad.
+ */
+await db.guideUrl.deleteMany({ where: { path: "/sessions" } });
+await db.guideUrl.create({
+    data: {
+        path: "/sessions",
+        title: "Guía de Leads / contactos",
+        description: "Recorrido completo del módulo de Leads con video explicativo y guias",
+        url: "/guia/leads",
+    },
+});
+const casa = await db.user.upsert({
+    where: { email: "soporte@guia.test" },
+    update: {},
+    create: { email: "soporte@guia.test", name: "Soporte", role: "admin", status: true, company: "Soporte" },
+});
+await db.$executeRaw`
+    CREATE TABLE IF NOT EXISTS "tickets_config" (
+        "id" INTEGER PRIMARY KEY,
+        "destinoId" TEXT,
+        "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+`;
+await db.$executeRaw`
+    INSERT INTO "tickets_config" ("id", "destinoId") VALUES (1, ${casa.id})
+    ON CONFLICT ("id") DO UPDATE SET "destinoId" = EXCLUDED."destinoId"
+`;
 
 await db.instancia.deleteMany({ where: { userId: dueno.id } });
 const LINEAS = [
@@ -135,5 +201,5 @@ for (const [nombre, numero, abierta, agenteApagado, flujos, seguimientos, etique
     }
 }
 
-console.log(JSON.stringify({ contactos: CONTACTOS.length, lineas: LINEAS.length, etiquetas: ETIQUETAS.length }));
+console.log(JSON.stringify({ contactos: CONTACTOS.length, lineas: LINEAS.length, etiquetas: ETIQUETAS.length, modulos: MENU_DE_UN_CLIENTE.length }));
 await db.$disconnect();

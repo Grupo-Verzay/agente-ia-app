@@ -22835,6 +22835,53 @@ Lo prueba `lib/__tests__/video-guia-leads.test.mjs` (en `banco-guia-leads.sh`);
 `MODO=roto` lee `153f64f` y afirma la bolita con halo y el vídeo mudo, y
 `9e38996` para afirmar que la voz era espeak y no Cedar.
 
+### La pantalla va con su MARCO: el menú y la barra de arriba de un cliente
+
+La primera guía enseñaba Leads sin su marco: el menú de la izquierda salía como
+letras recortadas («C…», «E…», «L…») y la barra de arriba no se nombraba. **Las
+dos cosas nacían en los datos de ejemplo, no en la pantalla**: se sembraban tres
+módulos con iconos de lucide (`MessageCircle`) y el menú dibuja los de `iconMap`
+(`schema/module.ts`) —sin icono pinta el nombre recortado—; y la cuenta era
+`admin`, así que la barra no llevaba «Ver tutoriales» ni «Soporte».
+
+> **Las capturas se toman con la cuenta de un CLIENTE y su menú de verdad.**
+> `scripts/menu-de-un-cliente.mjs` es una foto (solo lectura, sin ningún
+> `customUrl`: el repositorio es público) de los módulos que ve un cliente en
+> producción; `sembrar-guia-leads.mjs` la siembra, deja la cuenta en `user`
+> con plan `personalizado` (sin candados) y pone un tutorial para `/sessions`
+> y una cuenta que atiende tickets. **Una guía de otro módulo usa la misma
+> semilla**: el marco es el mismo en todas las pantallas.
+
+Cinco cosas que hay que mantener:
+
+1. **La vista general nombra las cinco zonas** (`ZONAS_DE_LA_PANTALLA`: menú,
+   barra de arriba, barra de trabajo, tabla, pie), el menú tiene su paso
+   (dónde vive el módulo, `MODULO_DE_LEADS`) y la barra de arriba el suyo, con
+   sus seis partes en orden (`PARTES_DE_LA_BARRA_DE_ARRIBA`). El banco lee
+   `Breadcrumbs.tsx` y falla si aparece un botón arriba que la guía no nombra.
+2. **El menú se captura RECOGIDO** —así se ve al entrar a cualquier pantalla—
+   salvo en su propio paso, abierto con las dos flechas; y se vuelve a recoger,
+   porque el vídeo sale del estado de esa sesión y el menú vive en una cookie.
+   Lo que pintó el menú recogido queda en `scripts/menu-guia-leads.json` (cada
+   módulo con su icono), y el banco lo compara con la foto sembrada.
+3. **Las dos fotos del marco se toman en una ventana de PORTÁTIL**
+   (`elMarcoDeLaPantalla`, al final de las capturas): la barra a 1024 de ancho
+   y el menú abierto a 1280×720. A 1440 la barra salía en una tira tan larga
+   que en la página sus iconos se leían de 6 px, y el menú abierto de alto
+   entero ocupaba 1211 px de la guía (ahora 667).
+4. **Si el menú de producción cambia, la foto se queda atrás** y el banco no
+   puede saberlo; sí exige que cada icono exista en `iconMap` y cada ruta en
+   `navigationRoutes`. Se actualiza la foto y se regenera.
+5. **El vídeo nombra también el menú y la barra** (frases `menu` y
+   `barraDeArriba`); sus audios Cedar se sintetizaron desde el contenedor de
+   la App. Y `generar-guia-leads.sh` avisa ANTES de empezar si falta `ffmpeg`,
+   que el vídeo necesita (`apt-get install -y ffmpeg`): sin él se caía al final,
+   después de diez minutos de capturas.
+
+Lo prueba `lib/__tests__/menu-de-la-guia.test.mjs` (en `banco-guia-leads.sh`);
+`MODO=roto` lee `8e41502` y afirma la semilla con iconos que el menú no conoce
+y la guía sin pasos para el menú ni la barra de arriba.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
