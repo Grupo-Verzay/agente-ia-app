@@ -47,6 +47,17 @@ try {
         }));
         exigir(duracion !== -1 && duracion !== -2, `${tag}: el vídeo carga (duración ${duracion})`);
         exigir((await p.evaluate(() => document.documentElement.scrollWidth)) <= vista.width, `${tag}: el índice no se sale a lo ancho`);
+        // La página termina en la línea divisoria: sin nota ni espacio debajo.
+        const fin = await p.evaluate(() => {
+            const m = document.querySelector("[data-guia]");
+            const hr = document.querySelector("[data-fin-de-la-guia]");
+            if (!hr) return null;
+            m.scrollTop = m.scrollHeight;
+            const debajo = m.getBoundingClientRect().bottom - hr.getBoundingClientRect().bottom;
+            return { ultimo: hr.parentElement?.lastElementChild === hr, debajo, nota: /capturas se toman/i.test(m.innerText) };
+        });
+        exigir(fin && fin.ultimo && !fin.nota && fin.debajo <= 2, `${tag}: el índice acaba en la línea divisoria y nada debajo (${JSON.stringify(fin)})`);
+        await p.evaluate(() => { document.querySelector("[data-guia]").scrollTop = 0; });
         // El orden del índice: vídeo, introducción, secciones (con su cierre).
         const orden = await p.evaluate(() => {
             const y = (s) => document.querySelector(s)?.getBoundingClientRect().top ?? NaN;

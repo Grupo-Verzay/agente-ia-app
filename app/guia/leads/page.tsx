@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { PlayCircle } from "lucide-react";
 
-import { CabeceraDeLaGuia, CuadriculaDeSecciones, IntroduccionDeLaGuia } from "@/components/guia/Guia";
+import {
+    CabeceraDeLaGuia,
+    CONTENEDOR_DEL_INDICE,
+    CuadriculaDeSecciones,
+    FinDeLaGuia,
+    IntroduccionDeLaGuia,
+} from "@/components/guia/Guia";
 import { GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
 import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
 import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
@@ -20,6 +25,9 @@ import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Leads" };
 
+/** Lo que dice la barra de arriba sobre el vídeo que va justo debajo. */
+const DEMOSTRACION = "Demostración en 1 minuto";
+
 export default async function IndiceDeLaGuiaDeLeads() {
     const [introduccion, contactoHref] = await Promise.all([
         laIntroduccionPublica("leads", {
@@ -32,13 +40,11 @@ export default async function IndiceDeLaGuiaDeLeads() {
 
     return (
         <>
-            <CabeceraDeLaGuia />
-            <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-                <section id="demostracion" data-demostracion className="scroll-mt-20 space-y-3" aria-labelledby="titulo-demostracion">
-                    <h2 id="titulo-demostracion" className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
-                        <PlayCircle className="h-5 w-5 text-blue-600" aria-hidden />
-                        Demostración en 1 minuto
-                    </h2>
+            <CabeceraDeLaGuia demostracion={{ href: "#demostracion", texto: DEMOSTRACION }} modulo="Leads" />
+            {/* El vídeo arranca justo bajo la barra: su título vive en ella, y el
+                aire de arriba es el mismo que el de los lados (px-4 / px-6). */}
+            <div className={CONTENEDOR_DEL_INDICE}>
+                <section id="demostracion" data-demostracion className="scroll-mt-20" aria-label={DEMOSTRACION}>
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm">
                         <video
                             data-video-de-la-guia
@@ -71,9 +77,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
                     />
                 </section>
 
-                <footer className="border-t border-slate-200 pt-6 text-center text-xs text-slate-400">
-                    Las capturas se toman automáticamente de la plataforma real, con datos de ejemplo.
-                </footer>
+                <FinDeLaGuia />
             </div>
         </>
     );
