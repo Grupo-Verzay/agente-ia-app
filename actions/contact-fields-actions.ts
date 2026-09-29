@@ -1,8 +1,6 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { currentUser } from '@/lib/auth';
-import { isAdminOrReseller } from '@/lib/rbac';
 import {
   ContactFieldDef,
   DEFAULT_CONTACT_FIELDS,
@@ -33,45 +31,50 @@ export async function getContactFieldsConfig(userId: string): Promise<ContactFie
   }
 }
 
-/** Guarda la config de campos del usuario (validada/normalizada). */
+/**
+ * Guarda la config de campos de la ficha de una CUENTA (validada/normalizada).
+ *
+ * Pasa por la MISMA puerta que su hermana `getContactFieldsConfig` y que el
+ * resto de acciones de la ficha (Sheets, datos externos): `laCuentaDeLaAccion`.
+ * Tenía una comprobación propia —mismo id, `isAdminOrReseller` del rol de la
+ * PERSONA y un `linked_accounts` mirado hacia ARRIBA— que dejaba ver la ficha
+ * de una conversación de una cuenta hija y rechazaba guardarla: el
+ * administrador de una cuenta (rol `user` en su fila) recibía «No autorizado».
+ * Leer y guardar contestan ahora la misma pregunta.
+ */
 export async function saveContactFieldsConfig(
   userId: string,
   fields: ContactFieldDef[],
 ): Promise<{ success: boolean; message: string }> {
+  const cuenta = await laCuentaDeLaAccion(userId);
+  if (!cuenta) {
+    return {
+      success: false,
+      message: 'No autorizado: no tienes acceso a la cuenta dueña de esta conversación.',
+    };
+  }
   try {
-    const me = await currentUser();
-    if (!me) return { success: false, message: 'No autorizado.' };
-    const effectiveId = me.effectiveId ?? me.id;
-    const realId = me.sessionUserId ?? me.id;
-    let authorized =
-      me.id === userId ||
-      effectiveId === userId ||
-      me.ownerId === userId ||
-      isAdminOrReseller(me.role);
-    // Equipo: un agente/admin vinculado a la cuenta `userId` (dueño) puede editar
-    // los campos de la ficha de esa cuenta, para que se propaguen a todo el equipo.
-    if (!authorized) {
-      try {
-        const rows = await db.$queryRaw<{ ok: number }[]>`
-          SELECT 1 as ok FROM "linked_accounts"
-          WHERE "master_user_id" = ${userId} AND "linked_user_id" = ${realId}
-          LIMIT 1
-        `;
-        authorized = rows.length > 0;
-      } catch {
-        // tabla linked_accounts ausente: degradar al chequeo base
-      }
-    }
-    if (!authorized) {
-      return { success: false, message: 'No autorizado.' };
-    }
     const normalized = normalizeContactFieldsConfig(fields);
-    await db.user.update({
-      where: { id: userId },
+    // `updateMany` y no `update`: una cuenta que no existe no es una excepción
+    // que se trague el `catch`, es un caso que se dice con su nombre.
+    const { count } = await db.user.updateMany({
+      where: { id: cuenta },
       data: { contactFieldsConfig: normalized as unknown as object },
     });
+    if (count === 0) {
+      console.warn('[ficha] se pidió guardar los campos de una cuenta que no existe', { cuenta });
+      return { success: false, message: 'No se encontró la cuenta dueña de esta conversación.' };
+    }
     return { success: true, message: 'Campos guardados' };
-  } catch {
+  } catch (error) {
+    // Nunca mudo: sin esta línea un fallo aquí no deja rastro en ninguna parte.
+    const codigo = (error as { code?: string; meta?: { code?: string } })?.meta?.code
+      ?? (error as { code?: string })?.code;
+    console.error('[ficha] no se pudo guardar la configuración de campos', {
+      cuenta,
+      codigo,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { success: false, message: 'No se pudo guardar la configuración de campos' };
   }
 }
