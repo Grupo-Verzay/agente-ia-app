@@ -22530,6 +22530,29 @@ Tres cosas que hay que mantener:
 Lo prueba `scripts/banco-guia-leads.sh` (reglas y la guía servida sin sesión
 a 390 y 1440); `MODO=roto` afirma que en `73f991f` no existía.
 
+### Las miniaturas del índice llevan ENFOQUE, y son propias de la tarjeta
+
+Cada tarjeta de Secciones reutilizaba la captura de un paso: pantalla
+completa, sin 16:9 y casi siempre sin velo, así que se veían planas. Ahora
+cada sección tiene la suya, `mini-<slug>.webp`: la zona que explica, nítida y
+en su recuadro azul, y el resto bajo el MISMO velo de las capturas de paso.
+
+1. **Una receta para las siete** (`miniaturas()` en `capturar-guia-leads.mjs`)
+   y un encuadre puro (`scripts/encuadre-de-la-miniatura.mjs`): 16:9 como la
+   tarjeta —con otra proporción el `object-cover` cortaría la zona—, centrado
+   en la zona con aire (`AIRE`, `ANCHO_MINIMO`) y sin salirse de la pantalla.
+2. **El recuadro se ESCALA con el encuadre** (`escala` de `marcar`): la
+   miniatura se ve a una cuarta parte y a escala 1 su trazo sería medio píxel.
+3. **Se regeneran solas sin tocar pasos ni vídeo**:
+   `npm run build && SOLO_MINIATURAS=1 scripts/generar-guia-leads.sh` (y volver
+   a construir). El script deja en `scripts/miniaturas-guia-leads.json` dónde
+   quedó cada recuadro.
+
+Lo prueba `scripts/banco-miniaturas-guia-leads.sh` en los PÍXELES: 960×540,
+fuera de la zona nada pasa de gris medio, dentro hay blanco y en el borde el
+azul del recuadro. `MODO=roto` lee `98a247c` y afirma que las tarjetas usaban
+la captura de un paso.
+
 ### La introducción ocupa el ancho del contenedor, como el vídeo
 
 El párrafo de introducción del índice (`IntroduccionDeLaGuia`) llevaba un

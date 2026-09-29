@@ -24,10 +24,11 @@
  * Se lanza con `scripts/generar-guia-leads.sh`.
  */
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import { CURSOR } from "./cursor-de-la-guia.mjs";
+import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
 import { guardarWav, mezclar, montarLaPista, sintetizar } from "./voz-de-la-guia.mjs";
 
@@ -40,6 +41,10 @@ const RAIZ = path.resolve(import.meta.dirname, "..");
 const SALIDA = path.join(RAIZ, "public", "guia", "leads");
 const TMP = process.env.TMP_GUIA ?? "/tmp/guia-leads";
 const SIN_VIDEO = process.env.SIN_VIDEO === "1";
+/** Solo las miniaturas del índice: no rehace los pasos ni el vídeo. */
+const SOLO_MINIATURAS = process.env.SOLO_MINIATURAS === "1";
+/** Dónde quedó el recuadro dentro de cada miniatura: lo lee el banco para medir el enfoque. */
+const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-leads.json");
 
 mkdirSync(SALIDA, { recursive: true });
 mkdirSync(TMP, { recursive: true });
@@ -176,9 +181,9 @@ async function celdaDe(p, nombre, rotulo) {
  * `n` (un número en su esquina), `texto` + `lado` (un rótulo con flecha).
  * `atenuar` apaga todo lo que no está marcado.
  */
-async function marcar(p, marcas, { atenuar = false } = {}) {
+async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
     await p.evaluate(
-        ({ marcas, atenuar }) => {
+        ({ marcas, atenuar, escala }) => {
             document.getElementById("__guia")?.remove();
             const NS = "http://www.w3.org/2000/svg";
             const W = window.innerWidth;
@@ -198,20 +203,23 @@ async function marcar(p, marcas, { atenuar = false } = {}) {
                 padre.appendChild(n);
                 return n;
             };
-            const PAD = 5;
+            // `escala` engorda el recuadro de una MINIATURA, que se ve a una
+            // cuarta parte: a escala 1 su trazo se quedaría en medio píxel.
+            const PAD = 5 * escala;
+            const RX = 10 * escala;
             const defs = el("defs", {});
             const flecha = el("marker", { id: "punta", markerWidth: 10, markerHeight: 10, refX: 7, refY: 5, orient: "auto" }, defs);
             el("path", { d: "M0,0 L10,5 L0,10 z", fill: AZUL }, flecha);
             if (atenuar) {
                 const m = el("mask", { id: "velo" }, defs);
                 el("rect", { x: 0, y: 0, width: W, height: H, fill: "white" }, m);
-                for (const { c } of marcas) el("rect", { x: c.x - PAD, y: c.y - PAD, width: c.w + 2 * PAD, height: c.h + 2 * PAD, rx: 10, fill: "black" }, m);
+                for (const { c } of marcas) el("rect", { x: c.x - PAD, y: c.y - PAD, width: c.w + 2 * PAD, height: c.h + 2 * PAD, rx: RX, fill: "black" }, m);
                 el("rect", { x: 0, y: 0, width: W, height: H, fill: "rgba(15,23,42,0.55)", mask: "url(#velo)" });
             }
             for (const { c, n, texto, lado = "arriba", esquina = "izquierda" } of marcas) {
                 const r = { x: c.x - PAD, y: c.y - PAD, w: c.w + 2 * PAD, h: c.h + 2 * PAD };
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: 10, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 });
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: 10, fill: "none", stroke: AZUL, "stroke-width": 3 });
+                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 * escala });
+                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: AZUL, "stroke-width": 3 * escala });
                 if (n !== undefined) {
                     const cx = Math.min(Math.max(esquina === "derecha" ? r.x + r.w : r.x, 15), W - 15);
                     const cy = Math.min(Math.max(r.y, 15), H - 15);
@@ -253,7 +261,7 @@ async function marcar(p, marcas, { atenuar = false } = {}) {
                 }
             }
         },
-        { marcas, atenuar },
+        { marcas, atenuar, escala },
     );
 }
 
@@ -269,6 +277,46 @@ async function guardar(p, nombre, clip) {
         .toFile(path.join(SALIDA, nombre));
     tomadas.add(nombre);
     console.log("  ✓", nombre);
+}
+
+/* ------------------------------------------------------------------ */
+/* Las miniaturas del índice                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Una miniatura por sección, TODAS con la misma receta: la zona que la
+ * sección explica, nítida y en su recuadro; el resto, bajo el velo; y el
+ * encuadre 16:9 centrado en la zona (`encuadre-de-la-miniatura.mjs`). Se
+ * toman sobre la pantalla limpia, así que no dependen del orden de las demás.
+ */
+async function miniaturas(p) {
+    const vista = p.viewportSize();
+    const nombreFila = "Juan Pablo Restrepo";
+    const interruptor = async (rotulo) => caja(p, (await celdaDe(p, nombreFila, rotulo)).locator('[role="switch"]'));
+    const zonas = [
+        ["vista-general", async () => unir(await caja(p, '[data-zona="buscador"] input'), await caja(p, '[data-zona="acciones"] button'))],
+        ["columnas", async () => caja(p, "table thead")],
+        ["sesion-y-agente", async () => unir(await interruptor("Sesión"), await interruptor("Agente"))],
+        ["filtros", async () => unir(...(await Promise.all([0, 1, 2, 3].map((i) => caja(p, p.locator('[data-zona="filtros"] button').nth(i))))))],
+        ["buscar", async () => caja(p, '[data-zona="buscador"] input')],
+        ["exportar", async () => caja(p, 'button[aria-label="Exportar CSV"]')],
+        ["nuevo-contacto", async () => caja(p, p.getByRole("button", { name: "+ Nuevo" }))],
+    ];
+    const focos = {};
+    for (const [slug, zona] of zonas) {
+        const foco = await zona();
+        const e = encuadreDeLaMiniatura(foco, vista);
+        await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
+        const nombre = `mini-${slug}.webp`;
+        const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
+        await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(SALIDA, nombre));
+        tomadas.add(nombre);
+        // En fracción de la miniatura: así el banco mide sin saber el tamaño de la vista.
+        focos[nombre] = { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h };
+        console.log("  ✓", nombre);
+    }
+    await desmarcar(p);
+    writeFileSync(FOCOS, JSON.stringify(focos, null, 2) + "\n");
 }
 
 /* ------------------------------------------------------------------ */
@@ -679,17 +727,19 @@ try {
     });
     const p = await entrar(ctx);
     await abrirLeads(p);
-    await capturas(p);
+    await miniaturas(p);
+    if (!SOLO_MINIATURAS) await capturas(p);
     const estado = await ctx.storageState();
     await ctx.close();
-    if (!SIN_VIDEO) await video(navegador, estado);
+    if (!SIN_VIDEO && !SOLO_MINIATURAS) await video(navegador, estado);
 } finally {
     await navegador.close();
 }
 
 // Las que la guía enseña tienen que estar TODAS.
 const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
-const faltan = esperadas.filter((n) => !tomadas.has(n));
+// Con SOLO_MINIATURAS, lo demás se conserva del disco: basta con que esté.
+const faltan = esperadas.filter((n) => !tomadas.has(n) && !(SOLO_MINIATURAS && existsSync(path.join(SALIDA, n))));
 const sobran = readdirSync(SALIDA).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
 if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
 if (faltan.length) {
@@ -697,4 +747,4 @@ if (faltan.length) {
     process.exit(1);
 }
 writeFileSync(path.join(TMP, "tomadas.json"), JSON.stringify([...tomadas], null, 2));
-console.log(`[guia] ${tomadas.size} capturas${SIN_VIDEO ? "" : " y el vídeo"} en public/guia/leads`);
+console.log(`[guia] ${tomadas.size} capturas${SIN_VIDEO || SOLO_MINIATURAS ? "" : " y el vídeo"} en public/guia/leads`);
