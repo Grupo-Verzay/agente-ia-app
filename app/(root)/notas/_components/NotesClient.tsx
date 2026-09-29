@@ -13,6 +13,7 @@ import { NoteEmptyState } from './NoteEmptyState'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { elMandoDeArchivo, sinLaNota } from '@/lib/archivo-de-notas'
 
 interface Props {
   userId: string
@@ -115,12 +116,17 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     await loadFolders()
   }, [userId, selectedNote, loadFolders])
 
-  const handleArchiveNote = useCallback(async (id: string) => {
-    const res = await archiveNote(id, userId)
+  // Archivar y desarchivar son el MISMO mando con dos caras (lib/archivo-de-notas):
+  // las dos sacan la nota de la lista que se mira y la cierran.
+  const handleToggleArchive = useCallback(async (id: string, estaArchivada: boolean) => {
+    const mando = elMandoDeArchivo(estaArchivada)
+    const res = mando.accion === 'archivar'
+      ? await archiveNote(id, userId)
+      : await unarchiveNote(id, userId)
     if (!res.success) return toast.error(res.error)
-    setNotes(prev => prev.filter(n => n.id !== id))
+    setNotes(prev => sinLaNota(prev, id))
     if (selectedNote?.id === id) setSelectedNote(null)
-    toast.success('Nota archivada')
+    toast.success(mando.aviso)
     await loadFolders()
   }, [userId, selectedNote, loadFolders])
 
@@ -255,7 +261,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
             onSave={handleSave}
             onTogglePin={handleTogglePin}
             onDelete={handleDeleteNote}
-            onArchive={handleArchiveNote}
+            onToggleArchive={handleToggleArchive}
             onEmojiChange={handleEmojiChange}
             onColorChange={handleColorChange}
             onContactChange={handleContactChange}

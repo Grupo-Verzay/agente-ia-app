@@ -19365,6 +19365,27 @@ acciones contra Postgres, y en Chromium las cuatro tarjetas (orden y simetría a
 1440/1280/1024/390) y la ventana. `MODO=roto` pinta la página de `ANTES_REF` y
 afirma «Plantillas IA» dentro y ninguna ventana.
 
+## Mis notas: archivar y desarchivar son UN botón con dos caras
+
+Una nota archivada no tenía forma de volver a la lista activa. La acción de
+servidor (`unarchiveNote`) existía y estaba importada en `NotesClient`, pero
+**no la llamaba nadie**: archivar vivía solo en la barra del editor.
+
+> **El MISMO botón, en el MISMO sitio de la barra** (entre Fijar y Eliminar),
+> cambia de cara según `note.isArchived`: caja y «Archivar nota» en una activa,
+> `ArchiveRestore` y «Desarchivar nota» en una archivada. Lo decide
+> `elMandoDeArchivo` (`lib/archivo-de-notas.ts`, pura) y lo ejecuta
+> `handleToggleArchive`, un solo manejador para las dos.
+
+Las dos caras hacen lo simétrico: sacan la nota de la lista que se mira
+(activas o Archivo), la cierran, avisan y recuentan las carpetas. Solo el dueño
+ve el botón, y la puerta sigue siendo `elDuenoDeLasNotas` en la acción.
+
+Lo prueba `scripts/banco-desarchivar-nota.sh`: la regla y un barrido, las
+acciones contra Postgres (ida y vuelta, nadie desarchiva una ajena) y la barra
+real en Chromium. `MODO=roto` lee y monta `16e81b7` y afirma que con la nota
+archivada el botón seguía diciendo «Archivar nota».
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
