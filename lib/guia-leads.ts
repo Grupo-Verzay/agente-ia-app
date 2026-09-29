@@ -39,7 +39,7 @@ export type Seccion = {
     titulo: string;
     resumen: string;
     /** Nombre de un icono de lucide-react (ver `IconoDeSeccion`). */
-    icono: "LayoutDashboard" | "Columns3" | "ToggleRight" | "Filter" | "Search" | "Download" | "UserPlus";
+    icono: "LayoutDashboard" | "Columns3" | "ToggleRight" | "Filter" | "Search" | "Download" | "UserPlus" | "MoreHorizontal";
     /**
      * La captura de la tarjeta en el índice: `mini-<slug>.webp`, PROPIA de la
      * tarjeta y no la de un paso. Lleva el enfoque —la zona de la sección
@@ -100,6 +100,18 @@ export const MODULO_DE_LEADS = "Contactos";
 /** Las pastillas de conteo. El banco las compara con `FilterLeadsByStats.tsx`. */
 export const PASTILLAS_DOCUMENTADAS = ["Total", "Clientes activos", "Clientes inactivos", "Agente activo"] as const;
 
+/**
+ * El menú «⋯» de la barra (las ACCIONES MASIVAS), grupo por grupo y en su
+ * orden. El banco lo compara con `BulkActionsDropdown.tsx`: una acción nueva
+ * en ese menú sin su nombre en la guía la pone en rojo — que es como se quedó
+ * la primera versión, que no nombraba ninguna.
+ */
+export const ACCIONES_MASIVAS_DOCUMENTADAS = [
+    { grupo: "Exportar", acciones: ["Exportar a Excel", "Sincronizar a Google Sheets"] },
+    { grupo: "Gestión masiva", acciones: ["Activar clientes", "Desactivar clientes", "Limpiar leads vacíos"] },
+    { grupo: "Riesgo alto", acciones: ["Borrar historial", "Eliminar clientes", "Eliminar seguimientos"] },
+] as const;
+
 /** Las columnas del CSV exportado. El banco las compara con `sessions-content.tsx`. */
 export const COLUMNAS_DEL_CSV = [
     "ID",
@@ -118,7 +130,8 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
     subtitulo: "Tus contactos de WhatsApp, en una sola lista",
     descripcion:
         "Leads reúne a cada persona que te ha escrito por WhatsApp. Desde aquí ves en qué punto está cada " +
-        "contacto, decides si la IA le responde, lo encuentras en segundos, lo exportas y creas contactos nuevos.",
+        "contacto, decides si la IA le responde, lo encuentras en segundos, lo exportas, creas contactos nuevos y " +
+        "cambias todos a la vez con las acciones masivas.",
     secciones: [
         {
             slug: "vista-general",
@@ -155,7 +168,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
                     titulo: "La barra de trabajo",
                     texto:
                         "1 Buscador · 2 Contadores que filtran · 3 Línea (si tienes varias) · 4 Exportar CSV · " +
-                        "5 Nuevo contacto · 6 Acciones para todos los contactos a la vez.",
+                        "5 Nuevo contacto · 6 Acciones masivas, para todos los contactos a la vez.",
                     imagen: "barra.webp",
                     alt: "La barra de trabajo con cada botón numerado",
                 },
@@ -389,6 +402,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
             consejos: [
                 "Exporta todos los contactos de la cuenta, aunque tengas un filtro puesto.",
                 "El archivo abre bien en Excel con tildes y eñes.",
+                "Para Excel o Google Sheets usa el menú «⋯» del final de la barra (sección Acciones masivas).",
             ],
         },
         {
@@ -419,6 +433,59 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
                 },
             ],
             consejos: ["Ejemplo de número: 573001234567 (57 es Colombia, luego el celular)."],
+        },
+        {
+            slug: "acciones-masivas",
+            titulo: "Acciones masivas",
+            resumen: "El menú «⋯» de la barra: exportar a Excel o a Google Sheets y cambiar o limpiar todos los contactos a la vez.",
+            icono: "MoreHorizontal",
+            miniatura: "mini-acciones-masivas.webp",
+            pasos: [
+                {
+                    titulo: "El botón «⋯»",
+                    texto: "Es el último de la barra, pegado al borde derecho. Abre lo que se hace con todos los contactos a la vez.",
+                    imagen: "masivas-boton.webp",
+                    alt: "El botón de acciones masivas resaltado al final de la barra",
+                },
+                {
+                    titulo: "Tres grupos",
+                    texto: "1 Exportar · 2 Gestión masiva · 3 Riesgo alto. Cada grupo lleva su título dentro del menú.",
+                    imagen: "masivas-menu.webp",
+                    alt: "El menú de acciones masivas abierto, con sus tres grupos numerados",
+                },
+                {
+                    titulo: "Exportar",
+                    texto:
+                        "«Exportar a Excel» descarga la página de la tabla que estás viendo. «Sincronizar a Google Sheets» manda todos los contactos a tu hoja conectada.",
+                    imagen: "masivas-exportar.webp",
+                    alt: "El grupo Exportar del menú resaltado",
+                },
+                {
+                    titulo: "Gestión masiva",
+                    texto:
+                        "«Activar clientes» y «Desactivar clientes» abren o pausan la sesión de todos. «Limpiar leads vacíos» quita los contactos sin un número válido.",
+                    imagen: "masivas-gestion.webp",
+                    alt: "El grupo Gestión masiva del menú resaltado",
+                },
+                {
+                    titulo: "Riesgo alto",
+                    texto:
+                        "«Borrar historial» borra el historial de conversación de todos, «Eliminar clientes» borra todos los contactos y «Eliminar seguimientos», los programados.",
+                    imagen: "masivas-riesgo.webp",
+                    alt: "El grupo Riesgo alto del menú resaltado",
+                },
+                {
+                    titulo: "Siempre pide confirmación",
+                    texto: "Una ventana dice qué vas a ejecutar. «Cancelar» no cambia nada; «Confirmar» lo aplica a todos tus contactos.",
+                    imagen: "masivas-confirmar.webp",
+                    alt: "La ventana de confirmación de una acción masiva, con Cancelar y Confirmar",
+                },
+            ],
+            consejos: [
+                "Todo este menú actúa sobre TODOS los contactos de la cuenta, no solo sobre la página o el filtro que tengas puesto. La excepción es «Exportar a Excel», que descarga la página que ves.",
+                "Para cambiar un solo contacto usa los interruptores de su fila o el «⋯» de esa fila (sección Qué muestra cada columna).",
+                "«Sincronizar a Google Sheets» pide tener tu hoja conectada: se conecta en la ficha de un contacto, en la sección Google Sheets.",
+            ],
         },
     ],
 };

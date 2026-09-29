@@ -14,6 +14,21 @@
  * ella, lo que no es español se escribe como suena (`comoSeDice`); Cedar lo
  * lee bien tal cual, y sus instrucciones le dicen cómo.
  *
+ * # El ritmo
+ *
+ * La misma voz habla fluido en una llamada y sonaba pausada y cortada aquí.
+ * Eran dos cosas, y se arreglan las dos:
+ *   1. **Dentro de cada frase**: las instrucciones pedían «ritmo pausado de
+ *      tutorial» y el modelo metía medio segundo de silencio en cada coma. Las
+ *      instrucciones piden ahora el ritmo de una llamada (`voz-cedar.mjs`), y
+ *      como el modelo no siempre obedece, `acortarLasPausas` deja cualquier
+ *      pausa interior en `RITMO.pausaMaximaMs` y quita el silencio de relleno
+ *      de los bordes. No toca la voz: solo quita silencio.
+ *   2. **Entre frases**: el guion esperaba a que acabara cada frase, respiraba,
+ *      hacía la acción y solo entonces empezaba la siguiente —huecos de hasta
+ *      dos segundos y medio—. Ahora las acciones ocurren MIENTRAS se habla,
+ *      en la palabra que las nombra (`alDecir` en capturar-guia-leads.mjs).
+ *
  * # La sincronía
  *
  * El vídeo lo graba Playwright desde que se abre la página. El guion anota en
@@ -159,12 +174,121 @@ function hayDifonoEnEs3(x, y) {
     return difonos.has(`${x}-${y}`);
 }
 
-/** Sintetiza una frase y devuelve su audio ya leído. */
+/**
+ * El ritmo de la narración: cuánto silencio se deja dentro de una frase y en
+ * sus bordes. Queda escrito en `voz-de-la-guia/leads.json` con el vídeo, y el
+ * banco lo compara con este: un vídeo publicado con otro ritmo se regenera.
+ */
+export const RITMO = Object.freeze({
+    /** Una pausa DENTRO de una frase no pasa de aquí: lo que sobra se quita. */
+    pausaMaximaMs: 280,
+    /** El silencio que se deja antes de la primera palabra y tras la última. */
+    bordeInicialMs: 30,
+    bordeFinalMs: 60,
+    /**
+     * Por debajo de este nivel es silencio: RMS de una ventana, en fracción del
+     * máximo. 0,01 son −40 dBFS, el mismo umbral con el que el banco mide las
+     * pausas con `silencedetect`.
+     */
+    umbral: 0.01,
+    ventanaMs: 10,
+    /** El fundido de cada corte, para que no chasquee. */
+    fundidoMs: 6,
+});
+
+/** Qué ventanas de `ventanaMs` suenan (por encima del umbral). */
+function lasVentanasQueSuenan(audio, ritmo) {
+    const n = Math.floor(audio.datos.length / 2);
+    const porVentana = Math.max(1, Math.round((audio.frecuencia * ritmo.ventanaMs) / 1000));
+    const limite = ritmo.umbral * 32768;
+    const suena = [];
+    for (let a = 0; a < n; a += porVentana) {
+        const b = Math.min(n, a + porVentana);
+        let suma = 0;
+        for (let i = a; i < b; i += 1) {
+            const x = audio.datos.readInt16LE(i * 2);
+            suma += x * x;
+        }
+        suena.push(Math.sqrt(suma / (b - a)) >= limite);
+    }
+    return { n, porVentana, suena };
+}
+
+/**
+ * Las pausas de una frase, en ms: las de DENTRO (entre la primera palabra y la
+ * última) y el silencio de los bordes. Pura: la usa el banco para medir.
+ */
+export function lasPausas(audio, ritmo = RITMO) {
+    const { porVentana, suena } = lasVentanasQueSuenan(audio, ritmo);
+    const ms = (ventanas) => Math.round((ventanas * porVentana * 1000) / audio.frecuencia);
+    const primera = suena.indexOf(true);
+    if (primera < 0) return { interiores: [], inicio: ms(suena.length), fin: 0, vozMs: 0 };
+    const ultima = suena.lastIndexOf(true);
+    const interiores = [];
+    let silencio = 0;
+    for (let v = primera; v <= ultima; v += 1) {
+        if (suena[v]) {
+            if (silencio) interiores.push(ms(silencio));
+            silencio = 0;
+        } else silencio += 1;
+    }
+    return { interiores, inicio: ms(primera), fin: ms(suena.length - 1 - ultima), vozMs: ms(ultima - primera + 1) };
+}
+
+/**
+ * Deja cada pausa interior en `pausaMaximaMs` como mucho —se conserva la mitad
+ * de su principio y la mitad de su final, así no se come la cola de una
+ * palabra ni el arranque de la siguiente— y los bordes en `bordeInicialMs` y
+ * `bordeFinalMs`. Solo quita silencio: la voz sale entera, muestra a muestra.
+ * Pura.
+ */
+export function acortarLasPausas(audio, ritmo = RITMO) {
+    const { n, porVentana, suena } = lasVentanasQueSuenan(audio, ritmo);
+    const primera = suena.indexOf(true);
+    if (primera < 0) return audio; // todo silencio: no hay voz que acercar
+    const ultima = suena.lastIndexOf(true);
+    const muestras = (ms) => Math.round((ms * audio.frecuencia) / 1000);
+    const mitad = Math.floor(muestras(ritmo.pausaMaximaMs) / 2);
+    const tramos = [];
+    let desde = Math.max(0, primera * porVentana - muestras(ritmo.bordeInicialMs));
+    for (let v = primera; v <= ultima; ) {
+        if (suena[v]) {
+            v += 1;
+            continue;
+        }
+        let w = v;
+        while (!suena[w]) w += 1; // hay voz después: `ultima` suena
+        if ((w - v) * porVentana > 2 * mitad) {
+            tramos.push([desde, v * porVentana + mitad]);
+            desde = w * porVentana - mitad;
+        }
+        v = w;
+    }
+    tramos.push([desde, Math.min(n, (ultima + 1) * porVentana + muestras(ritmo.bordeFinalMs))]);
+
+    const total = tramos.reduce((s, [a, b]) => s + (b - a), 0);
+    const salida = Buffer.alloc(total * 2);
+    const fundido = Math.max(1, muestras(ritmo.fundidoMs));
+    let o = 0;
+    tramos.forEach(([a, b], t) => {
+        for (let i = a; i < b; i += 1) {
+            let x = audio.datos.readInt16LE(i * 2);
+            // Fundido en los cortes (no en el principio ni en el final de la frase).
+            if (t > 0 && i - a < fundido) x = Math.round((x * (i - a)) / fundido);
+            if (t < tramos.length - 1 && b - 1 - i < fundido) x = Math.round((x * (b - 1 - i)) / fundido);
+            salida.writeInt16LE(x, o * 2);
+            o += 1;
+        }
+    });
+    return { ...audio, datos: salida, ms: Math.round((total / audio.frecuencia) * 1000) };
+}
+
+/** Sintetiza una frase y devuelve su audio ya leído, con el ritmo de la narración. */
 export function sintetizar(texto, archivo) {
     if (usaCedar()) {
-        const wav = wavDeLaCache(texto);
-        writeFileSync(archivo, wav);
-        return leerWav(wav);
+        const audio = acortarLasPausas(leerWav(wavDeLaCache(texto)));
+        writeFileSync(archivo, escribirWav(audio.datos, audio.frecuencia));
+        return audio;
     }
     if (VOZ === "mb-es3" && !existsSync(BASE_ES3)) {
         console.warn(`[guia] falta la voz MBROLA es3 (apt-get install mbrola mbrola-es3); se narra con es-419`);
@@ -211,12 +335,26 @@ export function montarLaPista(tramos, totalMs) {
     return { wav: escribirWav(pista, frecuencia), colocados };
 }
 
-/** Pega la pista al vídeo: el vídeo se copia tal cual y el audio va en Opus. */
-export function mezclar(video, pista, salida) {
+/**
+ * Pega la pista al vídeo, con el audio en Opus. Sin `desdeMs` el vídeo se
+ * copia tal cual. Con `desdeMs` se recorta lo grabado antes —la página
+ * cargando, segundos de pantalla quieta y sin voz— cortando el vídeo Y la
+ * pista en el mismo instante, así que la sincronía no se mueve; como un corte
+ * exacto no cae en un fotograma clave, el vídeo se vuelve a codificar (VP8,
+ * el mismo códec que graba Playwright).
+ */
+export function mezclar(video, pista, salida, { desdeMs = 0 } = {}) {
+    const desde = desdeMs > 0 ? ["-ss", (desdeMs / 1000).toFixed(3)] : [];
+    const imagen = desdeMs > 0
+        ? ["-c:v", "libvpx", "-b:v", "2M", "-crf", "8", "-qmin", "0", "-qmax", "40", "-deadline", "good", "-cpu-used", "1", "-auto-alt-ref", "0"]
+        : ["-c:v", "copy"];
     execFileSync(
         "ffmpeg",
-        ["-y", "-loglevel", "error", "-i", video, "-i", pista, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "libopus", "-b:a", "64k", "-ar", "48000", salida],
+        // `-shortest`: el vídeo acaba con la narración. La grabación sigue
+        // unos segundos más mientras se cierra el navegador, y eso era una
+        // cola muda de 4-5 s al final del vídeo publicado.
+        ["-y", "-loglevel", "error", ...desde, "-i", video, ...desde, "-i", pista, "-map", "0:v:0", "-map", "1:a:0", ...imagen,
+            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "libopus", "-b:a", "64k", "-ar", "48000", "-shortest", salida],
         { stdio: "inherit" },
     );
 }

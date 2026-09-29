@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# El banco de las MINIATURAS de la guía pública de Leads: las siete tarjetas
+# El banco de las MINIATURAS de la guía pública de Leads: todas las tarjetas
 # de Secciones con el efecto de enfoque (la zona nítida en su recuadro, el
 # resto atenuado), medido en los píxeles de cada `mini-*.webp`.
 #
