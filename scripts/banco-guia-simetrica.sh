@@ -7,6 +7,9 @@
 #      (la casa guarda, un cliente no; guardar vacío restaura) — si hay Postgres.
 #   3. `probar-guia-simetrica.mjs`: la cuadrícula PINTADA en Chromium sobre el
 #      CSS del build, con 1..9 secciones a 390/768/1024/1440 (hace falta build).
+#   4. `probar-introduccion-de-la-guia.mjs`: el párrafo de introducción ocupa
+#      el ancho entero del contenedor (el del vídeo) a 390..1440 (hace falta
+#      build). Su «antes» es ANTES_INTRO_REF, con el `max-w-3xl`.
 #
 # `MODO=roto` lee y pinta lo de ANTES_REF y afirma el fallo.
 set -euo pipefail
@@ -52,6 +55,7 @@ fi
 
 if [ -d .next/static/css ]; then
   node scripts/probar-guia-simetrica.mjs
+  node scripts/probar-introduccion-de-la-guia.mjs
 else
   echo "(sin build: se salta la mitad del navegador)"
 fi

@@ -215,14 +215,22 @@ export function NavegacionEntreSecciones({
     );
 }
 
-/** El bloque de introducción del índice. El texto es editable (ver `lib/introduccion-de-la-guia.ts`). */
+/**
+ * El bloque de introducción del índice. El texto es editable (ver `lib/introduccion-de-la-guia.ts`).
+ *
+ * Los párrafos ocupan el ancho ENTERO del contenedor, como el vídeo y la
+ * cuadrícula de encima y de debajo. Llevaron un `max-w-3xl` (768 px) que en
+ * escritorio los cortaba antes que todo lo demás y dejaba un hueco a la
+ * derecha; en tablet y móvil el contenedor ya mide menos que eso, así que
+ * quitarlo solo cambia el escritorio. Lo mide `scripts/probar-introduccion-de-la-guia.mjs`.
+ */
 export function IntroduccionDeLaGuia({ introduccion }: { introduccion: Introduccion }) {
     return (
         <section data-introduccion-de-la-guia className="space-y-3">
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Guía del módulo</p>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{introduccion.titulo}</h1>
             <p className="text-lg font-medium text-slate-700">{introduccion.subtitulo}</p>
-            <div className="max-w-3xl space-y-3">
+            <div className="space-y-3">
                 {losParrafos(introduccion.descripcion).map((p, i) => (
                     <p key={i} className="text-base leading-relaxed text-slate-600">
                         {p}
