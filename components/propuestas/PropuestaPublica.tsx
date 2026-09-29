@@ -29,6 +29,22 @@ import {
  */
 export const AZUL_DE_LA_PROPUESTA = "bg-gradient-to-br from-blue-500 to-blue-400";
 
+/**
+ * El ancho del contenedor. Hasta `md` (teléfono y tableta) es el de siempre,
+ * `max-w-2xl`; en escritorio crece por escalones —896, 1024 y 1152 px— para
+ * no quedar como una tira de 672 px en medio de una pantalla de 1440 o 1920,
+ * y **nunca llega al ancho entero**: siempre queda margen a los lados.
+ */
+export const ANCHO_DE_LA_PROPUESTA = "max-w-2xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl";
+
+/**
+ * El tope de un párrafo largo (alcance, notas, condiciones, pago). Con el
+ * contenedor ancho, un texto de 14 px pasaría de 140 caracteres por línea y
+ * se leería mal: se topa en ~100 (`max-w-3xl`). Los títulos, importes y
+ * tarjetas sí ocupan el ancho entero.
+ */
+export const TOPE_DE_LECTURA = "max-w-3xl";
+
 export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
     const total = elTotal(propuesta.servicios);
     const { negocio } = propuesta;
@@ -37,7 +53,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
     const conPago = Boolean(propuesta.metodoPago || propuesta.medioPago);
 
     return (
-        <article data-propuesta className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
+        <article data-propuesta className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8`}>
             {/* Cabecera: el logo con «Propuesta comercial» debajo, y a la
                 derecha el eslogan de la cuenta si lo tiene. El nombre de la
                 cuenta ya no va aquí: el logo lo dice, y sale en el pie. */}
@@ -125,7 +141,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                             {s.alcance ? (
                                 <div className="mt-2">
                                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Alcance</p>
-                                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">
+                                    <p data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
                                         {s.alcance}
                                     </p>
                                 </div>
@@ -153,7 +169,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                             : `${comoSeLeeElImporte(propuesta.mantenimientoMensual!, propuesta.moneda)} / mes`}
                     </p>
                     {propuesta.mantenimientoDescripcion ? (
-                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">
+                        <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
                             {propuesta.mantenimientoDescripcion}
                         </p>
                     ) : null}
@@ -166,7 +182,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                         <StickyNote className="h-4 w-4 text-slate-500" />
                         Nota
                     </h2>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">
+                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
                         {propuesta.nota}
                     </p>
                 </section>
@@ -178,7 +194,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                         <ScrollText className="h-4 w-4 text-slate-500" />
                         Condiciones
                     </h2>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">
+                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
                         {propuesta.condiciones}
                     </p>
                 </section>
@@ -202,7 +218,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                         {propuesta.medioPago ? (
                             <div data-medio-pago>
                                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Medio de pago</dt>
-                                <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
+                                <dd data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700`}>
                                     {propuesta.medioPago}
                                 </dd>
                             </div>
