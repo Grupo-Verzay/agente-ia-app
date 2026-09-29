@@ -22560,11 +22560,23 @@ la captura de un paso.
 «▶ Demostración en 1 minuto» en el CENTRO (enlace a `#demostracion`, prop
 `demostracion`) y «Módulo X» a la derecha (prop `modulo`). No hay título aparte
 encima del vídeo: arranca justo bajo la barra, con el mismo aire arriba que a
-los lados (`pt-4 sm:pt-6` = `px-4 sm:px-6`). En un teléfono «Guía de la
+los lados (`pt-4 sm:pt-6` = `px-4 sm:px-6`, en `CONTENEDOR_DEL_INDICE`). En un teléfono «Guía de la
 plataforma» se queda en su icono para que quepan los tres; en una sección el
 centro va vacío. **Las guías de otros módulos usan la misma barra con sus
 props.** Lo prueba `scripts/banco-cabecera-de-la-guia.sh` (hace falta build),
 a 360..1440; `MODO=roto` pinta la de `9e38996` y afirma el título aparte.
+
+### El índice termina en la línea divisoria, y nada debajo
+
+Debajo de las tarjetas de cierre había una nota —«Las capturas se toman
+automáticamente de la plataforma real, con datos de ejemplo»— que es interna y
+al cliente no le dice nada. Se fue, y con ella el relleno de abajo: **el índice
+de toda guía termina en `FinDeLaGuia`** (la línea divisoria) dentro de
+`CONTENEDOR_DEL_INDICE` (sin `pb-*`), los dos de `components/guia/Guia.tsx`.
+Una guía nueva usa las dos y no escribe su propio pie. Lo prueba
+`lib/__tests__/fin-de-la-guia.test.mjs` (desde `banco-guia-leads.sh`), que
+barre todas las guías de `app/guia/*`, y la sonda servida mide que no queda
+nada debajo de la línea; `MODO=roto` lee `9e38996` y afirma la nota.
 
 ### La introducción ocupa el ancho del contenedor, como el vídeo
 

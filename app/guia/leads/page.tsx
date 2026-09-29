@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 
-import { CabeceraDeLaGuia, CuadriculaDeSecciones, IntroduccionDeLaGuia } from "@/components/guia/Guia";
+import {
+    CabeceraDeLaGuia,
+    CONTENEDOR_DEL_INDICE,
+    CuadriculaDeSecciones,
+    FinDeLaGuia,
+    IntroduccionDeLaGuia,
+} from "@/components/guia/Guia";
 import { GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
 import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
 import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
@@ -37,7 +43,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
             <CabeceraDeLaGuia demostracion={{ href: "#demostracion", texto: DEMOSTRACION }} modulo="Leads" />
             {/* El vídeo arranca justo bajo la barra: su título vive en ella, y el
                 aire de arriba es el mismo que el de los lados (px-4 / px-6). */}
-            <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pb-16 pt-4 sm:px-6 sm:pt-6">
+            <div className={CONTENEDOR_DEL_INDICE}>
                 <section id="demostracion" data-demostracion className="scroll-mt-20" aria-label={DEMOSTRACION}>
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm">
                         <video
@@ -71,9 +77,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
                     />
                 </section>
 
-                <footer className="border-t border-slate-200 pt-6 text-center text-xs text-slate-400">
-                    Las capturas se toman automáticamente de la plataforma real, con datos de ejemplo.
-                </footer>
+                <FinDeLaGuia />
             </div>
         </>
     );

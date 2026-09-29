@@ -344,3 +344,17 @@ export function CuadriculaDeSecciones({
         </div>
     );
 }
+
+/**
+ * El índice de una guía termina en la línea divisoria que sigue a las
+ * tarjetas de cierre, y NADA debajo: ni una nota («las capturas se toman
+ * automáticamente…» era una nota interna que al cliente no le dice nada) ni
+ * relleno. Por eso el contenedor no lleva `pb-*` y `FinDeLaGuia` es lo último
+ * que se pinta. Toda guía nueva usa las dos; lo comprueba
+ * `lib/__tests__/fin-de-la-guia.test.mjs`.
+ */
+export const CONTENEDOR_DEL_INDICE = "mx-auto w-full max-w-5xl space-y-10 px-4 pt-4 sm:px-6 sm:pt-6";
+
+export function FinDeLaGuia() {
+    return <hr data-fin-de-la-guia className="border-0 border-t border-slate-200" />;
+}

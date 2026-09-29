@@ -50,7 +50,11 @@ const leer = (fichero) =>
 
 // La página: de ahí salen el contenedor y la sección del vídeo, tal cual.
 const pagina = leer("app/guia/leads/page.tsx");
-const contenedor = pagina.match(/<div className="(mx-auto w-full max-w-5xl[^"]*)">/)?.[1];
+const contenedor =
+    pagina.match(/<div className="(mx-auto w-full max-w-5xl[^"]*)">/)?.[1] ??
+    (/className=\{CONTENEDOR_DEL_INDICE\}/.test(pagina)
+        ? leer("components/guia/Guia.tsx").match(/CONTENEDOR_DEL_INDICE = "([^"]+)"/)?.[1]
+        : undefined);
 const seccion = pagina.match(/<section id="demostracion"[^>]*className="([^"]*)"/)?.[1];
 if (!contenedor || !seccion) throw new Error("no se encontró el contenedor o la sección del vídeo en la página");
 // Lo que la página pinta entre el <section> y el vídeo (el título aparte, si lo hay).
