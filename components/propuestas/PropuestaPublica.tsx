@@ -56,8 +56,11 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
         <article data-propuesta className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8`}>
             {/* Cabecera: el logo con «Propuesta comercial» debajo, y a la
                 derecha el eslogan de la cuenta si lo tiene. El nombre de la
-                cuenta ya no va aquí: el logo lo dice, y sale en el pie. */}
-            <header data-cabecera className="flex items-start justify-between gap-4">
+                cuenta ya no va aquí: el logo lo dice, y sale en el pie.
+                `items-center`: el eslogan va a la altura del CENTRO del bloque
+                del logo, no pegado arriba (con `items-start` y un `pt-1` quedaba
+                a la altura del logo y descolgado del rótulo). */}
+            <header data-cabecera className="flex items-center justify-between gap-4">
                 <div className="flex shrink-0 flex-col items-start gap-1.5">
                     {negocio.logo ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -76,7 +79,7 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                 {negocio.eslogan ? (
                     <p
                         data-eslogan
-                        className="min-w-0 max-w-[60%] break-words pt-1 text-right text-sm font-medium leading-snug text-slate-600"
+                        className="min-w-0 max-w-[60%] break-words text-right text-sm font-bold leading-snug text-slate-700"
                     >
                         {negocio.eslogan}
                     </p>
