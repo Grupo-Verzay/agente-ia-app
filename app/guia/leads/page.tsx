@@ -1,29 +1,41 @@
 import type { Metadata } from "next";
 import { PlayCircle } from "lucide-react";
 
-import { CabeceraDeLaGuia, TarjetaDeSeccion } from "@/components/guia/Guia";
+import { CabeceraDeLaGuia, CuadriculaDeSecciones, IntroduccionDeLaGuia } from "@/components/guia/Guia";
 import { GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
+import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
+import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
 
 /**
- * El índice de la guía de Leads: qué es el módulo, la demostración en vídeo y
- * una tarjeta por sección. Pública y no indexada (ver `app/guia/layout.tsx`).
+ * El índice de la guía de Leads, en este orden: la demostración en vídeo, la
+ * introducción (editable desde Documentación › Administrador guías) y una
+ * tarjeta por sección, con las tarjetas de cierre que dejan la cuadrícula
+ * simétrica (`lib/cierre-de-la-guia.ts`). Pública y no indexada (ver
+ * `app/guia/layout.tsx`).
+ *
+ * Dinámica a propósito: la introducción se edita y con dos réplicas un caché
+ * de página se quedaría viejo en una de ellas. Es una consulta por una clave
+ * primaria, y sin base sale el texto del código.
  */
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Leads" };
 
-export default function IndiceDeLaGuiaDeLeads() {
+export default async function IndiceDeLaGuiaDeLeads() {
+    const [introduccion, contactoHref] = await Promise.all([
+        laIntroduccionPublica("leads", {
+            titulo: GUIA_LEADS.titulo,
+            subtitulo: GUIA_LEADS.subtitulo,
+            descripcion: GUIA_LEADS.descripcion,
+        }),
+        elContactoDeLaGuia("leads"),
+    ]);
+
     return (
         <>
             <CabeceraDeLaGuia />
             <div className="mx-auto w-full max-w-5xl space-y-10 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-                <section className="space-y-3">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Guía del módulo</p>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{GUIA_LEADS.titulo}</h1>
-                    <p className="text-lg font-medium text-slate-700">{GUIA_LEADS.subtitulo}</p>
-                    <p className="max-w-3xl text-base leading-relaxed text-slate-600">{GUIA_LEADS.descripcion}</p>
-                </section>
-
-                <section className="space-y-3" aria-labelledby="demostracion">
-                    <h2 id="demostracion" className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <section id="demostracion" data-demostracion className="scroll-mt-20 space-y-3" aria-labelledby="titulo-demostracion">
+                    <h2 id="titulo-demostracion" className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900">
                         <PlayCircle className="h-5 w-5 text-blue-600" aria-hidden />
                         Demostración en 1 minuto
                     </h2>
@@ -42,6 +54,8 @@ export default function IndiceDeLaGuiaDeLeads() {
                     </div>
                 </section>
 
+                <IntroduccionDeLaGuia introduccion={introduccion} />
+
                 <section className="space-y-4" aria-labelledby="secciones">
                     <div className="flex items-baseline justify-between gap-3">
                         <h2 id="secciones" className="text-lg font-semibold text-slate-900">
@@ -49,11 +63,12 @@ export default function IndiceDeLaGuiaDeLeads() {
                         </h2>
                         <span className="text-sm text-slate-500">{SECCIONES.length} guías paso a paso</span>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {SECCIONES.map((s, i) => (
-                            <TarjetaDeSeccion key={s.slug} seccion={s} numero={i + 1} />
-                        ))}
-                    </div>
+                    <CuadriculaDeSecciones
+                        secciones={SECCIONES}
+                        moduloPath="/guia/leads"
+                        contactoHref={contactoHref}
+                        videoHref="#demostracion"
+                    />
                 </section>
 
                 <footer className="border-t border-slate-200 pt-6 text-center text-xs text-slate-400">

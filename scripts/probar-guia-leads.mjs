@@ -47,6 +47,24 @@ try {
         }));
         exigir(duracion !== -1 && duracion !== -2, `${tag}: el vídeo carga (duración ${duracion})`);
         exigir((await p.evaluate(() => document.documentElement.scrollWidth)) <= vista.width, `${tag}: el índice no se sale a lo ancho`);
+        // El orden del índice: vídeo, introducción, secciones (con su cierre).
+        const orden = await p.evaluate(() => {
+            const y = (s) => document.querySelector(s)?.getBoundingClientRect().top ?? NaN;
+            return { video: y("[data-video-de-la-guia]"), intro: y("[data-introduccion-de-la-guia]"), secciones: y("[data-cuadricula-de-secciones]") };
+        });
+        exigir(orden.video < orden.intro && orden.intro < orden.secciones, `${tag}: vídeo → introducción → secciones (${JSON.stringify(orden)})`);
+        const contacto = await p.$eval('[data-tarjeta-de-cierre="contacto"]', (a) => ({ href: a.getAttribute("href"), visible: a.getBoundingClientRect().width > 0 }));
+        exigir(contacto.visible && /^https:\/\/wa\.me\/\d+\?text=/.test(contacto.href), `${tag}: «Contáctanos» lleva a WhatsApp (${contacto.href})`);
+        const video = await p.$('[data-tarjeta-de-cierre="video"]');
+        const videoVisible = video ? await video.evaluate((a) => getComputedStyle(a).display !== "none") : false;
+        exigir(videoVisible === (vista.width >= 1024), `${tag}: «Ver el vídeo» solo donde deja dos huecos (7 secciones a 3 columnas)`);
+        if (videoVisible) {
+            await video.click();
+            await p.waitForTimeout(600);
+            const arriba = await p.$eval("[data-demostracion]", (e) => e.getBoundingClientRect().top);
+            exigir(arriba >= 0 && arriba < 140, `${tag}: «Ver el vídeo» sube hasta la demostración (queda a ${Math.round(arriba)} px)`);
+            await p.evaluate(() => { document.querySelector("[data-guia]").scrollTop = 0; });
+        }
 
         for (const href of tarjetas) {
             await p.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
