@@ -22530,6 +22530,31 @@ Tres cosas que hay que mantener:
 Lo prueba `scripts/banco-guia-leads.sh` (reglas y la guía servida sin sesión
 a 390 y 1440); `MODO=roto` afirma que en `73f991f` no existía.
 
+### El vídeo: el cursor de VERDAD y narración, sin marcas encima
+
+Chromium sin cabeza no graba el puntero, así que se dibuja
+(`scripts/cursor-de-la-guia.mjs`): la **flecha** al moverse, la **manito**
+sobre lo que se pulsa y la «I» en un campo —lo que pintaría el navegador,
+decidido por el `cursor` calculado y el tipo de elemento—. **Sin halo, sin
+círculo y sin encogerse al pulsar**: con cursor real y voz, las marcas sobran.
+
+La narración (`scripts/narracion-guia-leads.mjs`) se sintetiza en la máquina
+con `espeak-ng` + MBROLA `es3` (`apt-get install espeak-ng mbrola
+mbrola-es3`; no hay voz neuronal instalable sin internet) y la pega `ffmpeg`
+en Opus (`scripts/voz-de-la-guia.mjs`). Tres cosas:
+
+1. **La tabla de espeak para es3 está descuadrada**: pide fonemas que es3 no
+   tiene (`h` por la «r», `L`, `R2`, `tS`) y MBROLA los rellena con silencio
+   —cortes a mitad de palabra sin ningún error—. Se pide `--pho`, se corrige
+   (`arreglarPho`) y MBROLA corre SIN permiso para rellenar.
+2. **Lo que no es español se escribe como suena** (`comoSeDice`: «Lids»,
+   «guatsap»); el subtítulo enseña la palabra de verdad.
+3. **El guion no sigue hasta que la frase terminó de sonar**: así la voz y la
+   acción no se separan aunque la pantalla tarde.
+
+Lo prueba `lib/__tests__/video-guia-leads.test.mjs` (en `banco-guia-leads.sh`);
+`MODO=roto` lee `153f64f` y afirma la bolita con halo y el vídeo mudo.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

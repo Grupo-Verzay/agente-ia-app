@@ -24,8 +24,12 @@
  * Se lanza con `scripts/generar-guia-leads.sh`.
  */
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+
+import { CURSOR } from "./cursor-de-la-guia.mjs";
+import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
+import { guardarWav, mezclar, montarLaPista, sintetizar } from "./voz-de-la-guia.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -94,8 +98,14 @@ async function abrirLeads(p) {
 
 async function caja(p, selector) {
     const el = typeof selector === "string" ? p.locator(selector).first() : selector;
-    await el.waitFor({ state: "visible", timeout: 20000 });
-    const b = await el.boundingBox();
+    // Una fila que se vuelve a pintar (tras un interruptor) puede soltar el
+    // nodo entre «visible» y la medida: se vuelve a intentar antes de rendirse.
+    let b = null;
+    for (let i = 0; i < 6 && !b; i += 1) {
+        await el.waitFor({ state: "visible", timeout: 20000 });
+        b = await el.boundingBox();
+        if (!b) await espera(p, 400);
+    }
     if (!b) throw new Error(`sin caja: ${selector}`);
     return { x: b.x, y: b.y, w: b.width, h: b.height };
 }
@@ -536,30 +546,6 @@ async function pintarElCsv(p, fichero, nombre) {
 /* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
 
-const CURSOR = `
-(() => {
-  if (window.__cursor) return;
-  const c = document.createElement('div');
-  c.id = '__cursor';
-  Object.assign(c.style, {position:'fixed',left:'0',top:'0',width:'22px',height:'22px',marginLeft:'-11px',marginTop:'-11px',
-    borderRadius:'50%',background:'rgba(37,99,235,0.35)',border:'2px solid #2563EB',zIndex:2147483647,pointerEvents:'none',
-    transition:'transform .12s ease',boxShadow:'0 0 0 4px rgba(255,255,255,.6)'});
-  const cap = document.createElement('div');
-  cap.id = '__rotulo';
-  Object.assign(cap.style, {position:'fixed',left:'50%',bottom:'28px',transform:'translateX(-50%)',background:'rgba(15,23,42,.88)',
-    color:'#fff',font:'600 18px Poppins, Arial, sans-serif',padding:'12px 22px',borderRadius:'14px',zIndex:2147483647,
-    pointerEvents:'none',opacity:'0',transition:'opacity .3s',boxShadow:'0 10px 30px rgba(0,0,0,.25)'});
-  const poner = () => { document.body.appendChild(c); document.body.appendChild(cap); };
-  if (document.body) poner(); else addEventListener('DOMContentLoaded', poner);
-  // Un diálogo se pinta en un portal al final del <body>: el cursor se vuelve
-  // a poner el último para que no quede debajo del velo.
-  addEventListener('mousemove', e => { if (document.body.lastElementChild !== cap) poner(); c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }, true);
-  addEventListener('mousedown', () => { c.style.transform = 'scale(.7)'; }, true);
-  addEventListener('mouseup', () => { c.style.transform = 'scale(1)'; }, true);
-  window.__rotulo = (t) => { cap.textContent = t; cap.style.opacity = t ? '1' : '0'; };
-  window.__cursor = true;
-})();`;
-
 async function mover(p, locator) {
     const b = await locator.boundingBox();
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
@@ -577,6 +563,13 @@ const rotulo = (p, t) => p.evaluate((t) => window.__rotulo?.(t), t);
 async function video(navegador, estado) {
     const dir = path.join(TMP, "video");
     rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+
+    // Las frases se sintetizan ANTES de grabar: así se sabe cuánto dura cada
+    // una y el guion espera a que termine de sonar antes de seguir.
+    const voz = Object.fromEntries(
+        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(comoSeDice(n.texto), path.join(dir, `${id}.wav`)) }]),
+    );
     const ctx = await navegador.newContext({
         viewport: { width: 1280, height: 800 },
         locale: "es-CO",
@@ -587,57 +580,90 @@ async function video(navegador, estado) {
     });
     await ctx.addInitScript(CURSOR);
     const p = await ctx.newPage();
+    const t0 = Date.now();
+    const tramos = [];
+    let calla = 0;
+    /** Empieza una frase ahora mismo; lo que venga detrás ocurre MIENTRAS suena. */
+    const decir = async (id) => {
+        await callar();
+        const n = voz[id];
+        await rotulo(p, n.rotulo);
+        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: Date.now() - t0 });
+        calla = Date.now() + n.audio.ms;
+    };
+    /** Espera a que la frase en curso termine, más un respiro. */
+    const callar = async (respiro = 450) => {
+        const falta = calla + respiro - Date.now();
+        if (calla && falta > 0) await espera(p, falta);
+        calla = 0;
+    };
+
     await abrirLeads(p);
-    await p.mouse.move(640, 400);
-    await rotulo(p, "Leads: todos tus contactos de WhatsApp");
-    await espera(p, 3000);
+    await p.mouse.move(640, 400, { steps: 8 });
+    await decir("intro");
+    await espera(p, 1200);
 
     const pastillas = p.locator('[data-zona="filtros"] button');
-    await rotulo(p, "Los contadores también filtran");
-    await pulsar(p, pastillas.nth(2));
-    await espera(p, 2600);
-    await pulsar(p, pastillas.nth(0));
+    await decir("contadores");
     await espera(p, 1800);
+    await pulsar(p, pastillas.nth(2));
+    await espera(p, 1500);
+    await decir("todos");
+    await pulsar(p, pastillas.nth(0));
+    await espera(p, 800);
 
     const buscador = p.locator('[data-zona="buscador"] input');
-    await rotulo(p, "Busca por nombre o por número");
+    await decir("buscar");
     await pulsar(p, buscador);
     await buscador.pressSequentially("María", { delay: 160 });
-    await espera(p, 2600);
+    await callar(1200);
     await buscador.fill("");
-    await espera(p, 2000);
+    await espera(p, 800);
 
-    await rotulo(p, "Enciende o apaga la IA para un contacto");
     const agente = (await celdaDe(p, "Juan Pablo Restrepo", "Agente")).locator('[role="switch"]');
+    await decir("agente");
+    await mover(p, agente);
+    await espera(p, 1400);
     await pulsar(p, agente);
-    await espera(p, 2200);
+    await decir("agenteOtraVez");
+    await espera(p, 1200);
     await pulsar(p, agente);
-    await espera(p, 2000);
 
-    await rotulo(p, "Exporta todos tus contactos a CSV");
+    await decir("exportar");
     const exportar = p.locator('button[aria-label="Exportar CSV"]');
+    await espera(p, 600);
     await Promise.all([p.waitForEvent("download", { timeout: 30000 }).catch(() => null), pulsar(p, exportar)]);
-    await espera(p, 2600);
+    await callar();
     await quitarAvisos(p);
 
-    await rotulo(p, "Y crea un contacto nuevo");
+    await decir("nuevo");
     const nuevo = p.getByRole("button", { name: "+ Nuevo" });
     await pulsar(p, nuevo);
     await p.waitForSelector("#cc-phone");
     await espera(p, 800);
     await p.locator('[role="dialog"] select').selectOption("VENTAS");
+    await pulsar(p, p.locator("#cc-phone"));
     await p.locator("#cc-phone").pressSequentially("573009876543", { delay: 90 });
+    await pulsar(p, p.locator("#cc-name"));
     await p.locator("#cc-name").pressSequentially("Ana Demo", { delay: 110 });
-    await espera(p, 1500);
+    await callar(600);
+    await decir("cierre");
     await pulsar(p, p.getByRole("button", { name: "Cancelar" }));
-    await espera(p, 1200);
+    await callar(900);
     await rotulo(p, "");
-    await espera(p, 800);
+    await espera(p, 700);
 
-    const ruta = await p.video().path();
+    const totalMs = Date.now() - t0;
+    const mudo = await p.video().path();
     await ctx.close();
-    renameSync(ruta, path.join(SALIDA, "demostracion.webm"));
-    console.log("  ✓ demostracion.webm", Math.round(statSync(path.join(SALIDA, "demostracion.webm")).size / 1024), "KB");
+
+    const { wav, colocados } = montarLaPista(tramos, totalMs);
+    const pista = path.join(dir, "narracion.wav");
+    guardarWav(pista, wav);
+    const destino = path.join(SALIDA, "demostracion.webm");
+    mezclar(mudo, pista, destino);
+    writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
+    console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
 /* ------------------------------------------------------------------ */
