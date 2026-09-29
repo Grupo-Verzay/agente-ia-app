@@ -6,6 +6,8 @@
 #      código), cada captura existe y la ruta es pública y no indexable.
 #   2. `lib/__tests__/video-guia-leads.test.mjs`: el vídeo lleva el cursor de
 #      verdad (flecha, manito, «I») sin adornos, y narración que se oye.
+#   2b. `lib/__tests__/fin-de-la-guia.test.mjs`: todo índice de guía termina
+#      en la línea divisoria, sin nota interna ni relleno debajo (ANTES_FIN_REF).
 #   3. `probar-guia-leads.mjs`: la guía SERVIDA, sin sesión, en Chromium a 390
 #      y 1440 (hace falta el build).
 #
@@ -19,10 +21,10 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}"
+export MODO ANTES_REF="${ANTES_REF:-73f991f}" ANTES_VIDEO_REF="${ANTES_VIDEO_REF:-153f64f}" ANTES_FIN_REF="${ANTES_FIN_REF:-9e38996}"
 
 if [ "$MODO" = "roto" ]; then
-  node --test lib/__tests__/guia-leads.test.mjs lib/__tests__/video-guia-leads.test.mjs
+  node --test lib/__tests__/guia-leads.test.mjs lib/__tests__/video-guia-leads.test.mjs lib/__tests__/fin-de-la-guia.test.mjs
   exit $?
 fi
 
@@ -31,6 +33,7 @@ mkdir -p "$OUT"
 npx esbuild lib/guia-leads.ts --bundle --platform=node --format=esm --outfile="$OUT/guia-leads.mjs" --log-level=warning
 node --test lib/__tests__/guia-leads.test.mjs
 node --test lib/__tests__/video-guia-leads.test.mjs
+node --test lib/__tests__/fin-de-la-guia.test.mjs
 
 if [ ! -d .next/static/css ]; then
   echo "(sin build: se salta la mitad del navegador)"; exit 0
