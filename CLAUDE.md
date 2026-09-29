@@ -19559,6 +19559,53 @@ flujos de despliegue los mantiene de acuerdo `scripts/banco-entorno-de-agentes.s
 conocidas, anotadas en la guía: astracalls se despliega a mano, y las llaves de
 Portainer son de administrador.
 
+## Un despliegue que cuelga de UN aviso de GitHub no tiene red
+
+El #1047 (la guía de Leads con el menú de iconos y el vídeo nuevo) se fusionó a
+las 19:48 del 29-09 y en producción seguía la guía de antes: las letras sueltas
+del menú y el vídeo de 1:16. Se sospechó de la caché y no era: **GitHub no creó
+ninguna corrida de `docker-publish` para ese commit.** Ni roja ni cancelada:
+ninguna. La fusión de antes (#1046) y la de después (#1048) sí la tuvieron. Y
+nada lo decía: el PR salía «fusionado», Actions no enseñaba nada rojo, y el
+servicio seguía con la imagen del #1046.
+
+Lo descartado, para no volver a buscar ahí: **no hay caché de por medio.**
+Traefik no lleva ningún middleware de caché y termina él el TLS
+(Let's Encrypt); Next sirve `public/` con `Cache-Control: public, max-age=0`
+—el navegador vuelve a preguntar cada vez— y con una ETag que cambia en cada
+imagen; y el service worker (`public/sw.js`) no intercepta `fetch`. Lo que corre
+se lee en el servicio: `docker service inspect` → la etiqueta de la imagen es el
+commit desplegado, y `scripts/comprobar-entorno-de-agentes.sh` lo dice como
+«atrasado».
+
+> **La red sale de lo que queda escrito, no de un aviso.** Cada diez minutos
+> `.github/workflows/despliegue-perdido.yml` mira si el último commit de `main`
+> tiene su corrida de `docker-publish` y, si no tiene NINGUNA pasados diez
+> minutos, la lanza (`workflow_dispatch`, que sí dispara flujos aunque lo pida
+> el `GITHUB_TOKEN`). La decisión es `scripts/despliegue-perdido.mjs` (pura) y
+> habla con GitHub `scripts/vigilar-despliegue.mjs`.
+
+Cuatro cosas que hay que mantener:
+
+1. **No relanza una corrida en rojo ni una cancelada**, ni un commit con
+   `[skip ci]`. La roja ya es la señal —relanzarla cada diez minutos quemaría
+   una construcción rota en bucle—, y una cancelada o un `[skip ci]` los decidió
+   alguien. Solo cubre el caso «no hay nada».
+2. **Si no puede preguntar o no puede lanzar, sale en ROJO.** Un vigilante que
+   falla en silencio es el mismo fallo que viene a tapar.
+3. **`docker-publish` va EN FILA** (`concurrency`, sin cancelar la que corre):
+   sin eso dos fusiones seguidas construían a la vez y quedaba desplegada la que
+   TERMINABA última, que no tenía por qué ser la más nueva. De las que esperan
+   solo sigue la más nueva, que ya lleva dentro a las de antes.
+4. **Su `workflow_dispatch` no se quita**: es por donde entra el vigilante.
+
+Y para mirar las corridas de despliegue en Actions se filtra por el flujo
+(`docker-publish.yml`): las del vigilante salen cada diez minutos y taparían la
+lista. Lo prueba `scripts/banco-despliegue-perdido.sh` —la decisión, el
+vigilante de verdad contra una API de GitHub fingida y los dos flujos—;
+`MODO=roto` lee los flujos de `a147eaf` y afirma que nada volvía a mirar un push
+perdido ni ponía las construcciones en fila.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.

@@ -1,0 +1,47 @@
+name: despliegue-perdido
+
+# La red del despliegue de la App.
+#
+# docker-publish se lanza con el aviso de push de GitHub, y ese aviso se puede
+# PERDER: el 29-09 se fusionó el #1047 y GitHub no creó ninguna corrida para
+# ese commit —ni roja ni cancelada: ninguna—. Producción se quedó una versión
+# atrás sin que nada lo dijera.
+#
+# Esto mira cada diez minutos si el último commit de main tiene su corrida de
+# docker-publish y, si no tiene NINGUNA pasado el margen, la lanza. No relanza
+# una corrida en rojo ni una cancelada (ver scripts/despliegue-perdido.mjs).
+#
+# `workflow_dispatch` lanzado con el GITHUB_TOKEN SÍ crea una corrida: es una
+# de las dos excepciones a «lo que hace el GITHUB_TOKEN no dispara flujos».
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: despliegue-perdido
+  cancel-in-progress: false
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Solo los dos ficheros del vigilante: el repositorio lleva vídeos y
+      # capturas que aquí no hacen falta.
+      - name: Checkout (solo el vigilante)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/despliegue-perdido.mjs
+            scripts/vigilar-despliegue.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: ¿Tiene su despliegue el último commit de main?
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/vigilar-despliegue.mjs
