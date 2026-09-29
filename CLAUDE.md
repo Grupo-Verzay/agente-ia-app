@@ -22553,6 +22553,19 @@ fuera de la zona nada pasa de gris medio, dentro hay blanco y en el borde el
 azul del recuadro. `MODO=roto` lee `98a247c` y afirma que las tarjetas usaban
 la captura de un paso.
 
+### La barra de arriba lleva la demostración, y el vídeo va justo debajo
+
+`CabeceraDeLaGuia` es UNA fila de 56 px en rejilla simétrica
+(`minmax(0,1fr) auto minmax(0,1fr)`): «Guía de la plataforma» a la izquierda,
+«▶ Demostración en 1 minuto» en el CENTRO (enlace a `#demostracion`, prop
+`demostracion`) y «Módulo X» a la derecha (prop `modulo`). No hay título aparte
+encima del vídeo: arranca justo bajo la barra, con el mismo aire arriba que a
+los lados (`pt-4 sm:pt-6` = `px-4 sm:px-6`). En un teléfono «Guía de la
+plataforma» se queda en su icono para que quepan los tres; en una sección el
+centro va vacío. **Las guías de otros módulos usan la misma barra con sus
+props.** Lo prueba `scripts/banco-cabecera-de-la-guia.sh` (hace falta build),
+a 360..1440; `MODO=roto` pinta la de `9e38996` y afirma el título aparte.
+
 ### La introducción ocupa el ancho del contenedor, como el vídeo
 
 El párrafo de introducción del índice (`IntroduccionDeLaGuia`) llevaba un
