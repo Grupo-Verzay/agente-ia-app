@@ -19315,6 +19315,44 @@ Lo prueba `scripts/banco-menu-interactivo.sh` aquí (regla, barrido y comparaci�
 con el backend; `MODO=roto` afirma que antes no existía) y el del mismo nombre
 en `api-webhook` (el motor contra Postgres, con su modo roto).
 
+## Flujos: lo que cuelga de un seguimiento sale CON el seguimiento, y un menú ahí espera
+
+Un paso de seguimiento no envía nada en el momento: agenda su mensaje. El motor
+lo agendaba y **seguía de largo en ese mismo instante**, así que lo que colgaba
+detrás salía ya. Con el flujo real del reporte —Texto → Seguimiento (60 días) →
+Menú con botones → Imagen— el menú no salía con el seguimiento sino junto al
+primer texto, desenganchado de él, y cuando el seguimiento por fin salía no
+quedaba nada esperando: desde fuera, «el menú no espera y sale la imagen».
+
+> **Un paso que NO es de seguimiento y cuelga de uno se ejecuta cuando ese
+> seguimiento SALE.** El motor corta el recorrido en el seguimiento, y el
+> runner de seguimientos lo reanuda desde el paso de después al enviarlo
+> (`continuarTrasElSeguimiento`). De ahí en adelante es el flujo de siempre:
+> un menú, un «Menú de opciones» o una intención se mandan y **esperan** su
+> respuesta; solo la opción elegida lleva a su rama.
+
+La regla vive en `api-webhook/src/modules/workflow/lo-que-sigue-al-seguimiento.ts`
+(pura) y la preguntan el corte y la reanudación. Cuatro cosas que hay que
+mantener:
+
+1. **Una cadena de seguimientos seguidos NO se corta**: se agenda entera de una
+   vez, cada uno con su espera contada desde ahora («a la hora, al día, a los
+   tres días»), como estaban hechos ~20 flujos en producción. Lo que va después
+   de la cadena espera al ÚLTIMO.
+2. **Reanudar es empezar de nuevo desde ese paso**: si el flujo esperaba en
+   otro menú, esa espera se olvida y el menú que se reencuentra se vuelve a
+   mandar.
+3. **Reanudar va después de dar el seguimiento por enviado, y en su propio
+   `try`**: si falla, el seguimiento ya salió y no se repite ni se marca como
+   fallido. Si el seguimiento se cancela (el cliente respondió y era de
+   inactividad) o se agota, lo de detrás no sale: es lo correcto.
+4. **Solo flujos del creador visual** (`isPro`). Un flujo básico va en lista y
+   no se toca.
+
+Lo prueba `api-webhook/scripts/banco-menu-tras-seguimiento.sh`, contra Postgres
+con el motor y el runner de producción; `MODO=roto` corre los de `210fdd4` y
+afirma que el menú salía al arrancar y nada seguía al seguimiento.
+
 ## Un `import` que no existe se caza sin esperar al build
 
 Es la otra mitad de *dos PR verdes por separado pueden tumbar el despliegue
