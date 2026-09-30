@@ -104,6 +104,17 @@ export function elAvisoEnVivo(m, fila) {
 }
 
 /**
+ * Lo que el contacto está haciendo —«escribiendo…», «grabando audio…»—, como
+ * lo manda el backend por socket.io (`chat:presence`, `ChatPresencePayload`).
+ * Así el panel lo enseña a la vez que el celular y WhatsApp Web. `ts` va con el
+ * reloj de la HISTORIA (el del navegador), no con el de la máquina. Pura.
+ */
+export function laPresencia(presence, ts) {
+    if (!["escribiendo", "grabando", "en_linea", "nada"].includes(presence)) throw new Error(`[video] presencia desconocida: ${presence}`);
+    return { remoteJid: CLIENTA.jid, instanceName: NEGOCIO.linea, presence, lastSeen: null, ts };
+}
+
+/**
  * El simulador. `ctx` es lo que devuelve la siembra (la cuenta, el embudo y sus
  * etapas, las etiquetas y el servicio); `embudos`, el módulo compilado de
  * `lib/embudos-db.ts`, que es el que mueve una conversación de etapa en la App.

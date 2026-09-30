@@ -27,6 +27,8 @@
  * ninguna pantalla se sale del cuadro ni pisa los subtítulos.
  */
 import { SVG_FLECHA, SVG_MANO, PUNTA } from "../cursor-de-la-guia.mjs";
+import { comoDuracion } from "./banda-sonora.mjs";
+import { MEDIOS, laHora } from "./historia.mjs";
 
 /** El cuadro del vídeo. */
 export const VISTA = Object.freeze({ ancho: 1920, alto: 1080 });
@@ -128,6 +130,37 @@ export function enfocar(zona, { tope = 1.6 } = {}) {
         },
     };
 }
+
+/**
+ * Un mensaje de la historia como lo pintan el celular y WhatsApp Web: con su
+ * hora de la historia, la duración de las notas y los archivos servidos por el
+ * estudio (`/__estudio/medios/…`). Puro: el banco comprueba que cada tipo sale
+ * con lo que su burbuja necesita. `segundos` son los que midió `medios.mjs`.
+ */
+export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
+    const medio = m.medio ? MEDIOS[m.medio] : null;
+    const url = (archivo) => `/__estudio/medios/${archivo}`;
+    const base = { id: m.id, de: m.de, tipo: m.tipo, texto: m.texto ?? "", hora: laHora(m.en) };
+    if (SEPARADORES[m.id]) base.separador = SEPARADORES[m.id];
+    switch (m.tipo) {
+        case "nota":
+            return { ...base, url: url(medio.archivo), duracion: comoDuracion(segundos[m.medio] ?? 0) };
+        case "documento":
+            return { ...base, url: url(medio.archivo), nombre: medio.nombre, detalle: `${medio.paginas} páginas · PDF`, portada: url("lista-de-precios.jpg") };
+        case "video":
+            return { ...base, url: url(medio.archivo), portada: url(medio.portada), duracion: comoDuracion(segundos[m.medio] ?? 9) };
+        case "imagen":
+            return { ...base, url: url(medio.archivo) };
+        default:
+            return base;
+    }
+}
+
+/**
+ * Dónde empieza un día en la conversación: el primer mensaje y el
+ * recordatorio, que llega al día siguiente (el «Hoy» de antes pasa a «Ayer»).
+ */
+export const SEPARADORES = Object.freeze({ M01: "Hoy", M13: "Hoy" });
 
 /** Un punto de la App (1440×900) en el cuadro, con el portátil en `pos`. */
 export function puntoDeLaApp(pos, x, y) {
