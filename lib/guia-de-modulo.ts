@@ -53,6 +53,8 @@ export const ICONOS_DE_SECCION = [
     "MessageSquare",
     "CircleDot",
     "History",
+    "FileStack",
+    "Archive",
 ] as const;
 
 export type Seccion = {

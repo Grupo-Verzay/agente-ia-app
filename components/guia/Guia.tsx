@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+    Archive,
     ArrowLeft,
     ArrowRight,
     BookOpen,
@@ -8,6 +9,7 @@ import {
     Columns3,
     DoorOpen,
     Download,
+    FileStack,
     Filter,
     FolderOpen,
     GitBranch,
@@ -83,6 +85,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     MessageSquare,
     CircleDot,
     History,
+    FileStack,
+    Archive,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

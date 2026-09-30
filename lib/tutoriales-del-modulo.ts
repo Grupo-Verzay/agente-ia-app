@@ -20,6 +20,7 @@ import { GUIA_DIAGRAMAS } from "@/lib/guia-diagramas";
 import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
+import { GUIA_NOTAS } from "@/lib/guia-notas";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -118,6 +119,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/reuniones",
         contenido: GUIA_REUNIONES,
         tarjeta: "Aprende a hacer videollamadas con tu equipo y clientes en la plataforma",
+    },
+    {
+        modulo: "notas",
+        ruta: "/notas",
+        contenido: GUIA_NOTAS,
+        tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
     },
 ];
 

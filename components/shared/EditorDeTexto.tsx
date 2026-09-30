@@ -64,7 +64,9 @@ export default function TiptapEditor({
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({
-        placeholder: placeholder ?? 'Escribe algo, o usa / para insertar bloques...',
+        // Sin atajos de «/»: este editor no los tiene, y prometerlos en el texto
+        // de ayuda es enseñar algo que al pulsarlo no hace nada.
+        placeholder: placeholder ?? 'Escribe algo...',
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -118,7 +120,7 @@ export default function TiptapEditor({
 
 function EditorToolbar({ editor }: { editor: Editor }) {
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border/50 px-2 py-1.5 shrink-0">
+    <div data-barra-de-formato className="flex flex-wrap items-center gap-0.5 border-b border-border/50 px-2 py-1.5 shrink-0">
       <ToolbarToggle pressed={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrita">
         <Bold className="h-3.5 w-3.5" />
       </ToolbarToggle>

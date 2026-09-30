@@ -16,18 +16,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 // El walker de tiptap a markdown vive en `lib/exportar-documento.ts`: lo usan
 // esta pantalla y Documentacion, que comparten el MISMO editor. Con una copia
 // en cada una, el dia que se afine como sale una lista de tareas se afina en
 // una y la otra se queda atras.
-import { comoMarkdown, comoTextoPlano, nombreDeArchivo } from '@/lib/exportar-documento'
+import { comoMarkdown, comoTextoPlano, cuerpoComoTexto, nombreDeArchivo } from '@/lib/exportar-documento'
 import { elMandoDeArchivo } from '@/lib/archivo-de-notas'
+import { contarPalabras, elRotuloDePalabras, PLACEHOLDER_DE_LA_NOTA } from '@/lib/pantalla-de-notas'
 import type { UserNoteWithContent } from '@/actions/notes-actions'
 
 const TiptapEditor = dynamic(
@@ -121,11 +117,13 @@ interface Props {
   onApplyTemplate: (content: object, title: string) => void
 }
 
+// Las palabras que se ESCRIBIERON. Lo de antes contaba el JSON entero del
+// editor —«type», «doc», «paragraph», «content»…—, así que una nota vacía ya
+// decía unas cuantas palabras y cada párrafo sumaba tres de más. El texto sale
+// del mismo aplanado que Exportar (`cuerpoComoTexto`), sin marcas.
 function countWords(content: object): number {
   try {
-    const text = JSON.stringify(content)
-    const words = text.replace(/<[^>]*>/g, '').replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ\s]/g, ' ').split(/\s+/).filter(w => w.length > 1)
-    return words.length
+    return contarPalabras(cuerpoComoTexto(content, false))
   } catch {
     return 0
   }
@@ -151,7 +149,10 @@ export function NotesEditor({
     if (!canEdit) return
     setTitle(e.target.value.toUpperCase())
   }, [canEdit])
-  const handleTitleBlur = useCallback(() => { if (canEdit) onSave(note.content as object, title) }, [canEdit, title, note.content, onSave])
+  // Salir del título solo guarda si el título CAMBIÓ: si no, cada clic fuera
+  // del campo mandaba la nota entera al servidor y la barra decía «Guardando…»
+  // sin que nadie hubiera tocado nada.
+  const handleTitleBlur = useCallback(() => { if (canEdit && title !== note.title) onSave(note.content as object, title) }, [canEdit, title, note.title, note.content, onSave])
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
   }, [])
@@ -183,6 +184,7 @@ export function NotesEditor({
 
   return (
     <div
+      data-nota-abierta
       className={cn(
         "flex h-full flex-col min-h-0 transition-all",
         focusMode && "fixed inset-0 z-50 bg-background",
@@ -190,7 +192,7 @@ export function NotesEditor({
       style={noteColor ? { backgroundColor: noteColor } : undefined}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-border/70 px-4 py-2 shrink-0">
+      <div data-barra-de-la-nota className="flex items-center justify-between border-b border-border/70 px-4 py-2 shrink-0">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={onBackToList} title="Volver a notas">
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
@@ -208,17 +210,21 @@ export function NotesEditor({
               {/* Emoji */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-lg">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-lg" title="Icono de la nota" aria-label="Icono de la nota">
                     {note.emoji ? note.emoji : <Smile className="h-4 w-4 text-muted-foreground" />}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="p-2 w-64">
+                  {/* Cada icono es un ELEMENTO del menú, no un botón suelto dentro:
+                      así elegir uno cierra el menú —antes se quedaba abierto
+                      encima de la nota— y se recorren con las flechas. */}
                   <div className="grid grid-cols-10 gap-1">
                     {EMOJI_LIST.map(e => (
-                      <button key={e}
-                        className={cn('flex h-7 w-7 items-center justify-center rounded text-base hover:bg-muted transition-colors', note.emoji === e && 'bg-muted ring-1 ring-border')}
-                        onClick={() => onEmojiChange(note.id, note.emoji === e ? null : e)}
-                      >{e}</button>
+                      <DropdownMenuItem key={e}
+                        aria-label={e}
+                        className={cn('h-7 w-7 justify-center rounded p-0 text-base', note.emoji === e && 'bg-muted ring-1 ring-border')}
+                        onSelect={() => onEmojiChange(note.id, note.emoji === e ? null : e)}
+                      >{e}</DropdownMenuItem>
                     ))}
                   </div>
                 </DropdownMenuContent>
@@ -234,11 +240,14 @@ export function NotesEditor({
                 <DropdownMenuContent align="start" className="p-2 w-48">
                   <div className="grid grid-cols-4 gap-1.5">
                     {NOTE_COLORS.map(c => (
-                      <button key={String(c.value)}
+                      <DropdownMenuItem key={String(c.value)}
                         title={c.label}
-                        className={cn('h-8 w-full rounded border-2 transition-transform hover:scale-105', note.color === c.value ? 'border-foreground scale-105' : 'border-transparent', c.bg)}
-                        onClick={() => onColorChange(note.id, c.value)}
-                      />
+                        aria-label={c.label}
+                        className={cn('h-8 rounded border-2 p-0.5', note.color === c.value ? 'border-foreground' : 'border-transparent')}
+                        onSelect={() => onColorChange(note.id, c.value)}
+                      >
+                        <span className={cn('h-full w-full rounded-sm ring-1 ring-inset ring-black/5', c.bg)} />
+                      </DropdownMenuItem>
                     ))}
                   </div>
                 </DropdownMenuContent>
@@ -248,21 +257,21 @@ export function NotesEditor({
 
           {/* Estado / permiso */}
           {canEdit ? (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
+            <div data-estado-de-guardado className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
               {saving
                 ? <><Loader2 className="h-3 w-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span></>
                 : <><Check className="h-3 w-3 text-emerald-500" /><span className="hidden sm:inline">Guardado</span></>
               }
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-xs text-amber-600 ml-1" title="No puedes editar esta nota">
+            <div data-estado-de-guardado className="flex items-center gap-1 text-xs text-amber-600 ml-1" title="No puedes editar esta nota">
               <Eye className="h-3.5 w-3.5" /><span className="hidden sm:inline">Solo lectura</span>
             </div>
           )}
 
           {/* Compartida por (cuando no es propia) */}
           {!isOwner && ownerName && (
-            <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground ml-2 border border-border rounded-full px-2 py-0.5">
+            <div data-de-quien-es className="hidden md:flex items-center gap-1 text-xs text-muted-foreground ml-2 border border-border rounded-full px-2 py-0.5">
               <Users className="h-3 w-3" />
               <span className="max-w-[120px] truncate">de {ownerName}</span>
             </div>
@@ -279,10 +288,10 @@ export function NotesEditor({
 
               {/* Vincular contacto */}
               {note.contactName ? (
-                <div className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">
+                <div data-contacto-de-la-nota className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">
                   <User className="h-3 w-3" />
                   <span className="max-w-[80px] truncate">{note.contactName}</span>
-                  <button onClick={() => onContactChange(note.id, null, null)} className="hover:text-destructive">
+                  <button onClick={() => onContactChange(note.id, null, null)} className="hover:text-destructive" title="Quitar contacto" aria-label="Quitar contacto">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
@@ -292,10 +301,10 @@ export function NotesEditor({
                 </Button>
               )}
 
-              {/* Templates */}
+              {/* Plantillas: crean una nota NUEVA con esa forma, no tocan la abierta. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Templates">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Nueva nota desde plantilla" aria-label="Nueva nota desde plantilla">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -354,33 +363,18 @@ export function NotesEditor({
                   : <Archive className="h-4 w-4 text-muted-foreground" />}
               </Button>
 
-              {/* Eliminar */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Eliminar nota">
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar nota?</AlertDialogTitle>
-                    <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => onDelete(note.id)}>
-                      Eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {/* Eliminar: la confirmación es UNA y vive en NotesClient, la misma
+                  que la del menú «⋯» de la lista. */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Eliminar nota" aria-label="Eliminar nota" onClick={() => onDelete(note.id)}>
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
             </>
           )}
         </div>
       </div>
 
       {/* Title */}
-      <div className="px-8 pt-2 pb-0 shrink-0">
+      <div data-titulo-de-la-nota className="px-8 pt-2 pb-0 shrink-0">
         <Input
           value={title}
           onChange={handleTitleChange}
@@ -393,15 +387,16 @@ export function NotesEditor({
       </div>
 
       {/* Editor */}
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-2">
-        <TiptapEditor key={note.id} initialContent={initialContent} onChange={handleEditorChange} editable={canEdit} />
+      <div data-texto-de-la-nota className="flex-1 min-h-0 overflow-hidden px-4 pb-2">
+        <TiptapEditor key={note.id} initialContent={initialContent} onChange={handleEditorChange} editable={canEdit} placeholder={PLACEHOLDER_DE_LA_NOTA} />
       </div>
 
       {/* Footer: word count + contact link */}
-      <div className="flex items-center justify-between px-8 py-1 border-t border-border/40 shrink-0 text-xs text-muted-foreground">
-        <span>{wordCount} palabras</span>
+      <div data-pie-de-la-nota className="flex items-center justify-between px-8 py-1 border-t border-border/40 shrink-0 text-xs text-muted-foreground">
+        <span data-palabras>{elRotuloDePalabras(wordCount)}</span>
         {note.contactJid && (
           <button
+            data-contacto-del-pie
             onClick={() => window.location.href = `/chats?jid=${encodeURIComponent(note.contactJid!)}`}
             className="flex items-center gap-1 text-blue-600 hover:underline"
           >
@@ -415,7 +410,6 @@ export function NotesEditor({
         open={contactPickerOpen}
         onClose={() => setContactPickerOpen(false)}
         onSelect={(jid, name) => onContactChange(note.id, jid, name)}
-        userId={(note as any).userId}
       />
 
       {isOwner && (
