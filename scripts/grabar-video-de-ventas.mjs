@@ -33,16 +33,19 @@ import { entrar, espera } from "./taller-de-la-guia.mjs";
 import { acortarLasPausas, leerWav } from "./voz-de-la-guia.mjs";
 import { llaveDeLaFrase, wavDeLaCache } from "./voz-cedar.mjs";
 import { elBackend, laPresencia } from "./video-de-ventas/backend.mjs";
-import { CORTES_DE_LAS_NOTAS, elAvisoDeMensaje, mezclarLaBanda, recortarAudio, sePisanLasVoces } from "./video-de-ventas/banda-sonora.mjs";
+import { CORTES_DE_LAS_NOTAS, elAvisoDeMensaje, elTonoDeLlamada, mezclarLaBanda, porTelefono, recortarAudio, sePisanLasVoces } from "./video-de-ventas/banda-sonora.mjs";
 import { CAPAS_DEL_PORTATIL, PLANOS, PORTATIL, elMensajeDelEstudio, laPaginaDelEstudio, losNegociosDelMontaje } from "./video-de-ventas/estudio.mjs";
 import { servirElEstudio } from "./video-de-ventas/estudio-servido.mjs";
 import {
+    ASESORA,
     CAPACIDADES,
+    LA_LLAMADA,
     CIERRE_DEL_MONTAJE,
     CLIENTA,
     LLAMADO,
     MEDIOS,
     MEDIOS_DEL_MONTAJE,
+    NEGOCIO,
     NEGOCIOS_DEL_ARRANQUE,
     NOTAS_DE_VOZ,
     OTROS_CHATS,
@@ -53,7 +56,7 @@ import {
     lasIniciales,
 } from "./video-de-ventas/historia.mjs";
 import { generarLosMedios } from "./video-de-ventas/medios.mjs";
-import { CACHE_DE_VENTAS, NARRACION, VOZ_DE_LA_CLIENTA, VOZ_DE_SOFIA, VOZ_DE_VENTAS } from "./video-de-ventas/narracion.mjs";
+import { CACHE_DE_VENTAS, LA_VOZ_EN_LA_LLAMADA, NARRACION, VOZ_DE_LA_CLIENTA, VOZ_DE_SOFIA, VOZ_DE_VENTAS } from "./video-de-ventas/narracion.mjs";
 import { sembrarLaClinica } from "./video-de-ventas/sembrar.mjs";
 import { servirElTiempoReal } from "./video-de-ventas/tiempo-real.mjs";
 
@@ -140,6 +143,21 @@ const NOTAS = {
     ia: leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_SOFIA)),
 };
 const AVISO = elAvisoDeMensaje(voz.gancho.audio.frecuencia);
+/**
+ * La LLAMADA con IA: el tono de llamada saliente y las tres líneas, cada una
+ * con su voz y pasada «por teléfono». Lo que dura la conversación es lo que la
+ * plataforma anota en la burbuja de la llamada (`segundos.llamada`).
+ */
+const TONO = elTonoDeLlamada(voz.gancho.audio.frecuencia);
+const RESPIRO_EN_LA_LLAMADA_MS = 350;
+const EN_LA_LLAMADA = LA_LLAMADA.map((l) => ({
+    ...l,
+    quien: l.quien === "ia" ? `${NEGOCIO.asistente} (IA):` : `${CLIENTA.nombreDeWhatsapp}:`,
+    audio: porTelefono(acortarLasPausas(leerWav(wavDeLaCache(l.texto, CACHE_DE_VENTAS, LA_VOZ_EN_LA_LLAMADA[l.quien])))),
+}));
+medios.segundos.llamada = Math.round(
+    (EN_LA_LLAMADA.reduce((t, l) => t + l.audio.ms, 0) + RESPIRO_EN_LA_LLAMADA_MS * (EN_LA_LLAMADA.length + 1)) / 1000,
+);
 
 /* ------------------------------------------------------------------ */
 /* El navegador                                                        */
@@ -205,7 +223,7 @@ archivos["inter-latin.woff2"] = path.join(RAIZ, "scripts", "video-de-ventas", "f
 const horaDe = (msAntes) => laHora(cal.inicio - msAntes);
 const datos = {
     zona: ZONA,
-    clienta: { nombreCorto: CLIENTA.nombreDeWhatsapp, iniciales: lasIniciales(CLIENTA.nombreDeWhatsapp), color: "#d9774f" },
+    clienta: { nombre: CLIENTA.nombre, nombreCorto: CLIENTA.nombreDeWhatsapp, iniciales: lasIniciales(CLIENTA.nombreDeWhatsapp), color: "#d9774f" },
     otros: OTROS_CHATS.map((c, i) => ({ id: `o${i}`, nombre: c.nombre, iniciales: lasIniciales(c.nombre), hora: horaDe(c.hace * 60_000), prev: c.ultimo.texto, yo: c.ultimo.de === "ia" })),
     montaje: losNegociosDelMontaje(NEGOCIOS_DEL_ARRANQUE, { hora: laHora(cal.inicio) }),
     logo: "/__estudio/medios/verzay.png",
@@ -295,7 +313,17 @@ const caja = (e) => {
     const r = e.getBoundingClientRect();
     return r.width && r.height ? { x: r.x, y: r.y, w: r.width, h: r.height } : null;
 };
+/** Las iniciales de la asesora, como las pinta su círculo en la fila de la lista. */
+const ASESORA_INICIALES = lasIniciales(`${ASESORA.nombre} ${ASESORA.apellido}`);
+
 const ENCONTRAR = {
+    porSelector: (sel) => {
+        const e = [...document.querySelectorAll(sel)].find((x) => x.offsetParent);
+        if (!e) return null;
+        e.scrollIntoView({ block: "center" });
+        const r = e.getBoundingClientRect();
+        return r.width ? { x: r.x, y: r.y, w: r.width, h: r.height } : null;
+    },
     filaDeLaura: (jid) => {
         const e = document.querySelector(`[data-chat-id="${jid}"]`);
         if (!e) return null;
@@ -467,6 +495,8 @@ await clicEn("agenda", ".fc-semanaBtn-button");
 // Por `textContent` y no `innerText`: las columnas van en mayúsculas por CSS,
 // e `innerText` devuelve el texto ya transformado.
 await esperarEn("embudo", () => document.body.textContent.includes("Cita confirmada"), null, { ms: 60_000, que: "el embudo" });
+// Los reportes, con el de la semana pasada.
+await esperarEn("reportes", () => !!document.querySelector("div.cursor-pointer"), null, { ms: 60_000, que: "los reportes" });
 for (const capa of CAPAS_DEL_PORTATIL) {
     const f = await laCapa(capa.id);
     for (let i = 0; i < 3; i += 1) {
@@ -554,7 +584,7 @@ await decir("gancho");
 // último mensaje de la última tarjeta (el estudio espera si hace falta).
 await alDecir("y cualquier negocio");
 const cierreDelMontajeMs = Date.now() - t0 + (await est("yCualquierNegocio"));
-await alDecir("Tus clientes");
+await alDecir("responde al instante");
 await captura("montaje");
 // Dónde quedaron, en el cuadro, la portada del video de Cursos y el mapa del
 // viaje, y cuándo: el banco mira ahí en los fotogramas del vídeo publicado
@@ -666,6 +696,22 @@ await espera(p, 1400);
 await espera(p, Math.max(0, nota2 - 1400) + 250);
 await captura("voz");
 
+// 5b. Google Sheets: los datos de Laura, también en la hoja de la clínica.
+await anillos([]);
+await capacidad("sheets");
+await est("plano", PLANOS.sheets);
+await espera(p, 500);
+await decir("sheets");
+await alDecir("quedan guardados", 200);
+await est("hoja");
+await espera(p, 1000);
+await anillos([{ c: await p.evaluate(() => {
+    const b = document.querySelector("#sheets tr.laura").getBoundingClientRect();
+    return { x: b.x, y: b.y, w: b.width, h: b.height };
+}), texto: "Nombre, servicio y financiación", abajo: true }]);
+await captura("sheets");
+await acabar(700);
+
 // 6. Archivos: PDF, video e imagen.
 await anillos([]);
 await capacidad("medios");
@@ -698,28 +744,48 @@ await alDecir("calificada");
 await captura("caliente");
 await acabar(600);
 
-// 8. Seguimiento: dos horas después, sin respuesta.
+// 8. Seguimiento: dos horas después, sin respuesta; la IA insiste.
 await anillos([]);
 await est("capacidad", 0, "");
 await est("cartel", "2 horas después", "Laura no ha vuelto a escribir", "reloj");
 await ctx.clock.setSystemTime(new Date(cal.seguimiento));
 await est("plano", PLANOS.telWeb, { ms: 10 });
 await decir("seguimiento");
-await alDecir("La IA le hace", 150);
+await alDecir("la IA insiste", 150);
 await est("cartel", "");
 await capacidad("seguimiento");
+await alDecir("con texto", 300);
 await llega("M09");
-await alDecir("con los cupos", 300);
+await alDecir("un archivo", 300);
 await llega("M10");
 await captura("seguimiento");
-await acabar(500);
+await alDecir("hasta una llamada", 200);
+await est("cartel", "Por la tarde", "Laura sigue sin responder: la IA la llama", "reloj");
+await acabar(300);
 
-// 9. La cita: Laura elige y queda en el calendario.
-await capacidad("cita");
-await presencia("escribiendo");
-await espera(p, 1100);
-await presencia(null);
+// 8b. La llamada con IA: suena, Laura contesta y se les oye hablar.
+await ctx.clock.setSystemTime(new Date(cal.llamada));
+await est("cartel", "");
+await capacidad("llamada");
+await est("plano", PLANOS.telPanel);
+await est("llamada", "sonando");
+sonar("tono", TONO, "tono de llamada");
+await espera(p, TONO.ms + 200);
+await est("llamada", "hablando");
+await espera(p, RESPIRO_EN_LA_LLAMADA_MS);
+for (const l of EN_LA_LLAMADA) {
+    await est("subtitulo", l.texto, l.quien);
+    sonar("llamada", l.audio, l.texto);
+    await espera(p, l.audio.ms + RESPIRO_EN_LA_LLAMADA_MS);
+}
+await captura("llamada");
+await est("subtitulo", "");
+await est("llamada", null);
 await llega("M11");
+await espera(p, 900);
+
+// 9. La cita: lo que hablaron, agendado en el calendario.
+await capacidad("cita");
 await decir("cita");
 await alDecir("y la cita", 300);
 await llega("M12");
@@ -763,6 +829,22 @@ await espera(p, 1600);
 await captura("recordatorio");
 await acabar(500);
 
+// 10b. Laura pide hablar con alguien: la conversación pasa a una asesora.
+await anillos([]);
+await capacidad("asesor");
+await llega("M15");
+await decir("asesor");
+await alDecir("pasa directo", 300);
+await llega("M16");
+{
+    const asignada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, ASESORA_INICIALES], { ms: 6_000, que: "la asesora en la fila" }).catch(() => null);
+    const marcas = [{ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M15"]), texto: "Pidió hablar con alguien" }];
+    if (asignada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid), texto: `Asignada a ${ASESORA.nombre}`, abajo: true });
+    await anillos(marcas);
+}
+await captura("asesor");
+await acabar(600);
+
 // 11. El embudo: cada cliente en su etapa.
 await anillos([]);
 await clicEn("embudo", '[aria-label="Actualizar"]');
@@ -777,8 +859,47 @@ await espera(p, 700);
 await captura("embudo");
 await alDecir("con toda su historia", 400);
 await anillos([]);
-await est("mostrarApp", "app");
 await acabar(900);
+
+// 11b. Los reportes: la semana, resumida sola.
+await anillos([]);
+await esperarEn("reportes", () => !!document.querySelector("div.cursor-pointer"), null, { que: "el reporte de la semana" });
+await clicEn("reportes", "div.cursor-pointer");
+await esperarEn("reportes", ENCONTRAR.porSelector, "[data-calidad-del-reporte]", { que: "la calidad en el reporte" });
+await capacidad("reportes");
+await est("mostrarApp", "reportes");
+await decir("reportes");
+await espera(p, 1400);
+{
+    const r = await enElCuadro("reportes", ENCONTRAR.porSelector, "[data-calidad-del-reporte]");
+    if (r) await anillos([{ c: r, texto: "Calidad del equipo: 92/100" }]);
+}
+await captura("reportes");
+await acabar(800);
+await anillos([]);
+await est("mostrarApp", "app");
+
+// 11c. El resumen: todo lo que se vio, en una pantalla.
+await est("capacidad", 0, "");
+await est("plano", PLANOS.resumen);
+await espera(p, 300);
+await est("resumen");
+await decir("resumen");
+await espera(p, 1700);
+await captura("resumen");
+await acabar(600);
+
+// 11d. La ráfaga: tres funciones avanzadas.
+await est("plano", PLANOS.avanzadas);
+await decir("avanzadas");
+await alDecir("el modo dueño", 200);
+await est("avanzada", "dueno");
+await alDecir("El puente con operarios", 200);
+await est("avanzada", "campo");
+await alDecir("el multiagente", 200);
+await est("avanzada", "multiagente");
+await captura("avanzadas");
+await acabar(700);
 
 // 12. El cierre.
 await est("capacidad", 0, "");
