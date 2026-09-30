@@ -43,11 +43,15 @@ for (const tabla of ["reparto_porcentaje_asesor", "reparto_porcentaje"]) {
 
 /* ── El EQUIPO ──────────────────────────────────────────────────────────── */
 const pass = await bcrypt.hash("banco1234", 10);
+// Con id FIJO: el color de las iniciales sale de él (`colorFor`), y la base se
+// crea de cero en cada vuelta del generador. Con ids al azar, la misma persona
+// salía de un color en las capturas y de otro en el vídeo. Estos cuatro dan
+// cuatro colores distintos: azul, rosa, cian y fucsia.
 const EQUIPO = [
-    { email: "sofia@banco.test", name: "Sofía Martínez", advisorRole: "administrador", advisorAvailable: true },
-    { email: "laura@banco.test", name: "Laura Gómez", advisorRole: "agente", advisorAvailable: true },
-    { email: "andres@banco.test", name: "Andrés Ruiz", advisorRole: "agente", advisorAvailable: true },
-    { email: "valeria@banco.test", name: "Valeria Torres", advisorRole: "agente", advisorAvailable: false },
+    { id: "guia-usuarios-sofia", email: "sofia@banco.test", name: "Sofía Martínez", advisorRole: "administrador", advisorAvailable: true },
+    { id: "guia-usuarios-laura", email: "laura@banco.test", name: "Laura Gómez", advisorRole: "agente", advisorAvailable: true },
+    { id: "guia-usuarios-andres", email: "andres@banco.test", name: "Andrés Ruiz", advisorRole: "agente", advisorAvailable: true },
+    { id: "guia-usuarios-valeria", email: "valeria@banco.test", name: "Valeria Torres", advisorRole: "agente", advisorAvailable: false },
 ];
 const correos = EQUIPO.map((p) => p.email);
 // Lo que dejaron las capturas (la persona que se crea en «Crear un usuario»)
