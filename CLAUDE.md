@@ -23666,6 +23666,17 @@ Tres cosas que hay que mantener:
 3. **La voz se sintetizó con la llave «Agente IA»**: la de «IA CRM» se quedó sin
    créditos en OpenAI. Si vuelve a faltar una frase, se pide desde el
    contenedor de la App con la llave que sí tenga saldo.
+4. **A 1280 px la barra de `/equipo` no cabe entera** (le sobran 18 px) y la
+   flecha «Ver más filtros» queda ENCIMA de la mitad de «Pipeline»: un clic en
+   su centro se lo lleva la flecha. Es el diseño de `BarraDeAcciones`, no un
+   fallo; el vídeo hace lo que haría una persona —pulsar la flecha antes—
+   con `alAlcance`, que mira qué hay de verdad en ese punto
+   (`elementFromPoint`). Se descubrió así: el botón estaba pintado, su
+   caja decía que estaba ahí, y el Pipeline no se abría nunca.
+5. **El color de las iniciales sale del id** (`colorFor`), así que la semilla
+   pone ids FIJOS —y quita a la Sofía que crea antes `sembrar-barra.mjs` con un
+   id al azar—. Si no, la misma persona sale de un color en las capturas y de
+   otro en el vídeo.
 
 Lo prueban `scripts/banco-guia-usuarios.sh` —el contenido contra el código, el
 vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=usuarios`),
