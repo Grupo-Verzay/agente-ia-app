@@ -19575,10 +19575,9 @@ real de `PanelLateral` en la misma página, a 1440/1280/1024/800/700/390, con
 Las cuatro pantallas internas de Documentación (Actualizaciones, Tutoriales,
 Guías y Conexión API de Meta) abren con **la misma cabecera**
 (`components/documentacion/CabeceraDeDocumentacion.tsx`): la flecha de regreso a
-`/documentation` y el título, en el mismo píxel en las cuatro. Encima **no va la
-barra de pestañas del panel** (`escondeLasPestanas`, `lib/pantallas-sin-pestanas.ts`,
-por segmento): enseñaba pestañas de otros módulos y el título ya dice dónde se
-está.
+`/documentation` y el título, en el mismo píxel en las cuatro. Y encima **va la
+barra de pestañas del panel**, como en Embudos (ver *Documentación es un apartado
+del panel*, abajo).
 
 > **Regla de la plataforma: donde haya una lista o unas tarjetas reordenables,
 > se reordenan arrastrando y soltando**, como en Módulos. En Documentación son
@@ -19617,7 +19616,7 @@ inventado no entra, un cliente no ordena las guías publicadas) y las pantallas
 reales en Chromium a 1440/1280/1024/390 (la flecha en el mismo píxel, «Nuevo» a
 la derecha, tarjetas iguales, y arrastrar que reordena y guarda). `MODO=roto`
 lee las pantallas de `e3f2e7a` y afirma que no había flecha, ni arrastre, ni
-barra, y que las pestañas salían encima.
+barra.
 
 ## Documentación › Actualizaciones: publicar y que salte UNA vez a cada persona
 
@@ -19680,6 +19679,30 @@ DOCUMENTO. Tres reglas:
 Lo prueba `scripts/banco-contenido-de-actualizacion.sh`, en la tarjeta y en la
 ventana con ese mismo video servido como lo sirve el bucket; `MODO=roto` monta
 `0a3f714` y afirma el texto plano y la descarga.
+
+## Documentación es un apartado del panel: lleva su barra, como Embudos
+
+Documentación se quedaba sin la barra de pestañas del panel (Operaciones,
+Embudos, Proyectos…) que Embudos sí conserva. No era la ruta: las dos viven
+fuera de `/panel` (`/documentation`, `/embudos`) y a las dos se la pone el
+layout raíz por ser una pestaña del panel. Lo que la quitaba era una lista de
+excepciones (`RUTAS_SIN_PESTANAS`), puesta al darle a Documentación su flecha
+de regreso.
+
+> **Quién ve la barra lo decide `seVeLaBarraDelPanel` (`lib/barra-del-panel.ts`)
+> y no tiene excepciones por ruta.** Toda pantalla cuya dirección sea una
+> pestaña del panel —y sus subpantallas, por segmento— la lleva. No se vuelve a
+> escribir una lista de rutas sin barra.
+
+**No se mudó a `/panel/documentation`**, y es a propósito: ser un módulo del
+panel es que su dirección esté entre sus pestañas (`ModuleItem`), no que cuelgue
+de `/panel`. Mudarla rompería los enlaces, las guías, los tutoriales guardados y
+los apartados de la base, y el layout de `/panel` además pide sus apartados.
+
+Lo prueba `scripts/banco-barra-del-panel.sh`, pintando el `PanelAwareTabNav`
+real con las pestañas de producción: Documentación y sus cuatro pantallas con
+la barra y «Documentacion» marcada, la misma barra que Embudos. `MODO=roto`
+pinta la de `675dcee` y afirma que Documentación salía sin ella.
 
 ## Mis notas: archivar y desarchivar son UN botón con dos caras
 

@@ -5,7 +5,7 @@ import { Lock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarraDeslizable } from "@/components/shared/BarraDeslizable";
 import { cn } from "@/lib/utils";
-import { escondeLasPestanas } from "@/lib/pantallas-sin-pestanas";
+import { seVeLaBarraDelPanel } from "@/lib/barra-del-panel";
 import { MouseEvent, Suspense, useEffect, useMemo, useState, useTransition } from "react";
 
 interface TabItem {
@@ -76,23 +76,10 @@ function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Pro
      * cuando pulsa la ruta ya esta. Eso no cuesta nada al arranque.
      */
 
-    const isPanelRoute = panelRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
-
-    const isSubmoduleRoute = tabs.some((tab) => {
-        const { path } = splitUrl(tab.url);
-        return pathname === path || pathname.startsWith(path + "/");
-    });
-
-    // Documentación y sus pantallas llevan su propio título y su flecha de
-    // regreso: la barra del panel encima solo enseñaría pestañas de otros
-    // módulos. Ver `lib/pantallas-sin-pestanas.ts`.
-    if (escondeLasPestanas(pathname)) return null;
-
-    if (excludePanelRoutes) {
-        if (!isSubmoduleRoute || isPanelRoute) return null;
-    } else {
-        if (!isPanelRoute && !isSubmoduleRoute) return null;
-    }
+    // Documentación es un apartado del panel como Embudos: lleva la barra
+    // igual. Quién la ve lo decide una sola función, sin excepciones por
+    // ruta. Ver `lib/barra-del-panel.ts`.
+    if (!seVeLaBarraDelPanel(pathname, tabs, { excludePanelRoutes, panelRoutes })) return null;
 
     // ¿Algún tab con query params coincide exactamente con la URL actual?
     const slottedTabActive = tabs.some((tab) => {

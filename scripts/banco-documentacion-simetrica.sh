@@ -2,7 +2,7 @@
 # El banco de la DOCUMENTACIÓN SIMÉTRICA: la flecha de regreso en las cuatro
 # pantallas internas, el orden propio arrastrando (portada, guías publicadas y
 # tutoriales), el buscador a la izquierda y «Nuevo» a la derecha, la rejilla de
-# tutoriales compacta, Meta ordenada y sin pestañas de otros módulos encima.
+# tutoriales compacta y Meta ordenada. (La barra del panel encima: banco-barra-del-panel.sh.)
 #
 # Tres mitades: las REGLAS puras y un barrido del código; las ACCIONES del
 # orden contra Postgres (es de la persona, un id inventado no entra, las guías
@@ -11,7 +11,7 @@
 #
 # `MODO=roto` lee las pantallas de ANTES_REF —pinchado a un commit, nunca
 # `origin/main`— y AFIRMA el fallo: sin flecha, «Crear» pegado al buscador, sin
-# arrastre y con las pestañas del panel encima.
+# arrastre.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,7 +28,7 @@ OUT=lib/__tests__/.compilado/documentacion-simetrica
 mkdir -p "$OUT"
 
 # 1. Las reglas puras.
-npx esbuild lib/orden-propio.ts lib/pantallas-sin-pestanas.ts lib/buscar-en-documentacion.ts \
+npx esbuild lib/orden-propio.ts lib/buscar-en-documentacion.ts \
   lib/orden-de-las-tarjetas.ts --bundle --platform=node --format=esm --outdir="$OUT" --log-level=error
 
 # 2. Las acciones contra Postgres (solo en el modo bueno: el «antes» no tenía ninguna).
