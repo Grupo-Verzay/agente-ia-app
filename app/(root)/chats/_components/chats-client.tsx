@@ -113,6 +113,13 @@ import { avatarSrcFor } from "@/lib/avatar";
 import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
+import {
+  ESPERA_PARA_PONER_AL_DIA_MS,
+  conLaSesionAlDia,
+  esUnMensajeNuevo,
+} from "@/lib/crm-de-la-conversacion-abierta";
+import { etapaDeLaConversacionAction } from "@/actions/embudos-actions";
+import { elColorDeLaEtapa } from "@/lib/embudos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type { UIBubble } from "./chat-message-types";
 import type {
@@ -998,6 +1005,10 @@ export function ChatsClient({
     instanceActionSets?.find((s) => s.instanceName === initialSelectedChat?.instanceName) ?? null,
   );
   const selectedJidRef = useRef(selectedJid);
+  // Lo llama el sondeo y el tiempo real cuando traen un mensaje NUEVO de la
+  // conversacion abierta (ver `ponerAlDiaLaConversacionAbierta`). Va por
+  // referencia para no cambiar las dependencias de esos dos caminos.
+  const avisarDeUnMensajeNuevoRef = useRef<() => void>(() => {});
   selectedJidRef.current = selectedJid;
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
@@ -1761,6 +1772,8 @@ export function ChatsClient({
       .map((candidate) => chatSessions[candidate])
       .find(Boolean);
   }, [chatSessions, currentContact, selectedJid]);
+  const sesionAbiertaRef = useRef(currentContactSession);
+  sesionAbiertaRef.current = currentContactSession;
 
   // Un AGENTE con una conversación delante que no es suya: si entró por una
   // mención, la ve como invitado; si ese acceso ya no está, no la ve. Cualquier
@@ -2564,7 +2577,13 @@ export function ChatsClient({
         // `getSesionesDeLaCuenta`). Sin conservarlo, abrir un chat escalado
         // borraba la marca de la memoria y la fila se salia sola de «En espera».
         mapped.escalatedAt = previous[remoteJid]?.escalatedAt ?? null;
-        return { ...previous, [remoteJid]: mapped };
+        // Y la FILA, que lee la llave de su linea (`linea::numero`) y no la
+        // global: sin esto la calificacion que acaba de cambiar la IA salia en
+        // la cabecera y no en la lista hasta el reloj de sesiones (60 s). Solo
+        // los campos que la fila ensena, y nunca las etiquetas (ver
+        // `CAMPOS_DE_LA_SESION_PARA_LA_FILA`).
+        const { siguiente } = conLaSesionAlDia(previous, session.id, mapped);
+        return { ...siguiente, [remoteJid]: mapped };
       });
     },
     [],
@@ -2633,6 +2652,64 @@ export function ChatsClient({
    * el reloj de sesiones (60s) traia la lista de nuevo, y de ahi el "tarda
    * mucho".
    */
+  /**
+   * Lo que la IA cambia en el CRM mientras se mira la conversacion, se VE.
+   *
+   * Entra un mensaje nuevo en la conversacion abierta (lo trae el sondeo o el
+   * tiempo real) y en ese momento la IA suele haber tocado tambien el CRM: la
+   * ficha, la etapa, la calificacion. Se vuelve a leer lo de ESA conversacion
+   * —su sesion, su etapa y su ficha—, agrupando la rafaga. La regla y el porque
+   * estan en `lib/crm-de-la-conversacion-abierta.ts`.
+   */
+  const temporizadorDelCrmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ponerAlDiaLaConversacionAbierta = useCallback(async () => {
+    const jid = selectedJidRef.current;
+    if (!jid) return;
+    // La sesion (cabecera y fila) y la ficha: las dos cuelgan de esta senal.
+    setSessionRefreshSignal((n) => n + 1);
+
+    const sesion = sesionAbiertaRef.current;
+    if (!sesion?.id) return;
+    const r = await etapaDeLaConversacionAction(sesion.id);
+    if (!r.success || !r.data) {
+      console.warn("[chats] no se pudo volver a leer la etapa de la conversacion abierta", {
+        sessionId: sesion.id,
+        motivo: r.message,
+      });
+      return;
+    }
+    if (selectedJidRef.current !== jid || !r.data.etapaId) return;
+    const posicion = r.data.etapas.findIndex((e) => e.id === r.data?.etapaId);
+    const etapa = posicion >= 0 ? r.data.etapas[posicion] : null;
+    if (!etapa || sesion.etapa?.id === etapa.id) return;
+    aplicarEnLaSesion(
+      sesion.id,
+      jid,
+      { etapa: { id: etapa.id, nombre: etapa.nombre, color: elColorDeLaEtapa(etapa, posicion) } },
+      "la etapa al llegar un mensaje",
+    );
+  }, [aplicarEnLaSesion]);
+
+  const avisarDeUnMensajeNuevo = useCallback(() => {
+    if (temporizadorDelCrmRef.current) clearTimeout(temporizadorDelCrmRef.current);
+    const jid = selectedJidRef.current;
+    temporizadorDelCrmRef.current = setTimeout(() => {
+      temporizadorDelCrmRef.current = null;
+      // Si en la espera se cambio de chat, no hay nada que poner al dia: abrir
+      // el otro ya lee todo lo suyo.
+      if (selectedJidRef.current !== jid) return;
+      void ponerAlDiaLaConversacionAbierta();
+    }, ESPERA_PARA_PONER_AL_DIA_MS);
+  }, [ponerAlDiaLaConversacionAbierta]);
+  avisarDeUnMensajeNuevoRef.current = avisarDeUnMensajeNuevo;
+
+  useEffect(
+    () => () => {
+      if (temporizadorDelCrmRef.current) clearTimeout(temporizadorDelCrmRef.current);
+    },
+    [],
+  );
+
   const handleSessionStatusChange = useCallback(
     (sessionId: number, remoteJid: string, status: boolean) => {
       aplicarEnLaSesion(sessionId, remoteJid, { status }, "el interruptor de la IA");
@@ -2894,6 +2971,9 @@ export function ChatsClient({
             mensajeSoloPorElReloj(m?.key?.id);
           }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
+            if (esUnMensajeNuevo(getLastIdTimestamp(messagesRef.current), getLastIdTimestamp(nextMessages))) {
+              avisarDeUnMensajeNuevoRef.current();
+            }
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
               const loadedPage = currentInfo?.currentPage ?? 1;
@@ -5207,6 +5287,9 @@ export function ChatsClient({
         messageTimestamp: tsEnSegundos,
         pushName: m.pushName ?? undefined,
       } as unknown as EvolutionMessage;
+      if (esUnMensajeNuevo(getLastIdTimestamp(messagesRef.current), { id: m.id, ts: epochToMs(tsEnSegundos) })) {
+        avisarDeUnMensajeNuevoRef.current();
+      }
       setMessages((prev) => mergeMessages(prev, [evoMsg]));
     },
     [mergeMessages],
