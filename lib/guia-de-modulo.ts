@@ -68,6 +68,9 @@ export const ICONOS_DE_SECCION = [
     "Percent",
     "BarChart3",
     "ShieldCheck",
+    "Send",
+    "Tags",
+    "ListChecks",
 ] as const;
 
 export type Seccion = {

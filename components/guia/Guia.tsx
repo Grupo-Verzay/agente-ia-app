@@ -24,6 +24,7 @@ import {
     LayoutDashboard,
     LayoutGrid,
     Lightbulb,
+    ListChecks,
     Link2,
     Maximize2,
     MessageCircle,
@@ -36,12 +37,14 @@ import {
     PlayCircle,
     PlusCircle,
     Search,
+    Send,
     Share2,
     Sheet,
     ShieldCheck,
     SlidersHorizontal,
     StickyNote,
     Store,
+    Tags,
     ToggleRight,
     Trash2,
     TriangleAlert,
@@ -113,6 +116,9 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Percent,
     BarChart3,
     ShieldCheck,
+    Send,
+    Tags,
+    ListChecks,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
