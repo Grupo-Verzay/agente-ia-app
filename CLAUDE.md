@@ -320,6 +320,42 @@ Lo prueba `scripts/banco-campos-de-la-ficha.sh`: la regla, la migración contra
 Postgres y el diálogo real en Chromium (filas fijas alineadas con las demás);
 su «antes» es `ANTES_FICHA_REF` y afirma los 14 de fábrica sin papelera.
 
+### Y la anatomía es UNA: los bloqueados se ven igual que los demás
+
+Nombre y Teléfono habían quedado como filas peladas —sin asa, sin
+interruptor y con «Fijo» donde va la sección—, y al lado de los demás campos
+no se leían como la misma lista. Ahora **toda fila del diálogo tiene la misma
+anatomía y las mismas columnas**: asa, interruptor, ícono, etiqueta y su
+sección REAL (las clases se escriben una vez: `FILA`, `ASA`, `ICONO`,
+`SECCION`, `MANDO_FINAL`). Las bloqueadas llevan el asa y el interruptor
+**encendido pero apagados como mando**, y un candado donde va la papelera.
+
+Y la ficha tiene un tercer bloqueado, **Notas** (`CAMPO_NOTAS`): texto libre
+en TODA ficha y **siempre el último**, por eso va FUERA de la lista que se
+arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas:
+
+1. **Nombre y Teléfono van en «Contacto» y Notas en «Libre»**
+   (`SECCION_DE_LOS_FIJOS`, `SECCION_DE_LAS_NOTAS`), secciones de verdad.
+2. **La ficha abierta sigue el orden del diálogo** (`lasSeccionesDeLaFicha`,
+   pura): «Contacto» la primera con Nombre y Teléfono delante, los campos de la
+   cuenta, y «Libre» la última con Notas cerrándola. Un campo de la cuenta en
+   una de esas dos secciones cae en la misma, nunca en una repetida.
+3. **En la ficha, Nombre y Teléfono son el nombre y el número REALES**: Nombre
+   se guarda por el mismo camino que el lápiz de la cabecera
+   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre más
+   alta (`LINEAS_DE_LAS_NOTAS`, `min-h-[8rem]`) y con la manija de la esquina
+   (`resize-y`); los demás campos no se estiran.
+4. **Su dato sigue en `ExternalClientData.data.notas`**, la clave del Notas de
+   fábrica de antes: lo escrito no se pierde, y una lista vieja con esa clave la
+   suelta al leerse. Google Sheets la exporta la última
+   (`losCamposQueSeExportan`), aunque ya no viva en la lista.
+
+Lo prueba `scripts/banco-ficha-simetrica.sh`: la regla, y el diálogo y la ficha
+REALES en Chromium a 1440/1024/390 (mismas columnas y altos en todas las filas,
+Notas la última al agregar campos, Notas más alta y estirable arrastrando la
+esquina). `MODO=roto` monta los de `4834a9e` y afirma «Fijo», las filas sin asa
+ni interruptor y la ficha sin Nombre, Teléfono ni Notas.
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
