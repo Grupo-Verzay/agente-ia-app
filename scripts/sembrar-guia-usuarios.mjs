@@ -52,7 +52,14 @@ const EQUIPO = [
 const correos = EQUIPO.map((p) => p.email);
 // Lo que dejaron las capturas (la persona que se crea en «Crear un usuario»)
 // fuera del equipo de ejemplo: el vídeo sale del mismo punto de partida.
-const sobran = await db.user.findMany({ where: { ownerId: dueno.id, email: { notIn: correos } }, select: { id: true } });
+// Con CONSERVAR_EQUIPO=1 —volver a poner lo pendiente A MITAD del recorrido—
+// se queda: si no, la persona que se acaba de crear desaparecería de las
+// capturas y del vídeo siguientes, y el equipo no sería el mismo de una
+// sección a otra.
+const conservar = process.env.CONSERVAR_EQUIPO === "1";
+const sobran = conservar
+    ? []
+    : await db.user.findMany({ where: { ownerId: dueno.id, email: { notIn: correos } }, select: { id: true } });
 if (sobran.length) {
     await db.session.updateMany({ where: { assignedAdvisorId: { in: sobran.map((u) => u.id) } }, data: { assignedAdvisorId: null } });
     await db.user.deleteMany({ where: { id: { in: sobran.map((u) => u.id) } } });

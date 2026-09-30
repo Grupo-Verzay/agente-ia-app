@@ -210,7 +210,11 @@ async function suOpcion(p, nombre, opcion, rol = '[role="dialog"]') {
  * reparto la columna Sin asignar se queda vacía y no habría nada que arrastrar.
  */
 async function conLoPendienteDeVuelta(p) {
-    execFileSync("node", [path.join(RAIZ, "scripts", "sembrar-guia-usuarios.mjs")], { stdio: "ignore" });
+    // Sin tocar al equipo: la persona creada en «Crear un usuario» sigue en él.
+    execFileSync("node", [path.join(RAIZ, "scripts", "sembrar-guia-usuarios.mjs")], {
+        stdio: "ignore",
+        env: { ...process.env, CONSERVAR_EQUIPO: "1" },
+    });
     await abrirEquipo(p);
 }
 
