@@ -19384,7 +19384,10 @@ vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
 con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
 del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
 los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
-sigue la cadena): mejor callar que cantar un fallo que no existe.
+sigue la cadena): mejor callar que cantar un fallo que no existe. Y una
+variable **desestructurada** también es una exportación: `export const {
+laSeccion, lasVecinas } = GUIA` exporta esos dos. Sin recorrer el patrón, el
+banco cantaba en rojo las páginas de todas las guías públicas.
 
 > **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
 > culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
@@ -19579,6 +19582,31 @@ Lo prueba `scripts/banco-desarchivar-nota.sh`: la regla y un barrido, las
 acciones contra Postgres (ida y vuelta, nadie desarchiva una ajena) y la barra
 real en Chromium. `MODO=roto` lee y monta `16e81b7` y afirma que con la nota
 archivada el botón seguía diciendo «Archivar nota».
+
+## Mis notas: la pantalla, arreglada al documentarla
+
+Documentar `/notas` destapó fallos que no daban ningún error; las reglas viven
+en `lib/pantalla-de-notas.ts` (pura) y las usan la pantalla y las acciones:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| pulsar una carpeta la abría Y la plegaba: había que pulsar dos veces | `alPulsarUnaCarpeta`: una carpeta nueva se abre desplegada; la abierta se pliega |
+| el buscador solo miraba el TÍTULO (`string_contains` sobre la raíz del JSON no encuentra nada) | busca en el título y en el cuerpo aplanado, sin tildes (`translate` + `sinTildes`, una sola lista), y escapa `%` y `_` |
+| Archivo y Compartidas ignoraban la búsqueda | buscan igual, y Archivo va fijadas arriba y por su orden |
+| el número de una carpeta contaba sus archivadas | cuenta lo que su lista enseña |
+| el pie contaba las claves del JSON («type», «doc»…) | `contarPalabras` cuenta lo escrito, y «1 palabra» en singular |
+| una lista vacía decía lo mismo sin notas que sin resultados | `elMensajeDeLaListaVacia` dice por qué, y qué se buscó |
+| no se podía mover una nota que ya existía a una carpeta | «Mover a carpeta» en su «⋯», y la lista se pone al día (`laNotaSigueEnLaVista`) |
+| el «⋯» de una nota o carpeta solo salía con el ratón | también con el teclado y en táctil (`MANDO_QUE_APARECE_AL_PASAR`) |
+| eliminar desde la lista no pedía confirmación | la pide, como desde la nota |
+| con una búsqueda puesta se podía arrastrar y revolvía el orden | no se reordena buscando, y se dice |
+| «Vincular contacto» pedía los contactos de la PERSONA: vacío para el equipo | la ruta lee la cuenta activa de la sesión; un `agente`, solo lo suyo |
+| elegir un icono o un color dejaba su menú abierto encima de la nota (botones sueltos dentro del menú) | cada opción es un `DropdownMenuItem`: elegir cierra, y se recorren con las flechas |
+| salir del título guardaba la nota entera aunque no hubiera cambiado: «Guardando…» sin tocar nada | `handleTitleBlur` solo guarda si el título cambió |
+| las cuatro pestañas del panel llevaban icono y no cabían en 18rem: «Suelt…», «Co…», «Archi…» | la palabra entera y sin icono, cada una del ancho de lo que dice (`flex-auto`), como las pastillas de Chats; la guía se cae si alguna se corta |
+
+Lo prueba `scripts/banco-notas.sh` (reglas, barrido y las acciones y la ruta
+contra Postgres); `MODO=roto` corre el código de `24ba0b2` y afirma cada fallo.
 
 ## El entorno de los agentes NO es un contenedor de Portainer
 
@@ -22884,7 +22912,30 @@ Documentación › Administrador tutoriales.
 
 `getGuidesForPath` junta esas filas con las de `GuidesUrl` (las guardadas a
 mano, p. ej. vídeos de YouTube); si alguien ya guardó la misma guía a mano,
-sale una sola vez y manda la de la base. El banco
+sale una sola vez y manda la de la base.
+
+**La descripción de la tarjeta es suya, no el subtítulo de la guía**, y sigue
+una regla con dos mitades:
+
+1. **Formato «Aprende a [acción concreta] en la plataforma»**, con un
+   beneficio claro para el cliente. Referencia: Diagramas → «Aprende a crear y
+   gestionar tus diagramas de flujo en la plataforma». Nada de textos
+   genéricos repetidos («Recorrido completo del módulo de X con video
+   explicativo y guías»): dicen lo mismo en todas las tarjetas.
+2. **75 caracteres como mucho** (`TOPE_DE_LA_DESCRIPCION`), para que quepa en
+   UNA línea de la tarjeta. Una tilde o una eñe cuentan uno.
+
+El hilo que publica una guía escribe la suya en el campo `tarjeta` de su fila
+de `GUIAS_PUBLICADAS`, y la semilla de la guía (`scripts/sembrar-guia-*.mjs`)
+usa ese mismo texto. La regla es UNA función, `porQueNoValeLaDescripcion`, y
+la preguntan las guías publicadas (el banco), crear y editar un tutorial a mano
+(`createGuide`/`updateGuide`, que rechazan lo que no la cumpla) y el formulario
+de Documentación › Administrador tutoriales, que la enseña con su contador
+mientras se escribe. Las filas de producción que no la cumplían se corrigieron
+el 2026-09-30 (`scripts/descripciones-de-los-tutoriales.mjs`, aplicado con
+`scripts/corregir-descripciones-de-tutoriales.mjs`, que solo toca una fila si
+su texto sigue siendo el de antes). El banco mide en Chromium, con Poppins, que
+cada una cabe en una línea a 1440 y 1024; en un teléfono puede partirse. El banco
 (`scripts/banco-tutoriales-del-modulo.sh`) falla si una carpeta de
 `app/guia/` no tiene su fila, o si su ruta no está en el menú.
 
@@ -22892,7 +22943,9 @@ Y todas las tarjetas de esa ventana son iguales: título, descripción y, al
 final, «Ver tutorial» (`BOTON_VER_TUTORIAL`): el azul del botón de crear
 (`bg-blue-600`) en estilo secundario —fondo blanco, borde y letra azules—,
 abriendo en otra pestaña con `noopener`. Nada de «Ver en YouTube» en rojo.
-`MODO=roto` monta la barra de `7bdc404` y afirma el botón rojo.
+`MODO=roto` monta la barra de `7bdc404` y afirma el botón rojo, y lee
+`6d4430c` para afirmar que la tarjeta decía el subtítulo y las semillas el
+texto genérico.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
@@ -23235,6 +23288,188 @@ píxeles (el test de Leads con `GUIA=diagramas`), `fin-de-la-guia` y
 (`probar-guia.mjs`). `MODO=roto` lee `6d8cd4b` y afirma que no había guía, que
 el editor de lectura dejaba escribir y desbloquear, y que los tres «+» se
 montaban.
+
+### La cuarta guía, Reuniones (`/guia/reuniones`): las MISMAS piezas, y el contenido atado al código
+
+Nueve secciones —la pantalla de un vistazo, abrir una reunión, las abiertas,
+los mandos, cómo ver la reunión, invitados, chat y gente, grabar y las
+pasadas— con sus capturas, su miniatura con enfoque y el vídeo narrado de un
+minuto. Mismo estándar que Leads, y no por copiarlo:
+
+> **No copia ninguna pieza común** (las de la sección de arriba): contenido con
+> `laGuiaDe("reuniones", …)`, capturas con el taller, el marco con
+> `sembrarElMarco` y el lanzador y la sonda comunes. La vista general numera las
+> MISMAS seis zonas que Leads y Catálogo —menú, barra de arriba, pestañas del
+> Panel— y lleva sus mismos pasos (`menu-lateral`, `barra-de-arriba`,
+> `pestanas`). Lo único que necesitó el marco es `modulosQueSeVenden`: grabar
+> depende de que exista el módulo `/reuniones/grabaciones`, que se siembra
+> ESCONDIDO del menú (una semilla con su propio `db.module.create` sería un
+> segundo sitio donde se siembra el menú, y `menu-de-la-guia` lo prohíbe). La
+> lista de guías (`MODULOS_CON_GUIA`, `NOMBRE_DE_LA_GUIA`) alimenta el editor
+> de introducciones y el «Contáctanos», y su fila en `GUIAS_PUBLICADAS` pone
+> la tarjeta en «Ver tutoriales» de `/reuniones` sin ningún paso a mano.
+
+Cinco cosas que hay que mantener:
+
+1. **El contenido se compara con el CÓDIGO** (`guia-reuniones.test.mjs`): las
+   pestañas con las `PastillaDeFiltro`, las acciones de la fila con `FilaViva`,
+   las caducidades con `DURACIONES`, los seis mandos de abajo con la barra, los
+   botones de la cabecera con cada `MandoDeCabecera` (y ninguno sobra), las
+   opciones de grabar y del fondo con sus menús, y los números (4 personas, 2
+   minutos la mano, 90 días de historial, 180 de grabación) con sus
+   constantes. Un mando nuevo sin su nombre en la guía la pone en rojo.
+2. **La reunión se captura con TRES personas de verdad** —la anfitriona, un
+   invitado que llama a la puerta y Sofía, del equipo— en tres navegadores,
+   con cámaras y micrófonos de mentira (`scripts/camaras-de-la-guia.mjs`):
+   personas ILUSTRADAS (la guía es pública: ninguna cara real) y solo quien
+   habla lleva voz, que es lo que decide quién sale en grande. Sin ficheros,
+   Chromium pone su patrón verde y un pitido que «habla».
+3. **La semilla corre en la zona de la cuenta** (`process.env.TZ =
+   "America/Bogota"` dentro de `sembrar-guia-reuniones.mjs`): con la del
+   contenedor (UTC) las pasadas salían a las 5 de la mañana.
+4. **El vídeo NO enciende el desenfoque**: lo señala y cierra el menú. El
+   desenfoque corre un modelo de segmentación en el procesador y, con tres
+   cámaras en la misma máquina, lo que quedaba del minuto se estiraba a más de
+   cuatro (medido: 266 s). Y arranca **sin las preferencias de la sala**
+   (`reunion:*` de `localStorage`): las capturas la dejan en cuadrícula y con el
+   panel abierto, y el vídeo tiene que empezar como la ve quien entra.
+5. **Regenerar**: `npm run build && scripts/generar-guia-reuniones.sh`
+   (`SOLO_VIDEO=1` solo el vídeo) y volver a construir. El guion se cae con una
+   captura si Sofía no ve la reunión en su lista —con tres navegadores el
+   servidor va lento y se insiste unas veces—; un plazo agotado a secas no dice
+   por qué.
+
+#### Y las capturas destaparon tres fallos de la sala, que ya están arreglados
+
+| lo que se veía | la causa | el arreglo |
+| --- | --- | --- |
+| el «⋯» de moderar de un recuadro **no se abría** dentro de la plataforma | su menú iba en un portal al `<body>`, en `z-50`, y la reunión vive en una capa `z-[99]`: se abría DETRÁS | el menú se monta en la capa de la reunión (`container`), como ya hacían los del fondo y de grabar |
+| el «⋯» del recuadro grande tapaba el botón del chat | el «⋯» va `z-30` arriba a la derecha, y la cabecera flota encima de los recuadros de arriba | `laAlturaDelMenuDelRecuadro` lo baja lo que mide la cabecera, solo en los recuadros que tocan arriba |
+| «Esperando a que te dejen entrar» casi negro sobre casi negro | `Centrada` no llevaba fondo ni color: heredaba el texto de la plataforma sobre la pestaña oscura del invitado | la caja lleva el fondo y el texto de la sala (`bg-zinc-950`, `text-zinc-100`) |
+
+El primero lo prueba `banco-controles-de-la-reunion.sh` (con la reunión encima
+de una capa como la de la plataforma, el menú se VE; portado al `body`, el
+banco lo ve detrás), el segundo `sala-de-video.test.mjs` y el tercero
+`guia-reuniones.test.mjs`.
+
+Lo prueba `scripts/banco-guia-reuniones.sh`: el contenido contra el código y la
+simetría con las otras dos guías, el vídeo (Cedar a ritmo de conversación, sin
+huecos, el rótulo cambiando cuando empieza cada frase y la imagen acabando con
+la voz), las miniaturas con el MISMO test que Leads y Catálogo
+(`GUIA=reuniones`), `fin-de-la-guia` y `menu-de-la-guia`, y la guía servida
+sin sesión (`probar-guia.mjs`). `MODO=roto` lee `24ba0b2` y afirma que no había
+guía, ni vídeo, ni miniaturas, y la espera ilegible.
+
+### La quinta guía, Mis notas: las mismas piezas, y la pantalla expone sus marcas
+
+`/guia/notas` documenta Herramientas › Mis notas (`/notas`) con el estándar de
+Leads, Catálogo, Diagramas y Reuniones: diez secciones —vista general, crear y escribir,
+formato, carpetas, buscar y ordenar, icono y color, vincular un contacto,
+compartir, plantillas y exportar, y archivar y eliminar—, una miniatura con
+enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO ritmo.
+Su tarjeta sale sola en «Tutoriales del módulo» de `/notas`
+(`GUIAS_PUBLICADAS`), con su descripción: «Aprende a escribir, organizar y
+compartir tus notas en la plataforma».
+
+No trae ninguna pieza propia: su contenido (`lib/guia-notas.ts`, con
+`laGuiaDe`), su semilla (`sembrar-guia-notas.mjs`, sobre `sembrarElMarco`), su
+receta de capturas y vídeo (`capturar-guia-notas.mjs`, sobre el taller) y su
+narración. Se regenera con
+`npm run build && scripts/generar-guia-notas.sh && npm run build`.
+
+Seis cosas que hay que mantener:
+
+1. **El código de las dos páginas es el de Leads con otro nombre, letra por
+   letra** (sin contar los comentarios): el banco las compara quitando los
+   nombres. Una pieza que solo lleve una de las dos es una guía que se pinta
+   distinta de la otra.
+2. **La frase de la barra de arriba es la MISMA en todas las narraciones**, y
+   el paso «La barra de arriba» lleva `TEXTO_DE_LA_BARRA_DE_ARRIBA`: la barra es
+   la misma en todas las pantallas. Y el paso siguiente es «El panel de notas»:
+   Mis notas no tiene barra de trabajo ni vive en Panel, así que
+   `menu-de-la-guia` pide el paso de la zona que SÍ tiene (su
+   `ZONAS_DE_LA_PANTALLA`).
+3. **La pantalla expone marcas para la receta** (`data-panel-de-notas`,
+   `data-barra-de-la-nota`, `data-barra-de-formato`, `data-nota-abierta`…), y
+   las recetas no usan coordenadas. Una fila de botones pegados se numera con
+   `sinRecuadro`: trece recuadros uno encima de otro no se leen. Y las
+   miniaturas que abren una VENTANA (vincular, compartir) la cierran en su
+   `despues`: el `cerrarLoAbierto` del taller solo cierra menús.
+4. **Las capturas CAMBIAN los datos** (crean, mueven, fijan, comparten…), así
+   que antes del vídeo se vuelve a sembrar: sale del mismo punto de partida. Y
+   el vídeo no borra nada: archiva, que se ve y se recupera.
+5. **Poner el cursor en el editor es un clic sobre la LETRA y después el
+   cursor del propio editor** (`elCursorEn`: `.ProseMirror.editor.commands
+   .focus("end")`). Un clic sobre la caja del bloque caía fuera del texto, el
+   botón de la barra devolvía el cursor al principio y la lista de tareas salía
+   pegada al título. Sin ningún error: solo se ve mirando la captura.
+6. **Ninguna marca tapa lo que se lee**, y eso se comprueba MIRANDO cada
+   captura: un rótulo que cae sobre el texto va a otro lado o se quita, los
+   números van donde hay hueco, el recorte acaba en filas enteras, y antes de
+   una foto se suelta el foco que dejó un diálogo cerrado (su anillo se lee
+   como otra marca).
+
+Lo prueba `scripts/banco-guia-notas.sh`: el contenido contra el código
+(`NotesEditor`, `NotesSidebar`, `EditorDeTexto`, `SortableNoteList` y
+`niveles-de-acceso`), el vídeo medido como el de Diagramas, las miniaturas en
+sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
+las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
+afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
+
+### La sexta guía, Google Sheets: y documentarla destapó una pantalla que se quedaba en blanco
+
+`/guia/google-sheets` documenta Integraciones › Google Sheets
+(`/google-sheets`) con el estándar de las cinco anteriores: ocho secciones
+—vista general, vincular, tu hoja, copiar el enlace, cambiar de hoja, quitar
+la hoja, un enlace que no sirve y las respuestas de las citas—, una miniatura
+con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO
+ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/google-sheets`:
+«Aprende a vincular y consultar tu hoja de Google Sheets en la plataforma».
+Ninguna pieza propia: contenido con `laGuiaDe`, capturas con el taller, el
+marco con `sembrarElMarco`. Se regenera con
+`npm run build && scripts/generar-guia-google-sheets.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| se guardaba CUALQUIER texto: un documento, una carpeta de Drive o el enlace de «Publicar en la web» quedaban guardados, el campo se escondía —ya había algo— y no se pintaba ninguna hoja —no era una—. Pantalla en blanco para siempre y sin un solo error | lo decide `laHojaQueSeGuarda` (`lib/url-de-google-sheets.ts`, pura), y la preguntan la pantalla antes de mandar y la acción antes de escribir. Lo que no sirve se dice con su motivo bajo el campo, que se queda a la vista; y una hoja mala ya guardada abre el campo con «El enlace guardado no sirve» |
+| se guardaba lo pegado (`?usp=sharing`, dos `gid`…) | se guarda el enlace LIMPIO (`/edit`, con su pestaña) y la acción devuelve lo que quedó escrito, que es lo que se pinta |
+| nada decía con qué correo compartir la hoja, y sin compartirla la plataforma no puede escribir en ella | el paso 1 de vincular enseña el correo de la cuenta de servicio (`getServiceAccountEmail`), con su botón de copiar |
+| escribir la respuesta de una cita en la hoja fallaba EN SILENCIO (`catch {}`) | sigue sin tumbar la cita, y se dice (`[google-sheets] no se pudo escribir…`) |
+| la regla del id de una hoja estaba COPIADA en dos acciones | `elIdDeLaHoja`, una vez, y el banco la compara con la copia de antes entrada por entrada: cambiarla cambiaría a qué hoja escriben las integraciones que ya funcionan |
+| copiar el enlace sin `try`: sin HTTPS el portapapeles lanza | en su `try`, y si falla se dice qué hacer |
+| la barra de la hoja eran iconos sin palabra y no se podía quitar la hoja | Cambiar hoja, Copiar enlace y Abrir, con su palabra, y «Quitar hoja» con confirmación; quitar guarda «sin hoja» (`''`), como siempre |
+| la página pedía `sheetsFormName` y `sheetsRegistroName` y no los usaba nadie | ya no los pide |
+
+Cinco cosas que hay que mantener:
+
+1. **El correo que enseña la guía es de EJEMPLO**
+   (`hojas@plataforma-ejemplo.iam.gserviceaccount.com`, en
+   `scripts/generar-guia.sh`): la guía es pública y el de verdad no se publica.
+2. **La hoja es un SIMULACRO** servido por Playwright en `docs.google.com`: una
+   rejilla de 40 filas con sus pestañas. Las filas con datos son
+   `[data-fila]` —debajo siguen filas vacías, así que la última con datos es
+   `.last()`, nunca `:last-of-type`—.
+3. **El cursor entra en el iframe**: dentro de un marco el ratón se mueve en
+   OTRO documento y la página de arriba deja de recibir sus `mousemove`, así
+   que `cursor-de-la-guia.mjs` hace que el marco le cuente a la página dónde
+   está la punta y qué forma toca (`postMessage`), y la pinta ella. Vale para
+   cualquier guía con un iframe.
+4. **El vídeo no quita la hoja ni confirma nada**: señala «Quitar hoja» y
+   enseña un enlace que no sirve con su motivo, sin cambiar los datos delante
+   de la cámara.
+5. **La sección de las citas dice lo que el código escribe**: la pestaña y las
+   columnas se comparan con `SHEET_NAME` y `HEADERS` de
+   `booking-form-actions.ts`.
+
+Lo prueban `scripts/banco-google-sheets.sh` —la regla y un barrido, la acción
+contra Postgres y la pantalla real en Chromium (enlace malo sin mandar, bueno
+guardado limpio, la barra con palabra, copiar que falla, quitar con
+confirmación)— y `scripts/banco-guia-google-sheets.sh` —el contenido contra
+el código, el vídeo, las miniaturas (`GUIA=google-sheets`) y la guía servida—.
+Los dos con `MODO=roto` contra `ab6b110`, que afirma que se guardaba cualquier
+texto, que no había guía y que la barra no tenía palabras.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 

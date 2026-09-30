@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 import { db } from '@/lib/db';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
+import { elIdDeLaHoja, laHojaQueSeGuarda } from '@/lib/url-de-google-sheets';
 import {
   pickExplicitWhatsAppPhoneJid,
   fmtPhone,
@@ -26,13 +27,9 @@ function getAuth() {
   });
 }
 
-function extractSheetId(input: string): string | null {
-  if (!input) return null;
-  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-  if (/^[a-zA-Z0-9_-]{30,}$/.test(input.trim())) return input.trim();
-  return null;
-}
+// El id de una hoja lo saca `elIdDeLaHoja` (lib/url-de-google-sheets): la
+// misma regla estaba copiada aqui y en booking-form-actions.
+const extractSheetId = elIdDeLaHoja;
 
 /* ── DB helpers ────────────────────────────────────────────── */
 
@@ -89,17 +86,37 @@ export async function saveGoogleSheetId(userId: string, sheetInput: string): Pro
 export const saveGoogleSheetsWebhookUrl = saveGoogleSheetId;
 export const getGoogleSheetsWebhookUrl = getGoogleSheetsConfig;
 
-export async function saveUserSheetsUrl(userId: string, url: string): Promise<{ success: boolean; error?: string }> {
+/**
+ * La hoja de la pantalla Google Sheets (`/google-sheets`).
+ *
+ * Solo se guarda lo que `laHojaQueSeGuarda` da por una hoja, y se guarda su
+ * enlace LIMPIO, que es el que se devuelve: la pantalla pinta lo que quedó
+ * escrito, no lo que se pegó. Antes entraba cualquier texto y la pantalla se
+ * quedaba en blanco para siempre (ver esa función).
+ *
+ * Vacío sigue siendo «sin hoja», como siempre.
+ */
+export async function saveUserSheetsUrl(
+  userId: string,
+  url: string,
+): Promise<{ success: boolean; error?: string; url?: string | null }> {
   const cuenta = await laCuentaDeLaAccion(userId);
   if (!cuenta) return { success: false, error: 'No autorizado' };
+
+  const texto = (url ?? '').trim();
+  const hoja = texto ? laHojaQueSeGuarda(texto) : null;
+  if (hoja && !hoja.ok) return { success: false, error: hoja.motivo };
+  const guardada = hoja && hoja.ok ? hoja.url : null;
+
   try {
     await db.user.update({
       where: { id: cuenta },
-      data: { sheetsUrl: url.trim() || null } as any,
+      data: { sheetsUrl: guardada } as any,
     });
-    return { success: true };
-  } catch {
-    return { success: false, error: 'No se pudo guardar la URL' };
+    return { success: true, url: guardada };
+  } catch (error) {
+    console.warn('[google-sheets] no se pudo guardar la hoja', { cuenta, error: String(error) });
+    return { success: false, error: 'No se pudo guardar el enlace. Inténtalo de nuevo.' };
   }
 }
 

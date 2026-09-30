@@ -464,6 +464,56 @@ export function laRejilla(cuantos: number): string {
     return "grid-cols-2 grid-rows-2";
 }
 
+/**
+ * Si el «⋯» de moderar de un recuadro tiene que bajar por DEBAJO de la
+ * cabecera flotante de la reunión.
+ *
+ * La cabecera flota `absolute top-0` sobre los recuadros y su caja de mandos
+ * —el contador, cuadrícula, franja, chat, ruido, copiar, grabar y el tamaño—
+ * ocupa unos 360 px arriba a la derecha y unos 44 px de alto. El «⋯» va
+ * arriba a la derecha de cada recuadro con `z-30` para que nada lo tape
+ * (`RecuadrosDeLaSala.tsx`), y así, en el recuadro que TOCA el borde de
+ * arriba, el que quedaba tapado era el mando de la cabecera: en la vista de
+ * orador el «⋯» del grande caía encima del botón del chat, medio botón debajo
+ * de un círculo de tres puntos. Se ve en cada captura y se pulsa el que no
+ * era.
+ *
+ * Así que en esos recuadros baja lo que mide la cabecera. Solo en esos: en los
+ * de abajo no hay nada encima y bajarlo sería separarlo de su esquina sin
+ * motivo. Qué recuadros tocan arriba lo decide el reparto:
+ *
+ * - **cuadrícula**: la fila de arriba. Con dos, en un teléfono van uno encima
+ *   del otro (`laRejilla`), así que el segundo toca arriba **solo desde `sm`**.
+ * - **orador**: el grande siempre; de la tira, el primero **solo desde `sm`**,
+ *   que es cuando la tira va al lado —en un teléfono va abajo—.
+ *
+ * Devuelve la CLASE, escrita literal: Tailwind solo genera lo que ve escrito,
+ * y este fichero está en su `content`.
+ */
+export function laAlturaDelMenuDelRecuadro({
+    vista,
+    cuantos,
+    posicion,
+    enLaTira = false,
+}: {
+    vista: "cuadricula" | "orador";
+    cuantos: number;
+    /** El orden del recuadro en su grupo: la rejilla, o la tira. */
+    posicion: number;
+    enLaTira?: boolean;
+}): string {
+    const BAJO = "top-12";
+    const BAJO_DESDE_SM = "top-1 sm:top-12";
+    const ARRIBA = "top-1";
+    if (vista === "orador" && cuantos > 1) {
+        if (!enLaTira) return BAJO;
+        return posicion === 0 ? BAJO_DESDE_SM : ARRIBA;
+    }
+    if (cuantos <= 1) return BAJO;
+    if (cuantos === 2) return posicion === 0 ? BAJO : BAJO_DESDE_SM;
+    return posicion < 2 ? BAJO : ARRIBA;
+}
+
 /** Lo que se lee en el recuadro de alguien cuya cámara está apagada. */
 export function lasIniciales(nombre: string): string {
     const trozos = (nombre || "").trim().split(/\s+/).filter(Boolean);

@@ -798,8 +798,11 @@ export function SalaDeVideo({
                 if (quien) moderar(que, { id, nombre: quien.nombre });
             },
             ocupadoCon,
+            // Dentro de la sala, como los menús de fondo y de grabar: al
+            // `body` el «⋯» se abriría detrás del video.
+            container: nodoRaiz,
         };
-    }, [malla.remotos, moderar, moderas, ocupadoCon]);
+    }, [malla.remotos, moderar, moderas, ocupadoCon, nodoRaiz]);
 
     // ── El aviso sonoro de la puerta ────────────────────────────────────────
     //
@@ -874,8 +877,8 @@ export function SalaDeVideo({
     if (arrancando) {
         return (
             <Centrada>
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Preparando la cámara…</p>
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+                <p className="text-sm text-zinc-400">Preparando la cámara…</p>
             </Centrada>
         );
     }
@@ -883,8 +886,8 @@ export function SalaDeVideo({
     if (malla.estado === "cargando") {
         return (
             <Centrada>
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Entrando a la reunión…</p>
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+                <p className="text-sm text-zinc-400">Entrando a la reunión…</p>
             </Centrada>
         );
     }
@@ -916,7 +919,7 @@ export function SalaDeVideo({
                             Cerrar
                         </Button>
                     ) : (
-                        <p className="max-w-sm text-sm text-muted-foreground">
+                        <p className="max-w-sm text-sm text-zinc-400">
                             Puedes cerrar esta pestaña.
                         </p>
                     )}
@@ -928,9 +931,9 @@ export function SalaDeVideo({
     if (malla.estado === "esperando") {
         return (
             <Centrada>
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
                 <p className="text-base font-medium">Esperando a que te dejen entrar</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
+                <p className="max-w-sm text-sm text-zinc-400">
                     Ya saben que estás aquí. En cuanto alguien te abra, entras.
                 </p>
                 <Button variant="outline" size="sm" onClick={() => void salir()}>
@@ -1534,9 +1537,21 @@ export function SalaDeVideo({
     );
 }
 
+/**
+ * La caja de los estados SIN sala —entrando, esperando en la puerta, fuera—.
+ *
+ * Lleva su fondo y su color de texto escritos, los MISMOS que la puerta de
+ * `LaReunion` y que la sala: estos estados se pintan antes de la caja oscura
+ * de la reunión, así que no heredan nada de ella. Sin esto, en la pestaña del
+ * invitado —cuyo fondo es `bg-zinc-950`— el título «Esperando a que te dejen
+ * entrar» salía en el color de texto de la plataforma, casi negro sobre casi
+ * negro: la persona que acababa de llamar a la puerta no veía qué estaba
+ * pasando. Y dentro de la plataforma el panel es blanco, así que la puerta
+ * salía oscura y la espera clara: dos colores para el mismo recorrido.
+ */
 function Centrada({ children }: { children: React.ReactNode }) {
     return (
-        <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 bg-zinc-950 p-6 text-center text-zinc-100">
             {children}
         </div>
     );

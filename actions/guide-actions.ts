@@ -1,7 +1,7 @@
 ﻿'use server';
 
 import { db } from "@/lib/db"; // Adjust the path if necessary
-import { juntarLosTutoriales, type TutorialDelModulo } from "@/lib/tutoriales-del-modulo";
+import { juntarLosTutoriales, porQueNoValeLaDescripcion, type TutorialDelModulo } from "@/lib/tutoriales-del-modulo";
 
 // Get all guides (global, no filter by userId)
 export async function getAllGuides() {
@@ -43,6 +43,10 @@ interface CreateGuideInput {
 }
 
 export async function createGuide(data: CreateGuideInput) {
+  // La descripción es la de una tarjeta de «Tutoriales del módulo»: la regla
+  // (formato y tope de caracteres) es la de `lib/tutoriales-del-modulo.ts`.
+  const motivo = porQueNoValeLaDescripcion(data.description);
+  if (motivo) return { success: false, message: motivo };
   try {
     const newGuide = await db.guideUrl.create({
       data,
@@ -64,6 +68,8 @@ interface UpdateGuideInput {
 }
 
 export async function updateGuide(data: UpdateGuideInput) {
+  const motivo = porQueNoValeLaDescripcion(data.description);
+  if (motivo) return { success: false, message: motivo };
   try {
     const updatedGuide = await db.guideUrl.update({
       where: { id: data.id },

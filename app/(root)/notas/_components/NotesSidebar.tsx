@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import {
-  ChevronDown, ChevronRight, FileText, Folder, FolderOpen,
-  MoreHorizontal, Pin, PinOff, Plus, Search, Trash2, Pencil, FolderPlus,
-  Users, List, Archive, FileX,
+  ChevronDown, ChevronRight, Folder, FolderOpen,
+  MoreHorizontal, Plus, Search, Trash2, Pencil, FolderPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,6 +17,14 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  alPulsarUnaCarpeta, ARCHIVO, COMPARTIDAS, elMensajeDeLaListaVacia, laVista,
+  MANDO_QUE_APARECE_AL_PASAR, sePuedeReordenar,
+} from '@/lib/pantalla-de-notas'
 import type { NoteFolderWithCount, UserNoteListItem, SharedNoteListItem } from '@/actions/notes-actions'
 import { SortableNoteList } from './SortableNoteList'
 import { SortableSharedNoteList } from './SortableSharedNoteList'
@@ -32,6 +39,8 @@ interface Props {
   folders: NoteFolderWithCount[]
   notes: UserNoteListItem[]
   sharedNotes: SharedNoteListItem[]
+  /** El total de compartidas, sin la búsqueda: es lo que dice su pestaña. */
+  sharedTotal: number
   selectedNoteId?: string
   activeFolderId: string | null | undefined
   search: string
@@ -41,6 +50,7 @@ interface Props {
   onNewNote: () => void
   onDeleteNote: (id: string) => void
   onTogglePin: (id: string, isPinned: boolean) => void
+  onMoveNote: (id: string, folderId: string | null) => void
   onReorder: (notes: UserNoteListItem[]) => void
   onReorderShared: (notes: SharedNoteListItem[]) => void
   onSelectFolder: (folderId: string | null | undefined) => void
@@ -51,14 +61,17 @@ interface Props {
 
 export function NotesSidebar({
   className,
-  folders, notes, sharedNotes, selectedNoteId, activeFolderId, search, userId,
-  onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onReorder, onReorderShared,
+  folders, notes, sharedNotes, sharedTotal, selectedNoteId, activeFolderId, search, userId,
+  onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onMoveNote, onReorder, onReorderShared,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [folderDialog, setFolderDialog] = useState<{
     open: boolean; editId?: string; name: string; color: string
   }>({ open: false, name: '', color: FOLDER_COLORS[0] })
+  // Borrar una carpeta pide confirmación y dice qué pasa con sus notas: no se
+  // borran, pasan a Sueltas. Antes se borraba de un clic desde su «⋯».
+  const [carpetaABorrar, setCarpetaABorrar] = useState<NoteFolderWithCount | null>(null)
 
   const openNewFolder = () => setFolderDialog({ open: true, name: '', color: FOLDER_COLORS[0] })
   const openEditFolder = (f: NoteFolderWithCount) =>
@@ -73,16 +86,19 @@ export function NotesSidebar({
     setFolderDialog({ open: false, name: '', color: FOLDER_COLORS[0] })
   }
 
-  const tabValue = activeFolderId === undefined ? 'todas'
-    : activeFolderId === null ? 'sin'
-    : activeFolderId === '__archived__' ? 'archivadas'
-    : activeFolderId === '__shared__' ? 'compartidas'
+  const vista = laVista(activeFolderId)
+  const tabValue = vista === 'todas' ? 'todas'
+    : vista === 'sueltas' ? 'sin'
+    : vista === 'archivo' ? 'archivadas'
+    : vista === 'compartidas' ? 'compartidas'
     : 'folder'
+  const vacio = elMensajeDeLaListaVacia({ vista, busqueda: search })
+  const reordenable = sePuedeReordenar(search)
 
   return (
-    <aside className={cn('flex w-full min-w-0 max-w-none flex-col border-r border-border bg-background md:w-72 md:min-w-[240px] md:max-w-xs', className)}>
+    <aside data-panel-de-notas className={cn('flex w-full min-w-0 max-w-none flex-col border-r border-border bg-background md:w-72 md:min-w-[240px] md:max-w-xs', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div data-cabecera-del-panel className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="font-semibold text-sm">Notas</span>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={openNewFolder} title="Nueva carpeta">
@@ -94,25 +110,24 @@ export function NotesSidebar({
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="px-3 py-2 border-b border-border">
+      {/* Filter tabs. Sin iconos y con la palabra entera: con un icono en cada
+          una no cabían las cuatro en el ancho del panel (18rem) y se leían
+          «Suelt…», «Co…», «Archi…». Cada pestaña mide lo que dice
+          (`flex-auto`), como las pastillas de Chats. */}
+      <div data-pestanas-del-panel className="px-3 py-2 border-b border-border">
         <Tabs value={tabValue}>
           <TabsList className="h-7 w-full overflow-hidden">
-            <TabsTrigger value="todas" title="Todas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder(undefined)}>
-              <List className="h-3 w-3 shrink-0" />
+            <TabsTrigger value="todas" title="Todas" className="flex-auto min-w-0 gap-1 px-1.5 text-[11px] h-5" onClick={() => onSelectFolder(undefined)}>
               <span className="truncate">Todas</span>
             </TabsTrigger>
-            <TabsTrigger value="sin" title="Sin carpeta" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder(null)}>
-              <FileX className="h-3 w-3 shrink-0" />
+            <TabsTrigger value="sin" title="Sin carpeta" className="flex-auto min-w-0 gap-1 px-1.5 text-[11px] h-5" onClick={() => onSelectFolder(null)}>
               <span className="truncate">Sueltas</span>
             </TabsTrigger>
-            <TabsTrigger value="compartidas" title="Compartidas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder('__shared__')}>
-              <Users className="h-3 w-3 shrink-0" />
-              {sharedNotes.length > 0 && <span className="shrink-0">{sharedNotes.length}</span>}
-              <span className="truncate">Compart.</span>
+            <TabsTrigger value="compartidas" title="Compartidas" className="flex-auto min-w-0 gap-1 px-1.5 text-[11px] h-5" onClick={() => onSelectFolder(COMPARTIDAS)}>
+              <span className="truncate">Compartidas</span>
+              {sharedTotal > 0 && <span className="shrink-0 tabular-nums" data-total-compartidas>{sharedTotal}</span>}
             </TabsTrigger>
-            <TabsTrigger value="archivadas" title="Archivadas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder('__archived__')}>
-              <Archive className="h-3 w-3 shrink-0" />
+            <TabsTrigger value="archivadas" title="Archivadas" className="flex-auto min-w-0 gap-1 px-1.5 text-[11px] h-5" onClick={() => onSelectFolder(ARCHIVO)}>
               <span className="truncate">Archivo</span>
             </TabsTrigger>
           </TabsList>
@@ -120,7 +135,7 @@ export function NotesSidebar({
       </div>
 
       {/* Search */}
-      <div className="px-3 py-1.5 border-b border-border">
+      <div data-buscador-de-notas className="px-3 py-1.5 border-b border-border">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -135,38 +150,48 @@ export function NotesSidebar({
       {/* Note list + folders */}
       <div className="flex-1 overflow-y-auto">
         {/* Notes for selected filter (non-folder) */}
-        {(activeFolderId === undefined || activeFolderId === null) && (
+        {(vista === 'todas' || vista === 'sueltas') && (
           <SortableNoteList
             notes={notes}
             selectedId={selectedNoteId}
             userId={userId}
+            vacio={vacio}
+            reordenable={reordenable}
             onSelect={onSelectNote}
             onDelete={onDeleteNote}
             onTogglePin={onTogglePin}
+            carpetas={folders}
+            onMove={onMoveNote}
             onReorder={onReorder}
           />
         )}
 
         {/* Archived notes list */}
-        {activeFolderId === '__archived__' && (
+        {vista === 'archivo' && (
           <SortableNoteList
             notes={notes}
             selectedId={selectedNoteId}
             userId={userId}
+            vacio={vacio}
+            reordenable={reordenable}
             onSelect={onSelectNote}
             onDelete={onDeleteNote}
             onTogglePin={onTogglePin}
+            carpetas={folders}
+            onMove={onMoveNote}
             onReorder={onReorder}
           />
         )}
 
         {/* Shared-with-me notes: reordenar (arrastrar) y fijar como en "Todas",
             con orden/fijado propios del receptor. Sin eliminar (no es el dueño). */}
-        {activeFolderId === '__shared__' && (
+        {vista === 'compartidas' && (
           <SortableSharedNoteList
             notes={sharedNotes}
             selectedId={selectedNoteId}
             userId={userId}
+            vacio={vacio}
+            reordenable={reordenable}
             onSelect={onSelectNote}
             onReorder={onReorderShared}
           />
@@ -174,12 +199,12 @@ export function NotesSidebar({
 
         {/* Folders */}
         {folders.length > 0 && (
-          <div className="mt-1">
-            {(activeFolderId === undefined || activeFolderId === null) && (
-              <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                Carpetas
-              </p>
-            )}
+          <div data-carpetas-del-panel className="mt-1">
+            {/* El rótulo sale siempre que hay carpetas: debajo de Archivo o de
+                Compartidas, sin él, las carpetas parecían notas de esa lista. */}
+            <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Carpetas
+            </p>
             {folders.map(folder => (
               <div key={folder.id}>
                 <div
@@ -187,13 +212,15 @@ export function NotesSidebar({
                     'group flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors',
                     activeFolderId === folder.id && 'bg-muted',
                   )}
+                  data-carpeta={folder.id}
                   onClick={() => {
-                    onSelectFolder(folder.id)
-                    setCollapsed(p => ({ ...p, [folder.id]: !p[folder.id] }))
+                    const r = alPulsarUnaCarpeta({ esLaActiva: activeFolderId === folder.id, estaPlegada: Boolean(collapsed[folder.id]) })
+                    if (r.seleccionar) onSelectFolder(folder.id)
+                    setCollapsed(p => ({ ...p, [folder.id]: r.plegada }))
                   }}
                 >
                   <span className="text-muted-foreground">
-                    {collapsed[folder.id]
+                    {collapsed[folder.id] || activeFolderId !== folder.id
                       ? <ChevronRight className="h-3.5 w-3.5" />
                       : <ChevronDown className="h-3.5 w-3.5" />}
                   </span>
@@ -202,12 +229,15 @@ export function NotesSidebar({
                     : <Folder className="h-4 w-4 shrink-0" style={{ color: folder.color ?? undefined }} />
                   }
                   <span className="flex-1 truncate text-sm">{folder.name}</span>
-                  <span className="text-xs text-muted-foreground">{folder._count.notes}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums" title="Notas en la carpeta (sin las archivadas)">{folder._count.notes}</span>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="invisible group-hover:visible flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
+                        className={cn(MANDO_QUE_APARECE_AL_PASAR, 'flex h-5 w-5 items-center justify-center rounded hover:bg-muted')}
                         onClick={e => e.stopPropagation()}
+                        title="Opciones de la carpeta"
+                        aria-label="Opciones de la carpeta"
+                        data-mas-opciones-de-la-carpeta
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
@@ -219,7 +249,7 @@ export function NotesSidebar({
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onClick={() => onDeleteFolder(folder.id)}
+                        onClick={() => setCarpetaABorrar(folder)}
                       >
                         <Trash2 className="mr-2 h-3.5 w-3.5" /> Eliminar
                       </DropdownMenuItem>
@@ -231,9 +261,13 @@ export function NotesSidebar({
                     notes={notes}
                     selectedId={selectedNoteId}
                     userId={userId}
+                    vacio={vacio}
+                    reordenable={reordenable}
                     onSelect={onSelectNote}
                     onDelete={onDeleteNote}
                     onTogglePin={onTogglePin}
+                    carpetas={folders}
+                    onMove={onMoveNote}
                     onReorder={onReorder}
                   />
                 )}
@@ -270,6 +304,8 @@ export function NotesSidebar({
                       folderDialog.color === c ? 'border-foreground scale-110' : 'border-transparent',
                     )}
                     style={{ backgroundColor: c }}
+                    aria-label={`Color ${c}`}
+                    aria-pressed={folderDialog.color === c}
                     onClick={() => setFolderDialog(p => ({ ...p, color: c }))}
                   />
                 ))}
@@ -286,82 +322,27 @@ export function NotesSidebar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(carpetaABorrar)} onOpenChange={v => !v && setCarpetaABorrar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la carpeta «{carpetaABorrar?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sus notas no se borran: pasan a Sueltas, donde las encuentras sin carpeta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              data-confirmar-eliminar-carpeta
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (carpetaABorrar) onDeleteFolder(carpetaABorrar.id); setCarpetaABorrar(null) }}
+            >
+              Eliminar carpeta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
-  )
-}
-
-function NoteList({ notes, selectedId, onSelect, onDelete, onTogglePin, indent }: {
-  notes: UserNoteListItem[]
-  selectedId?: string
-  onSelect: (id: string) => void
-  onDelete: (id: string) => void
-  onTogglePin: (id: string, isPinned: boolean) => void
-  indent?: boolean
-}) {
-  if (notes.length === 0) {
-    return (
-      <div className={cn('px-4 py-4 text-xs text-muted-foreground', indent && 'pl-8')}>
-        Sin notas aquí
-      </div>
-    )
-  }
-  return (
-    <ul>
-      {notes.map(note => (
-        <li key={note.id}>
-          <div
-            className={cn(
-              'group relative flex cursor-pointer flex-col gap-0.5 px-4 py-2.5 transition-colors border-b border-border/40',
-              'hover:bg-muted/50',
-              selectedId === note.id && 'bg-muted border-l-2 border-l-primary',
-              indent && 'pl-8',
-            )}
-            onClick={() => onSelect(note.id)}
-          >
-            <div className="flex items-center gap-1.5 pr-6 min-w-0">
-              {note.emoji
-                ? <span className="text-sm shrink-0">{note.emoji}</span>
-                : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              }
-              <span className="truncate text-sm font-medium leading-snug">
-                {note.title || 'Sin título'}
-              </span>
-              {note.isPinned && <Pin className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
-            </div>
-            <span className="text-[11px] text-muted-foreground pl-5">
-              {new Date(note.updatedAt).toLocaleDateString('es', {
-                day: 'numeric', month: 'short', year: 'numeric',
-              })}
-            </span>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="invisible group-hover:visible absolute right-2 top-2.5 flex h-6 w-6 items-center justify-center rounded hover:bg-background"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={e => { e.stopPropagation(); onTogglePin(note.id, note.isPinned) }}>
-                  {note.isPinned
-                    ? <><PinOff className="mr-2 h-3.5 w-3.5" /> Desfijar</>
-                    : <><Pin className="mr-2 h-3.5 w-3.5" /> Fijar</>
-                  }
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={e => { e.stopPropagation(); onDelete(note.id) }}
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Eliminar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </li>
-      ))}
-    </ul>
   )
 }

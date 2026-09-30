@@ -11,6 +11,7 @@ import { losEnlacesDeLaCuenta } from '@/lib/alcance-entre-cuentas.server'
 import { laFamiliaDeLaCuenta } from '@/lib/familia-de-cuentas'
 import { esSuperAdminDeVerdad } from '@/lib/super-admin-de-verdad'
 import { identidadesQueRecibenCompartidos } from '@/lib/notas-compartidas'
+import { elPatronDeBusqueda, LETRAS_CON_TILDE, LETRAS_SIN_TILDE } from '@/lib/pantalla-de-notas'
 
 export type NoteFolderWithCount = NoteFolder & { _count: { notes: number } }
 export type UserNoteListItem = Pick<
@@ -92,7 +93,57 @@ async function elShareDeLaNota(noteId: string, identidades: string[]) {
   })
 }
 
+/**
+ * La condición del buscador: el TÍTULO o cualquier texto del CUERPO de la
+ * nota, sin mirar tildes ni mayúsculas.
+ *
+ * El cuerpo es el árbol del editor (`{ type: "doc", content: [...] }`), no una
+ * cadena, así que lo de antes —`string_contains` sobre la raíz del JSON— no
+ * encontraba nunca nada: la búsqueda era solo por título aunque la pantalla
+ * dijera «Buscar notas». Aquí se juntan todos los textos del árbol con
+ * `jsonb_path_query_array(..., '$.**.text')`, que viene con Postgres.
+ *
+ * Las tildes se quitan con `translate` y la MISMA lista que `sinTildes`
+ * (`lib/pantalla-de-notas`), no con `unaccent`: esa es una extensión y el día
+ * que no esté instalada el buscador entero fallaría.
+ */
+function laCondicionDeBusqueda(alias: string, patron: string): Prisma.Sql {
+  const n = Prisma.raw(`${alias}.`)
+  return Prisma.sql`(
+    lower(translate(COALESCE(${n}"title", ''), ${LETRAS_CON_TILDE}, ${LETRAS_SIN_TILDE})) LIKE ${patron}
+    OR lower(translate(COALESCE(jsonb_path_query_array(${n}"content", '$.**.text')::text, ''), ${LETRAS_CON_TILDE}, ${LETRAS_SIN_TILDE})) LIKE ${patron}
+  )`
+}
+
+/** Los ids de las notas de una persona que casan con lo que se busca. */
+async function lasNotasQueCasan(dueno: string, patron: string): Promise<string[]> {
+  const filas = await db.$queryRaw<{ id: string }[]>`
+    SELECT n.id FROM "user_notes" n
+    WHERE n."userId" = ${dueno} AND ${laCondicionDeBusqueda('n', patron)}
+  `
+  return filas.map(f => f.id)
+}
+
+const CAMPOS_DE_LA_LISTA = {
+  id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true,
+  folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true,
+} as const
+
+// El orden de TODAS las listas del dueño —también el Archivo—: fijadas arriba,
+// luego el orden que se puso arrastrando, y lo más reciente al final.
+const ORDEN_DE_LA_LISTA = [{ isPinned: 'desc' }, { order: 'asc' }, { updatedAt: 'desc' }] as const
+
 // ── Folders ──────────────────────────────────────────────────────────────────
+
+/**
+ * Una nota solo puede ir a una carpeta de su MISMO dueño. El id de la carpeta
+ * llega del navegador; sin esta comprobación, una nota se podía colgar de la
+ * carpeta de otra persona (Prisma solo exige que la carpeta exista).
+ */
+async function laCarpetaEsDe(folderId: string, dueno: string): Promise<boolean> {
+  const carpeta = await db.noteFolder.findFirst({ where: { id: folderId, userId: dueno }, select: { id: true } })
+  return Boolean(carpeta)
+}
 
 export async function getFolders(userId: string) {
   try {
@@ -101,7 +152,7 @@ export async function getFolders(userId: string) {
     const data = await db.noteFolder.findMany({
       where: { userId: dueno },
       orderBy: { order: 'asc' },
-      include: { _count: { select: { notes: true } } },
+      include: { _count: { select: { notes: { where: { isArchived: false } } } } },
     })
     return { success: true, data }
   } catch (e) {
@@ -117,7 +168,7 @@ export async function createFolder(userId: string, name: string, color?: string)
     const last = await db.noteFolder.findFirst({ where: { userId: dueno }, orderBy: { order: 'desc' } })
     const data = await db.noteFolder.create({
       data: { userId: dueno, name, color, order: (last?.order ?? 0) + 1 },
-      include: { _count: { select: { notes: true } } },
+      include: { _count: { select: { notes: { where: { isArchived: false } } } } },
     })
     return { success: true, data }
   } catch {
@@ -132,7 +183,7 @@ export async function updateFolder(id: string, userId: string, payload: { name?:
     const data = await db.noteFolder.update({
       where: { id, userId: dueno },
       data: payload,
-      include: { _count: { select: { notes: true } } },
+      include: { _count: { select: { notes: { where: { isArchived: false } } } } },
     })
     return { success: true, data }
   } catch {
@@ -157,33 +208,18 @@ export async function getNotes(userId: string, folderId?: string | null, search?
   try {
     const dueno = await elDuenoDeLasNotas(userId)
     if (!dueno) return { success: false, data: [] as UserNoteListItem[], error: 'No autorizado.' }
-    const baseWhere: any = {
-      userId: dueno,
-      isArchived: false,
-      ...(folderId !== undefined ? { folderId } : {}),
-    }
-
-    let data
-    if (search?.trim()) {
-      // Search in title and content
-      data = await db.userNote.findMany({
-        where: {
-          ...baseWhere,
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { content: { path: [], string_contains: search } },
-          ],
-        },
-        select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
-        orderBy: [{ isPinned: 'desc' }, { order: 'asc' }, { updatedAt: 'desc' }],
-      })
-    } else {
-      data = await db.userNote.findMany({
-        where: baseWhere,
-        select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
-        orderBy: [{ isPinned: 'desc' }, { order: 'asc' }, { updatedAt: 'desc' }],
-      })
-    }
+    const patron = elPatronDeBusqueda(search)
+    const coinciden = patron ? await lasNotasQueCasan(dueno, patron) : null
+    const data = await db.userNote.findMany({
+      where: {
+        userId: dueno,
+        isArchived: false,
+        ...(folderId !== undefined ? { folderId } : {}),
+        ...(coinciden ? { id: { in: coinciden } } : {}),
+      },
+      select: CAMPOS_DE_LA_LISTA,
+      orderBy: [...ORDEN_DE_LA_LISTA],
+    })
     return { success: true, data }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -191,14 +227,22 @@ export async function getNotes(userId: string, folderId?: string | null, search?
   }
 }
 
-export async function getArchivedNotes(userId: string) {
+/**
+ * El Archivo, con el MISMO buscador y el MISMO orden que las demás listas.
+ * Antes ignoraba lo que se buscaba —la lista de al lado sí filtraba— y se
+ * ordenaba solo por fecha, así que fijar o arrastrar una nota archivada no
+ * cambiaba nada que se viera.
+ */
+export async function getArchivedNotes(userId: string, search?: string) {
   try {
     const dueno = await elDuenoDeLasNotas(userId)
     if (!dueno) return { success: false, data: [] as UserNoteListItem[], error: 'No autorizado.' }
+    const patron = elPatronDeBusqueda(search)
+    const coinciden = patron ? await lasNotasQueCasan(dueno, patron) : null
     const data = await db.userNote.findMany({
-      where: { userId: dueno, isArchived: true },
-      select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
-      orderBy: { updatedAt: 'desc' },
+      where: { userId: dueno, isArchived: true, ...(coinciden ? { id: { in: coinciden } } : {}) },
+      select: CAMPOS_DE_LA_LISTA,
+      orderBy: [...ORDEN_DE_LA_LISTA],
     })
     return { success: true, data }
   } catch (e) {
@@ -241,6 +285,7 @@ export async function createNote(userId: string, folderId?: string | null, templ
   try {
     const dueno = await elDuenoDeLasNotas(userId)
     if (!dueno) return { success: false, error: 'No autorizado.' }
+    if (folderId && !(await laCarpetaEsDe(folderId, dueno))) return { success: false, error: 'Esa carpeta no existe.' }
     const data = await db.userNote.create({
       data: {
         userId: dueno,
@@ -248,7 +293,7 @@ export async function createNote(userId: string, folderId?: string | null, templ
         title: (templateTitle ?? 'Sin título').toUpperCase(),
         content: templateContent ?? {},
       },
-      select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
+      select: CAMPOS_DE_LA_LISTA,
     })
     await writeAuditLog({
       userId: dueno,
@@ -307,6 +352,9 @@ export async function updateNote(
       return { success: true, data }
     }
 
+    if (typeof payload.folderId === 'string' && !(await laCarpetaEsDe(payload.folderId, quienEdita))) {
+      return { success: false, error: 'Esa carpeta no existe.' }
+    }
     const data = await db.userNote.update({ where: { id, userId: quienEdita }, data: payload })
     const action = payload.isArchived === true
       ? 'archived'
@@ -561,12 +609,16 @@ export async function setNoteShare(
 // Notas que otras cuentas del equipo compartieron CONMIGO (no archivadas).
 // El fijado y el orden son PROPIOS del receptor (columnas del share), para que
 // cada quien acomode su lista sin alterar la nota del dueño.
-export async function getSharedNotes(userId: string): Promise<{ success: boolean; data: SharedNoteListItem[]; error?: string }> {
+export async function getSharedNotes(userId: string, search?: string): Promise<{ success: boolean; data: SharedNoteListItem[]; error?: string }> {
   try {
     const quienMira = await elDuenoDeLasNotas(userId)
     if (!quienMira) return { success: false, data: [], error: 'No autorizado.' }
     const identidades = await quienesMeCompartenA()
     if (identidades.length === 0) return { success: true, data: [] }
+    // Compartidas busca igual que las demás listas: antes ignoraba lo que se
+    // escribía en el buscador y enseñaba todas.
+    const patron = elPatronDeBusqueda(search)
+    const busqueda = patron ? Prisma.sql`AND ${laCondicionDeBusqueda('n', patron)}` : Prisma.empty
 
     // `DISTINCT ON (n.id)` porque una misma nota puede llegar por dos caminos
     // —compartida con la persona y compartida con su cuenta—; sin él saldría
@@ -596,6 +648,7 @@ export async function getSharedNotes(userId: string): Promise<{ success: boolean
         WHERE ns."userId" = ANY(${identidades}::text[])
           AND n."isArchived" = false
           AND n."userId" <> ${quienMira}
+          ${busqueda}
         ORDER BY n.id, ns."canEdit" DESC
       ) q
       ORDER BY q."isPinned" DESC, q."ordenPropio" ASC, q."updatedAt" DESC

@@ -89,11 +89,19 @@ function Maqueta({
     cuantos,
     distribucion,
     moderas,
+    capa = "ninguna",
 }: {
     cuantos: number;
     distribucion: "orador" | "cuadricula";
     moderas: boolean;
+    /**
+     * La capa de la reunión dentro de la plataforma: `fixed z-[99]`, igual que
+     * `ReunionEnLaPlataforma`. «portada» pasa su nodo como `container` —lo que
+     * hace `SalaDeVideo`—; «suelta» no, que es como estaba.
+     */
+    capa?: "ninguna" | "portada" | "suelta";
 }) {
+    const [nodo, setNodo] = useState<HTMLDivElement | null>(null);
     const gente = [
         persona("yo", { propio: true, nombre: "Tú (tú)" }),
         ...["Ana", "Beto", "Caro"].slice(0, cuantos - 1).map((n) => persona(n)),
@@ -116,10 +124,11 @@ function Maqueta({
               ),
               moderar: (que, id) => pedido.push({ que, id }),
               ocupadoCon: null,
+              container: capa === "portada" ? nodo : undefined,
           }
         : undefined;
 
-    return (
+    const sala = (
         <div className="flex h-screen flex-col bg-zinc-950">
             <div data-caja-del-video className="relative flex min-h-0 flex-1">
                 <RecuadrosDeLaSala
@@ -128,13 +137,29 @@ function Maqueta({
                     enGrande={gente[0].id}
                     moderacion={moderacion}
                 />
-                {/* La cabecera flotante, tal cual (`SalaDeVideo.tsx`). */}
+                {/* La cabecera flotante, tal cual (`SalaDeVideo.tsx`), y con
+                    TODOS sus mandos: el contador y los siete botones de 32 px.
+                    Con dos botones —como estaba— la caja medía 70 px y ningún
+                    «⋯» caía debajo, así que el banco no podía ver que en la
+                    vista de orador el del grande tapaba el botón del chat. */}
                 <div className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start gap-2 bg-gradient-to-b from-black/80 via-black/35 to-transparent px-2 pb-10 pt-2 sm:px-3">
-                    <span className="pointer-events-auto text-sm text-white">Reunión</span>
-                    <span className="pointer-events-auto ml-auto flex gap-1">
-                        <button className="h-8 w-8 bg-zinc-800" />
-                        <button className="h-8 w-8 bg-zinc-800" />
-                    </span>
+                    <div className="min-w-0 flex-1 truncate rounded px-1 py-1.5 text-sm font-medium text-white">
+                        Reunión
+                    </div>
+                    <div className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-lg bg-zinc-900/70 p-0.5">
+                        <span className="hidden shrink-0 items-center gap-1.5 px-1.5 text-xs text-zinc-300 sm:flex">
+                            <span className="h-3.5 w-3.5" />
+                            <span className="tabular-nums">3 de 4</span>
+                        </span>
+                        {["cuadricula", "franja", "chat", "ruido", "copiar", "grabar", "tamano"].map((m) => (
+                            <button
+                                key={m}
+                                data-mando-de-la-cabecera={m}
+                                aria-label={m}
+                                className="h-8 w-8 shrink-0 rounded-md bg-zinc-800"
+                            />
+                        ))}
+                    </div>
                 </div>
                 {/* Y la barra de mandos, centrada abajo. */}
                 <div
@@ -146,14 +171,20 @@ function Maqueta({
             </div>
         </div>
     );
+    if (capa === "ninguna") return sala;
+    return (
+        <div ref={setNodo} data-capa-de-la-reunion style={{ position: "fixed", inset: 0, zIndex: 99 }}>
+            {sala}
+        </div>
+    );
 }
 
 let raiz: any = null;
-(window as any).pintar = (cuantos: number, distribucion: string, moderas: boolean) => {
+(window as any).pintar = (cuantos: number, distribucion: string, moderas: boolean, capa = "ninguna") => {
     pedido.length = 0;
     raiz ??= createRoot(document.getElementById("app")!);
     raiz.render(
-        React.createElement(Maqueta, { cuantos, distribucion: distribucion as any, moderas }),
+        React.createElement(Maqueta, { cuantos, distribucion: distribucion as any, moderas, capa: capa as any }),
     );
 };
 

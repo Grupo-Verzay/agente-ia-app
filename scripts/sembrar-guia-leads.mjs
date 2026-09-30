@@ -30,7 +30,7 @@ const db = new PrismaClient();
 const dueno = await sembrarElMarco(db, {
     path: "/sessions",
     title: "Guía de Leads / contactos",
-    description: "Recorrido completo del módulo de Leads con video explicativo y guias",
+    description: "Aprende a organizar y filtrar tus contactos de WhatsApp en la plataforma",
     url: "/guia/leads",
 });
 
