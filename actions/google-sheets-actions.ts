@@ -3,7 +3,7 @@
 import { google } from 'googleapis';
 import { db } from '@/lib/db';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
-import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
+import { losCamposQueSeExportan, normalizeContactFieldsConfig } from '@/lib/contact-fields';
 import { elIdDeLaHoja, laHojaQueSeGuarda } from '@/lib/url-de-google-sheets';
 import {
   pickExplicitWhatsAppPhoneJid,
@@ -216,11 +216,10 @@ async function volcarElContacto(
   const sheetId = extractSheetId(config) ?? config;
 
   // Columnas dinámicas según los campos habilitados del usuario.
-  const fieldDefs = normalizeContactFieldsConfig(
+  // Notas va siempre la última, aunque no viva en la lista de la cuenta.
+  const fieldDefs = losCamposQueSeExportan(normalizeContactFieldsConfig(
     (userRec as { contactFieldsConfig?: unknown })?.contactFieldsConfig,
-  )
-    .filter((f) => f.enabled)
-    .sort((a, b) => a.order - b.order);
+  ));
 
   // 'Asesor' es una columna fija por defecto (Teléfono · Nombre · Asesor · …).
   const headers = ['Teléfono', 'Nombre', 'Asesor', ...fieldDefs.map((f) => f.label), 'Actualizado'];
@@ -327,11 +326,10 @@ export async function syncAllContactsToGoogleSheets(
   }
   const sheetId = extractSheetId(config) ?? config;
 
-  const fieldDefs = normalizeContactFieldsConfig(
+  // Notas va siempre la última, aunque no viva en la lista de la cuenta.
+  const fieldDefs = losCamposQueSeExportan(normalizeContactFieldsConfig(
     (userRec as { contactFieldsConfig?: unknown })?.contactFieldsConfig,
-  )
-    .filter((f) => f.enabled)
-    .sort((a, b) => a.order - b.order);
+  ));
 
   const headers = ['Teléfono', 'Nombre', 'Asesor', ...fieldDefs.map((f) => f.label), 'Actualizado'];
   const colEnd = columnLetter(headers.length);
