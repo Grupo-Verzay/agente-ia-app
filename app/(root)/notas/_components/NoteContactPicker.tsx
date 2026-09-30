@@ -17,10 +17,11 @@ interface Props {
   open: boolean
   onClose: () => void
   onSelect: (contactJid: string, contactName: string) => void
-  userId: string
 }
 
-export function NoteContactPicker({ open, onClose, onSelect, userId }: Props) {
+// De qué cuenta son los contactos lo decide el SERVIDOR con la sesión (ver
+// `app/api/notes/contacts/route.ts`): aquí no se manda ningún id.
+export function NoteContactPicker({ open, onClose, onSelect }: Props) {
   const [search, setSearch] = useState('')
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
@@ -28,11 +29,11 @@ export function NoteContactPicker({ open, onClose, onSelect, userId }: Props) {
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    fetch(`/api/notes/contacts?userId=${userId}&q=${encodeURIComponent(search)}`)
+    fetch(`/api/notes/contacts?q=${encodeURIComponent(search)}`)
       .then(r => r.json())
       .then(data => { setContacts(data.data ?? []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [open, search, userId])
+  }, [open, search])
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>

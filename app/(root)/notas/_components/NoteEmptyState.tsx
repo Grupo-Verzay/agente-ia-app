@@ -11,9 +11,11 @@ interface Props {
 
 export function NoteEmptyState({ onNewNote, sidebarOpen, onToggleSidebar }: Props) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+    // `relative`: el botón de mostrar el panel va `absolute` y, sin él, se
+    // colocaba contra la página entera en vez de contra este hueco.
+    <div className="relative flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
       {!sidebarOpen && (
-        <Button variant="ghost" size="sm" onClick={onToggleSidebar} className="absolute top-2 left-2 gap-1.5 text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={onToggleSidebar} className="absolute top-2 left-2 gap-1.5 text-muted-foreground" title="Mostrar panel" aria-label="Mostrar panel">
           <PanelLeftOpen className="h-4 w-4" />
         </Button>
       )}

@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, FileText, MoreHorizontal, Pin, PinOff, Eye, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { AVISO_SIN_REORDENAR, CLASE_DE_LA_LISTA_VACIA, MANDO_QUE_APARECE_AL_PASAR } from '@/lib/pantalla-de-notas'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -31,14 +32,15 @@ function pinnedFirst(list: SharedNoteListItem[]): SharedNoteListItem[] {
 }
 
 function SharedItem({
-  note, selectedId, onSelect, onTogglePin,
+  note, selectedId, reordenable, onSelect, onTogglePin,
 }: {
   note: SharedNoteListItem
   selectedId?: string
+  reordenable: boolean
   onSelect: (id: string) => void
   onTogglePin: (id: string, isPinned: boolean) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id, disabled: !reordenable })
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -48,7 +50,14 @@ function SharedItem({
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-1">
       <div
-        className="flex items-center justify-center cursor-grab p-1 text-muted-foreground/30 hover:text-muted-foreground/60 shrink-0 transition-colors"
+        className={cn(
+          'flex items-center justify-center p-1 shrink-0 transition-colors',
+          reordenable
+            ? 'cursor-grab text-muted-foreground/30 hover:text-muted-foreground/60'
+            : 'cursor-not-allowed text-muted-foreground/15',
+        )}
+        title={reordenable ? 'Arrastra para ordenar' : AVISO_SIN_REORDENAR}
+        data-asa-de-la-nota
         {...attributes}
         {...listeners}
       >
@@ -60,6 +69,7 @@ function SharedItem({
             'group relative flex cursor-pointer flex-col gap-0.5 px-2 py-2 transition-colors border-b border-border/40 rounded-sm hover:bg-muted/50',
             selectedId === note.id && 'bg-muted border-l-2 border-l-primary',
           )}
+          data-nota-de-la-lista={note.id}
           onClick={() => onSelect(note.id)}
         >
           <div className="flex items-center gap-2 pr-6 min-w-0">
@@ -86,8 +96,11 @@ function SharedItem({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="invisible group-hover:visible absolute right-2 top-2.5 flex h-6 w-6 items-center justify-center rounded hover:bg-background"
+                className={cn(MANDO_QUE_APARECE_AL_PASAR, 'absolute right-2 top-2.5 flex h-6 w-6 items-center justify-center rounded hover:bg-background')}
                 onClick={e => e.stopPropagation()}
+                title="Más opciones"
+                aria-label="Más opciones"
+                data-mas-opciones-de-la-nota
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
@@ -108,10 +121,12 @@ function SharedItem({
 }
 
 export function SortableSharedNoteList({
-  notes, selectedId, userId, onSelect, onReorder,
+  notes, selectedId, userId, vacio, reordenable = true, onSelect, onReorder,
 }: {
   notes: SharedNoteListItem[]
   selectedId?: string
+  vacio: string
+  reordenable?: boolean
   /** Cuenta receptora (dueña del orden/fijado propio). */
   userId: string
   onSelect: (id: string) => void
@@ -123,16 +138,12 @@ export function SortableSharedNoteList({
   useEffect(() => { setItems(notes) }, [notes])
 
   if (items.length === 0) {
-    return (
-      <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-        Aún no te han compartido notas.
-      </div>
-    )
+    return <div className={CLASE_DE_LA_LISTA_VACIA} data-lista-vacia>{vacio}</div>
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    if (!over || active.id === over.id || !reordenable) return
 
     const oldIndex = items.findIndex(n => n.id === active.id)
     const newIndex = items.findIndex(n => n.id === over.id)
@@ -159,17 +170,18 @@ export function SortableSharedNoteList({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map(n => n.id)} strategy={verticalListSortingStrategy}>
-        <ul>
+        <div role="list">
           {items.map(note => (
             <SharedItem
               key={note.id}
               note={note}
               selectedId={selectedId}
+              reordenable={reordenable}
               onSelect={onSelect}
               onTogglePin={handleTogglePin}
             />
           ))}
-        </ul>
+        </div>
       </SortableContext>
     </DndContext>
   )

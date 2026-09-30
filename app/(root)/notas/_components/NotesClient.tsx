@@ -11,9 +11,14 @@ import { NotesSidebar } from './NotesSidebar'
 import { NotesEditor } from './NotesEditor'
 import { NoteEmptyState } from './NoteEmptyState'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { elMandoDeArchivo, sinLaNota } from '@/lib/archivo-de-notas'
+import { ARCHIVO, COMPARTIDAS, elAvisoDeMover, laNotaSigueEnLaVista } from '@/lib/pantalla-de-notas'
 
 interface Props {
   userId: string
@@ -27,6 +32,13 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
   const [folders, setFolders] = useState<NoteFolderWithCount[]>([])
   const [notes, setNotes] = useState<UserNoteListItem[]>([])
   const [sharedNotes, setSharedNotes] = useState<SharedNoteListItem[]>([])
+  // El número de la pestaña Compartidas es el TOTAL: con una búsqueda puesta
+  // la lista de esa pestaña se acota, y el número no puede cambiar con ella.
+  const [sharedTotal, setSharedTotal] = useState(0)
+  // Eliminar pide confirmación, llegue de la lista o de la nota abierta: UNA
+  // confirmación para los dos sitios, que es lo que hace que no se pueda borrar
+  // una nota de un clic desde el menú de la lista.
+  const [aEliminar, setAEliminar] = useState<{ id: string; title: string } | null>(null)
   const [selectedNote, setSelectedNote] = useState<UserNoteWithContent | null>(null)
   // Permiso de la nota abierta: dueño = acceso total; compartida = según share.
   const [notePerm, setNotePerm] = useState<{ canEdit: boolean; isOwner: boolean; ownerName: string | null }>(
@@ -45,16 +57,18 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     else toast.error('Error al cargar carpetas: ' + (res as { error?: string }).error)
   }, [userId])
 
-  const loadShared = useCallback(async () => {
-    const res = await getSharedNotes(userId)
-    if (res.success) setSharedNotes(res.data)
+  const loadShared = useCallback(async (q?: string) => {
+    const res = await getSharedNotes(userId, q)
+    if (!res.success) return
+    setSharedNotes(res.data)
+    if (!q?.trim()) setSharedTotal(res.data.length)
   }, [userId])
 
   const loadNotes = useCallback(async (folderId?: string | null, q?: string) => {
-    if (folderId === '__shared__') {
-      await loadShared()
-    } else if (folderId === '__archived__') {
-      const res = await getArchivedNotes(userId)
+    if (folderId === COMPARTIDAS) {
+      await loadShared(q)
+    } else if (folderId === ARCHIVO) {
+      const res = await getArchivedNotes(userId, q)
       if (res.success) setNotes(res.data)
       else toast.error('Error al cargar notas: ' + (res as { error?: string }).error)
     } else {
@@ -100,7 +114,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
   }, [userId, collapseSidebarOnSelect])
 
   const handleNewNote = useCallback(async (templateContent?: object, templateTitle?: string) => {
-    const folderId = (activeFolderId && activeFolderId !== '__archived__' && activeFolderId !== '__shared__') ? activeFolderId : null
+    const folderId = (activeFolderId && activeFolderId !== ARCHIVO && activeFolderId !== COMPARTIDAS) ? activeFolderId : null
     const res = await createNote(userId, folderId, templateContent, templateTitle)
     if (!res.success || !res.data) return toast.error('No se pudo crear la nota')
     setNotes(prev => [res.data!, ...prev])
@@ -108,13 +122,23 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     await loadFolders()
   }, [userId, activeFolderId, handleSelectNote, loadFolders])
 
-  const handleDeleteNote = useCallback(async (id: string) => {
+  const handleDeleteNote = useCallback((id: string) => {
+    const title = notes.find(n => n.id === id)?.title
+      ?? (selectedNote?.id === id ? selectedNote.title : undefined)
+    setAEliminar({ id, title: title || 'Sin título' })
+  }, [notes, selectedNote])
+
+  const confirmarEliminar = useCallback(async () => {
+    if (!aEliminar) return
+    const { id } = aEliminar
+    setAEliminar(null)
     const res = await deleteNote(id, userId)
     if (!res.success) return toast.error(res.error)
     setNotes(prev => prev.filter(n => n.id !== id))
     if (selectedNote?.id === id) setSelectedNote(null)
+    toast.success('Nota eliminada')
     await loadFolders()
-  }, [userId, selectedNote, loadFolders])
+  }, [aEliminar, userId, selectedNote, loadFolders])
 
   // Archivar y desarchivar son el MISMO mando con dos caras (lib/archivo-de-notas):
   // las dos sacan la nota de la lista que se mira y la cierran.
@@ -178,6 +202,20 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, contactJid, contactName } : prev)
   }, [userId, selectedNote])
 
+  // Mover una nota a otra carpeta (o sacarla de todas). Si deja de pertenecer a
+  // la lista que se mira, sale de ella al momento; el número de cada carpeta se
+  // vuelve a pedir, que es lo que dice cuántas tiene.
+  const handleMoveNote = useCallback(async (id: string, folderId: string | null) => {
+    const res = await updateNote(id, userId, { folderId })
+    if (!res.success) return toast.error(res.error)
+    setNotes(prev => laNotaSigueEnLaVista(activeFolderId, folderId)
+      ? prev.map(n => n.id === id ? { ...n, folderId } : n)
+      : prev.filter(n => n.id !== id))
+    if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, folderId } : prev)
+    toast.success(elAvisoDeMover(folderId ? folders.find(f => f.id === folderId)?.name ?? null : null))
+    await loadFolders()
+  }, [userId, activeFolderId, selectedNote, folders, loadFolders])
+
   const handleApplyTemplate = useCallback(async (content: object, title: string) => {
     await handleNewNote(content, title)
   }, [handleNewNote])
@@ -198,8 +236,12 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     const res = await deleteFolder(id, userId)
     if (!res.success) return toast.error(res.error)
     setFolders(prev => prev.filter(f => f.id !== id))
-    if (activeFolderId === id) handleSelectFolder(undefined)
-  }, [userId, activeFolderId, handleSelectFolder])
+    toast.success('Carpeta eliminada: sus notas pasaron a Sueltas')
+    // Sus notas pasan a Sueltas, así que la lista que se mira puede cambiar
+    // aunque no fuera la de esa carpeta (Todas, Sueltas).
+    if (activeFolderId === id) await handleSelectFolder(undefined)
+    else await loadNotes(activeFolderId, search)
+  }, [userId, activeFolderId, handleSelectFolder, loadNotes, search])
 
   const showEditorPane = Boolean(selectedNote) || loadingNote
   const handleBackToList = useCallback(() => {
@@ -215,6 +257,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
           folders={folders}
           notes={notes}
           sharedNotes={sharedNotes}
+          sharedTotal={sharedTotal}
           userId={userId}
           onReorder={setNotes}
           onReorderShared={setSharedNotes}
@@ -226,6 +269,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
           onNewNote={() => handleNewNote()}
           onDeleteNote={handleDeleteNote}
           onTogglePin={handleTogglePin}
+          onMoveNote={handleMoveNote}
           onSelectFolder={handleSelectFolder}
           onCreateFolder={handleCreateFolder}
           onUpdateFolder={handleUpdateFolder}
@@ -271,6 +315,28 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
           />
         )}
       </div>
+
+      <AlertDialog open={Boolean(aEliminar)} onOpenChange={v => !v && setAEliminar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la nota «{aEliminar?.title}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra para siempre, también para quienes la tengan compartida. Si solo quieres
+              quitarla de la vista, archívala.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              data-confirmar-eliminar-nota
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmarEliminar}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

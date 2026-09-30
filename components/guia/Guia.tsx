@@ -1,10 +1,12 @@
 import Link from "next/link";
 import {
+    Archive,
     ArrowLeft,
     ArrowRight,
     BookOpen,
     Columns3,
     Download,
+    FileStack,
     Filter,
     FolderOpen,
     GitBranch,
@@ -69,6 +71,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     GitBranch,
     StickyNote,
     LayoutGrid,
+    FileStack,
+    Archive,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
