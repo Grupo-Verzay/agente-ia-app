@@ -34,14 +34,15 @@ import { acortarLasPausas, leerWav } from "./voz-de-la-guia.mjs";
 import { llaveDeLaFrase, wavDeLaCache } from "./voz-cedar.mjs";
 import { elBackend, laPresencia } from "./video-de-ventas/backend.mjs";
 import { CORTES_DE_LAS_NOTAS, elAvisoDeMensaje, mezclarLaBanda, recortarAudio, sePisanLasVoces } from "./video-de-ventas/banda-sonora.mjs";
-import { CAPAS_DEL_PORTATIL, PLANOS, PORTATIL, elMensajeDelEstudio, laPaginaDelEstudio } from "./video-de-ventas/estudio.mjs";
+import { CAPAS_DEL_PORTATIL, PLANOS, PORTATIL, elMensajeDelEstudio, laPaginaDelEstudio, losNegociosDelMontaje } from "./video-de-ventas/estudio.mjs";
 import { servirElEstudio } from "./video-de-ventas/estudio-servido.mjs";
 import {
     CAPACIDADES,
-    CHIPS_DE_LA_MARCA,
+    CIERRE_DEL_MONTAJE,
     CLIENTA,
     LLAMADO,
     MEDIOS,
+    MEDIOS_DEL_MONTAJE,
     NEGOCIOS_DEL_ARRANQUE,
     NOTAS_DE_VOZ,
     OTROS_CHATS,
@@ -181,12 +182,12 @@ await ctx.addInitScript(() => {
 rt = await servirElTiempoReal(ctx);
 
 // Lo que se sirve sale de MEDIOS —el mismo sitio del que el estudio saca las
-// direcciones—, más lo que no viaja en la conversación (la portada del PDF y el
-// logo). Con la lista escrita a mano se quedó sirviendo el .mp4 viejo cuando el
+// direcciones—, más lo que no viaja en la conversación (la portada del PDF, el
+// logo y lo que pintan las tarjetas del arranque, `MEDIOS_DEL_MONTAJE`). Con la lista escrita a mano se quedó sirviendo el .mp4 viejo cuando el
 // vídeo pasó a .webm: el estudio pedía un archivo que daba 404 y el vídeo de
 // WhatsApp Web se quedaba en su portada sin decir nada.
 const archivos = Object.fromEntries(
-    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), "lista-de-precios.jpg", "logo-sonrie.png"])].map((f) => [
+    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), ...Object.values(MEDIOS_DEL_MONTAJE).map((m) => m.archivo), "lista-de-precios.jpg", "logo-sonrie.png"])].map((f) => [
         f,
         path.join(MEDIOS_DIR, f),
     ]),
@@ -206,8 +207,7 @@ const datos = {
     zona: ZONA,
     clienta: { nombreCorto: CLIENTA.nombreDeWhatsapp, iniciales: lasIniciales(CLIENTA.nombreDeWhatsapp), color: "#d9774f" },
     otros: OTROS_CHATS.map((c, i) => ({ id: `o${i}`, nombre: c.nombre, iniciales: lasIniciales(c.nombre), hora: horaDe(c.hace * 60_000), prev: c.ultimo.texto, yo: c.ultimo.de === "ia" })),
-    montaje: NEGOCIOS_DEL_ARRANQUE.map((n) => ({ ...n, iniciales: lasIniciales(n.contacto), mensajes: n.mensajes.map((m) => ({ ...m, hora: laHora(cal.inicio) })) })),
-    chipsDeLaMarca: CHIPS_DE_LA_MARCA,
+    montaje: losNegociosDelMontaje(NEGOCIOS_DEL_ARRANQUE, { hora: laHora(cal.inicio) }),
     logo: "/__estudio/medios/verzay.png",
     logoNegocio: "/__estudio/medios/logo-sonrie.png",
     portadaDoc: "/__estudio/medios/lista-de-precios.jpg",
@@ -545,12 +545,16 @@ const capacidad = async (escena2) => {
     await est("capacidad", i + 1, CAPACIDADES[i].titulo, CAPACIDADES[i].detalle);
 };
 
-// 1. El gancho: cinco negocios a la vez.
+// 1. El gancho: cuatro negocios a la vez, y cualquier otro.
 await est("plano", PLANOS.montaje);
 await est("montaje");
 await espera(p, 450);
 await decir("gancho");
-await alDecir("tus clientes");
+// El cierre del arranque sale con la frase que lo dice, y nunca antes del
+// último mensaje de la cuarta tarjeta (el estudio espera si hace falta).
+await alDecir("y cualquier negocio");
+const cierreDelMontajeMs = Date.now() - t0 + (await est("yCualquierNegocio"));
+await alDecir("Tus clientes");
 await captura("montaje");
 
 // 2. La promesa: la marca.
@@ -815,6 +819,14 @@ writeFileSync(
             modelo: VOZ_DE_VENTAS.modelo,
             frases,
             duracionMs: totalMs,
+            // El arranque que se grabó, y cuándo sale su cierre: el banco busca
+            // ahí el texto en los fotogramas del vídeo publicado.
+            montaje: {
+                tarjetas: NEGOCIOS_DEL_ARRANQUE.map((n) => n.tipo),
+                medios: NEGOCIOS_DEL_ARRANQUE.map((n) => n.medio),
+                cierre: CIERRE_DEL_MONTAJE,
+                cierreMs: cierreDelMontajeMs,
+            },
             // Dónde suena cada cosa EN EL VÍDEO: el banco lo compara con el audio.
             colocados: colocados.map((c) => ({ clase: c.clase, texto: c.texto, inicioMs: c.inicioMs, finMs: c.finMs })),
         },

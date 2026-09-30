@@ -24259,6 +24259,36 @@ Grabar la App de verdad destapó tres fallos que un cliente también ve:
    traía la foto de antes. Hay una segunda vuelta pasada esa memoria
    (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
 
+### El arranque: cuatro negocios, un contenido distinto cada uno
+
+Los primeros segundos son cuatro tarjetas de ejemplo, en este orden:
+**tienda en línea, clínica, cursos y consultoría** (`NEGOCIOS_DEL_ARRANQUE`), y
+a la derecha de la cuarta, «y cualquier negocio que venda por WhatsApp»
+(`CIERRE_DEL_MONTAJE`). Después, la pantalla de la marca: el logo, el nombre y
+la frase `LEMA_DE_LA_MARCA`, **sin la lista de píldoras** de antes.
+
+Cinco cosas que hay que mantener:
+
+1. **Cada tarjeta enseña un contenido distinto** —imagen, nota de voz, video y
+   PDF— y su `medio` tiene que ser el de sus mensajes (el banco lo compara). La
+   foto y la portada del video se generan al grabar (`MEDIOS_DEL_MONTAJE`,
+   `generarLosMediosDelMontaje`), ilustradas: la página es pública.
+2. **El encabezado es el de un chat de WhatsApp**: 56 px, gris claro, pegado
+   arriba, con atrás, videollamada y llamada. Nada de franja de color.
+3. **Los mensajes arrancan pegados arriba** (`.mini .muro` con
+   `justify-content: flex-start`), no al fondo como en un chat largo.
+4. **El teléfono de una tarjeta es `.caja > .pant`, no `.marco > .vid`**: una
+   burbuja de video también lleva `.vid` y `.marco` dentro, y con esos nombres
+   heredaba los 600 px de alto del teléfono y salía como una columna negra.
+5. **El cierre sale con la frase que lo dice y nunca antes del último mensaje
+   de la cuarta tarjeta**: `yCualquierNegocio()` espera lo que falte y devuelve
+   cuánto, y el `.json` del vídeo guarda cuándo salió (`montaje.cierreMs`). La
+   página nombra los mismos negocios (`NEGOCIOS_DEL_VIDEO`).
+
+Lo mide pintado `lib/__tests__/montaje-del-video.test.mjs` (en el banco del
+vídeo), y en el vídeo publicado se busca el cierre en los fotogramas. Su
+`MODO=roto` pinta el estudio de `1807a22` y afirma el arranque viejo.
+
 ### La página
 
 `app/demo/`: el vídeo con su portada, qué es real y qué no, las ocho capacidades
@@ -24273,6 +24303,10 @@ la historia y el estudio, la voz Cedar completa y el guion, el vídeo publicado
 medido con ffmpeg (H.264 1920×1080, menos de dos minutos, sin huecos mudos) y la
 página servida sin sesión a 390 y 1440. `MODO=roto` saca la función de
 `316b70c` y afirma que el borrador se quedaba y que no había ni vídeo ni página.
+
+La síntesis de la narración usa «IA CRM» por defecto; si OpenAI contesta 429 se
+pide con otra llave de la misma tabla: `NOMBRE_LLAVE="Agente IA" node
+scripts/sintetizar-en-el-contenedor.mjs scripts/video-de-ventas/narracion.mjs`.
 
 ## Cómo reportar al terminar
 

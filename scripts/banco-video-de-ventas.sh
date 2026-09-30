@@ -9,12 +9,19 @@
 #      App, ninguna voz se pisa, la voz Cedar está entera, el guion dice cada
 #      frase y cada mensaje una vez, la página promete lo que el vídeo enseña,
 #      y el vídeo publicado es un MP4 de menos de dos minutos sin huecos mudos.
-#   2. `scripts/probar-demo.mjs`: la página SERVIDA sin sesión, en Chromium a
+#   2. `lib/__tests__/montaje-del-video.test.mjs`: los primeros segundos
+#      PINTADOS en Chromium con el estudio de verdad —cuatro negocios en su
+#      orden, el encabezado de WhatsApp compacto y sin franja de color, los
+#      mensajes pegados arriba, un contenido distinto por tarjeta, el cierre
+#      «y cualquier negocio…» después de la cuarta y la marca sin píldoras—.
+#   3. `scripts/probar-demo.mjs`: la página SERVIDA sin sesión, en Chromium a
 #      390 y 1440 (hace falta el build).
 #
 # `MODO=roto` saca la `areListsDifferent` de ANTES_REF —pinchado a un commit,
 # nunca `origin/main`— y afirma el fallo: el borrador se quedaba para siempre,
-# y no había ni vídeo, ni página, ni refresco de la ficha.
+# y no había ni vídeo, ni página, ni refresco de la ficha. Y pinta el estudio
+# de ANTES_MONTAJE (también pinchado) y afirma el arranque viejo: cinco
+# tarjetas con franja de color, los mensajes abajo, sin cierre y con píldoras.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,7 +29,7 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-export MODO ANTES_REF="${ANTES_REF:-316b70c}"
+export MODO ANTES_REF="${ANTES_REF:-316b70c}" ANTES_MONTAJE="${ANTES_MONTAJE:-1807a22}"
 OUT="lib/__tests__/.compilado/video-de-ventas"
 mkdir -p "$OUT"
 
@@ -58,6 +65,7 @@ if [ "$MODO" = "roto" ]; then
   sacar_la_lista "$OUT/chats-client-antes.tsx" "$OUT/lista-antes.ts"
   compilar "$OUT/lista-antes.ts" "$OUT/lista-antes.mjs"
   node --test lib/__tests__/video-de-ventas.test.mjs
+  node --test lib/__tests__/montaje-del-video.test.mjs
   exit 0
 fi
 
@@ -67,6 +75,7 @@ for M in aviso-en-vivo-del-chat crm-de-la-conversacion-abierta bandeja video-de-
   compilar "lib/$M.ts" "$OUT/$M.mjs"
 done
 node --test lib/__tests__/video-de-ventas.test.mjs
+node --test lib/__tests__/montaje-del-video.test.mjs
 
 if [ ! -d .next/static/css ]; then
   echo "(sin build: se salta la mitad del navegador)"; exit 0

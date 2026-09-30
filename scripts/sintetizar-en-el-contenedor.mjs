@@ -24,7 +24,13 @@ import { pathToFileURL } from "node:url";
 import { laPeticion, rutaDeLaFrase } from "./voz-cedar.mjs";
 
 const SERVICIO = "agente-app_verzay_app";
-const NOMBRE_DE_LA_LLAVE = "IA CRM";
+/**
+ * La llave de Panel › API keys con la que se sintetiza. «IA CRM» es la de
+ * siempre; cuando se queda sin créditos (OpenAI contesta 429) se pide con otra
+ * de la misma tabla (`NOMBRE_LLAVE="Agente IA"`). La llave sigue sin salir del
+ * contenedor: solo viaja su NOMBRE.
+ */
+const NOMBRE_DE_LA_LLAVE = process.env.NOMBRE_LLAVE || "IA CRM";
 
 function portainer() {
     const url = process.env.PORTAINER_URL;

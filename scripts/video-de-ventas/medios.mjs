@@ -10,14 +10,16 @@
  *   - la lista de precios (un PDF de dos páginas, con su miniatura);
  *   - el video de la clínica (9 s, con su portada);
  *   - la imagen de los cupos que manda el seguimiento;
- *   - las dos notas de voz, que salen de la caché de voces (`narracion.mjs`).
+ *   - las dos notas de voz, que salen de la caché de voces (`narracion.mjs`);
+ *   - y lo que pintan las tarjetas del arranque (`MEDIOS_DEL_MONTAJE`): la foto
+ *     del sofá de la tienda y la portada de la clase de los cursos.
  *
  * Se escribe todo en `dir`, con los nombres de `MEDIOS` (historia.mjs).
  */
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CLIENTA, MEDIOS, NEGOCIO, NOTAS_DE_VOZ, elCalendario, elDia, laHora } from "./historia.mjs";
+import { CLIENTA, MEDIOS, MEDIOS_DEL_MONTAJE, NEGOCIO, NOTAS_DE_VOZ, elCalendario, elDia, laHora } from "./historia.mjs";
 import { CACHE_DE_VENTAS, VOZ_DE_LA_CLIENTA, VOZ_DE_SOFIA } from "./narracion.mjs";
 import { rutaDeLaFrase } from "../voz-cedar.mjs";
 
@@ -174,6 +176,89 @@ p { position: absolute; left: 74px; top: ${i === 0 ? 350 : 430}px; font-size: 32
 </body></html>`;
 }
 
+/** La foto del sofá que manda la tienda del arranque: un producto de catálogo, dibujado. */
+export function laFotoDelSofa() {
+    return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE}
+body { width: 1080px; height: 1080px; overflow: hidden; background: radial-gradient(circle at 50% 38%, #fbfaf7 0, #efebe4 60%, #e4ded4 100%); position: relative; }
+.suelo { position: absolute; left: 0; right: 0; bottom: 0; height: 330px; background: linear-gradient(180deg, #e2dbd0, #d6cec1); }
+.sombra { position: absolute; left: 150px; right: 150px; bottom: 262px; height: 70px; border-radius: 50%; background: radial-gradient(closest-side, rgba(40,32,24,.38), transparent); }
+svg.sofa { position: absolute; left: 110px; top: 300px; width: 860px; height: 520px; }
+.tag { position: absolute; top: 70px; left: 72px; font-size: 56px; font-weight: 800; letter-spacing: -1.5px; color: #1f2937; }
+.tag small { display: block; font-size: 32px; font-weight: 500; color: #6b7280; margin-top: 8px; letter-spacing: 0; }
+.precio { position: absolute; top: 76px; right: 72px; background: #111827; color: #fff; font-size: 44px; font-weight: 800; padding: 14px 30px; border-radius: 999px; }
+.colores { position: absolute; bottom: 90px; left: 72px; display: flex; gap: 22px; align-items: center; font-size: 30px; color: #374151; font-weight: 600; }
+.colores i { width: 54px; height: 54px; border-radius: 50%; box-shadow: 0 0 0 4px #fff, 0 4px 14px rgba(0,0,0,.18); }
+.colores i.on { box-shadow: 0 0 0 4px #fff, 0 0 0 9px #111827; }
+</style></head><body>
+<div class="suelo"></div>
+<div class="sombra"></div>
+<svg class="sofa" viewBox="0 0 860 520" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tela" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8d949c"/><stop offset="1" stop-color="#6b727a"/></linearGradient>
+    <linearGradient id="cojin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa1a9"/><stop offset="1" stop-color="#7a8189"/></linearGradient>
+  </defs>
+  <rect x="70" y="40" width="720" height="250" rx="46" fill="url(#tela)"/>
+  <rect x="96" y="70" width="325" height="210" rx="34" fill="url(#cojin)"/>
+  <rect x="439" y="70" width="325" height="210" rx="34" fill="url(#cojin)"/>
+  <rect x="40" y="250" width="780" height="150" rx="40" fill="#737a82"/>
+  <rect x="96" y="238" width="325" height="96" rx="30" fill="#a3aab2"/>
+  <rect x="439" y="238" width="325" height="96" rx="30" fill="#a3aab2"/>
+  <rect x="0" y="150" width="110" height="260" rx="44" fill="url(#tela)"/>
+  <rect x="750" y="150" width="110" height="260" rx="44" fill="url(#tela)"/>
+  <rect x="90" y="398" width="26" height="80" rx="8" fill="#5b4636"/>
+  <rect x="744" y="398" width="26" height="80" rx="8" fill="#5b4636"/>
+</svg>
+<div class="tag">Sofá Oslo<small>3 puestos · gris grafito</small></div>
+<div class="precio">$2.490.000</div>
+<div class="colores"><i class="on" style="background:#7a8189"></i><i style="background:#c8b8a2"></i><i style="background:#2f4858"></i>Disponible en 3 colores</div>
+</body></html>`;
+}
+
+/** La portada de la clase que manda la academia del arranque: una hoja de cálculo en pantalla. */
+export function laClaseDeExcel() {
+    const celdas = [
+        ["Mes", "Ventas", "Costos", "Utilidad"],
+        ["Enero", "$ 8.200", "$ 5.100", "$ 3.100"],
+        ["Febrero", "$ 9.450", "$ 5.600", "$ 3.850"],
+        ["Marzo", "$ 11.300", "$ 6.200", "$ 5.100"],
+        ["Abril", "$ 12.800", "$ 6.900", "$ 5.900"],
+    ];
+    const filas = celdas.map((f, i) => `<tr>${f.map((c, j) => `<td class="${i === 0 ? "cab" : ""}${j === 3 && i > 0 ? " sel" : ""}">${c}</td>`).join("")}</tr>`).join("");
+    return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE}
+body { width: 1280px; height: 720px; overflow: hidden; background: linear-gradient(135deg, #064e3b, #065f46 55%, #047857); color: #fff; position: relative; }
+.chip { position: absolute; top: 50px; left: 64px; background: rgba(255,255,255,.16); border: 2px solid rgba(255,255,255,.3); padding: 8px 20px; border-radius: 999px; font-size: 22px; font-weight: 700; }
+h1 { position: absolute; top: 108px; left: 64px; font-size: 58px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.05; }
+h1 small { display: block; font-size: 30px; font-weight: 500; opacity: .85; margin-top: 10px; letter-spacing: 0; }
+.hoja { position: absolute; left: 64px; bottom: 56px; width: 760px; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.35); }
+.barra { height: 40px; background: #107c41; display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+.barra i { width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,.5); }
+table { width: 100%; border-collapse: collapse; color: #111827; font-size: 22px; }
+td { border: 1px solid #e5e7eb; padding: 10px 14px; }
+td.cab { background: #ecfdf5; font-weight: 700; color: #065f46; }
+td.sel { background: #d1fae5; font-weight: 700; box-shadow: inset 0 0 0 3px #10b981; }
+.profe { position: absolute; right: 70px; bottom: 60px; width: 300px; height: 300px; border-radius: 50%; background: linear-gradient(160deg, #fcd34d, #f59e0b); border: 8px solid rgba(255,255,255,.9); overflow: hidden; }
+.profe .cara { position: absolute; left: 90px; top: 62px; width: 120px; height: 134px; border-radius: 50%; background: #c68a5e; }
+.profe .pelo { position: absolute; left: 80px; top: 44px; width: 140px; height: 76px; border-radius: 70px 70px 20px 20px; background: #3b2418; }
+.profe .cuerpo { position: absolute; left: 40px; top: 196px; width: 220px; height: 160px; border-radius: 110px 110px 0 0; background: #1e3a8a; }
+</style></head><body>
+<div class="chip">Curso de Excel · Clase 3</div>
+<h1>Tablas dinámicas<small>De cero a reportes en 20 minutos</small></h1>
+<div class="hoja"><div class="barra"><i></i><i></i><i></i></div><table>${filas}</table></div>
+<div class="profe"><div class="cuerpo"></div><div class="cara"></div><div class="pelo"></div></div>
+</body></html>`;
+}
+
+/**
+ * Lo que pintan las tarjetas del arranque. Aparte de los medios de la historia
+ * porque no viajan en ninguna conversación, y exportado para que el banco
+ * pinte las tarjetas con las mismas imágenes que el vídeo.
+ */
+export async function generarLosMediosDelMontaje(dir, navegador) {
+    mkdirSync(dir, { recursive: true });
+    await foto(navegador, laFotoDelSofa(), path.join(dir, MEDIOS_DEL_MONTAJE["sofa-gris"].archivo), { ancho: 1080, alto: 1080 });
+    await foto(navegador, laClaseDeExcel(), path.join(dir, MEDIOS_DEL_MONTAJE["clase-de-excel"].archivo), { ancho: 1280, alto: 720 });
+}
+
 /** El logo de la clínica, cuadrado: la foto de perfil de su WhatsApp. */
 export function elLogo() {
     return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE}
@@ -204,6 +289,7 @@ export async function generarLosMedios(dir, { chromium, ahora = Date.now() } = {
         await foto(navegador, laPromo(), path.join(dir, MEDIOS.promoDeInstagram.archivo), { ancho: 1080, alto: 1080 });
         await foto(navegador, losCupos(cal), path.join(dir, MEDIOS.horarios.archivo), { ancho: 1080, alto: 1080 });
         await foto(navegador, elLogo(), path.join(dir, "logo-sonrie.png"), { ancho: 400, alto: 400 });
+        await generarLosMediosDelMontaje(dir, navegador);
 
         // La lista de precios: el PDF de verdad y la miniatura de su primera página.
         const pdf = await navegador.newPage();
