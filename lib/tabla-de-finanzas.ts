@@ -129,3 +129,32 @@ export function elOrdenDeLosAccesos<T extends string>(guardado: readonly unknown
     });
     return resultado;
 }
+
+/**
+ * Las categorías de gasto que se pagan igual todos los meses. La lista era
+ * la de una empresa de software —«API», «Servidores», «Herramientas»— y un
+ * gasto de «Arriendo» salía «Variable». Se compara sin tildes ni mayúsculas:
+ * «Nómina» y «nomina» son la misma categoría escrita por dos personas.
+ */
+export const CATEGORIAS_DE_GASTO_FIJO = [
+    "Nómina",
+    "Salarios",
+    "Arriendo",
+    "Alquiler",
+    "Renta",
+    "Servicios públicos",
+    "Internet",
+    "Seguros",
+    "Servidores",
+    "API",
+    "Herramientas",
+] as const;
+
+const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+const FIJAS = new Set(CATEGORIAS_DE_GASTO_FIJO.map(sinTildes));
+
+/** «Fijo» o «Variable» según la categoría del gasto. Sin categoría, variable. */
+export function elTipoDelGasto(categoria?: string | null): "Fijo" | "Variable" {
+    if (!categoria) return "Variable";
+    return FIJAS.has(sinTildes(categoria)) ? "Fijo" : "Variable";
+}

@@ -12,7 +12,7 @@ import {
     columnaDeSoportes,
     columnaDeTotal,
 } from '../../_components/ColumnasDeMovimientos';
-import { comoImporte, type MonedaDeFinanzas } from '@/lib/tabla-de-finanzas';
+import { comoImporte, elTipoDelGasto, type MonedaDeFinanzas } from '@/lib/tabla-de-finanzas';
 
 export type ExpenseRow = {
     id: string;
@@ -33,12 +33,8 @@ export type ExpenseRow = {
     attachments?: { id?: string; url: string; fileName?: string | null; mimeType?: string | null; sizeBytes?: number | null }[];
 };
 
-//  regla simple para “Fijo/Variable” (ajústala a tu negocio)
-function expenseKind(categoryName?: string | null) {
-    const fixed = new Set(['Nomina', 'Nómina', 'Salarios', 'Servidores', 'API', 'Herramientas']);
-    if (!categoryName) return 'Variable';
-    return fixed.has(categoryName) ? 'Fijo' : 'Variable';
-}
+// Fijo o variable lo decide la categoría (`lib/tabla-de-finanzas.ts`).
+const expenseKind = elTipoDelGasto;
 
 export function buildExpenseColumns(opts: {
     monedas: readonly MonedaDeFinanzas[];
