@@ -62,6 +62,7 @@ import {
   deleteAdvisor,
   linkExistingAdvisor,
   getTeamAdvisors,
+  getTeamMetrics,
   getAdvisorModuleIds,
   saveAdvisorModules,
   saveAutoAssignSettings,
@@ -71,7 +72,7 @@ import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { sugiereNuevoOcupante } from "@/lib/historial-del-equipo";
+import { confirmaLaLimpieza, PALABRA_PARA_LIMPIAR, sugiereNuevoOcupante } from "@/lib/historial-del-equipo";
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 import {
@@ -143,6 +144,18 @@ type Props = {
   ownerModules: ModuleOption[];
   initialAutoAssign: AutoAssignSettings;
   teamMetrics: TeamMetrics | null;
+  /** Si la cuenta tiene clientes que repartir: sin ninguno, «Clientes asignados» no se ofrece. */
+  conClientesQueAsignar: boolean;
+  /**
+   * Si se ofrece «Vincular existente»: solo a quien ya administra cuentas
+   * (`ofreceVincularCuentas`). A una cuenta cliente no: lo único que podría
+   * vincular ya lo tiene, y el servidor lo rechazaría.
+   */
+  puedeVincular: boolean;
+  /** Si se ofrece «Reiniciar vínculos»: borra los de TODA la plataforma. */
+  puedeReiniciarVinculos: boolean;
+  /** Si hay otra cuenta de la familia a la que mover a alguien del equipo. */
+  hayCuentasParaMudar: boolean;
 };
 
 type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
@@ -179,7 +192,7 @@ async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | n
   }
 }
 
-export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
+export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics, conClientesQueAsignar, puedeVincular, puedeReiniciarVinculos, hayCuentasParaMudar }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [availableModules, setAvailableModules] = useState<ModuleOption[]>(ownerModules);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(teamMetrics);
@@ -235,7 +248,12 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       porcentajes: args.porcentajes,
     }).then((res) => {
       if (!res.success) toast.error(res.message);
+      // Si al guardar se repartió lo que estaba sin asesor, se DICE cuántas,
+      // también al encender el interruptor (que no avisa de lo demás): es un
+      // cambio de datos, no un ajuste.
+      else if ((res.data?.asignadas ?? 0) > 0) toast.success(res.message ?? "Configuración guardada.");
       else if (args.avisar) toast.success("Configuración guardada.");
+      if (res.success && (res.data?.asignadas ?? 0) > 0) void refrescarElEquipo();
       setAutoAssignSaving(false);
     });
   }
@@ -306,7 +324,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   }
 
   function downloadCsv() {
-    const metricsMap = new Map((teamMetrics?.advisors ?? []).map((a) => [a.id, a]));
+    const metricsMap = new Map((metrics?.advisors ?? []).map((a) => [a.id, a]));
     const date = new Date().toISOString().split("T")[0];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const headers = ["Asesor", "Email", "Rol", "Disponible", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
@@ -339,6 +357,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
+  const [confirmacionDeReinicio, setConfirmacionDeReinicio] = useState("");
   const [releaseTarget, setReleaseTarget] = useState<AdvisorRow | null>(null);
   const [permisosTarget, setPermisosTarget] = useState<{ id: string; name: string } | null>(null);
   const [clientesTarget, setClientesTarget] = useState<{ id: string; name: string } | null>(null);
@@ -349,6 +368,20 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     if (list?.success && list.data) {
       setAdvisors(list.data);
     }
+  }
+
+  /**
+   * Lo que cambia cuando se REPARTEN conversaciones: la carga de cada persona
+   * (Activas y su barra) y sus métricas (las columnas y las gráficas). Sin
+   * esto, «Asignar sin atender» decía «5 asignadas» y la tabla seguía con los
+   * números de antes hasta recargar la página.
+   */
+  async function refrescarElEquipo() {
+    const [, m] = await Promise.all([
+      refreshAdvisors(),
+      safeInvoke("refrescarElEquipo", () => getTeamMetrics()),
+    ]);
+    if (m?.success && m.data) setMetrics(m.data);
   }
 
   function handleCreateField(field: keyof CreateForm, value: string) {
@@ -456,13 +489,14 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
 
   function handleResetLinks() {
     startTransition(async () => {
-      const res = await resetAllLinkedAccounts();
+      const res = await resetAllLinkedAccounts(confirmacionDeReinicio);
       if (!res.success) {
         toast.error(res.message);
         return;
       }
       toast.success(res.warning ?? "Vínculos reiniciados.");
       setResetLinksOpen(false);
+      setConfirmacionDeReinicio("");
       await refreshAdvisors();
     });
   }
@@ -487,7 +521,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         filtros={
         <>
         {/* Lado izquierdo: icono + toggle + max chats */}
-        <div className="flex items-center gap-4 shrink-0">
+        <div data-auto-asignacion className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-3 shrink-0">
             <div className={cn(
               "flex items-center justify-center h-9 w-9 rounded-lg shrink-0",
@@ -562,10 +596,22 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           {/* Toggle de vista: Tabla / Pipeline. Sin `ml-auto`: el reparto lo
               decide la barra, y dos `ml-auto` en la misma fila es justo lo que
               dejaba el azul flotando en Módulos. */}
-          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0">
+          <div
+            role="radiogroup"
+            aria-label="Vista"
+            data-grupo="vista"
+            className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0"
+          >
             <button
               type="button"
-              onClick={() => setView("tabla")}
+              role="radio"
+              aria-checked={view === "tabla"}
+              data-vista="tabla"
+              onClick={() => {
+                // Al volver del Pipeline: los arrastres cambiaron quién lleva qué.
+                if (view === "pipeline") void refrescarElEquipo();
+                setView("tabla");
+              }}
               className={claseDelSegmento(view === "tabla")}
             >
               <Table2 className="h-3.5 w-3.5" />
@@ -573,6 +619,9 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             </button>
             <button
               type="button"
+              role="radio"
+              aria-checked={view === "pipeline"}
+              data-vista="pipeline"
               onClick={() => setView("pipeline")}
               className={claseDelSegmento(view === "pipeline")}
             >
@@ -580,28 +629,38 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               Pipeline
             </button>
           </div>
+        </>
+        }
+        // «Asignar sin atender» no acota la lista: actúa sobre todas las
+        // conversaciones sin asesor. Es una acción SECUNDARIA y va en su hueco,
+        // pegada al azul, no suelta en el carril con los ajustes del reparto.
+        secundarias={
           <Button
             size="sm"
             variant="outline"
-            className="shrink-0"
+            data-accion="asignar-sin-atender"
+            title="Asignar sin atender"
+            aria-label="Asignar sin atender"
             disabled={isPending}
             onClick={() => {
               startTransition(async () => {
                 const res = await bulkAutoAssign();
                 if (!res.success) { toast.error(res.message ?? "Error."); return; }
                 const n = res.assigned ?? 0;
-                toast.success(n > 0 ? `${n} conversación${n !== 1 ? 'es' : ''} asignada${n !== 1 ? 's' : ''}.` : "No hay conversaciones pendientes.");
+                toast.success(
+                  n === 0 ? "No hay conversaciones pendientes."
+                    : n === 1 ? "1 conversación asignada."
+                    : `${n} conversaciones asignadas.`,
+                );
+                if (n > 0) await refrescarElEquipo();
               });
             }}
           >
             <Users className="w-3.5 h-3.5" />
-            Asignar sin atender
+            {/* En el teléfono se queda con el icono, como «Exportar CSV» de
+                Leads: la palabra se lleva el ancho que falta. */}
+            <span className="hidden sm:inline">Asignar sin atender</span>
           </Button>
-          <Button size="sm" variant="outline" className="shrink-0" onClick={() => setLinkOpen(true)}>
-            <UserCheck className="w-3.5 h-3.5" />
-            Vincular existente
-          </Button>
-        </>
         }
         crear={<BotonDeCrear onClick={() => setCreateOpen(true)}>Nuevo</BotonDeCrear>}
         acciones={
@@ -609,6 +668,19 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             seleccionados={[]}
             queSon="asesores"
             extras={[
+              // Vincular añade una fila, pero el único botón que crea es el
+              // azul: el segundo no es «crear». Y se usa de vez en cuando,
+              // así que va al `⋯`, que es lo que no se usa a diario. Solo a
+              // quien ya administra cuentas: se QUITA, no se pinta en gris.
+              ...(puedeVincular
+                ? [{
+                    clave: "vincular",
+                    etiqueta: "Vincular existente",
+                    icono: <UserCheck className="h-4 w-4" />,
+                    sinSeleccion: true,
+                    onSelect: () => setLinkOpen(true),
+                  }]
+                : []),
               {
                 clave: "csv",
                 etiqueta: "Exportar CSV",
@@ -616,14 +688,18 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                 sinSeleccion: true,
                 onSelect: downloadCsv,
               },
-              {
-                clave: "vinculos",
-                etiqueta: "Reiniciar vínculos",
-                icono: <Trash2 className="h-4 w-4" />,
-                destructiva: true,
-                sinSeleccion: true,
-                onSelect: () => setResetLinksOpen(true),
-              },
+              // Borra los vínculos de TODA la plataforma: solo el dueño de la
+              // plataforma lo ve.
+              ...(puedeReiniciarVinculos
+                ? [{
+                    clave: "vinculos",
+                    etiqueta: "Reiniciar vínculos",
+                    icono: <Trash2 className="h-4 w-4" />,
+                    destructiva: true,
+                    sinSeleccion: true,
+                    onSelect: () => setResetLinksOpen(true),
+                  }]
+                : []),
             ]}
           />
         }
@@ -644,16 +720,16 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       ) : (() => {
         // Mapa de métricas por asesor para lookup O(1)
         const metricsMap = new Map(
-          (teamMetrics?.advisors ?? []).map((a) => [a.id, a])
+          (metrics?.advisors ?? []).map((a) => [a.id, a])
         );
 
         // Máximos del equipo para barras relativas
         const maxActive    = Math.max(...advisors.map((a) => a.activeCount), 1);
-        const maxHot       = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.hotCount), 1);
-        const maxConverted = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.convertedCount), 1);
+        const maxHot       = Math.max(...(metrics?.advisors ?? []).map((a) => a.hotCount), 1);
+        const maxConverted = Math.max(...(metrics?.advisors ?? []).map((a) => a.convertedCount), 1);
 
         return (
-          <div className="rounded-xl border overflow-hidden shrink-0">
+          <div data-tabla-del-equipo className="rounded-xl border overflow-hidden shrink-0">
             <div className="overflow-x-auto">
             <Table className="min-w-[900px]">
               <TableHeader>
@@ -676,7 +752,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                 {advisors.map((advisor) => {
                   const m = metricsMap.get(advisor.id);
                   return (
-                    <TableRow key={advisor.id} className="hover:bg-muted/30 transition-colors">
+                    <TableRow key={advisor.id} data-fila-del-asesor={advisor.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="pl-4">
                         <div className="flex items-center gap-3">
                           <div className="relative shrink-0">
@@ -723,7 +799,10 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                             });
                           }}
                         >
-                          <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectTrigger
+                            className="h-7 w-36 text-xs"
+                            aria-label={`Rol de ${advisor.name ?? advisor.email}`}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -734,6 +813,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                       </TableCell>
                       <TableCell className="text-center">
                         <Switch
+                          aria-label={`Disponible: ${advisor.name ?? advisor.email}`}
                           checked={advisor.advisorAvailable}
                           onCheckedChange={(val) => {
                             setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: val } : a));
@@ -810,7 +890,14 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                       <TableCell className="text-right pr-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              data-menu-del-asesor={advisor.id}
+                              aria-label={`Acciones de ${advisor.name ?? advisor.email}`}
+                              title="Acciones"
+                            >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -830,17 +917,22 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                               <ShieldCheck className="w-4 h-4 mr-2" />
                               Permisos
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setClientesTarget({
-                                  id: advisor.id,
-                                  name: advisor.name ?? advisor.email,
-                                })
-                              }
-                            >
-                              <Building2 className="w-4 h-4 mr-2" />
-                              Clientes asignados
-                            </DropdownMenuItem>
+                            {/* Solo con clientes que repartir: en una cuenta
+                                sin cartera la ventana salía vacía. Se QUITA,
+                                no se pinta en gris. */}
+                            {conClientesQueAsignar && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setClientesTarget({
+                                    id: advisor.id,
+                                    name: advisor.name ?? advisor.email,
+                                  })
+                                }
+                              >
+                                <Building2 className="w-4 h-4 mr-2" />
+                                Clientes asignados
+                              </DropdownMenuItem>
+                            )}
                             {/* Nombre, correo y rol llegan con el valor actual;
                                 la contraseña llega vacía y solo se cambia si se
                                 escribe algo. */}
@@ -864,7 +956,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                                 vinculada no cuelga de nadie, asi que la accion
                                 la rechaza: la opcion se QUITA, no se pinta en
                                 gris — una apagada invita a preguntar por que. */}
-                            {advisor.esDelEquipo && (
+                            {advisor.esDelEquipo && hayCuentasParaMudar && (
                               <DropdownMenuItem
                                 onClick={() =>
                                   setMudarTarget({
@@ -907,7 +999,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       })()}
 
       {/* Gráficas */}
-      {metrics && <TeamCharts metrics={metrics} maxChats={modo === "maximo" ? autoAssignMaxChats : 0} />}
+      {metrics && <TeamCharts metrics={metrics} />}
 
       </div>
       ) : (
@@ -967,22 +1059,36 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModulesForm(null)}>Cancelar</Button>
-            <Button onClick={handleSaveModules} disabled={isPending || modulesForm?.loading}>
+            <Button variant="save" onClick={handleSaveModules} disabled={isPending || modulesForm?.loading}>
               {isPending ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>
         </Dialog>
 
-        <AlertDialog open={resetLinksOpen} onOpenChange={setResetLinksOpen}>
+        <AlertDialog
+          open={resetLinksOpen}
+          onOpenChange={(abierto) => { setResetLinksOpen(abierto); if (!abierto) setConfirmacionDeReinicio(""); }}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Reiniciar vínculos de cuentas</AlertDialogTitle>
               <AlertDialogDescription>
-                Esto eliminará todas las relaciones entre cuentas y dejará a cada usuario independiente.
-                No borra usuarios ni cuentas, solo los vínculos.
+                Esto eliminará las relaciones entre cuentas de <strong>toda la plataforma</strong> y
+                dejará a cada usuario independiente, también a los equipos de cada cuenta. No borra
+                usuarios ni cuentas, solo los vínculos. No se puede deshacer.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="space-y-1">
+              <Label htmlFor="confirmar-reinicio">Escribe {PALABRA_PARA_LIMPIAR} para confirmar</Label>
+              <Input
+                id="confirmar-reinicio"
+                data-confirmar-reinicio
+                autoComplete="off"
+                value={confirmacionDeReinicio}
+                onChange={(e) => setConfirmacionDeReinicio(e.target.value)}
+              />
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
@@ -990,7 +1096,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                   e.preventDefault();
                   handleResetLinks();
                 }}
-                disabled={isPending}
+                disabled={isPending || !confirmaLaLimpieza(confirmacionDeReinicio)}
               >
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reiniciar
@@ -1155,7 +1261,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditForm(null)}>Cancelar</Button>
-            <Button onClick={handleUpdateAdvisor} disabled={isPending}>
+            <Button variant="save" onClick={handleUpdateAdvisor} disabled={isPending}>
               {isPending ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>

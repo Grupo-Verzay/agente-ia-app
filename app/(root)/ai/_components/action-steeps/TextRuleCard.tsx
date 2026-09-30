@@ -2,11 +2,12 @@
 "use client";
 
 import { FC, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { SlidersHorizontal } from "lucide-react";
 import { PropsTextRule } from "@/types/agentAi";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 import {
     conReglaDeVariable,
     VariablesDialog,
@@ -45,14 +46,13 @@ export const TextRuleCard: FC<PropsTextRule> = ({ el, onRemove, onChange, isMana
     return (
         <Card className="bg-muted/10 border-muted/60">
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
-                <CardTitle className="text-md flex items-center gap-2">
-                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                <TituloDelElemento icono={SlidersHorizontal}>
                     {/* Solo el rótulo. El icono, la clave del dato (`kind: "text"`)
                         y lo que `markdownBuilder` escribe en el prompt
                         (**REGLA/PARÁMETRO:**) se quedan como estaban: esto no
                         migra nada. */}
                     RESPUESTA
-                </CardTitle>
+                </TituloDelElemento>
                 <ElementMenu onRemove={onRemove} onVariables={() => setShowVariables(true)} />
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">

@@ -2,8 +2,8 @@
 "use client";
 
 import { FC, useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Search, X } from "lucide-react";
 import { PedidoFieldsEditor } from "../";
 import { DataSubtype, ElementoDeDatos, PropsConsultaDatos, SUBTYPE_OPTIONS } from "@/types/agentAi";
 import {
@@ -14,6 +14,7 @@ import {
     SelectItem,
 } from "@/components/ui/select";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
     el,
@@ -40,9 +41,9 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-2 flex-row items-center justify-between gap-2">
+            <CardHeader className="py-2 px-3 flex-row items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-md uppercase">Consulta de datos</CardTitle>
+                    <TituloDelElemento icono={Search}>Consulta de datos</TituloDelElemento>
 
                     {/* Selector de subtipo */}
                     <Select
@@ -68,7 +69,7 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
             </CardHeader>
 
             <CardContent className="p-0 m-0">
-                <div className="px-4 pb-3">
+                <div className="px-3 pb-3">
                     <PedidoFieldsEditor
                         stepId={(el as ElementoDeDatos & { stepId?: string }).stepId ?? ""}
                         elId={el.id}

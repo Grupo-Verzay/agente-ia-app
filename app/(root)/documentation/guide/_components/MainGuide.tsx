@@ -10,19 +10,28 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { deleteManual, createManual, updateManual, getManuals } from '@/actions/manual-actions'
 import { z } from 'zod'
 import { Textarea } from '@/components/ui/textarea'
-import { User, Manual, Role } from '@prisma/client'
-import { Edit2Icon, Eye, Pencil, Search, Trash2 } from 'lucide-react'
-import Header from '@/components/shared/header'
+import { Role } from '@prisma/client'
+import type { ReactNode } from 'react'
+import { Search } from 'lucide-react'
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones'
+import { RejillaOrdenable, TarjetaOrdenable } from '@/components/shared/OrdenDeTarjetas'
+import { useOrdenPropio } from '@/components/shared/OrdenPropio'
+import { CabeceraDeDocumentacion } from '@/components/documentacion/CabeceraDeDocumentacion'
+import { REJILLA_DE_DOCUMENTOS, TarjetaDeDocumento } from '@/components/documentacion/TarjetaDeDocumento'
+import { coincideConLaBusqueda } from '@/lib/buscar-en-documentacion'
+import type { OrdenGuardado } from '@/lib/orden-de-las-tarjetas'
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
 interface MainGuideProps {
   user: CurrentUser
+  /** Las guías públicas que deja la IA, ya pintadas. Solo llegan para la casa. */
+  guiasPublicas?: Array<{ id: string; nombre: string; nodo: ReactNode }>
+  /** El orden en que esta persona dejó esas guías. */
+  ordenInicial?: OrdenGuardado
 }
 
 type ManualClient = {
@@ -37,7 +46,8 @@ const manualFormSchema = z.object({
   url: z.string().url('La URL del manual no es válida.'),
 })
 
-export function MainGuide({ user }: MainGuideProps) {
+export function MainGuide({ user, guiasPublicas, ordenInicial }: MainGuideProps) {
+  const orden = useOrdenPropio('guias-publicadas', ordenInicial ?? {})
   const [manuals, setManuals] = useState<ManualClient[]>([])
 
   const [search, setSearch] = useState('')
@@ -122,18 +132,27 @@ export function MainGuide({ user }: MainGuideProps) {
     setShowDeleteDialog(true)
   }
 
-  const filtered = manuals.filter(m => m.name.toLowerCase().includes(search.toLowerCase()))
+  const esAdmin = user.role === Role.admin || user.role === Role.super_admin
+
+  // Sin mirar mayúsculas ni tildes, igual que en Tutoriales.
+  const filtered = manuals.filter(m => coincideConLaBusqueda(search, m.name, m.description))
+  const colocadas = orden.colocar(guiasPublicas ?? [], (g) => g.id)
+  const guiasQueSeVen = colocadas.filter((g) => coincideConLaBusqueda(search, g.nombre))
+  // La lista ENTERA ya colocada: buscando, lo escondido conserva su sitio.
+  const idsDeLasGuias = colocadas.map((g) => g.id)
+  const hayBusqueda = search.trim().length > 0
 
   return (
     <>
-      <div className="flex flex-col p-4 gap-6 overflow-hidden">
-        <Header
-          title="Guías"
-        />
-        {/* Header y Filtro */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between overflow-hidden">
-          <div className="flex flex-1 gap-2 items-center">
-            <div className="relative w-64 shrink-0">
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-pantalla-de-guias>
+        <CabeceraDeDocumentacion titulo="Guías" />
+
+        {/* La barra de siempre: el buscador a la izquierda y el azul de crear
+            a la DERECHA. Sin pestañas de otros módulos: el título ya dice
+            dónde se está. */}
+        <BarraDeAcciones
+          buscador={
+            <div className="relative w-56 sm:w-72">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar guía..."
@@ -142,106 +161,104 @@ export function MainGuide({ user }: MainGuideProps) {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {(user.role === Role.admin || user.role === Role.super_admin) &&
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setEditData(null) // ⬅️ importante
-                      setFormData({ name: '', description: '', url: '' }) // ⬅️ limpio para crear
-                    }}
-                  >
-                    Crear Guía
-                  </Button>
-                </DialogTrigger>
+          }
+          crear={
+            esAdmin ? (
+              <BotonDeCrear
+                data-crear-guia
+                onClick={() => {
+                  setEditData(null)
+                  setFormData({ name: '', description: '', url: '' })
+                  setOpen(true)
+                }}
+              >
+                Nuevo
+              </BotonDeCrear>
+            ) : undefined
+          }
+        />
 
-                <DialogContent className="border-border">
-                  <DialogHeader>
-                    <DialogTitle>{editData ? 'Editar Manual' : 'Crear Manual'}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input placeholder="Nombre" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-                    <Textarea placeholder="Descripción" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
-                    <Input placeholder="https://medias3.verzay.co/verzay-documentation/..." value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} />
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={editData ? handleUpdate : handleCreate} disabled={isPending}>
-                      {isPending ? 'Guardando...' : editData ? 'Actualizar' : 'Crear'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            }
-          </div>
-        </div>
+        <div className="flex-1 min-h-0 space-y-6 overflow-auto py-1">
+          {/* Las guías públicas que deja la IA (`/guia/<modulo>`). Solo la
+              casa las ve, y cada persona las pone en su orden arrastrándolas. */}
+          {guiasPublicas ? (
+            <section className="space-y-2" data-seccion-guias-publicas>
+              <h3 className="text-sm font-semibold text-muted-foreground">Guías publicadas</h3>
+              {guiasQueSeVen.length > 0 ? (
+                <RejillaOrdenable
+                  ids={idsDeLasGuias}
+                  puedeOrdenar
+                  onMover={(todos, arrastrada, sobre) => void orden.mover(todos, arrastrada, sobre)}
+                  className="grid gap-2"
+                >
+                  {guiasQueSeVen.map((g) => (
+                    <TarjetaOrdenable key={g.id} id={g.id} puedeOrdenar asa="centro">
+                      {g.nodo}
+                    </TarjetaOrdenable>
+                  ))}
+                </RejillaOrdenable>
+              ) : (
+                <p className="text-sm text-muted-foreground">Ninguna guía publicada coincide con «{search.trim()}».</p>
+              )}
+            </section>
+          ) : null}
 
-
-        {/* Cards */}
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <p className="text-muted-foreground">Loading manual...</p>
-          </div>
-        ) : (
-          <div className="flex-1">
-            <div className="max-h-[80vh] overflow-auto py-2">
-              <div className="flex flex-wrap flex-1 gap-2 justify-center">
+          <section className="space-y-2" data-seccion-manuales>
+            {guiasPublicas ? <h3 className="text-sm font-semibold text-muted-foreground">Manuales</h3> : null}
+            {loading ? (
+              <p className="py-10 text-center text-muted-foreground">Cargando guías…</p>
+            ) : filtered.length > 0 ? (
+              <div className={REJILLA_DE_DOCUMENTOS}>
                 {filtered.map((manual) => (
-                  <Card
+                  <TarjetaDeDocumento
                     key={manual.id}
-                    className="flex flex-col border-border transition-all duration-300 hover:shadow-lg hover:scale-[1.015] hover:border-primary w-64">
-                    <CardHeader>
-                      <CardTitle>{manual.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-1 justify-stretch items-center">
-                      <p className="text-sm text-muted-foreground">{manual.description}</p>
-                    </CardContent>
-                    <CardFooter className="flex mt-auto gap-2 w-full">
-                      <Button
-                        className="w-full"
-                        onClick={() => window.open(manual.url, "_blank")}
-                        rel="noopener noreferrer"
-                      >
-                        {(user.role === Role.admin || user.role === Role.super_admin) ? <Eye /> : 'Ver'}
-                      </Button>
-                      {(user.role === Role.admin || user.role === Role.super_admin) &&
-                        <>
-                          <Button
-                            variant="secondary"
-                            className="w-full"
-                            onClick={() => openEdit(manual)}
-                          >
-                            <Pencil />
-                          </Button>
-
-                          <Button
-                            variant="destructive"
-                            className="w-full"
-                            onClick={() => handleOpenDeleteModal(manual.id)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        </>
-                      }
-                    </CardFooter>
-                  </Card>
+                    titulo={manual.name}
+                    descripcion={manual.description}
+                    alVer={() => window.open(manual.url, "_blank", "noopener,noreferrer")}
+                    alEditar={esAdmin ? () => openEdit(manual) : undefined}
+                    alEliminar={esAdmin ? () => handleOpenDeleteModal(manual.id) : undefined}
+                  />
                 ))}
               </div>
-            </div>
-          </div>
-        )}
+            ) : (
+              <p className="py-10 text-center text-muted-foreground">
+                {hayBusqueda ? `Ninguna guía coincide con «${search.trim()}».` : 'Todavía no hay guías.'}
+              </p>
+            )}
+          </section>
+        </div>
       </div>
+
+      {esAdmin &&
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="border-border">
+            <DialogHeader>
+              <DialogTitle>{editData ? 'Editar guía' : 'Crear guía'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input placeholder="Nombre" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Textarea placeholder="Descripción" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+              <Input placeholder="https://medias3.verzay.co/verzay-documentation/..." value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} />
+            </div>
+            <DialogFooter>
+              <Button onClick={editData ? handleUpdate : handleCreate} disabled={isPending}>
+                {isPending ? 'Guardando...' : editData ? 'Actualizar' : 'Crear'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      }
 
       {templateId && (
         <GenericDeleteDialog
           open={showDeleteDialog}
-          itemName="Plantilla"
-          entityLabel="Plantilla"
+          itemName="Guía"
+          entityLabel="Guía"
           setOpen={setShowDeleteDialog}
           itemId={templateId}
           mutationFn={(id) => handleDelete(id)}
         />
       )}
     </>
-
   )
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Megaphone, Paperclip, Trash2, Upload, X, Eye } from 'lucide-react';
-import Header from '@/components/shared/header';
+import { CabeceraDeDocumentacion } from '@/components/documentacion/CabeceraDeDocumentacion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -142,8 +142,8 @@ export function MainActualizaciones({ cuentaId }: { cuentaId: string }) {
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4" data-pantalla-de-actualizaciones>
-            <Header title="Actualizaciones" />
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4" data-pantalla-de-actualizaciones>
+            <CabeceraDeDocumentacion titulo="Actualizaciones" />
 
             {/* Publicar */}
             <div

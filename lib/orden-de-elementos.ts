@@ -118,3 +118,22 @@ export function ordenarElementosDeLosPasos<T extends { elements?: unknown[] }>(p
 
     return cambio ? ordenados : pasos;
 }
+
+/**
+ * Una SECCIÓN guardada (`{ steps: [...] }`) con sus pasos enderezados, tal
+ * como la va a pintar su builder.
+ *
+ * La pantalla guarda una foto de «lo último guardado» para saber si el botón
+ * Guardar va en verde, y esa foto se arma con el texto de cada sección. Cada
+ * builder endereza sus pasos al abrirse (`ordenarElementosDeLosPasos`), así
+ * que si la foto se armaba SIN enderezar, abrir por primera vez Inicio,
+ * Preguntas o Productos cambiaba el texto sin que nadie escribiera nada y
+ * Guardar se ponía en verde: se leía como un cambio pendiente que no existía.
+ * La foto y el builder tienen que enderezar con la MISMA función.
+ */
+export function laSeccionEnOrden<S extends { steps?: { elements?: unknown[] }[] }>(seccion: S): S {
+    const pasos = seccion?.steps;
+    if (!Array.isArray(pasos) || pasos.length === 0) return seccion;
+    const ordenados = ordenarElementosDeLosPasos(pasos);
+    return ordenados === pasos ? seccion : { ...seccion, steps: ordenados };
+}

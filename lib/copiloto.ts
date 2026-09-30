@@ -39,7 +39,7 @@
  * Las clases van LITERALES: Tailwind solo genera lo que ve escrito, y lee
  * `lib/` (ver `tailwind.config.ts`).
  */
-import { comoUrlDeIntegracion } from "@/lib/url-embebible";
+import { laUrlQueSeAbre } from "@/lib/integraciones";
 
 /** El copiloto de la plataforma. */
 export const COPILOTO_POR_DEFECTO = "https://copiloto.ia-app.com";
@@ -60,14 +60,15 @@ export const NOMBRE_DE_LA_PESTANA = "Copiloto";
 export const TITULO_DEL_MARCO = "Copiloto de IA";
 
 /**
- * El copiloto que se abre: el del parámetro si es una dirección `http(s)`; si
- * no —no está, o es `javascript:` y compañía—, el de la plataforma. Nunca se
- * embebe lo que no pase por `comoUrlDeIntegracion`: `?u=` llega de un enlace
- * que cualquiera puede mandar.
+ * El copiloto que se abre: el del parámetro si es una dirección web; si no —no
+ * está, o es `javascript:` y compañía—, el de la plataforma. Pasa por la MISMA
+ * regla que las apps de Integrar URLs (`laUrlQueSeAbre`, `lib/integraciones.ts`):
+ * una dirección sin `https://` se completa, y una que no es web no se abre.
+ * `?u=` llega de un enlace que cualquiera puede mandar.
  */
 export function laUrlDelCopiloto(pedida: string | null | undefined): string {
     if (!pedida?.trim()) return COPILOTO_POR_DEFECTO;
-    return comoUrlDeIntegracion(pedida) ?? COPILOTO_POR_DEFECTO;
+    return laUrlQueSeAbre(pedida) ?? COPILOTO_POR_DEFECTO;
 }
 
 /** Los dos cortes, en px (el de la tabla de arriba); las clases llevan su valor en rem. */

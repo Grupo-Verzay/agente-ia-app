@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   ArrowLeft, RefreshCw, Trash2, Eye, Download,
@@ -21,13 +21,30 @@ import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
   getFormSubmissions, deleteFormSubmission, retrySheetSync,
-  type FormData, type FormSubmissionData,
+  type ConteosDeRegistros, type FormData, type FormSubmissionData,
 } from '@/actions/forms-actions';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { comoSeLeeLaRespuesta, elResumenDelRegistro, type FiltroDeSincronizacion } from '@/lib/formularios';
 
 interface Props {
   form: FormData;
   initialSubmissions: FormSubmissionData[];
+  /** Las cuatro cifras de arriba, contadas en el servidor (la lista trae como mucho 500). */
+  initialConteos: ConteosDeRegistros | null;
+}
+
+/** Una respuesta que es un enlace (un archivo subido) se abre, no se lee. */
+function Respuesta({ valor }: { valor: unknown }) {
+  const texto = comoSeLeeLaRespuesta(valor);
+  if (!texto.trim()) return <em className="text-muted-foreground">Sin respuesta</em>;
+  if (/^https?:\/\//i.test(texto)) {
+    return (
+      <a href={texto} target="_blank" rel="noopener noreferrer" className="break-all text-blue-600 underline underline-offset-2 hover:text-blue-800 dark:text-blue-400">
+        {texto}
+      </a>
+    );
+  }
+  return <span className="whitespace-pre-wrap break-words">{texto}</span>;
 }
 
 const SYNC_BADGE: Record<string, { label: string; icon: React.ReactNode; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -36,22 +53,39 @@ const SYNC_BADGE: Record<string, { label: string; icon: React.ReactNode; variant
   ERROR:   { label: 'Error',        icon: <AlertCircle className="w-3 h-3" />,   variant: 'destructive' },
 };
 
-export function FormRegistrosClient({ form, initialSubmissions }: Props) {
+export function FormRegistrosClient({ form, initialSubmissions, initialConteos }: Props) {
   const [submissions, setSubmissions] = useState<FormSubmissionData[]>(initialSubmissions);
+  const [conteos, setConteos] = useState<ConteosDeRegistros | null>(initialConteos);
   const [viewSub, setViewSub]   = useState<FormSubmissionData | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
+  // Las cuatro pastillas FILTRAN la lista, en el servidor (ver getFormSubmissions).
+  const [estado, setEstado]     = useState<FiltroDeSincronizacion>('todos');
+  const estadoRef = useRef<FiltroDeSincronizacion>('todos');
 
-  const total   = submissions.length;
-  const synced  = submissions.filter((s) => s.syncStatus === 'SYNCED').length;
-  const pending = submissions.filter((s) => s.syncStatus === 'PENDING').length;
-  const errors  = submissions.filter((s) => s.syncStatus === 'ERROR').length;
+  // Un contador es un COUNT, no un `length`: la lista trae como mucho 500
+  // registros y las cifras de arriba tienen que decir cuántos hay de verdad.
+  // Sin conteos del servidor (un fallo) se cuentan los cargados.
+  const total   = conteos?.total ?? submissions.length;
+  const synced  = conteos?.sincronizados ?? submissions.filter((s) => s.syncStatus === 'SYNCED').length;
+  const pending = conteos?.pendientes ?? submissions.filter((s) => s.syncStatus === 'PENDING').length;
+  const errors  = conteos?.conError ?? submissions.filter((s) => s.syncStatus === 'ERROR').length;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (nuevo?: FiltroDeSincronizacion) => {
+    const filtro = nuevo ?? estadoRef.current;
+    estadoRef.current = filtro;
+    setEstado(filtro);
     setLoading(true);
-    const res = await getFormSubmissions(form.id);
+    const res = await getFormSubmissions(form.id, filtro);
     setLoading(false);
-    if (res.success) setSubmissions(res.submissions ?? []);
+    // Una respuesta de un filtro que ya no es el puesto no pinta encima.
+    if (filtro !== estadoRef.current) return;
+    if (res.success) {
+      setSubmissions(res.submissions ?? []);
+      setConteos(res.conteos ?? null);
+    } else {
+      toast.error(res.error ?? 'No se pudieron cargar los registros');
+    }
   }, [form.id]);
 
   const handleDelete = async () => {
@@ -77,7 +111,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
     const rows = submissions.map((s) => [
       s.id,
       new Date(s.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
-      ...fields.map((f) => String((s.data as Record<string, unknown>)[f.id] ?? '')),
+      ...fields.map((f) => comoSeLeeLaRespuesta((s.data as Record<string, unknown>)[f.id])),
       s.syncStatus,
     ]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -88,10 +122,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const dataPreview = (data: Record<string, unknown>) => {
-    const vals = Object.values(data).slice(0, 3).map(String).filter(Boolean);
-    return vals.join(' | ') + (Object.keys(data).length > 3 ? ' | ...' : '');
-  };
+  const dataPreview = (data: Record<string, unknown>) => elResumenDelRegistro(form.fields, data) || 'Sin respuestas';
 
   return (
     <div className="flex flex-col h-full">
@@ -106,7 +137,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
             secundarias={
               /* Refrescar no acota la lista ni añade una fila: va en el hueco
                  de las secundarias, no en el del botón de crear. */
-              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={refresh} disabled={loading} title="Actualizar" aria-label="Actualizar">
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => refresh()} disabled={loading} title="Actualizar" aria-label="Actualizar">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
             }
@@ -137,15 +168,16 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
               </div>
             </div>
             <div className="toolbar-collapse flex items-center gap-2 shrink-0">
-              {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no
-                  tiene filtro por estado de sincronización, así que no se
-                  pintan como pulsables. */}
+              {/* Las cuatro cifras SON el filtro de la lista (en el servidor),
+                  y van también en el teléfono: es la única forma de ver solo
+                  los que fallaron en Google Sheets. */}
               <PastillasDeMetricas
+                enElTelefono
                 metricas={[
-                  { clave: 'total', icono: <ClipboardList />, etiqueta: 'Total registros', valor: total, color: '#3B82F6' },
-                  { clave: 'synced', icono: <CheckCircle2 />, etiqueta: 'Sincronizados', valor: synced, color: '#22C55E' },
-                  { clave: 'pending', icono: <Clock />, etiqueta: 'Pendientes', valor: pending, color: '#EAB308' },
-                  { clave: 'errors', icono: <AlertCircle />, etiqueta: 'Con error', valor: errors, color: '#EF4444' },
+                  { clave: 'total', icono: <ClipboardList />, etiqueta: 'Todos los registros', valor: total, color: '#3B82F6', alPulsar: () => refresh('todos'), activa: estado === 'todos' },
+                  { clave: 'synced', icono: <CheckCircle2 />, etiqueta: 'Sincronizados', valor: synced, color: '#22C55E', alPulsar: () => refresh('SYNCED'), activa: estado === 'SYNCED' },
+                  { clave: 'pending', icono: <Clock />, etiqueta: 'Pendientes', valor: pending, color: '#EAB308', alPulsar: () => refresh('PENDING'), activa: estado === 'PENDING' },
+                  { clave: 'errors', icono: <AlertCircle />, etiqueta: 'Con error', valor: errors, color: '#EF4444', alPulsar: () => refresh('ERROR'), activa: estado === 'ERROR' },
                 ]}
               />
             </div>
@@ -162,11 +194,15 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
               <div className="p-3 rounded-full bg-muted">
                 <Filter className="w-6 h-6 text-muted-foreground" />
               </div>
-              <p className="font-medium">Sin registros aún</p>
-              <p className="text-sm text-muted-foreground">Los registros aparecerán aquí cuando alguien llene tu formulario.</p>
+              <p className="font-medium">{estado === 'todos' ? 'Sin registros aún' : 'Ningún registro con este estado'}</p>
+              <p className="text-sm text-muted-foreground">
+                {estado === 'todos'
+                  ? 'Los registros aparecerán aquí cuando alguien llene tu formulario.'
+                  : 'Pulsa la primera cifra de la barra para ver todos.'}
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div data-lista-de-registros className="flex flex-col gap-2">
               {submissions.map((sub, i) => {
                 const sync = SYNC_BADGE[sub.syncStatus] ?? SYNC_BADGE.PENDING;
                 const syncColor = {
@@ -178,6 +214,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
                 return (
                   <div
                     key={sub.id}
+                    data-registro={sub.numero ?? total - i}
                     className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
                   >
                     {/* Ícono de estado */}
@@ -189,12 +226,18 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
 
                     {/* Info principal */}
                     <div className="flex-1 min-w-0">
+                      {/* El número va primero: todas las filas son del mismo
+                          formulario, y repetir su título en cada una no decía nada. */}
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{sub.formTitle}</span>
+                        <span className="text-sm font-semibold">Registro #{sub.numero ?? total - i}</span>
                         <Badge variant={sync.variant} className="text-xs py-0 h-4">{sync.label}</Badge>
-                        <span className="text-xs font-mono text-muted-foreground">#{submissions.length - i}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">{dataPreview(sub.data)}</p>
+                      {sub.syncStatus === 'ERROR' && sub.syncError && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 truncate" title={sub.syncError}>
+                          Google Sheets: {sub.syncError}
+                        </p>
+                      )}
                     </div>
 
                     {/* Fecha */}
@@ -204,15 +247,15 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
 
                     {/* Acciones */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewSub(sub)} title="Ver detalle">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewSub(sub)} title="Ver detalle" aria-label="Ver detalle">
                         <Eye className="w-4 h-4" />
                       </Button>
                       {sub.syncStatus !== 'SYNCED' && form.sheetsUrl && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRetry(sub.id)} title="Reintentar sync">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRetry(sub.id)} title="Reintentar en Google Sheets" aria-label="Reintentar en Google Sheets">
                           <RefreshCw className="w-4 h-4" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(sub.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(sub.id)} title="Eliminar registro" aria-label="Eliminar registro">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -240,7 +283,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
                 return (
                   <div key={field.id} className="flex flex-col gap-1 p-3 rounded-lg bg-muted/40 border border-border">
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{field.label}</span>
-                    <span className="text-sm">{val !== undefined && val !== '' ? String(val) : <em className="text-muted-foreground">Sin respuesta</em>}</span>
+                    <span className="text-sm"><Respuesta valor={val} /></span>
                   </div>
                 );
               })}
@@ -248,8 +291,10 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
                 .filter(([key]) => !form.fields.some((f) => f.id === key))
                 .map(([key, val]) => (
                   <div key={key} className="flex flex-col gap-1 p-3 rounded-lg bg-muted/40 border border-border">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{key}</span>
-                    <span className="text-sm">{String(val)}</span>
+                    {/* La respuesta de un campo que ya se borró: se conserva,
+                        pero su clave es un id y no dice nada. */}
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Campo eliminado</span>
+                    <span className="text-sm"><Respuesta valor={val} /></span>
                   </div>
                 ))}
             </div>

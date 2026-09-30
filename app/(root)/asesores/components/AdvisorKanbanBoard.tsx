@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
+import { pasaLaBusquedaDelContacto } from '@/lib/busqueda-de-contactos';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { assignSessionToAdvisor } from '@/actions/advisor-assign-actions';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -180,7 +181,7 @@ function DraggableCard({
         : undefined;
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} data-tarjeta-del-contacto={card.id} className="cursor-grab active:cursor-grabbing">
             <AdvisorKanbanCardItem card={card} isDragging={isDragging} />
         </div>
     );
@@ -204,6 +205,7 @@ function AdvisorKanbanColumn({
 
     return (
         <div
+            data-columna-del-asesor={col.id ?? 'sin-asignar'}
             className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: headerColor + '52', backgroundColor: headerColor + '0A' }}
         >
@@ -222,9 +224,11 @@ function AdvisorKanbanColumn({
                         {cards.length}
                     </Badge>
                     <button
+                        type="button"
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
-                        title="Automaciones"
+                        title="Automatizaciones"
+                        aria-label={`Automatizaciones de ${col.label}`}
                     >
                         <Settings2 className="h-3.5 w-3.5 text-white/80" />
                     </button>
@@ -236,7 +240,7 @@ function AdvisorKanbanColumn({
                     <SheetHeader className="mb-4">
                         <SheetTitle className="flex items-center gap-2">
                             <UserCheck className="h-4 w-4" style={{ color: headerColor }} />
-                            Automaciones — {col.label}
+                            Automatizaciones — {col.label}
                         </SheetTitle>
                     </SheetHeader>
                     <AdvisorAutomationsPanel userId={userId} advisorId={col.id} advisorLabel={col.label} />
@@ -310,13 +314,10 @@ export function AdvisorKanbanBoard({
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
+    // Sin tildes y, si se teclea un número, por dígitos: ver `lib/busqueda-de-contactos`.
     const filteredCards = useMemo(() => {
         if (!searchQuery.trim()) return cards;
-        const q = searchQuery.toLowerCase().trim();
-        return cards.filter((c) =>
-            (c.pushName ?? '').toLowerCase().includes(q) ||
-            c.remoteJid.toLowerCase().includes(q)
-        );
+        return cards.filter((c) => pasaLaBusquedaDelContacto(c, searchQuery));
     }, [cards, searchQuery]);
 
     const columnCards = (advisorId: string | null) => {
@@ -387,6 +388,7 @@ export function AdvisorKanbanBoard({
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
+                        aria-label="Buscar contacto"
                         placeholder="Buscar contacto…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}

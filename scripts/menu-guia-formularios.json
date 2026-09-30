@@ -1,0 +1,45 @@
+{
+  "recogido": true,
+  "modulos": [
+    {
+      "nombre": "Panel",
+      "conIcono": true
+    },
+    {
+      "nombre": "Bandeja",
+      "conIcono": true
+    },
+    {
+      "nombre": "Contactos",
+      "conIcono": true
+    },
+    {
+      "nombre": "Integraciones",
+      "conIcono": true
+    },
+    {
+      "nombre": "Herramientas",
+      "conIcono": true
+    },
+    {
+      "nombre": "Apps Externas",
+      "conIcono": true
+    },
+    {
+      "nombre": "Entrenamiento",
+      "conIcono": true
+    },
+    {
+      "nombre": "Creación de Flujos",
+      "conIcono": true
+    },
+    {
+      "nombre": "Automatizaciones",
+      "conIcono": true
+    },
+    {
+      "nombre": "Conexión→ Ajustes",
+      "conIcono": true
+    }
+  ]
+}

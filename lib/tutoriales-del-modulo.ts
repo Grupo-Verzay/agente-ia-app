@@ -21,6 +21,13 @@ import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
+import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
+import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
+import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
+import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
+import { GUIA_MACROS } from "@/lib/guia-macros";
+import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
@@ -126,6 +133,48 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/notas",
         contenido: GUIA_NOTAS,
         tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
+    },
+    {
+        modulo: "google-sheets",
+        ruta: "/google-sheets",
+        contenido: GUIA_GOOGLE_SHEETS,
+        tarjeta: "Aprende a vincular y consultar tu hoja de Google Sheets en la plataforma",
+    },
+    {
+        modulo: "integraciones",
+        ruta: "/integraciones",
+        contenido: GUIA_INTEGRACIONES,
+        tarjeta: "Aprende a abrir tus apps web dentro de tus chats en la plataforma",
+    },
+    {
+        modulo: "agente-ia",
+        ruta: "/ia",
+        contenido: GUIA_AGENTE_IA,
+        tarjeta: "Aprende a entrenar tu agente de IA paso a paso en la plataforma",
+    },
+    {
+        modulo: "usuarios",
+        ruta: "/equipo",
+        contenido: GUIA_USUARIOS,
+        tarjeta: "Aprende a crear tu equipo y repartir los chats en la plataforma",
+    },
+    {
+        modulo: "respuestas-rapidas",
+        ruta: "/auto-replies",
+        contenido: GUIA_RESPUESTAS_RAPIDAS,
+        tarjeta: "Aprende a crear y usar tus respuestas rápidas en la plataforma",
+    },
+    {
+        modulo: "macros",
+        ruta: "/macros",
+        contenido: GUIA_MACROS,
+        tarjeta: "Aprende a automatizar tus chats con acciones de un clic en la plataforma",
+    },
+    {
+        modulo: "formularios",
+        ruta: "/mis-formularios",
+        contenido: GUIA_FORMULARIOS,
+        tarjeta: "Aprende a crear formularios y recibir sus respuestas en la plataforma",
     },
     {
         modulo: "copiloto",

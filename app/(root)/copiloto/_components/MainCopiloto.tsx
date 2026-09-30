@@ -26,7 +26,7 @@ import {
     hayPantallaCompleta,
     laUrlDelCopiloto,
 } from "@/lib/copiloto";
-import { comoUrlDeIntegracion } from "@/lib/url-embebible";
+import { laLlaveDelNombre, laUrlQueSeAbre } from "@/lib/integraciones";
 
 // Copiloto de IA embebido (LibreChat). Por defecto apunta al copiloto de la
 // plataforma; un módulo puede cambiarlo con `?u=` (el copiloto propio de un
@@ -46,12 +46,12 @@ const Loading = () => (
 const CopilotoInner = () => {
     const searchParams = useSearchParams();
     // `?u=` llega de un enlace que cualquiera puede mandar: solo se embebe si es
-    // una dirección http(s). Con `javascript:` ahí, el marco ejecutaba ese
-    // código en la plataforma.
+    // una dirección web, con la MISMA regla que las apps de Integrar URLs. Con
+    // `javascript:` ahí, el marco ejecutaba ese código en la plataforma.
     const pedida = searchParams.get(PARAMETRO_DEL_COPILOTO);
     const url = laUrlDelCopiloto(pedida);
     useEffect(() => {
-        if (pedida?.trim() && !comoUrlDeIntegracion(pedida)) {
+        if (pedida?.trim() && !laUrlQueSeAbre(pedida)) {
             console.warn("[copiloto] la dirección pedida no se puede abrir; se abre el copiloto de la plataforma", { pedida: pedida.slice(0, 80) });
         }
     }, [pedida, url]);
@@ -92,8 +92,13 @@ const CopilotoInner = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // El nombre se compara como lo compara Integrar URLs al guardar (sin
+    // mayúsculas ni tildes): con «copiloto» ya puesto a mano, fijar chocaría
+    // con «ya tienes una app llamada Copiloto» en vez de ofrecer quitarla.
     const pinned = useMemo(
-        () => userIntegrations.find((i) => i.name === NOMBRE_DE_LA_PESTANA || i.url === url),
+        () => userIntegrations.find(
+            (i) => laLlaveDelNombre(i.name) === laLlaveDelNombre(NOMBRE_DE_LA_PESTANA) || i.url === url,
+        ),
         [userIntegrations, url],
     );
 

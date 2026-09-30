@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { guardarAjustesDeCotizacionAction } from "@/actions/cotizacion-ia-actions";
 import { TOPE_DE_INSTRUCCIONES, type AjustesDeCotizacion } from "@/lib/cotizacion-ia";
+import { TYPE_AI_LABELS } from "./ai-section-labels";
 
 type Props = {
     /** La cuenta del entrenamiento (`effectiveId`). La acción la vuelve a comprobar. */
@@ -73,7 +74,7 @@ export function CotizacionesBuilder({ cuentaId, inicial, registerSaveHandler }: 
     return (
         <Card className="border-muted/60" data-pestana="cotizaciones">
             <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
-                <CardTitle className="text-base uppercase">Cotizaciones</CardTitle>
+                <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.quotes}</CardTitle>
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
                         {estado === "guardando" ? "Guardando…" : estado === "guardado" ? "Guardado" : estado === "error" ? "No se guardó" : activa ? "Activada" : "Desactivada"}
