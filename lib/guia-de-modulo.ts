@@ -119,11 +119,12 @@ export const PARTES_DE_LA_BARRA_DE_ARRIBA = [
     { nombre: "Pasar a Chats o a Correos", componente: "AlternarBandeja" },
     { nombre: "Ver tutoriales", componente: "Ver tutoriales" },
     { nombre: "Buscar en toda la plataforma", componente: "GlobalSearch" },
+    { nombre: "Centro de ayuda", componente: "BotonDeAyuda" },
     { nombre: "Soporte", componente: "BotonDeSoporte" },
     { nombre: "Tus notificaciones", componente: "NotificationCenter" },
 ] as const;
 
-/** El texto del paso «La barra de arriba», igual en todas las guías: las seis partes numeradas. */
+/** El texto del paso «La barra de arriba», igual en todas las guías: sus partes numeradas. */
 export const TEXTO_DE_LA_BARRA_DE_ARRIBA = PARTES_DE_LA_BARRA_DE_ARRIBA.map((p, i) => `${i + 1} ${p.nombre}`).join(" · ") + ".";
 
 export type Contenido = { titulo: string; subtitulo: string; descripcion: string; secciones: Seccion[] };

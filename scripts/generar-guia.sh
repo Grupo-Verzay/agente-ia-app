@@ -107,4 +107,7 @@ if [ "${SOLO_SERVIR:-}" = "1" ]; then
   exit 0
 fi
 
-BASE="http://localhost:$APP" node "scripts/capturar-guia-$MODULO.mjs"
+# `CAPTURAR` cambia QUÉ se toma sobre esta misma App sembrada: lo usa
+# `regenerar-barra-de-las-guias.sh`, que rehace solo la barra de arriba de
+# todas las guías sin volver a generar ninguna entera.
+BASE="http://localhost:$APP" node "${CAPTURAR:-scripts/capturar-guia-$MODULO.mjs}"

@@ -1,0 +1,45 @@
+{
+  "partes": [
+    "Abrir o recoger el menú",
+    "Pasar a Chats o a Correos",
+    "Ver tutoriales",
+    "Buscar en toda la plataforma",
+    "Centro de ayuda",
+    "Soporte",
+    "Tus notificaciones"
+  ],
+  "guias": [
+    "agente-ia",
+    "ai-imagenes",
+    "catalogo",
+    "copiloto",
+    "diagramas",
+    "finanzas",
+    "formularios",
+    "google-sheets",
+    "integraciones",
+    "leads",
+    "macros",
+    "notas",
+    "respuestas-rapidas",
+    "reuniones",
+    "usuarios"
+  ],
+  "imagenes": {
+    "agente-ia": "fd701d1078140040",
+    "ai-imagenes": "09f86177fb994970",
+    "catalogo": "50f3db09ebb776b2",
+    "copiloto": "64d60dfbb183ec84",
+    "diagramas": "50f3db09ebb776b2",
+    "finanzas": "50f3db09ebb776b2",
+    "formularios": "99493da82d1ebb57",
+    "google-sheets": "5add3c28c0c6374b",
+    "integraciones": "09f86177fb994970",
+    "leads": "6730ecc553116a7b",
+    "macros": "9fbd7d4e695f480e",
+    "notas": "41e4940eaecbf3e4",
+    "respuestas-rapidas": "7d51a6cb82dc17a0",
+    "reuniones": "50f3db09ebb776b2",
+    "usuarios": "9c9cee2fa53e3678"
+  }
+}

@@ -19,8 +19,12 @@ import { FormularioDeTicket } from "./FormularioDeTicket";
  *
  * Y había otro botón, «Ayuda», dos centímetros más arriba en la barra, que
  * abría un WhatsApp de soporte. Dos botones para lo mismo, uno de ellos
- * estorbando. Ahora es **uno solo**, en la barra, donde ya estaban el buscador
- * y la campana: nada tapa nada y no hay dos caminos para pedir ayuda.
+ * estorbando. Ahora pedir ayuda a una persona es **uno solo**, en la barra,
+ * donde ya estaban el buscador y la campana: nada tapa nada.
+ *
+ * El «Ayuda» que hay hoy a su izquierda es OTRA cosa (`BotonDeAyuda`): no
+ * habla con nadie, lleva al centro de ayuda con las guías. Uno es «aprender a
+ * hacerlo», el otro «que alguien me lo resuelva», y por eso van juntos.
  *
  * ## Un botón, dos comportamientos, y los decide quién eres
  *
@@ -88,8 +92,8 @@ export function BotonDeSoporte() {
                 onClick={alPulsar}
                 title={estado.soyElDestino ? "Tickets de soporte" : "Pedir soporte"}
                 aria-label={estado.soyElDestino ? "Tickets de soporte" : "Pedir soporte"}
-                // El mismo aspecto que tenía «Ayuda»: la barra se ve igual, lo
-                // que cambia es lo que hace el botón.
+                // El mismo aspecto que «Ayuda», a su izquierda: los dos botones
+                // de pedir ayuda se leen como pareja.
                 className="h-9 gap-1.5 border border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
             >
                 <LifeBuoy className="h-5 w-5" />

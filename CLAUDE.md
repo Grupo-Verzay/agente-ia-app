@@ -23121,6 +23121,69 @@ abriendo en otra pestaña con `noopener`. Nada de «Ver en YouTube» en rojo.
 `6d4430c` para afirmar que la tarjeta decía el subtítulo y las semillas el
 texto genérico.
 
+### El centro de ayuda (`/ayuda`): las guías por grupo del menú, y sin administrar
+
+«Ayuda», en la barra de arriba justo antes de «Soporte», abre el centro de
+ayuda. **No sustituye a «Ver tutoriales»**, que sigue enseñando la guía de la
+pantalla que se tiene delante: «Ayuda» es para buscar entre TODAS. Y no es el
+«Ayuda» de antes (un WhatsApp de soporte, que se fundió en «Soporte»): este no
+habla con nadie. «Ayuda» es aprender a hacerlo; «Soporte», que alguien lo
+resuelva; por eso van juntos y con la misma forma.
+
+`/ayuda` es un buscador arriba —por palabra clave, entre las guías de
+cualquier categoría, y lleva directo a la guía o a la SECCIÓN que coincide—
+y debajo diez tarjetas en dos columnas, **una por grupo del menú lateral**:
+Panel, Bandeja, Contactos, Integraciones, Herramientas, Apps Externas,
+Entrenamiento, Creación de Flujos, Automatizaciones, y Conexión y Ajustes.
+Salen **las diez siempre**; la que no tiene guías dice «Próximamente», y al
+entrar, «Estamos trabajando en esta guía».
+
+> **Una guía cae en su categoría SOLA, por la ruta de su pantalla**: la de su
+> fila en `GUIAS_PUBLICADAS` contra las pantallas de cada grupo
+> (`CATEGORIAS_DE_AYUDA`, `lib/centro-de-ayuda.ts`, puro), por segmento y
+> ganando la más larga. Publicar una guía con su fila —la regla de arriba— la
+> pone también aquí; nadie la clasifica a mano. El banco compara las diez
+> categorías con el menú de un cliente (`menu-de-un-cliente.mjs`) y cada guía
+> con el grupo donde vive su pantalla: **si el menú mueve una pantalla de
+> grupo, el banco se pone rojo** y hay que moverla aquí.
+
+Cinco cosas que hay que mantener:
+
+1. **La lista de una categoría es la de Documentación › Guías SIN lo de
+   administrar**: ni «+ Nuevo», ni «Editar introducción», ni arrastrar, ni
+   «Guías publicadas». La fila es la MISMA pieza (`FilaDeGuia`, que usa
+   también `EditarIntroduccionDeLaGuia` con su botón de editar como hijo): el
+   banco mide las dos en la misma sesión. Una segunda fila «parecida» es la
+   que se queda atrás.
+2. **A la pantalla solo viaja lo que se pinta y se busca**
+   (`lasGuiasDelCentroDeAyuda`): título, descripción, enlace, las secciones y
+   unas claves topadas. El contenido entero de las guías se queda en el
+   servidor.
+3. **`/ayuda` no es una ruta de ningún módulo**, a propósito: el guardián del
+   layout solo cierra rutas que están en algún módulo, así que la abre
+   cualquiera con sesión. No se añade a `navigationRoutes`.
+4. **Un botón más a la derecha no le puede costar las palabras al selector
+   Chats ⇄ Correos**: a 1024 faltaban 6 px y se quedaba en iconos. El
+   buscador global mide `w-56` por debajo de `xl` (`w-64` desde ahí), y el
+   banco exige «Chats Correos» a 1024, 1280 y 1440.
+5. **La barra de las guías se numera con SIETE partes**
+   (`PARTES_DE_LA_BARRA_DE_ARRIBA`, con «Centro de ayuda» entre el buscador y
+   «Soporte», y `lasPartesDeArriba` del taller en el mismo orden). Cuando la
+   barra gana o pierde un botón, la foto de las quince guías se rehace SOLA,
+   sin regenerar ninguna guía entera:
+   `npm run build && scripts/regenerar-barra-de-las-guias.sh && npm run build`
+   (`SOLO=leads,catalogo` para unas). La foto se toma con `laFotoDeLaBarra`
+   —la misma receta que al generar una guía— y deja su huella en
+   `scripts/barra-de-las-guias.json`; el banco falla si una imagen no es la
+   apuntada o si se tomó con otras partes. Los vídeos de las guías no se
+   rehicieron: nombran la barra de pasada y no la numeran.
+
+Lo prueba `scripts/banco-centro-de-ayuda.sh`: las reglas y un barrido sin
+navegador, y en Chromium sobre el CSS del build la barra, la portada, el
+buscador, una categoría con guías, otra sin ellas y la fila contra la de
+Documentación, a 1440/1280/1024/390. `MODO=roto` lee y monta la barra de
+`fd8b831` y afirma que no había «Ayuda» ni centro de ayuda.
+
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
 `CabeceraDeLaGuia` es UNA fila de 56 px en rejilla simétrica

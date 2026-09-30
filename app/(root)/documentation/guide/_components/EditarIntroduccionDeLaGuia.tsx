@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ExternalLink, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { FilaDeGuia } from "@/components/documentacion/FilaDeGuia";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,28 +83,18 @@ export function EditarIntroduccionDeLaGuia({
 
     return (
         <>
-            <div
+            <FilaDeGuia
                 data-guia-publica={modulo}
-                className={`flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3${conAsa ? " pl-11" : ""}`}
+                titulo={`Guía pública de ${nombre}`}
+                descripcion="El texto de introducción que se lee debajo del vídeo."
+                url={`/guia/${modulo}`}
+                conAsa={conAsa}
             >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-                    <BookOpen className="h-4 w-4" aria-hidden />
-                </span>
-                <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Guía pública de {nombre}</p>
-                    <p className="text-xs text-muted-foreground">El texto de introducción que se lee debajo del vídeo.</p>
-                </div>
-                <Button variant="outline" size="sm" asChild>
-                    <a href={`/guia/${modulo}`} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4" aria-hidden />
-                        Ver
-                    </a>
-                </Button>
                 <Button size="sm" onClick={abrir} data-editar-introduccion>
                     <Pencil className="h-4 w-4" aria-hidden />
                     Editar introducción
                 </Button>
-            </div>
+            </FilaDeGuia>
 
             <Dialog open={abierto} onOpenChange={(o) => !guardando && setAbierto(o)}>
                 <DialogContent className="border-border sm:max-w-lg">
