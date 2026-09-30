@@ -76,7 +76,7 @@ const marco = await sembrarElMarco(
     {
         path: "/reuniones",
         title: "Guía de Reuniones",
-        description: "Recorrido completo del módulo de Reuniones con video explicativo y guías",
+        description: "Aprende a hacer videollamadas con tu equipo y clientes en la plataforma",
         url: "/guia/reuniones",
     },
     { modulosQueSeVenden: [{ label: "Grabaciones", route: "/reuniones/grabaciones", icon: "CalendarDaysIcon" }] },

@@ -43,8 +43,51 @@ export const BOTON_VER_TUTORIAL =
 
 export const TEXTO_DEL_BOTON = "Ver tutorial";
 
-/** Una guía publicada y la pantalla (ruta del menú) donde sale su tarjeta. */
-type GuiaPublicada = { modulo: string; ruta: string; contenido: Contenido };
+/**
+ * La descripción de una tarjeta: **«Aprende a [acción concreta] en la
+ * plataforma»**, con un beneficio para el cliente, y como mucho
+ * `TOPE_DE_LA_DESCRIPCION` caracteres para que quepa en UNA línea de la
+ * tarjeta. Nada de textos genéricos repetidos («Recorrido completo del módulo
+ * de X con video explicativo y guías»): dicen lo mismo en todas las tarjetas.
+ *
+ * La regla es una y la usan las cuatro puertas: las guías publicadas (abajo),
+ * crear y editar un tutorial a mano (`guide-actions`), y el formulario de
+ * Documentación › Administrador tutoriales, que la enseña mientras se escribe.
+ */
+export const TOPE_DE_LA_DESCRIPCION = 75;
+export const COMIENZO_DE_LA_DESCRIPCION = "Aprende a ";
+export const FINAL_DE_LA_DESCRIPCION = " en la plataforma";
+
+/**
+ * Por qué una descripción NO vale, o `null` si vale. Vacía vale: la
+ * descripción es opcional y una tarjeta sin ella se pinta igual.
+ */
+export function porQueNoValeLaDescripcion(texto: string | null | undefined): string | null {
+    const t = (texto ?? "").trim();
+    if (!t) return null;
+    const largo = [...t].length;
+    if (largo > TOPE_DE_LA_DESCRIPCION) {
+        return `La descripción tiene ${largo} caracteres y el máximo son ${TOPE_DE_LA_DESCRIPCION}: así cabe en una sola línea de la tarjeta.`;
+    }
+    const cuerpo = t.slice(COMIENZO_DE_LA_DESCRIPCION.length, t.length - FINAL_DE_LA_DESCRIPCION.length).trim();
+    if (!t.startsWith(COMIENZO_DE_LA_DESCRIPCION) || !t.endsWith(FINAL_DE_LA_DESCRIPCION) || !cuerpo) {
+        return `La descripción tiene que decir «${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}».`;
+    }
+    return null;
+}
+
+/** Cuántos caracteres cuenta la regla (los emojis y las tildes cuentan uno). */
+export function largoDeLaDescripcion(texto: string | null | undefined): number {
+    return [...(texto ?? "").trim()].length;
+}
+
+/**
+ * Una guía publicada, la pantalla (ruta del menú) donde sale su tarjeta y la
+ * descripción de su tarjeta (con la regla de arriba). La descripción es de la
+ * TARJETA, no el subtítulo de la guía: el subtítulo describe la página, la
+ * tarjeta dice qué se aprende en ella.
+ */
+type GuiaPublicada = { modulo: string; ruta: string; contenido: Contenido; tarjeta: string };
 
 /**
  * Las guías de `/guia/<modulo>`. **Una fila por carpeta de `app/guia/`.**
@@ -52,10 +95,30 @@ type GuiaPublicada = { modulo: string; ruta: string; contenido: Contenido };
  * ahí y en sus subpantallas.
  */
 export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
-    { modulo: "leads", ruta: "/sessions", contenido: GUIA_LEADS },
-    { modulo: "catalogo", ruta: "/mis-catalogo", contenido: GUIA_CATALOGO },
-    { modulo: "diagramas", ruta: "/diagramas", contenido: GUIA_DIAGRAMAS },
-    { modulo: "reuniones", ruta: "/reuniones", contenido: GUIA_REUNIONES },
+    {
+        modulo: "leads",
+        ruta: "/sessions",
+        contenido: GUIA_LEADS,
+        tarjeta: "Aprende a organizar y filtrar tus contactos de WhatsApp en la plataforma",
+    },
+    {
+        modulo: "catalogo",
+        ruta: "/mis-catalogo",
+        contenido: GUIA_CATALOGO,
+        tarjeta: "Aprende a crear y compartir tu catálogo de productos en la plataforma",
+    },
+    {
+        modulo: "diagramas",
+        ruta: "/diagramas",
+        contenido: GUIA_DIAGRAMAS,
+        tarjeta: "Aprende a crear y gestionar tus diagramas de flujo en la plataforma",
+    },
+    {
+        modulo: "reuniones",
+        ruta: "/reuniones",
+        contenido: GUIA_REUNIONES,
+        tarjeta: "Aprende a hacer videollamadas con tu equipo y clientes en la plataforma",
+    },
 ];
 
 /** Las tarjetas de las guías publicadas: título, descripción y enlace. */
@@ -63,7 +126,7 @@ export const TUTORIALES_DE_LAS_GUIAS: readonly TutorialDelModulo[] = GUIAS_PUBLI
     id: `guia-${g.modulo}`,
     path: g.ruta,
     title: `Guía de ${g.contenido.titulo}`,
-    description: g.contenido.subtitulo,
+    description: g.tarjeta,
     url: `/guia/${g.modulo}`,
 }));
 
