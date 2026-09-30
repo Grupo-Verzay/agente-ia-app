@@ -36,6 +36,8 @@ import {
 import type { User } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { canManageLinkedAccounts, getAdvisorRoleLabel } from "@/lib/permissions";
+import { ofreceVincularCuentas } from "@/lib/vincular-cuentas";
+import { rolQueAbrePuertas } from "@/lib/sidebar-modules";
 
 const PALETTE = [
   "bg-blue-500", "bg-violet-500", "bg-emerald-500",
@@ -181,6 +183,11 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   const currentAccount = payload?.currentAccount ?? null;
   const currentRole = payload?.currentRole ?? null;
   const canManageAccounts = canManageLinkedAccounts(user);
+  // «Agregar cuenta» escribe un vínculo, y un vínculo es LLEGAR a la otra
+  // cuenta: solo se ofrece a quien ya administra cuentas, con la misma regla
+  // que Usuarios › Vincular existente (`lib/vincular-cuentas.ts`). Desvincular
+  // sigue siendo de cualquiera que mande en su cuenta.
+  const puedeVincular = canManageAccounts && ofreceVincularCuentas(rolQueAbrePuertas(user));
   const accessibleCount = linked.length + 1;
   const activePlan = currentAccount?.plan ?? user.plan;
   const effectiveRoleLabel = getSwitcherRoleLabel(user, currentRole);
@@ -273,7 +280,7 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
         </DropdownMenuItem>
       ))}
 
-      {canManageAccounts && (
+      {puedeVincular && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem

@@ -2,17 +2,18 @@
 "use client";
 
 import { FC } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PropsNotifyAsesor } from "@/types/agentAi";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 export const NotificarAsesorCard: FC<PropsNotifyAsesor> = ({ el, onRemove, isManagement }) => {
     return (
         <Card className="bg-muted/20 border-muted/60">
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
-                <CardTitle className="text-md uppercase">Notificar asesor</CardTitle>
+                <TituloDelElemento icono={Bell}>Notificar asesor</TituloDelElemento>
                 {!isManagement && (
                     <ElementMenu onRemove={onRemove} />
                 )}

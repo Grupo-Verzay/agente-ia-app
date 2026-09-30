@@ -2,10 +2,10 @@
 
 import { currentUser } from "@/lib/auth";
 import { MainGuide } from "./_components";
-import AccessDenied from "@/app/AccessDenied";
 import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
 import { EditarIntroduccionDeLaGuia } from "./_components/EditarIntroduccionDeLaGuia";
 import { MODULOS_CON_GUIA, NOMBRE_DE_LA_GUIA } from "@/lib/introduccion-de-la-guia";
+import { leerMiOrdenAction } from "@/actions/orden-propio-actions";
 
 interface Props {
     searchParams: { [key: string]: string | undefined }
@@ -13,10 +13,6 @@ interface Props {
 
 const GuidePage = async ({ searchParams }: Props) => {
     const user = await currentUser();
-
-    // if (!user || user?.role !== "admin") {
-    //     return <AccessDenied />;
-    // };
 
     // Sin sesion no hay nada que enseñar aqui.
     if (!user) return null;
@@ -26,17 +22,17 @@ const GuidePage = async ({ searchParams }: Props) => {
     const manda = await mandaEnLaCasaDeVerdad(user);
     if (!manda) return <MainGuide user={user} />;
 
-    return (
-        <div className="flex flex-col gap-2">
-            <div className="space-y-2 px-4 pt-4">
-                {MODULOS_CON_GUIA.map((modulo) => (
-                    <EditarIntroduccionDeLaGuia key={modulo} modulo={modulo} nombre={NOMBRE_DE_LA_GUIA[modulo]} />
-                ))}
-            </div>
-            <MainGuide user={user} />
-        </div>
-    );
+    // Una fila por guía que deja la IA. Se arrastran para ponerlas en el orden
+    // de cada persona, así que cada una va con su id y su nombre (para el
+    // buscador) y la fila ya pintada.
+    const guiasPublicas = MODULOS_CON_GUIA.map((modulo) => ({
+        id: modulo,
+        nombre: NOMBRE_DE_LA_GUIA[modulo],
+        nodo: <EditarIntroduccionDeLaGuia key={modulo} modulo={modulo} conAsa nombre={NOMBRE_DE_LA_GUIA[modulo]} />,
+    }));
+    const orden = await leerMiOrdenAction("guias-publicadas");
+
+    return <MainGuide user={user} guiasPublicas={guiasPublicas} ordenInicial={orden.success ? orden.data : {}} />;
 };
 
 export default GuidePage;
-

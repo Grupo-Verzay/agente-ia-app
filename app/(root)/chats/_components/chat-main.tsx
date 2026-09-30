@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
+import { seSugiereConLaBarra } from '@/lib/respuestas-rapidas';
 import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { EtapaDeLaFila } from '@/lib/embudos';
@@ -61,6 +62,7 @@ import { useAltoDeLaCaja } from '@/components/shared/BarraDeEscribir';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
+import { laUrlQueSeAbre } from '@/lib/integraciones';
 import dynamic from 'next/dynamic';
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-visible';
 import { elAvisoDeLaCajaDeEscribir } from '@/lib/traduccion-de-chats';
@@ -868,23 +870,29 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, []);
 
   const handleRunMacro = useCallback(async (macroId: string) => {
-    if (!session?.id) return;
+    // Sin ficha de CRM no hay conversación sobre la que correrla: se dice, en
+    // vez de volver sin hacer nada.
+    if (!session?.id) {
+      toast.error('Esta conversación todavía no tiene ficha: escríbele o espera su primer mensaje.');
+      return;
+    }
     const toastId = toast.loading('Aplicando macro…');
+    // La LÍNEA de la conversación va siempre, sea del proveedor que sea: el
+    // servidor la busca y habla con ella por el suyo. Antes solo se mandaba
+    // cuando había clave de Evolution, así que en una línea de WhatsApp
+    // Mensajería lo que la macro enviaba no salía.
     const res = await executeMacroAction({
       macroId,
       sessionId: session.id,
       remoteJid: info?.remoteJid,
-      context:
-        info?.apiKeyData && info?.instanceName
-          ? { apiKeyData: info.apiKeyData, instanceName: info.instanceName }
-          : null,
+      instanceName: info?.instanceName ?? null,
     });
-    if (res.success) {
-      toast.success(res.message, { id: toastId });
+    if (res.tono === 'ok') toast.success(res.message, { id: toastId });
+    else if (res.tono === 'parcial') toast.warning(res.message, { id: toastId, duration: 10000 });
+    else toast.error(res.message, { id: toastId, duration: 10000 });
+    if (res.applied > 0) {
       mutateSessionStatus();
       void onRefresh?.();
-    } else {
-      toast.error(res.message, { id: toastId });
     }
   }, [session?.id, info, mutateSessionStatus, onRefresh]);
 
@@ -945,7 +953,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   const slashSuggestions = useMemo(() => {
     if (!slashOpen) return [];
-    return quickReplies.filter((qr) => qr.name && qr.name.toLowerCase().startsWith(slashQuery));
+    // Solo las de texto con atajo: elegir una PONE su mensaje en la caja, y una
+    // de flujo no tiene mensaje que poner (`seSugiereConLaBarra`).
+    return quickReplies.filter((qr) => seSugiereConLaBarra(qr, slashQuery));
   }, [slashOpen, slashQuery, quickReplies]);
 
   useEffect(() => {
@@ -1288,6 +1298,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         escalatedAt={escalatedAt}
         etapaDelEmbudo={etapaDelEmbudo}
         onEtapaCambiada={onEtapaCambiada}
+        refrescarLaEtapa={sessionRefreshSignal}
         onResolucionCambiada={onResolucionCambiada}
         onUnescalated={onUnescalated}
         onAssignAdvisor={onAssignAdvisor}
@@ -1318,11 +1329,23 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       {/* ── Vista iframe de integración ── */}
       {chatView !== 'messages' && chatView !== 'notes' && (() => {
         const intg = userIntegrations.find(i => i.id === chatView);
-        return intg ? (
+        if (!intg) return null;
+        // La dirección que se ABRE pasa por la misma regla que al guardar
+        // (`lib/integraciones.ts`): una app vieja sin «https://» se abre bien
+        // —antes cargaba la propia App dentro de la pestaña— y una que no es
+        // una web no se abre, y se dice dónde arreglarla.
+        const url = laUrlQueSeAbre(intg.url);
+        return (
           <div className="flex-1 min-h-0 overflow-hidden">
-            <IframeRenderer url={intg.url} />
+            {url ? (
+              <IframeRenderer url={url} title={intg.name} />
+            ) : (
+              <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                La dirección de «{intg.name}» no se puede abrir. Corrígela en Apps Externas › Integrar urls.
+              </div>
+            )}
           </div>
-        ) : null;
+        );
       })()}
 
       {/* ── Vista de mensajes ── */}
@@ -1533,6 +1556,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onClose={cerrarFicha}
         onSessionMutate={mutateSessionStatus}
         onSessionRefresh={refreshSessionStatus}
+        refrescar={sessionRefreshSignal}
       />
     </div>
   );

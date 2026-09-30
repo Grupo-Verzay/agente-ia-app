@@ -22,6 +22,15 @@
  *
  * El estado queda en `data-cursor-de-la-guia` del `<html>` para que el banco
  * lo pueda leer.
+ *
+ * # Y a PANTALLA COMPLETA, dentro del elemento que la ocupa
+ *
+ * El elemento a pantalla completa se pinta en la capa de arriba del todo, por
+ * encima de cualquier `z-index` del resto del documento: el cursor y el
+ * rótulo, colgados del `<body>`, se quedaban debajo y desaparecían del vídeo
+ * mientras durara (el botón de pantalla completa del Copiloto). Se mudan
+ * dentro de ese elemento al entrar y vuelven al `<body>` al salir
+ * (`fullscreenchange`).
  */
 
 /** La flecha de Windows: blanca con borde negro, la punta en (0,0). */
@@ -45,26 +54,9 @@ const ESCRIBIBLE =
 export const CURSOR = `
 (() => {
   if (window.__cursor) return;
-  const DIBUJOS = { flecha: ${JSON.stringify(SVG_FLECHA)}, mano: ${JSON.stringify(SVG_MANO)}, texto: ${JSON.stringify(SVG_TEXTO)} };
-  const PUNTA = ${JSON.stringify(PUNTA)};
   const CLICABLE = ${JSON.stringify(CLICABLE)};
   const ESCRIBIBLE = ${JSON.stringify(ESCRIBIBLE)};
-  const c = document.createElement('div');
-  c.id = '__cursor';
-  Object.assign(c.style, {position:'fixed',left:'0',top:'0',zIndex:2147483647,pointerEvents:'none',lineHeight:'0',
-    filter:'drop-shadow(0 1px 1.5px rgba(0,0,0,.35))'});
-  const cap = document.createElement('div');
-  cap.id = '__rotulo';
-  Object.assign(cap.style, {position:'fixed',left:'50%',bottom:'28px',transform:'translateX(-50%)',background:'rgba(15,23,42,.88)',
-    color:'#fff',font:'600 18px Poppins, Arial, sans-serif',padding:'12px 22px',borderRadius:'14px',zIndex:2147483646,
-    pointerEvents:'none',opacity:'0',transition:'opacity .3s',boxShadow:'0 10px 30px rgba(0,0,0,.25)'});
-  let x = -100, y = -100, forma = '';
-  const poner = () => { document.body.appendChild(cap); document.body.appendChild(c); };
-  const pintar = (f) => {
-    if (f !== forma) { forma = f; c.innerHTML = DIBUJOS[f]; document.documentElement.dataset.cursorDeLaGuia = f; }
-    c.style.transform = 'translate(' + (x - PUNTA[f][0]) + 'px,' + (y - PUNTA[f][1]) + 'px)';
-  };
-  const queForma = () => {
+  const formaEn = (x, y) => {
     const el = document.elementFromPoint(x, y);
     if (!el) return 'flecha';
     const desactivado = el.closest('[disabled],[aria-disabled="true"]');
@@ -75,15 +67,74 @@ export const CURSOR = `
     if (el.closest(CLICABLE) && !desactivado) return 'mano';
     return 'flecha';
   };
+  // Dentro de un IFRAME (la hoja incrustada de Google Sheets) el ratón se
+  // mueve en OTRO documento: la página de arriba deja de recibir sus
+  // mousemove, así que su cursor se quedaría clavado en el borde y este marco
+  // pintaría otro. En un marco no se dibuja nada: se le cuenta a la página de
+  // arriba dónde está la punta y qué forma toca, y la pinta ella.
+  if (window.top !== window) {
+    let fx = -1, fy = -1, dicha = '';
+    const contar = () => {
+      if (fx < 0) return;
+      dicha = formaEn(fx, fy);
+      parent.postMessage({ __cursorDeLaGuia: { x: fx, y: fy, forma: dicha } }, '*');
+    };
+    addEventListener('mousemove', (e) => { fx = e.clientX; fy = e.clientY; contar(); }, true);
+    // Al salir del marco se deja de contar: si no, la página de arriba
+    // volvería a poner la punta aquí dentro con cada vuelta del reloj.
+    document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) fx = -1; }, true);
+    // Quieto, solo se avisa si cambia la forma (un menú que se abre debajo).
+    setInterval(() => { if (fx >= 0 && formaEn(fx, fy) !== dicha) contar(); }, 120);
+    window.__cursor = true;
+    return;
+  }
+  const DIBUJOS = { flecha: ${JSON.stringify(SVG_FLECHA)}, mano: ${JSON.stringify(SVG_MANO)}, texto: ${JSON.stringify(SVG_TEXTO)} };
+  const PUNTA = ${JSON.stringify(PUNTA)};
+  const c = document.createElement('div');
+  c.id = '__cursor';
+  Object.assign(c.style, {position:'fixed',left:'0',top:'0',zIndex:2147483647,pointerEvents:'none',lineHeight:'0',
+    filter:'drop-shadow(0 1px 1.5px rgba(0,0,0,.35))'});
+  const cap = document.createElement('div');
+  cap.id = '__rotulo';
+  Object.assign(cap.style, {position:'fixed',left:'50%',bottom:'28px',transform:'translateX(-50%)',background:'rgba(15,23,42,.88)',
+    color:'#fff',font:'600 18px Poppins, Arial, sans-serif',padding:'12px 22px',borderRadius:'14px',zIndex:2147483646,
+    pointerEvents:'none',opacity:'0',transition:'opacity .3s',boxShadow:'0 10px 30px rgba(0,0,0,.25)'});
+  let x = -100, y = -100, forma = '';
+  /** La forma que dijo el iframe que está bajo la punta (null si la punta no está en uno). */
+  let enMarco = null;
+  // A pantalla completa solo se ve el elemento que la ocupa: el cursor y el
+  // rótulo viven donde se ve, y vuelven al <body> al salir.
+  const dondeSeVe = () => document.fullscreenElement || document.body;
+  const poner = () => { dondeSeVe().appendChild(cap); dondeSeVe().appendChild(c); };
+  const pintar = (f) => {
+    if (f !== forma) { forma = f; c.innerHTML = DIBUJOS[f]; document.documentElement.dataset.cursorDeLaGuia = f; }
+    c.style.transform = 'translate(' + (x - PUNTA[f][0]) + 'px,' + (y - PUNTA[f][1]) + 'px)';
+  };
+  const queForma = () => {
+    if (enMarco && document.elementFromPoint(x, y)?.tagName === 'IFRAME') return enMarco;
+    return formaEn(x, y);
+  };
   const mirar = () => {
     if (!document.body) return;
     // Un diálogo se pinta en un portal al final del <body>: el cursor se
     // vuelve a poner el último para que no quede debajo del velo.
-    if (document.body.lastElementChild !== c) poner();
+    if (dondeSeVe().lastElementChild !== c) poner();
     pintar(queForma());
   };
   if (document.body) poner(); else addEventListener('DOMContentLoaded', poner);
-  addEventListener('mousemove', (e) => { x = e.clientX; y = e.clientY; mirar(); }, true);
+  addEventListener('mousemove', (e) => { x = e.clientX; y = e.clientY; enMarco = null; mirar(); }, true);
+  addEventListener('message', (e) => {
+    const d = e.data && e.data.__cursorDeLaGuia;
+    if (!d) return;
+    const marco = [...document.querySelectorAll('iframe')].find((f) => f.contentWindow === e.source);
+    if (!marco) return;
+    const r = marco.getBoundingClientRect();
+    x = r.left + marco.clientLeft + d.x;
+    y = r.top + marco.clientTop + d.y;
+    enMarco = d.forma;
+    mirar();
+  });
+  addEventListener('fullscreenchange', poner);
   setInterval(mirar, 120);
   window.__rotulo = (t) => { cap.textContent = t; cap.style.opacity = t ? '1' : '0'; };
   window.__cursor = true;

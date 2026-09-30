@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   FileText, BarChart2, ExternalLink, Pencil, Trash2, Copy, Check,
   ToggleLeft, ToggleRight, MoreVertical, FormInput, CheckCircle2, XCircle,
-  ClipboardList, Search,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,15 +30,21 @@ import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { themeClass } from '@/types/generic';
 import { createForm, deleteForm, updateForm, getMyForms, type FormData } from '@/actions/forms-actions';
+import {
+  comoSeEscribeElSlug, elEnlaceDelFormulario, elSlugDelFormulario, losFormulariosQueSeVen, type FiltroDeEstado,
+} from '@/lib/formularios';
+import { AyudaDeLaHoja } from './AyudaDeLaHoja';
 
 interface Props {
   initialForms: FormData[];
-  userId: string;
+  /** Con qué correo escribe la plataforma en Google Sheets: hay que compartirle la hoja. */
+  correoDeLaHoja: string | null;
 }
 
-export function MisFormulariosClient({ initialForms, userId }: Props) {
+export function MisFormulariosClient({ initialForms, correoDeLaHoja }: Props) {
   const [forms, setForms] = useState<FormData[]>(initialForms);
   const [search, setSearch] = useState('');
+  const [filtro, setFiltro] = useState<FiltroDeEstado>('todos');
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -52,18 +58,11 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
   const totalForms = forms.length;
   const activeForms = forms.filter((f) => f.isActive).length;
   const inactiveForms = forms.filter((f) => !f.isActive).length;
-  const totalSubmissions = forms.reduce((acc, f) => acc + (f._count?.submissions ?? 0), 0);
 
-  const filteredForms = useMemo(() => {
-    if (!search.trim()) return forms;
-    const q = search.toLowerCase();
-    return forms.filter(
-      (f) =>
-        f.title.toLowerCase().includes(q) ||
-        f.slug.toLowerCase().includes(q) ||
-        (f.description ?? '').toLowerCase().includes(q),
-    );
-  }, [forms, search]);
+  // Las pastillas FILTRAN la lista —es la regla de las cifras de la barra—, y
+  // la búsqueda no mira tildes. «Total registros» se fue: no filtraba nada, y
+  // cada tarjeta ya dice los suyos.
+  const filteredForms = useMemo(() => losFormulariosQueSeVen(forms, search, filtro), [forms, search, filtro]);
 
   const refresh = useCallback(async () => {
     const res = await getMyForms();
@@ -72,7 +71,9 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
 
   const handleTitleChange = (v: string) => {
     setTitle(v);
-    setSlug(v.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+    // La tilde se quita y la letra se queda: «Encuesta de satisfacción» es
+    // «encuesta-de-satisfaccion», no «encuesta-de-satisfaccin».
+    setSlug(elSlugDelFormulario(v));
   };
 
   const handleCreate = async () => {
@@ -103,9 +104,18 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
     await refresh();
   };
 
+  // El enlace es el de la cuenta DUEÑA del formulario —y su URL personalizada
+  // si la tiene—, nunca el id de quien mira: con el de alguien del equipo el
+  // enlace llevaba a un formulario que no existe.
   const handleCopyLink = async (form: FormData) => {
-    const url = `${window.location.origin}/f/${userId}/${form.slug}`;
-    await navigator.clipboard.writeText(url);
+    const url = `${window.location.origin}${elEnlaceDelFormulario(form)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Sin HTTPS el portapapeles lanza: se dice qué hacer en vez de fallar callado.
+      toast.error('No se pudo copiar. Abre el formulario y copia la dirección del navegador.');
+      return;
+    }
     setCopiedId(form.id);
     toast.success('Enlace copiado');
     setTimeout(() => setCopiedId(null), 2000);
@@ -137,14 +147,15 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
             }
           >
             <>
-              {/* Las cifras que abrían la pantalla en tarjetas. Sin filtro
-                  equivalente en esta lista: no son pulsables. */}
+              {/* Las tres pastillas SON el filtro de estado de la lista, así que
+                  van también en el teléfono (`enElTelefono`): escondidas ahí no
+                  habría otra forma de ver solo los activos o los inactivos. */}
               <PastillasDeMetricas
+                enElTelefono
                 metricas={[
-                  { clave: 'total', icono: <FormInput />, etiqueta: 'Total formularios', valor: totalForms, color: '#3B82F6' },
-                  { clave: 'activos', icono: <CheckCircle2 />, etiqueta: 'Activos', valor: activeForms, color: '#22C55E' },
-                  { clave: 'inactivos', icono: <XCircle />, etiqueta: 'Inactivos', valor: inactiveForms, color: '#6B7280' },
-                  { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Total registros', valor: totalSubmissions, color: '#8B5CF6' },
+                  { clave: 'total', icono: <FormInput />, etiqueta: 'Todos los formularios', valor: totalForms, color: '#3B82F6', alPulsar: () => setFiltro('todos'), activa: filtro === 'todos' },
+                  { clave: 'activos', icono: <CheckCircle2 />, etiqueta: 'Activos', valor: activeForms, color: '#22C55E', alPulsar: () => setFiltro('activos'), activa: filtro === 'activos' },
+                  { clave: 'inactivos', icono: <XCircle />, etiqueta: 'Inactivos', valor: inactiveForms, color: '#6B7280', alPulsar: () => setFiltro('inactivos'), activa: filtro === 'inactivos' },
                 ]}
               />
             </>
@@ -175,15 +186,17 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
         {/* Sin resultados de búsqueda */}
         {forms.length > 0 && filteredForms.length === 0 && (
           <p className="text-sm text-muted-foreground text-center mt-8">
-            No se encontraron formularios para &quot;{search}&quot;.
+            {search.trim()
+              ? <>No se encontraron formularios para &quot;{search}&quot;.</>
+              : filtro === 'activos' ? 'No tienes formularios activos.' : 'No tienes formularios inactivos.'}
           </p>
         )}
 
         {/* Grid de formularios */}
         {filteredForms.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div data-lista-de-formularios className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredForms.map((form) => (
-              <Card key={form.id} className="flex flex-col overflow-hidden">
+              <Card key={form.id} data-formulario={form.slug} className="flex flex-col overflow-hidden">
                 <div className={`h-1 w-full ${form.isActive ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-muted'}`} />
                 <CardContent className="flex flex-col gap-3 p-4 flex-1">
 
@@ -191,8 +204,8 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-base truncate uppercase">{form.title}</h3>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                        /f/{userId.slice(0, 8)}.../{form.slug}
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" title={elEnlaceDelFormulario(form)}>
+                        {elEnlaceDelFormulario(form)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -201,7 +214,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                       </Badge>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Más acciones" aria-label="Más acciones">
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -212,7 +225,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                               : <><Copy className="w-4 h-4 mr-2" /> Copiar enlace</>}
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <a href={`/f/${userId}/${form.slug}`} target="_blank" rel="noopener noreferrer">
+                            <a href={elEnlaceDelFormulario(form)} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="w-4 h-4 mr-2" />
                               Ver formulario
                             </a>
@@ -297,12 +310,12 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
               <Input
                 id="form-slug"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                onChange={(e) => setSlug(comoSeEscribeElSlug(e.target.value))}
                 placeholder="ej. registro-clientes"
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                URL pública: /f/{userId.slice(0, 8)}.../{slug || 'mi-formulario'}
+                Es la última parte del enlace: …/{elSlugDelFormulario(slug) || 'mi-formulario'}
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -323,7 +336,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                 onChange={(e) => setSheetsUrl(e.target.value)}
                 placeholder="https://docs.google.com/spreadsheets/d/..."
               />
-              <p className="text-xs text-muted-foreground">Los registros se sincronizarán automáticamente.</p>
+              <AyudaDeLaHoja correo={correoDeLaHoja} />
             </div>
           </div>
           <DialogFooter>

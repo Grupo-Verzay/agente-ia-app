@@ -3,8 +3,13 @@
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { RejillaOrdenable, TarjetaOrdenable } from '@/components/shared/OrdenDeTarjetas';
+import { useOrdenPropio } from '@/components/shared/OrdenPropio';
+import type { OrdenGuardado } from '@/lib/orden-de-las-tarjetas';
 
 interface ModuleItem {
+    /** Id estable de la tarjeta: es lo que se guarda al reordenar. */
+    id: string;
     title: string;
     description: string;
     icon: ReactNode;
@@ -14,11 +19,19 @@ interface ModuleItem {
 };
 
 interface MainDocumentationInterface {
-    modules: ModuleItem[]
+    modules: ModuleItem[];
+    /** El orden en que esta persona dejó las tarjetas. */
+    ordenInicial?: OrdenGuardado;
 };
 
-export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
+export const MainDocumentation = ({ modules, ordenInicial }: MainDocumentationInterface) => {
     const accents = ['#3B82F6', '#22C55E', '#8B5CF6'];
+
+    // Cada persona coloca las cuatro tarjetas arrastrándolas por el asa, como
+    // en Módulos; el orden es suyo y no se lo mueve a nadie.
+    const orden = useOrdenPropio('doc-portada', ordenInicial ?? {});
+    const colocadas = orden.colocar(modules, (m) => m.id);
+    const ids = colocadas.map((m) => m.id);
 
     return (
         // Rejilla, no `flex-wrap` con ancho fijo. Con `w-72` las tarjetas no
@@ -32,12 +45,17 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
         // navegador o una ventana sin maximizar para bajar de 1280—, que es lo
         // que se vio. A 1024, descontando la barra lateral, cada tarjeta pasa
         // de 200 px y el contenido es corto: cabe.
-        <div className="grid grid-cols-1 items-stretch gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            {modules.map((card, index) => {
+        <RejillaOrdenable
+            ids={ids}
+            puedeOrdenar
+            onMover={(todos, arrastrada, sobre) => void orden.mover(todos, arrastrada, sobre)}
+            className="grid grid-cols-1 items-stretch gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
+            {colocadas.map((card, index) => {
                 const color = card.accent ?? accents[index % accents.length];
                 return (
+                    <TarjetaOrdenable key={card.id} id={card.id} puedeOrdenar className="h-full">
                     <div
-                        key={index}
                         data-tarjeta-de-documentacion={card.title}
                         className="flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border bg-background transition-all duration-300 hover:shadow-lg hover:scale-[1.015]"
                         style={{ borderTop: `3px solid ${color}` }}
@@ -77,8 +95,9 @@ export const MainDocumentation = ({ modules }: MainDocumentationInterface) => {
                             </Button>
                         </div>
                     </div>
+                    </TarjetaOrdenable>
                 );
             })}
-        </div>
+        </RejillaOrdenable>
     )
 }

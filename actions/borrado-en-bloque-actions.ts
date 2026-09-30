@@ -7,10 +7,12 @@ import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-
 import {
     borrarUnaAUna,
     comoListaDeIds,
+    comoListaDeIdsNumericos,
     comoResumen,
     type ResumenDelBorrado,
 } from "@/lib/borrado-en-bloque";
 import { deleteFlowAction } from "@/actions/flow-actions";
+import { deleteRR } from "@/actions/rr-actions";
 
 /**
  * El borrado en bloque de las pantallas cuyo dominio no tenía ninguno.
@@ -192,6 +194,30 @@ export async function eliminarDiagramasAction(ids: string[]): Promise<ResumenDel
     });
     revalidatePath("/diagramas");
     return comoResumen(borrados, fallaron, "diagramas");
+}
+
+/**
+ * Respuestas rápidas.
+ *
+ * Una a una por `deleteRR`, que es el borrado de la fila y lleva sus dos
+ * puertas —de qué cuenta es la respuesta, y si quien llama puede tocarla: un
+ * asesor no borra las de la cuenta ni las de un compañero— y olvida su marca de
+ * personal. Reescribir aquí esas comprobaciones sería un segundo borrado que el
+ * día que se afine el de al lado se queda atrás.
+ *
+ * Los ids son NÚMEROS (`rr.id` es un entero), así que se sanean como tales:
+ * un saneado de cadenas convertiría basura en el id 0.
+ */
+export async function eliminarRespuestasRapidasAction(ids: number[]): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIdsNumericos(ids);
+    if (lista.length === 0) return SIN_IDS;
+
+    const { borrados, fallaron } = await borrarUnaAUna(lista.map(String), async (id) => {
+        const res = await deleteRR(Number(id));
+        return !!res?.success;
+    });
+    revalidatePath("/auto-replies");
+    return comoResumen(borrados, fallaron, "respuestas rápidas");
 }
 
 /**

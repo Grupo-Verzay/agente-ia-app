@@ -28,8 +28,53 @@ export function sinSufijoDeDispositivo(value?: string | null) {
   return (value ?? "").replace(/:\d+@/, "@");
 }
 
+/**
+ * Quita el FORMATO que se teclea en un teléfono: `+507 6027-0754@s.whatsapp.net`
+ * -> `50760270754@s.whatsapp.net`.
+ *
+ * Un número escrito a mano en «Crear contacto» se guardaba tal cual, con el
+ * `+`, los espacios y los guiones dentro del JID. Ninguna capa lo limpiaba, y el
+ * servidor de WhatsApp Mensajería (Waha) se queda COLGADO con un `chatId` así:
+ * no contesta ni que sí ni que no, el envío agota su plazo y en pantalla sale
+ * «el servidor no contestó a tiempo» sin que el mensaje llegue. Visto en
+ * producción el 2026-09-30 con `+50760270754@c.us`, el primer mensaje a un
+ * lead recién guardado.
+ *
+ * Solo toca un JID de TELÉFONO (`@s.whatsapp.net` / `@c.us`) o un valor sin
+ * arroba, y solo si lo de delante son dígitos y signos de formato: un `@lid`,
+ * un grupo o cualquier cosa con letras se devuelve tal cual. Va dentro de
+ * `cleanValue`, igual que el sufijo de dispositivo, para que una sola regla
+ * decida qué es el número.
+ */
+export function sinFormatoDeTelefono(value?: string | null) {
+  const raw = (value ?? "").trim();
+  const m = /^([\d\s+\-().]+?)(@s\.whatsapp\.net|@c\.us)?$/i.exec(raw);
+  if (!m || !/[\s+\-().]/.test(m[1])) return raw;
+  const digits = m[1].replace(/\D/g, "");
+  if (!digits) return raw;
+  return `${digits}${m[2] ?? ""}`;
+}
+
+/** Menos de esto no es un teléfono con su indicativo de país. */
+export const DIGITOS_MINIMOS_DE_UN_TELEFONO = 8;
+
+/**
+ * El JID de un teléfono TECLEADO a mano (`+507 6027-0754` -> `50760270754@s.whatsapp.net`),
+ * o null si no tiene dígitos suficientes para ser uno.
+ *
+ * Lo usan las DOS pantallas que crean un lead a mano —«Crear contacto» y el
+ * formulario de lead de Leads—. El servidor limpia igual (`registrarLaSesion`
+ * pasa por `cleanValue`), pero aquí se ve antes de guardar y se puede decir
+ * qué falta.
+ */
+export function jidDelTelefonoTecleado(texto?: string | null): string | null {
+  const digits = (texto ?? "").replace(/@.*/, "").replace(/\D/g, "");
+  if (digits.length < DIGITOS_MINIMOS_DE_UN_TELEFONO) return null;
+  return `${digits}${WHATSAPP_USER_JID_SUFFIX}`;
+}
+
 function cleanValue(value?: string | null) {
-  return sinSufijoDeDispositivo(value?.trim() ?? "");
+  return sinFormatoDeTelefono(sinSufijoDeDispositivo(value?.trim() ?? ""));
 }
 
 export function isStatusBroadcastJid(value?: string | null) {
@@ -131,6 +176,13 @@ export function buildWhatsAppJidCandidates(
     }
 
     candidates.add(raw);
+    // La forma LITERAL también: hay fichas guardadas con el número tal cual se
+    // tecleó (`+507 …@s.whatsapp.net`, ver `sinFormatoDeTelefono`). Sin esto,
+    // limpiar el valor haría que esas fichas dejaran de encontrarse.
+    const literal = (input ?? "").trim();
+    if (literal && literal !== raw && sinFormatoDeTelefono(literal) !== literal) {
+      candidates.add(literal);
+    }
 
     if (isStatusBroadcastJid(raw) || isGroupJid(raw) || isBroadcastJid(raw)) {
       return;

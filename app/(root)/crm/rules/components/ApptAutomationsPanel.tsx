@@ -414,7 +414,7 @@ export function ApptAutomationsPanel({
       setAutomations((prev) => [...prev, res.data!]);
       setNewName("");
     } else {
-      toast.error(res.message ?? "Error al crear automación");
+      toast.error(res.message ?? "Error al crear automatización");
     }
   };
 
@@ -465,7 +465,8 @@ export function ApptAutomationsPanel({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold mb-1">Automaciones — {APPT_STATUS_LABELS[apptStatus]}</h3>
+        {/* Sin título propio: el panel siempre va dentro de una hoja cuyo título ya
+            dice «Automatizaciones — …»; con los dos, la hoja lo repetía. */}
         <p className="text-xs text-muted-foreground">
           Acciones que se ejecutan automáticamente cuando una cita cambia a este estado.
         </p>
@@ -479,7 +480,7 @@ export function ApptAutomationsPanel({
         <div className="space-y-3">
           {automations.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Sin automaciones para este estado.
+              Sin automatizaciones para este estado.
             </p>
           )}
           {automations.map((automation) => (
@@ -499,7 +500,7 @@ export function ApptAutomationsPanel({
           <div className="flex gap-2 pt-1">
             <Input
               className="h-8 text-sm"
-              placeholder="Nombre de la automación..."
+              placeholder="Nombre de la automatización..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void handleCreate()}

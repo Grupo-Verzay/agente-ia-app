@@ -17,6 +17,14 @@ import { Switch } from "@/components/ui/switch";
 import { getAllModules } from "@/actions/module-actions";
 import { getAdvisorPermissions, updateAdvisorPermissions } from "@/actions/team-actions";
 import type { ModuleWithItems } from "@/schema/module";
+import { elConteoDelModulo } from "@/lib/permisos";
+import { NOMBRE_DEL_ROL } from "@/lib/roles-que-puede-otorgar";
+
+/** El rol en palabras («Usuario», «Administrador»), no su clave («user»). */
+function elNombreDelRol(rol: string | null | undefined): string {
+  if (!rol) return "—";
+  return (NOMBRE_DEL_ROL as Record<string, string>)[rol] ?? rol;
+}
 
 /** Las variantes de "Panel": del equipo, del reseller y del cliente. */
 const PANEL_ROUTES = ["/panel", "/admin", "/panel-admin", "/reseller-panel", "/client-panel"];
@@ -152,7 +160,7 @@ export function AdvisorPermissionsDialog({
           </DialogDescription>
           {quienEs && (
             <p className="text-[11px] leading-snug text-muted-foreground">
-              {quienEs.email} · rol de plataforma: <b>{quienEs.role || "—"}</b> · en esta cuenta:{" "}
+              {quienEs.email} · rol de plataforma: <b>{elNombreDelRol(quienEs.role)}</b> · en esta cuenta:{" "}
               <b>{quienEs.advisorRole ?? (quienEs.esDeLaCuenta ? "agente" : "cuenta vinculada")}</b>
             </p>
           )}
@@ -190,9 +198,14 @@ export function AdvisorPermissionsDialog({
                   return (
                     <div key={mod.id} className="rounded-lg border border-border/70">
                       <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
+                        {/* Debajo del nombre, cuántos apartados ve: la ruta
+                            que iba aquí era un dato interno («#container»,
+                            «/client-panel») que no le dice nada a nadie. */}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{mod.label}</p>
-                          <p className="truncate text-[10px] text-muted-foreground">{mod.route}</p>
+                          <p data-apartados-del-modulo className="truncate text-[10px] text-muted-foreground tabular-nums">
+                            {elConteoDelModulo(items.filter((it) => visibles.has(it.id)).length, items.length)}
+                          </p>
                         </div>
                         <Switch
                           checked={algunoVisible}

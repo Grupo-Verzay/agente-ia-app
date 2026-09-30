@@ -336,24 +336,87 @@ export function montarLaPista(tramos, totalMs) {
 }
 
 /**
+ * Dónde cae un instante de la grabación en el vídeo ya sin los CORTES
+ * (`sinGrabarLaEspera` del taller): se le resta lo que duran los cortes que
+ * acabaron antes. Un instante DENTRO de un corte cae en su principio, que es
+ * donde se empalma lo de antes con lo de después.
+ *
+ * Los cortes van en ms desde el principio de la grabación, igual que los
+ * tramos de voz; se ordenan y no se solapan (los hace uno detrás de otro).
+ */
+export function quitarLosCortes(ms, cortes = []) {
+    let quitado = 0;
+    for (const c of [...cortes].sort((a, b) => a.desdeMs - b.desdeMs)) {
+        if (ms <= c.desdeMs) break;
+        if (ms < c.hastaMs) return c.desdeMs - quitado;
+        quitado += c.hastaMs - c.desdeMs;
+    }
+    return ms - quitado;
+}
+
+/**
+ * Los tramos de voz con los cortes quitados. Una frase que SONARA durante un
+ * corte perdería el trozo que se quita de la imagen y la voz se adelantaría a
+ * lo que se ve —justo el fallo que el corte viene a evitar—, así que se cae.
+ */
+export function tramosSinLosCortes(tramos, cortes = []) {
+    for (const t of tramos) {
+        const fin = t.inicioMs + t.audio.ms;
+        const pisa = cortes.find((c) => t.inicioMs < c.hastaMs && fin > c.desdeMs);
+        if (pisa) throw new Error(`la frase «${t.texto}» suena durante un corte (${pisa.desdeMs}-${pisa.hastaMs} ms)`);
+    }
+    return tramos.map((t) => ({ ...t, inicioMs: quitarLosCortes(t.inicioMs, cortes) }));
+}
+
+/** Lo que duran todos los cortes juntos. */
+export const loQueSeCorta = (cortes = []) => cortes.reduce((s, c) => s + (c.hastaMs - c.desdeMs), 0);
+
+/**
+ * El filtro de ffmpeg que quita de la IMAGEN lo grabado antes de `desdeMs` y
+ * lo de dentro de cada corte, y vuelve a numerar los fotogramas seguidos: la
+ * grabadora escribe a un ritmo fijo (`FPS`), así que el fotograma n cae en
+ * n/FPS y la imagen queda en el mismo reloj que la pista ya sin cortes.
+ */
+export function filtroSinLosCortes(desdeMs, cortes, fps = 25) {
+    const s = (ms) => (ms / 1000).toFixed(3);
+    const fuera = cortes.map((c) => `between(t\\,${s(c.desdeMs)}\\,${s(c.hastaMs)})`);
+    const quedan = [`gte(t\\,${s(desdeMs)})`, ...fuera.map((f) => `not(${f})`)].join("*");
+    return `select='${quedan}',setpts=N/${fps}/TB`;
+}
+
+/**
  * Pega la pista al vídeo, con el audio en Opus. Sin `desdeMs` el vídeo se
  * copia tal cual. Con `desdeMs` se recorta lo grabado antes —la página
  * cargando, segundos de pantalla quieta y sin voz— cortando el vídeo Y la
  * pista en el mismo instante, así que la sincronía no se mueve; como un corte
  * exacto no cae en un fotograma clave, el vídeo se vuelve a codificar (VP8,
  * el mismo códec que graba Playwright).
+ *
+ * Con `cortes` (ver `sinGrabarLaEspera` del taller) la imagen pierde además
+ * lo grabado dentro de cada uno. La pista ya viene montada SIN ellos
+ * (`tramosSinLosCortes`), así que al audio solo se le recorta `desdeMs`:
+ * los cortes van siempre después, y ese tramo es el mismo en los dos relojes.
  */
-export function mezclar(video, pista, salida, { desdeMs = 0 } = {}) {
+export function mezclar(video, pista, salida, { desdeMs = 0, cortes = [] } = {}) {
+    if (cortes.some((c) => c.desdeMs < desdeMs)) throw new Error("un corte cae antes de donde empieza el vídeo");
+    const conCortes = cortes.length > 0;
     const desde = desdeMs > 0 ? ["-ss", (desdeMs / 1000).toFixed(3)] : [];
-    const imagen = desdeMs > 0
-        ? ["-c:v", "libvpx", "-b:v", "2M", "-crf", "8", "-qmin", "0", "-qmax", "40", "-deadline", "good", "-cpu-used", "1", "-auto-alt-ref", "0"]
-        : ["-c:v", "copy"];
+    const recodificar = ["-c:v", "libvpx", "-b:v", "2M", "-crf", "8", "-qmin", "0", "-qmax", "40", "-deadline", "good", "-cpu-used", "1", "-auto-alt-ref", "0"];
+    // Con cortes el recorte del principio va en el mismo filtro que los quita:
+    // así los instantes del filtro son los de la grabación, los mismos en los
+    // que se apuntaron los cortes.
+    const entradaDelVideo = conCortes ? ["-i", video] : [...desde, "-i", video];
+    const imagen = conCortes
+        ? ["-vf", filtroSinLosCortes(desdeMs, cortes), ...recodificar]
+        : desdeMs > 0
+          ? recodificar
+          : ["-c:v", "copy"];
     execFileSync(
         "ffmpeg",
         // `-shortest`: el vídeo acaba con la narración. La grabación sigue
         // unos segundos más mientras se cierra el navegador, y eso era una
         // cola muda de 4-5 s al final del vídeo publicado.
-        ["-y", "-loglevel", "error", ...desde, "-i", video, ...desde, "-i", pista, "-map", "0:v:0", "-map", "1:a:0", ...imagen,
+        ["-y", "-loglevel", "error", ...entradaDelVideo, ...desde, "-i", pista, "-map", "0:v:0", "-map", "1:a:0", ...imagen,
             "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "libopus", "-b:a", "64k", "-ar", "48000", "-shortest", salida],
         { stdio: "inherit" },
     );
