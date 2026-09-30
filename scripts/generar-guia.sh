@@ -66,6 +66,9 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
        S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=localhost \
        S3_PUBLIC_URL=http://localhost:9000 GEMINI_API_KEY=banco \
        NEXT_TELEMETRY_DISABLED=1
+# El correo de la cuenta de servicio que enseña Google Sheets (paso 1 de
+# vincular). Uno de EJEMPLO: la guía es pública y el de verdad no se publica.
+export GOOGLE_SERVICE_ACCOUNT_JSON='{"client_email":"hojas@plataforma-ejemplo.iam.gserviceaccount.com"}'
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 psql "$DATABASE_URL" -c \
