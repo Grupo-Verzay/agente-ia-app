@@ -725,7 +725,7 @@ async function video(navegador, estado) {
     await alDecir("dentro de Integraciones", 600);
     await mover(p, integraciones);
 
-    const [, , , buscarTodo, soporte, campana] = lasPartesDeArriba(p);
+    const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
     await decir("barraDeArriba");
     await pulsar(p, flechas);
     await alDecir("el buscador general");

@@ -25,6 +25,7 @@ import { GlobalSearch } from '@/components/shared/GlobalSearch';
 import { MedidaDeLaBarra } from '@/components/shared/MedidaDeLaBarra';
 import { MARCA_DE_LA_BARRA } from '@/hooks/usePanelFlotante';
 import { BotonDeSoporte } from '@/components/tickets/BotonDeSoporte';
+import { BotonDeAyuda } from '@/components/ayuda/BotonDeAyuda';
 
 /**
  * Nombres legibles de cada segmento de ruta. La barra ya NO pinta una ruta de
@@ -50,13 +51,14 @@ export const breadcrumbLabels: Record<string, string> = {
   templates: 'plantillas',
   schedule: 'agendamiento',
   'client-billing': 'finanzas',
-  'mis-formularios': 'mis formularios'
+  'mis-formularios': 'mis formularios',
+  ayuda: 'centro de ayuda'
 };
 
 /**
  * La barra de arriba de la plataforma, la MISMA en todas las pantallas:
  *
- *   [menú]      [Chats 3 | Correos 12]      …      [tutoriales] [buscar] [soporte] [campana]
+ *   [menú]    [Chats 3 | Correos 12]    …    [tutoriales] [buscar] [ayuda] [soporte] [campana]
  *                ^ centrado en la columna de la lista
  *
  * - **El menú (las dos flechas) va siempre de primero**, en el mismo píxel en
@@ -68,6 +70,9 @@ export const breadcrumbLabels: Record<string, string> = {
  *   activa y con los sin leer de cada una, centrado en la columna de la lista
  *   (`AlternarBandeja`). Quitar la casita NO lo mueve: su centro es el de la
  *   columna, y lo que cambia es cuánto mide.
+ * - **«Ayuda» abre el centro de ayuda** (`/ayuda`: todas las guías por
+ *   categoría del menú) y convive con «Ver tutoriales», que sigue enseñando
+ *   solo las de la pantalla que se tiene delante. Va justo antes de «Soporte».
  * - **Todos los botones son rectángulos de esquinas redondeadas**
  *   (`rounded-md`), ninguno en píldora: la barra es simétrica.
  */
@@ -181,6 +186,9 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
               )}
               <GlobalSearch />
+              {/* «Ayuda»: el centro de ayuda, con todas las guías por
+                  categoría. Justo antes de «Soporte», que es su pareja. */}
+              <BotonDeAyuda />
               {/* «Soporte»: abre el ticket nuevo, o lleva al tablero si esta es
                   la cuenta que los atiende. */}
               <BotonDeSoporte />

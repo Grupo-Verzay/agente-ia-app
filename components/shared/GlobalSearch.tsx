@@ -248,7 +248,7 @@ export function GlobalSearch() {
         <Button
           type="button"
           variant="outline"
-          className="h-9 w-9 shrink-0 justify-center px-0 sm:w-64 sm:justify-start sm:px-3"
+          className="h-9 w-9 shrink-0 justify-center px-0 sm:w-56 sm:justify-start sm:px-3 xl:w-64"
           title="Buscar clientes, chats, tareas, productos o flujos"
         >
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />

@@ -895,7 +895,7 @@ async function video(navegador, estado) {
     await alDecir("dentro de Apps Externas", 600);
     await mover(p, appsExternas);
 
-    const [, , , buscarTodo, soporte, campana] = lasPartesDeArriba(p);
+    const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
     await decir("barraDeArriba");
     await pulsar(p, flechas);
     await alDecir("el buscador general");

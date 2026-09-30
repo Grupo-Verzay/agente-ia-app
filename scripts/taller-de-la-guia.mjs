@@ -15,7 +15,8 @@
  * distinta: dos guías de la misma plataforma que no se parecen.
  */
 import { createRequire } from "node:module";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
@@ -183,6 +184,7 @@ export const lasPartesDeArriba = (p) => [
     p.locator("[data-alternar-bandeja]"),
     p.locator("[data-botones-de-la-barra] button", { hasText: "Ver tutoriales" }),
     p.locator('button[title="Buscar clientes, chats, tareas, productos o flujos"]'),
+    p.locator("[data-boton-de-ayuda]"),
     p.locator('button[aria-label="Pedir soporte"]'),
     p.locator('button[aria-label="Centro de notificaciones"]'),
 ];
@@ -355,7 +357,7 @@ export const desmarcar = (p) => p.evaluate(() => document.getElementById("__guia
  * nitidez.
  */
 export function crearGuardar({ salida, tomadas }) {
-    return async function guardar(p, nombre, clip, { margenArriba = 0, fondo = "#ffffff" } = {}) {
+    const guardar = async function guardar(p, nombre, clip, { margenArriba = 0, fondo = "#ffffff" } = {}) {
         let buf = await p.screenshot(clip ? { clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } } : {});
         // Lo que va pegado al borde de arriba de la pantalla (la barra de arriba)
         // no tiene «encima»: se le añade un margen para que su recuadro se vea entero.
@@ -371,6 +373,9 @@ export function crearGuardar({ salida, tomadas }) {
         tomadas.add(nombre);
         console.log("  ✓", nombre);
     };
+    // Dónde guarda: `laFotoDeLaBarra` lo necesita para saber de qué guía es.
+    guardar.salida = salida;
+    return guardar;
 }
 
 /**
@@ -413,6 +418,57 @@ export async function tomarUnaMiniatura(p, slug, foco, { salida, tomadas }) {
 }
 
 /**
+ * Dónde queda apuntada cada foto de la barra: su huella por guía, y con qué
+ * partes se tomó (eso lo escribe `regenerar-barra-de-las-guias.mjs`, que es el
+ * que conoce sus nombres). El banco del centro de ayuda lo compara con las
+ * imágenes: una barra fotografiada sin apuntar se pone en rojo.
+ */
+export const MARCA_DE_LA_BARRA = path.resolve(import.meta.dirname, "barra-de-las-guias.json");
+
+/** Apunta la huella de la barra de una guía, conservando las demás. */
+export function apuntarLaBarra(modulo, fichero, partes) {
+    let hecho = {};
+    try {
+        hecho = JSON.parse(readFileSync(MARCA_DE_LA_BARRA, "utf8"));
+    } catch {
+        /* primera vez */
+    }
+    const imagenes = { ...(hecho.imagenes ?? {}), [modulo]: createHash("sha1").update(readFileSync(fichero)).digest("hex").slice(0, 16) };
+    const ordenadas = Object.fromEntries(Object.entries(imagenes).sort(([a], [b]) => a.localeCompare(b)));
+    writeFileSync(
+        MARCA_DE_LA_BARRA,
+        JSON.stringify({ partes: partes ?? hecho.partes ?? [], guias: Object.keys(ordenadas), imagenes: ordenadas }, null, 2) + "\n",
+    );
+}
+
+/**
+ * La foto de la barra de arriba (`barra-de-arriba.webp`), con sus partes
+ * numeradas en el orden de `lasPartesDeArriba`, en una ventana de portátil
+ * (1024×700): a 1440 salía en una tira tan larga que en la página sus iconos
+ * se leían de 6 px. La usan `elMarcoDeLaPantalla` —al generar una guía— y
+ * `regenerar-barra-de-las-guias.mjs`, que rehace solo esta foto en TODAS las
+ * guías cuando la barra gana o pierde un botón. Deja la ventana como estaba.
+ */
+export async function laFotoDeLaBarra(p, guardar) {
+    const vista = p.viewportSize();
+    await p.setViewportSize({ width: 1024, height: 700 });
+    await espera(p, 1200);
+    // Pegada al borde de arriba, así que los números van DEBAJO.
+    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
+    const cajasDeArriba = [];
+    for (const parte of lasPartesDeArriba(p)) cajasDeArriba.push(await caja(p, parte.first()));
+    await marcar(p, cajasDeArriba.map((c, i) => ({ c, n: i + 1, borde: "abajo" })), { atenuar: true });
+    // El margen de arriba lleva el color del velo sobre blanco: así continúa la pantalla.
+    await guardar(p, "barra-de-arriba.webp", { x: cCabecera.x - 12, y: 0, w: cCabecera.w + 12, h: cCabecera.h + 16 }, { margenArriba: 12, fondo: VELO_SOBRE_BLANCO });
+    await desmarcar(p);
+    if (guardar.salida) apuntarLaBarra(path.basename(guardar.salida), path.join(guardar.salida, "barra-de-arriba.webp"));
+    if (vista) {
+        await p.setViewportSize(vista);
+        await espera(p, 600);
+    }
+}
+
+/**
  * El marco que rodea a la pantalla —la barra de arriba y el menú de la
  * izquierda—, fotografiado en una ventana de PORTÁTIL. A 1440 la barra sale
  * en una tira tan larga que en la página sus iconos se leen de 6 px, y el
@@ -429,15 +485,7 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
         await espera(p, 1200);
     };
 
-    // La barra de arriba: pegada al borde, así que los números van DEBAJO.
-    await cambiarA({ width: 1024, height: 700 });
-    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
-    const cajasDeArriba = [];
-    for (const parte of lasPartesDeArriba(p)) cajasDeArriba.push(await caja(p, parte.first()));
-    await marcar(p, cajasDeArriba.map((c, i) => ({ c, n: i + 1, borde: "abajo" })), { atenuar: true });
-    // El margen de arriba lleva el color del velo sobre blanco: así continúa la pantalla.
-    await guardar(p, "barra-de-arriba.webp", { x: cCabecera.x - 12, y: 0, w: cCabecera.w + 12, h: cCabecera.h + 16 }, { margenArriba: 12, fondo: VELO_SOBRE_BLANCO });
-    await desmarcar(p);
+    await laFotoDeLaBarra(p, guardar);
 
     // El menú, ABIERTO con las dos flechas, como lo abre un cliente: entero y
     // a la vista, con el módulo señalado; lo de al lado, bajo el velo. Abrirlo
