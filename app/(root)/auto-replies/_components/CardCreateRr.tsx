@@ -19,6 +19,8 @@ import { createRR } from "@/actions/rr-actions";
 import { toast } from "sonner";
 import { ReplyTypeSelector, ReplyType } from "./ReplyTypeSelector";
 import { Separator } from "@/components/ui/separator";
+import { DialogFooter } from "@/components/ui/dialog";
+import { comoAtajo } from "@/lib/respuestas-rapidas";
 import { normalizeQuickReplyCategory, DEFAULT_QUICK_REPLY_CATEGORY, QUICK_REPLY_CATEGORIES } from "@/lib/quick-reply-categories";
 
 interface AutoReplies {
@@ -65,7 +67,11 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                 name: name.trim() || undefined,
                 mensaje: isTextMode ? phrase : undefined,
                 category,
-                userId: user.id,
+                // La CUENTA, no la persona: con `user.id` una respuesta creada
+                // por alguien del equipo quedaba a su nombre y la pantalla —que
+                // lee por la cuenta— no la enseñaba. El servidor la sube a la
+                // cuenta igualmente (`laCuentaDeLaFila`).
+                userId: user.effectiveId,
             });
 
             if (!res.success) {
@@ -115,7 +121,7 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                                 id="name"
                                 placeholder="bienvenida"
                                 value={name}
-                                onChange={(e) => setName(e.target.value.replace(/\s/g, "").toLowerCase())}
+                                onChange={(e) => setName(comoAtajo(e.target.value))}
                                 disabled={loading}
                                 className="pl-6"
                             />
@@ -133,17 +139,17 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
 
                 <div className="flex flex-col space-y-1.5">
                     <Label htmlFor="category" className="text-sm font-medium">
-                        Categoria
+                        Categoría
                     </Label>
-                    {/* El Select entrega un string suelto; la categoria se normaliza
-                        para que siga siendo una de las validas. */}
+                    {/* El Select entrega un string suelto; la categoría se normaliza
+                        para que siga siendo una de las válidas. */}
                     <Select
                         value={category}
                         onValueChange={(v) => setCategory(normalizeQuickReplyCategory(v))}
                         disabled={loading}
                     >
                         <SelectTrigger id="category">
-                            <SelectValue placeholder="Selecciona una categoria..." />
+                            <SelectValue placeholder="Selecciona una categoría..." />
                         </SelectTrigger>
                         <SelectContent>
                             {QUICK_REPLY_CATEGORIES.map((item) => (
@@ -204,11 +210,14 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                 )}
             </div>
 
-            <div className="flex mt-5 gap-2 shrink-0">
+            {/* El pie de la casa: «Cancelar» a la izquierda y la acción a la
+                derecha, los dos como hijos DIRECTOS de `DialogFooter` —metidos
+                en un `<div>` el pie ve un solo hijo y los amontona—. Antes era
+                una fila a mano con los dos botones a todo lo ancho. */}
+            <DialogFooter className="mt-5 shrink-0">
                 <Button
                     type="button"
                     variant="outline"
-                    className="w-full"
                     disabled={loading}
                     onClick={onSuccessClose}
                 >
@@ -216,12 +225,11 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                 </Button>
                 <Button
                     type="submit"
-                    className="w-full"
                     disabled={loading || (!isTextMode && Workflows.length === 0)}
                 >
-                    {loading ? "Guardando..." : "Crear respuesta rápida"}
+                    {loading ? "Creando…" : "Crear"}
                 </Button>
-            </div>
+            </DialogFooter>
         </form>
     );
 };

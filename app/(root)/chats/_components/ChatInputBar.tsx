@@ -53,6 +53,7 @@ import type { Session } from '@/types/session';
 import type { RecordedAudioData, UIBubble } from './chat-message-types';
 import { suelto, PANEL_QUE_SE_DESPLAZA, ENCIMA_DEL_BORDE } from "@/lib/paneles-flotantes";
 import { getQuickReplyCategoryClass, getQuickReplyCategoryLabel } from '@/lib/quick-reply-categories';
+import { comoAtajo } from '@/lib/respuestas-rapidas';
 
 interface ChatInputBarProps {
   input: string;
@@ -728,7 +729,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
         {/* Sugerencias slash */}
         {slashOpen && slashSuggestions.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 z-20 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+          <div
+            data-zona="sugerencias-de-respuestas"
+            className="absolute bottom-full left-0 right-0 mb-1 z-20 bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
+          >
             {slashSuggestions.map((qr) => (
               <button
                 key={qr.id}
@@ -739,7 +743,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                   onApplySlashSuggestion(qr.message);
                 }}
               >
-                <span className="text-primary font-mono font-medium shrink-0">/{qr.name}</span>
+                <span className="text-primary font-mono font-medium shrink-0">/{comoAtajo(qr.name)}</span>
                 <span className="text-muted-foreground truncate">{qr.message}</span>
                 <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${getQuickReplyCategoryClass(qr.category)}`}>
                   {getQuickReplyCategoryLabel(qr.category)}

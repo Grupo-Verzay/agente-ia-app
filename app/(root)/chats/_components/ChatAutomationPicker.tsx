@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import { TITULO_DE_LAS_RESPUESTAS, enGrupos } from '@/lib/personales';
+import { elNombreQueSeVe, elTipoDeLaRespuesta, loQueDiceLaRespuesta } from '@/lib/respuestas-rapidas';
 import {
   getQuickReplyCategoryClass,
   getQuickReplyCategoryLabel,
@@ -39,9 +40,9 @@ interface ChatAutomationPickerProps {
   lineaDeLosAtajos?: string | null;
 }
 
-function vacioDeLaLinea(que: 'workflows' | 'respuestas rapidas', linea?: string | null) {
+function vacioDeLaLinea(que: 'workflows' | 'respuestas rápidas', linea?: string | null) {
   return linea
-    ? `La cuenta de la linea ${linea} no tiene ${que} ${que === 'workflows' ? 'creados' : 'creadas'}.`
+    ? `La cuenta de la línea ${linea} no tiene ${que} ${que === 'workflows' ? 'creados' : 'creadas'}.`
     : `No hay ${que} para la cuenta de esta conversacion.`;
 }
 
@@ -91,13 +92,13 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
         setIsSubmitting(true);
         const result = await onSendQuickReply(quickReplyId);
         if (!result.success) {
-          toast.error(result.message || 'No se pudo enviar la respuesta rapida.');
+          toast.error(result.message || 'No se pudo enviar la respuesta rápida.');
           return;
         }
         toast.success(result.message);
         setOpen(false);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'No se pudo enviar la respuesta rapida.');
+        toast.error(error instanceof Error ? error.message : 'No se pudo enviar la respuesta rápida.');
       } finally {
         setIsSubmitting(false);
       }
@@ -112,8 +113,8 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
           type="button"
           variant="ghost"
           className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted p-0 shrink-0"
-          title="Enviar workflow o respuesta rapida"
-          aria-label="Enviar workflow o respuesta rapida"
+          title="Enviar workflow o respuesta rápida"
+          aria-label="Enviar workflow o respuesta rápida"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
         </Button>
@@ -124,8 +125,8 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
           <p className="text-sm font-semibold text-foreground">Atajos</p>
           <p className="text-xs text-muted-foreground">
             {lineaDeLosAtajos
-              ? `Los de la cuenta de la linea ${lineaDeLosAtajos}.`
-              : 'Usa una respuesta rapida o lanza un workflow manual.'}
+              ? `Los de la cuenta de la línea ${lineaDeLosAtajos}.`
+              : 'Usa una respuesta rápida o lanza un workflow manual.'}
           </p>
         </div>
 
@@ -133,7 +134,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="quickReplies" className="gap-2 text-xs">
               <MessageCircleMore className="h-3.5 w-3.5" />
-              Rapidas
+              Rápidas
             </TabsTrigger>
             <TabsTrigger value="workflows" className="gap-2 text-xs">
               <Workflow className="h-3.5 w-3.5" />
@@ -148,7 +149,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                 <CommandEmpty className="text-xs">
                   {workflows.length === 0
                     ? vacioDeLaLinea('workflows', lineaDeLosAtajos)
-                    : 'Ningun workflow coincide con la busqueda.'}
+                    : 'Ningún workflow coincide con la búsqueda.'}
                 </CommandEmpty>
                 <CommandGroup className="max-h-64 overflow-auto">
                   {workflows.map((workflow) => (
@@ -162,7 +163,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{workflow.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {workflow.isPro ? 'Workflow Pro' : 'Workflow estandar'}
+                          {workflow.isPro ? 'Workflow Pro' : 'Workflow estándar'}
                         </p>
                       </div>
                       <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -204,44 +205,57 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
               </div>
 
               <Command className="rounded-lg border">
-                <CommandInput placeholder="Buscar respuesta rapida..." className="h-9 text-xs" />
+                <CommandInput placeholder="Buscar respuesta rápida..." className="h-9 text-xs" />
                 <CommandList>
                   <CommandEmpty className="text-xs">
                     {quickReplies.length === 0
-                      ? vacioDeLaLinea('respuestas rapidas', lineaDeLosAtajos)
-                      : 'Ninguna respuesta rapida coincide.'}
+                      ? vacioDeLaLinea('respuestas rápidas', lineaDeLosAtajos)
+                      : 'Ninguna respuesta rápida coincide.'}
                   </CommandEmpty>
                   <div className="max-h-64 overflow-auto">
+                  {/* Todas, con atajo o sin él. El filtro `qr.name !== null`
+                      escondía las que se crearon sin atajo, que se crean así
+                      a menudo: el atajo es opcional. Se reconocen igual por su
+                      texto, que es lo que busca el cuadro de arriba. */}
                   {enGrupos(
-                    filteredQuickReplies.filter((qr) => qr.name !== null),
+                    filteredQuickReplies,
                     TITULO_DE_LAS_RESPUESTAS,
                   ).map((grupo) => (
                   <CommandGroup key={grupo.grupo} heading={grupo.titulo ?? undefined}>
                     {grupo.filas
-                      .map((quickReply) => (
+                      .map((quickReply) => {
+                        const tipo = elTipoDeLaRespuesta(quickReply);
+                        const nombre = elNombreQueSeVe(quickReply.name, tipo);
+                        const dice = loQueDiceLaRespuesta(quickReply);
+                        return (
                         <CommandItem
                           key={quickReply.id}
-                          value={`${quickReply.name ?? ''} ${quickReply.message} ${quickReply.workflowName ?? ''} ${getQuickReplyCategoryLabel(quickReply.category)}`}
+                          value={`${quickReply.id} ${quickReply.name ?? ''} ${dice} ${getQuickReplyCategoryLabel(quickReply.category)}`}
                           className="items-start justify-between gap-3 py-3"
                           disabled={isSubmitting}
                           onSelect={() => void handleQuickReplySend(quickReply.id)}
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 mb-0.5">
-                              {quickReply.name && (
-                                <span className="text-xs font-mono text-primary font-medium">
-                                  /{quickReply.name}
+                              {nombre && (
+                                <span className={`text-xs text-primary font-medium ${tipo === 'texto' ? 'font-mono' : ''}`}>
+                                  {nombre}
                                 </span>
                               )}
-                              <p className="line-clamp-2 text-sm font-medium">{quickReply.message}</p>
+                              <p className="line-clamp-2 text-sm font-medium">{dice}</p>
                             </div>
                             <span className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] ${getQuickReplyCategoryClass(quickReply.category)}`}>
                               {getQuickReplyCategoryLabel(quickReply.category)}
                             </span>
                           </div>
-                          <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          {tipo === 'flujo' ? (
+                            <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                          ) : (
+                            <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
                         </CommandItem>
-                      ))}
+                        );
+                      })}
                   </CommandGroup>
                   ))}
                   </div>
