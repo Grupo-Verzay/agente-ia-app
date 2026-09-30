@@ -252,7 +252,7 @@ export async function listFlowsAction(): Promise<ActionResult<FlowSummary[]>> {
     };
   } catch (error) {
     console.error("[listFlowsAction]", error);
-    return { success: false, message: "No se pudieron obtener los flujos." };
+    return { success: false, message: "No se pudieron obtener los diagramas." };
   }
 }
 
@@ -292,7 +292,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
       LIMIT 1
     `;
     const flow = rows[0];
-    if (!flow) return { success: false, message: "Flujo no encontrado." };
+    if (!flow) return { success: false, message: "Diagrama no encontrado." };
 
     // De otra cuenta: solo se abre si a esta se lo estan enseñando, y con el
     // permiso con el que se lo compartieron.
@@ -300,7 +300,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
     if (recibido) {
       const permiso = await permisoRecibido(flowId, ctx.cuenta);
       if (!permiso) {
-        return { success: false, message: "Flujo no encontrado." };
+        return { success: false, message: "Diagrama no encontrado." };
       }
       return {
         success: true,
@@ -317,7 +317,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
 
     // Un privado ajeno se contesta igual que uno que no existe: decir "no
     // puedes" ya revela que existe y de quien es.
-    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     return {
       success: true,
       data: {
@@ -329,7 +329,7 @@ export async function getFlowAction(flowId: string): Promise<ActionResult<FlowDe
     };
   } catch (error) {
     console.error("[getFlowAction]", error);
-    return { success: false, message: "No se pudo obtener el flujo." };
+    return { success: false, message: "No se pudo abrir el diagrama." };
   }
 }
 
@@ -406,7 +406,7 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
       SELECT "id" FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "name" = ${trimmed} LIMIT 1
     `;
     if (existing.length > 0) {
-      return { success: false, message: "Ya tienes un flujo con ese nombre." };
+      return { success: false, message: "Ya tienes un diagrama con ese nombre." };
     }
 
     const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -422,7 +422,7 @@ export async function createFlowAction(name: string): Promise<ActionResult<FlowS
     return { success: true, data: { ...rows[0], puedeEditar: true, puedeCompartir: true } };
   } catch (error) {
     console.error("[createFlowAction]", error);
-    return { success: false, message: "No se pudo crear el flujo." };
+    return { success: false, message: "No se pudo crear el diagrama." };
   }
 }
 
@@ -435,7 +435,7 @@ export async function renameFlowAction(flowId: string, name: string): Promise<Ac
     await ensureFlowTable();
 
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeEditarlo(flow, ctx)) {
       return { success: false, message: "Este diagrama es de solo lectura." };
     }
@@ -443,7 +443,7 @@ export async function renameFlowAction(flowId: string, name: string): Promise<Ac
     const conflict = await db.$queryRaw<{ id: string }[]>`
       SELECT "id" FROM "flows" WHERE "userId" = ${ctx.cuenta} AND "name" = ${trimmed} AND "id" != ${flowId} LIMIT 1
     `;
-    if (conflict.length > 0) return { success: false, message: "Ya tienes un flujo con ese nombre." };
+    if (conflict.length > 0) return { success: false, message: "Ya tienes un diagrama con ese nombre." };
 
     await db.$executeRaw`
       UPDATE "flows" SET "name" = ${trimmed}, "updatedAt" = NOW()
@@ -452,7 +452,7 @@ export async function renameFlowAction(flowId: string, name: string): Promise<Ac
     return { success: true, data: null };
   } catch (error) {
     console.error("[renameFlowAction]", error);
-    return { success: false, message: "No se pudo renombrar el flujo." };
+    return { success: false, message: "No se pudo renombrar el diagrama." };
   }
 }
 
@@ -475,7 +475,7 @@ export async function saveFlowGraphAction(
       // copia-. Antes esto contestaba "Flujo no encontrado" y por eso compartir
       // como editor no existia.
       const permiso = await permisoRecibido(flowId, ctx.cuenta);
-      if (!permiso) return { success: false, message: "Flujo no encontrado." };
+      if (!permiso) return { success: false, message: "Diagrama no encontrado." };
       if (permiso !== "edicion") {
         return { success: false, message: "Este diagrama es de solo lectura." };
       }
@@ -491,7 +491,7 @@ export async function saveFlowGraphAction(
       return { success: true, data: null };
     }
 
-    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeEditarlo(flow, ctx)) {
       return { success: false, message: "Este diagrama es de solo lectura." };
     }
@@ -514,7 +514,7 @@ export async function saveFlowGraphAction(
     return { success: true, data: null };
   } catch (error) {
     console.error("[saveFlowGraphAction]", error);
-    return { success: false, message: "No se pudo guardar el flujo." };
+    return { success: false, message: "No se pudo guardar el diagrama." };
   }
 }
 
@@ -526,7 +526,7 @@ export async function deleteFlowAction(flowId: string): Promise<ActionResult<nul
     // Borrarlo es cosa de su autor y de quien gestiona la cuenta. Que el equipo
     // pueda editar un diagrama no quiere decir que pueda hacerlo desaparecer.
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeMandarEnEl(flow, ctx)) {
       return { success: false, message: "Solo quien lo creó o un administrador puede eliminarlo." };
     }
@@ -537,7 +537,7 @@ export async function deleteFlowAction(flowId: string): Promise<ActionResult<nul
     return { success: true, data: null };
   } catch (error) {
     console.error("[deleteFlowAction]", error);
-    return { success: false, message: "No se pudo eliminar el flujo." };
+    return { success: false, message: "No se pudo eliminar el diagrama." };
   }
 }
 
@@ -554,7 +554,7 @@ export async function setFlowVisibilityAction(
     await ensureFlowTable();
 
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeMandarEnEl(flow, ctx)) {
       return { success: false, message: "Solo quien lo creó o un administrador puede cambiar esto." };
     }
@@ -631,7 +631,7 @@ export async function duplicateFlowAction(flowId: string): Promise<ActionResult<
       LIMIT 1
     `;
     const original = rows[0];
-    if (!original) return { success: false, message: "Flujo no encontrado." };
+    if (!original) return { success: false, message: "Diagrama no encontrado." };
 
     // Uno recibido tambien se puede copiar: es la forma de que una cuenta se
     // quede con el diagrama que le enseñaron y lo siga a su manera. La copia
@@ -641,10 +641,10 @@ export async function duplicateFlowAction(flowId: string): Promise<ActionResult<
       // Copiar se puede con cualquiera de los dos permisos: se copia lo que se
       // ve, y verlo ya se puede.
       if (!(await permisoRecibido(flowId, ctx.cuenta))) {
-        return { success: false, message: "Flujo no encontrado." };
+        return { success: false, message: "Diagrama no encontrado." };
       }
     } else if (!puedeVerlo(original, ctx)) {
-      return { success: false, message: "Flujo no encontrado." };
+      return { success: false, message: "Diagrama no encontrado." };
     }
 
     const id = `flow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -715,7 +715,7 @@ export async function getFlowShareTargetsAction(
     await ensureFlowTable();
 
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeMandarEnEl(flow, ctx)) {
       return { success: false, message: "Solo quien lo creó o un administrador puede compartirlo." };
     }
@@ -756,7 +756,7 @@ export async function setFlowSharesAction(
     await ensureFlowTable();
 
     const flow = await buscarFlow(flowId, ctx.cuenta);
-    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Flujo no encontrado." };
+    if (!flow || !puedeVerlo(flow, ctx)) return { success: false, message: "Diagrama no encontrado." };
     if (!puedeMandarEnEl(flow, ctx)) {
       return { success: false, message: "Solo quien lo creó o un administrador puede compartirlo." };
     }

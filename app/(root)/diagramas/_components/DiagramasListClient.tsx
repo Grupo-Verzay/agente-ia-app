@@ -320,9 +320,14 @@ export function DiagramasListClient({ puedeOrdenar = false }: { puedeOrdenar?: b
                   línea y la de al lado tres, y la rejilla salía escalonada. */}
               {/* Sitio reservado para el asa, como el `pl-8` de la cabecera de
                   un módulo. Solo cuando se puede ordenar: al agente no le sale
-                  asa y no tiene por qué perder ese hueco. */}
+                  asa y no tiene por qué perder ese hueco.
+                  Y `pr-9` por el otro lado, para la casilla: va fuera del flujo
+                  (`absolute right-3 top-3`), así que sin él un nombre largo
+                  —«Atención de nuevos clientes»— se pintaba DEBAJO de ella. En
+                  TODAS las tarjetas, también las recibidas (que no llevan
+                  casilla): así todas cortan el nombre en el mismo sitio. */}
               <CardHeader
-                className={`flex flex-row items-start gap-3 space-y-0 p-4 pb-2 ${orden.puedeOrdenar ? 'pl-9' : ''}`}
+                className={`flex flex-row items-start gap-3 space-y-0 p-4 pb-2 pr-9 ${orden.puedeOrdenar ? 'pl-9' : ''}`}
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <DiagramIcon className="h-4.5 w-4.5 text-primary" />
