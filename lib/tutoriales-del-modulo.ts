@@ -19,6 +19,7 @@ import { GUIA_CATALOGO } from "@/lib/guia-catalogo";
 import { GUIA_DIAGRAMAS } from "@/lib/guia-diagramas";
 import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
+import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
@@ -55,6 +56,7 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
     { modulo: "leads", ruta: "/sessions", contenido: GUIA_LEADS },
     { modulo: "catalogo", ruta: "/mis-catalogo", contenido: GUIA_CATALOGO },
     { modulo: "diagramas", ruta: "/diagramas", contenido: GUIA_DIAGRAMAS },
+    { modulo: "reuniones", ruta: "/reuniones", contenido: GUIA_REUNIONES },
     { modulo: "notas", ruta: "/notas", contenido: GUIA_NOTAS },
 ];
 

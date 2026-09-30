@@ -16,6 +16,11 @@
  * - La barra de arriba lleva «Ver tutoriales» (una fila de `guideUrl` para la
  *   pantalla de la guía) y «Soporte» (una cuenta que atiende los tickets).
  *   Sin esas dos filas salía con dos botones menos que la de verdad.
+ * - Lo que una pantalla vende APARTE —la grabación de Reuniones, que decide la
+ *   ruta `/reuniones/grabaciones`— son módulos que existen y no se pintan en
+ *   el menú. Van aquí (`modulosQueSeVenden`) y siempre escondidos: una semilla
+ *   que creara sus propios módulos sería un segundo sitio donde se siembra el
+ *   menú, y con el primero borrando todo, el orden decidiría cuál gana.
  */
 import { MENU_DE_UN_CLIENTE, comoFilaDeModulo } from "./menu-de-un-cliente.mjs";
 
@@ -23,9 +28,11 @@ import { MENU_DE_UN_CLIENTE, comoFilaDeModulo } from "./menu-de-un-cliente.mjs";
  * @param db     un `PrismaClient`
  * @param guia   la fila de «Ver tutoriales» de la pantalla que documenta:
  *               `{ path, title, description, url }`
+ * @param modulosQueSeVenden  `[{ label, route, icon }]`: módulos que la
+ *               pantalla necesita y el menú no enseña (se venden aparte)
  * @returns      la cuenta del cliente, ya actualizada
  */
-export async function sembrarElMarco(db, guia, { email = "jefe@banco.test" } = {}) {
+export async function sembrarElMarco(db, guia, { email = "jefe@banco.test", modulosQueSeVenden = [] } = {}) {
     const encontrado = await db.user.findUniqueOrThrow({ where: { email } });
     const dueno = await db.user.update({
         where: { id: encontrado.id },
@@ -52,6 +59,14 @@ export async function sembrarElMarco(db, guia, { email = "jefe@banco.test" } = {
                 },
             });
         }
+    }
+
+    // Escondidos del menú, y detrás de lo que se ve: el menú de la guía es el
+    // de un cliente y no lleva estas entradas.
+    for (const [i, m] of modulosQueSeVenden.entries()) {
+        await db.module.create({
+            data: { ...comoFilaDeModulo({ ...m, order: 900 + i }), showInSidebar: false, hiddenModuleToSelector: true },
+        });
     }
 
     await db.guideUrl.deleteMany({ where: { path: guia.path } });
