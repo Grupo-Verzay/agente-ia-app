@@ -25,7 +25,7 @@ const db = new PrismaClient();
 const dueno = await sembrarElMarco(db, {
     path: "/notas",
     title: "Guía de Mis notas",
-    description: "Recorrido completo de Mis notas con video explicativo y guias",
+    description: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
     url: "/guia/notas",
 });
 

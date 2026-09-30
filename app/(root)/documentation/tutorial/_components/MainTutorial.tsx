@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectTrigger,
@@ -21,6 +20,13 @@ import { Pencil, Trash2, Plus, Search, Eye } from 'lucide-react';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog';
 import Header from '@/components/shared/header';
+import {
+    COMIENZO_DE_LA_DESCRIPCION,
+    FINAL_DE_LA_DESCRIPCION,
+    TOPE_DE_LA_DESCRIPCION,
+    largoDeLaDescripcion,
+    porQueNoValeLaDescripcion,
+} from '@/lib/tutoriales-del-modulo';
 
 export const MainTutorial = ({ user }: { user: CurrentUser }) => {
     const { modules } = useModuleStore();
@@ -51,6 +57,9 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
         if (!form.title?.trim() || !form.url?.trim() || !form.path?.trim()) {
             return toast.error('All fields are required');
         }
+        // La misma regla que el servidor: se dice antes de mandar.
+        const motivo = porQueNoValeLaDescripcion(form.description);
+        if (motivo) return toast.error(motivo);
 
         let res;
         if (editingId) {
@@ -200,11 +209,27 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <Textarea
-                                    placeholder="Breve descripción del tutorial..."
-                                    value={form.description || ''}
-                                    onChange={e => setForm({ ...form, description: e.target.value })}
-                                />
+                                {/* La descripción de la tarjeta: «Aprende a … en la
+                                    plataforma», y cabe en una línea. La regla es
+                                    la de `lib/tutoriales-del-modulo.ts`. */}
+                                <div className="space-y-1">
+                                    <Input
+                                        data-descripcion-del-tutorial
+                                        placeholder={`${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}`}
+                                        value={form.description || ''}
+                                        maxLength={TOPE_DE_LA_DESCRIPCION}
+                                        onChange={e => setForm({ ...form, description: e.target.value })}
+                                    />
+                                    <div className="flex items-start justify-between gap-2 text-xs">
+                                        <span className={porQueNoValeLaDescripcion(form.description) ? 'text-destructive' : 'text-muted-foreground'}>
+                                            {porQueNoValeLaDescripcion(form.description)
+                                                ?? `Formato: «${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}».`}
+                                        </span>
+                                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                                            {largoDeLaDescripcion(form.description)}/{TOPE_DE_LA_DESCRIPCION}
+                                        </span>
+                                    </div>
+                                </div>
                                 <Button onClick={handleSubmit} className="w-full">
                                     {form.id ? 'Actualizar tutorial' : 'Crear tutorial'}
                                 </Button>

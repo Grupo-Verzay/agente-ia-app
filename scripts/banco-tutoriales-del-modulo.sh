@@ -11,7 +11,12 @@
 #     1440/1024/390: título, descripción y el botón al final, todas iguales.
 #
 # `MODO=roto` lee y monta la barra de ANTES_REF (pinchado a un commit, nunca
-# `origin/main`) y afirma el fallo: el botón rojo «Ver en YouTube».
+# `origin/main`) y afirma el fallo: el botón rojo «Ver en YouTube»; y lee
+# ANTES_DESCRIPCION_REF para afirmar la descripción de antes (el subtítulo de
+# la guía, y el «Recorrido completo…» genérico de las semillas).
+#
+# Y la regla de la descripción de una tarjeta: «Aprende a … en la plataforma»,
+# 75 caracteres como mucho, medida en Chromium con Poppins: cabe en una línea.
 #
 # Necesita el build (`npm run build`) para el CSS.
 set -euo pipefail
