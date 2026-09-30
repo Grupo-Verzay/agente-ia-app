@@ -1,8 +1,8 @@
 /**
  * Los DATOS DE EJEMPLO de las capturas de la guía de Reuniones, encima de
- * `sembrar-barra.mjs` (la cuenta y su equipo) y de `sembrar-guia-leads.mjs`
- * (el menú de un cliente y la barra de arriba de un cliente). El MARCO de la
- * pantalla es el mismo en todas las guías: solo cambia lo de dentro.
+ * `sembrar-barra.mjs` (la cuenta y su equipo). El MARCO de la pantalla —la
+ * cuenta de un cliente, su menú y la barra de arriba— es el de todas las guías
+ * (`sembrar-marco-de-la-guia.mjs`): solo cambia lo de dentro.
  *
  * Con una lista vacía una guía de Reuniones no enseña nada, así que la cuenta
  * trae lo que tiene una cuenta que se reúne de verdad:
@@ -18,68 +18,79 @@
  *
  * Las tablas de las reuniones las crea el propio módulo de la App
  * (`lib/salas-de-video-db.ts`) con `CREATE TABLE IF NOT EXISTS`, igual que en
- * producción: por eso se le llama compilado (`SALAS_DB`) en vez de escribir aquí
- * otra copia de su esquema, que se quedaría atrás el día que cambie.
+ * producción: por eso se compila y se le llama, en vez de escribir aquí otra
+ * copia de su esquema, que se quedaría atrás el día que cambie.
  *
  * Los ficheros de las grabaciones los sirve el script de capturas en
  * `S3_PUBLIC_URL` (un servidor de ficheros de usar y tirar): la fila solo
  * guarda la dirección.
  */
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
 import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
-const SALAS_DB = process.env.SALAS_DB;
-if (!SALAS_DB) throw new Error("Falta SALAS_DB: la ruta del módulo de salas compilado.");
+import { sembrarElMarco } from "./sembrar-marco-de-la-guia.mjs";
+
+/*
+ * La zona del NAVEGADOR de las capturas. La semilla dice «a las 10:00» con
+ * `setHours`, que usa la zona del proceso, y en el contenedor esa es UTC: las
+ * reuniones de la mañana salían a las 5:00. Node la toma al asignarla.
+ */
+process.env.TZ = "America/Bogota";
+
+/*
+ * El módulo de salas, compilado para Node. Lleva `import "server-only"`, que
+ * fuera de Next revienta al cargarse: se quita del compilado (en la App es lo
+ * que impide que llegue al navegador; aquí no hay navegador).
+ */
+const RAIZ = path.resolve(import.meta.dirname, "..");
+const COMPILADO = path.join(RAIZ, "lib", "__tests__", ".compilado", "guia-reuniones");
+mkdirSync(COMPILADO, { recursive: true });
+const SALAS_DB = path.join(COMPILADO, "salas-de-video-db.mjs");
+execFileSync(
+    "npx",
+    [
+        "esbuild", "lib/salas-de-video-db.ts", "--bundle", "--platform=node", "--format=esm",
+        `--outfile=${SALAS_DB}`, "--external:@prisma/client", "--external:server-only", "--log-level=error",
+    ],
+    { cwd: RAIZ, stdio: "inherit" },
+);
+writeFileSync(SALAS_DB, readFileSync(SALAS_DB, "utf8").replace(/^import "server-only";\n/m, ""));
 const salas = await import(SALAS_DB);
+
+const db = new PrismaClient();
 
 /** Dónde se sirven los ficheros de las grabaciones de ejemplo. */
 export const PUBLICO = (process.env.S3_PUBLIC_URL ?? "http://localhost:9000").replace(/\/$/, "");
 
-const jefe = await db.user.findUniqueOrThrow({ where: { email: "jefe@banco.test" } });
-const sofia = await db.user.findUniqueOrThrow({ where: { email: "sofia@banco.test" } });
-
 /*
- * En una reunión sale el nombre de la PERSONA en su recuadro. «Mi Negocio»
- * (lo que deja la semilla de Leads) es el nombre de la cuenta, y un recuadro
- * que dice «Mi Negocio» no se lee como una persona. La empresa sigue siendo
- * «Mi Negocio»: es lo que ve el cliente como cuenta.
+ * El marco, con el módulo de GRABACIÓN: se vende aparte y lo decide la ruta
+ * `/reuniones/grabaciones` (`laCuentaPuedeGrabar`). Sin un módulo que la lleve,
+ * el botón de grabar y la pestaña Grabaciones no salen y la guía no podría
+ * enseñarlos. Va escondido del menú: el menú de la guía es el de un cliente.
  */
-await db.user.update({ where: { id: jefe.id }, data: { name: "Andrea Torres", company: "Mi Negocio" } });
-await db.user.update({ where: { id: sofia.id }, data: { name: "Sofía Rojas" } });
-
-/*
- * «Ver tutoriales» en la barra de arriba de `/reuniones`: la guía existe, así
- * que la barra tiene que llevar su botón, como la de Leads lleva el suyo.
- */
-await db.guideUrl.deleteMany({ where: { path: "/reuniones" } });
-await db.guideUrl.create({
-    data: {
+const marco = await sembrarElMarco(
+    db,
+    {
         path: "/reuniones",
         title: "Guía de Reuniones",
         description: "Recorrido completo del módulo de Reuniones con video explicativo y guías",
         url: "/guia/reuniones",
     },
-});
+    { modulosQueSeVenden: [{ label: "Grabaciones", route: "/reuniones/grabaciones", icon: "CalendarDaysIcon" }] },
+);
+const sofia = await db.user.findUniqueOrThrow({ where: { email: "sofia@banco.test" } });
 
 /*
- * El módulo de GRABACIÓN. Se vende aparte y lo decide la ruta
- * `/reuniones/grabaciones` (`laCuentaPuedeGrabar`): sin un módulo que la
- * lleve, el botón de grabar y la pestaña Grabaciones no salen, y la guía no
- * podría enseñarlos. Va escondido del menú (`showInSidebar: false`): el menú de
- * la guía es el de un cliente y no lleva esta entrada.
+ * En una reunión sale el nombre de la PERSONA en su recuadro. «Mi Negocio»
+ * (lo que deja el marco) es el nombre de la cuenta, y un recuadro que dice
+ * «Mi Negocio» no se lee como una persona. La empresa sigue siendo
+ * «Mi Negocio»: es lo que ve el cliente como cuenta.
  */
-await db.moduleItem.deleteMany({ where: { url: "/reuniones/grabaciones" } });
-await db.module.deleteMany({ where: { route: "/reuniones/grabaciones" } });
-await db.module.create({
-    data: {
-        label: "Grabaciones",
-        route: "/reuniones/grabaciones",
-        icon: "CalendarDaysIcon",
-        showInSidebar: false,
-        hiddenModuleToSelector: true,
-        order: 99,
-    },
-});
+const jefe = await db.user.update({ where: { id: marco.id }, data: { name: "Andrea Torres", company: "Mi Negocio" } });
+await db.user.update({ where: { id: sofia.id }, data: { name: "Sofía Rojas" } });
 
 // Deja las tablas creadas (y vacías de otras vueltas).
 await salas.lasSalasVivasDeLaFamilia([jefe.id]);
@@ -99,7 +110,7 @@ const HORA = 60 * MIN;
 const DIA = 24 * HORA;
 const ahora = Date.now();
 
-/** Una fecha de hace `dias` días a la hora `hora`, en la zona del proceso (`generar-guia-reuniones.sh` la pone en la del navegador de las capturas). */
+/** Una fecha de hace `dias` días a la hora `hora`, en la zona del navegador de las capturas (ver `process.env.TZ` arriba). */
 function haceDias(dias, hora, minuto = 0) {
     const d = new Date(ahora - dias * DIA);
     d.setHours(hora, minuto, 0, 0);

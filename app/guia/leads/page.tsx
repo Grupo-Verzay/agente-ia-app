@@ -71,8 +71,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
                     </div>
                     <CuadriculaDeSecciones
                         secciones={SECCIONES}
-                        moduloPath="/guia/leads"
-                        carpeta={CARPETA_DE_CAPTURAS}
+                        moduloPath={CARPETA_DE_CAPTURAS}
                         contactoHref={contactoHref}
                         videoHref="#demostracion"
                     />

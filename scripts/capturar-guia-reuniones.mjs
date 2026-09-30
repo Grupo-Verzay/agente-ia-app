@@ -1,9 +1,9 @@
 /**
  * Toma las CAPTURAS y graba el VÍDEO de la guía pública de Reuniones, sobre la
  * App servida de verdad (`next start`, sesiones reales, datos de
- * `sembrar-guia-reuniones.mjs`). Mismo camino que `capturar-guia-leads.mjs`:
- * cada captura es una receta —abre, pulsa, resalta— y las marcas se pintan con
- * la capa SVG de `herramientas-de-la-guia.mjs`, localizadas por lo que la
+ * `sembrar-guia-reuniones.mjs`). Mismo camino que los guiones de Leads y
+ * Catálogo, y con las mismas piezas (`taller-de-la-guia.mjs`): cada captura es
+ * una receta —abre, pulsa, resalta— y las marcas se localizan por lo que la
  * pantalla ya expone (`data-*` de la sala, `aria-label` de sus mandos), nunca
  * por coordenadas.
  *
@@ -31,53 +31,86 @@
  * Qué captura hace falta lo dice `lib/guia-reuniones.ts`: el script se niega
  * a terminar en verde si alguna imagen que la guía enseña no se tomó.
  *
- * Se lanza con `scripts/generar-guia-reuniones.sh`.
+ * Se lanza con `scripts/generar-guia-reuniones.sh`. Sus miniaturas no se
+ * pueden tomar aparte (`SOLO_MINIATURAS`): varias solo existen a mitad de la
+ * reunión.
  */
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 
 import { CURSOR } from "./cursor-de-la-guia.mjs";
 import { grabar } from "./grabadora-de-la-guia.mjs";
 import { lasCamaras } from "./camaras-de-la-guia.mjs";
-import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-reuniones.mjs";
-import { RITMO, guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
-import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
+import { guardarWav, mezclar, montarLaPista } from "./voz-de-la-guia.mjs";
 import {
+    LA_BARRA_DE_ARRIBA,
     caja,
     cerrarLoAbierto,
+    comprobarLasCapturas,
+    crearGuardar,
+    dentro,
     desmarcar,
     despejar,
-    elGuardado,
+    dondeAcabaElMenu,
     elMarcoDeLaPantalla,
     elMenuAbierto,
     elMenuLateral,
+    empezarLaNarracion,
     entrar,
+    escribirLaVozDelVideo,
+    esconderLosBotonesDelBorde,
     espera,
     holgura,
+    loQuePintaElMenu,
     marcar,
     mover,
+    prepararLaVoz,
     pulsar,
     quitarAvisos,
     rotulo,
+    tomarUnaMiniatura,
     unir,
-} from "./herramientas-de-la-guia.mjs";
+} from "./taller-de-la-guia.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const sharp = require("sharp");
 const { PrismaClient } = require("@prisma/client");
 
 const BASE = process.env.BASE ?? "http://localhost:3940";
-const PUBLICO_PORT = Number(process.env.PUBLICO_PORT ?? 9000);
 const RAIZ = path.resolve(import.meta.dirname, "..");
 const SALIDA = path.join(RAIZ, "public", "guia", "reuniones");
 const TMP = process.env.TMP_GUIA ?? "/tmp/guia-reuniones";
 const SIN_VIDEO = process.env.SIN_VIDEO === "1";
 const SOLO_VIDEO = process.env.SOLO_VIDEO === "1";
+
+if (process.env.SOLO_MINIATURAS === "1") {
+    console.error("[guia] En Reuniones las miniaturas se toman a mitad de la reunión: no hay SOLO_MINIATURAS. Usa SIN_VIDEO=1.");
+    process.exit(1);
+}
+// Las cámaras de mentira se hacen con ffmpeg, y el fondo de la reunión con los
+// ficheros que el build copia a `public/segmentacion`: sin ellos esto se
+// caería a mitad, después de varias capturas. Mejor decirlo antes de empezar.
+try {
+    execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+} catch {
+    console.error("[guia] Falta ffmpeg: hace falta para las cámaras de ejemplo y el vídeo (apt-get install -y ffmpeg).");
+    process.exit(1);
+}
+if (!existsSync(path.join(RAIZ, "public", "segmentacion"))) {
+    console.error("[guia] Falta public/segmentacion (el fondo de la reunión): se copia al construir ('npm run build').");
+    process.exit(1);
+}
+
+/**
+ * Los ficheros de las grabaciones de ejemplo: los sirve este script en la
+ * dirección que la App cree que es su almacenamiento (`S3_PUBLIC_URL`, que el
+ * lanzador común pone en `localhost:9000`).
+ */
+const PUBLICO_PORT = Number(new URL(process.env.S3_PUBLIC_URL ?? "http://localhost:9000").port || 9000);
 /** Dónde quedó el recuadro dentro de cada miniatura: lo lee el banco para medir el enfoque. */
 const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-reuniones.json");
 /** Lo que pinta el menú recogido en las capturas: lo lee el banco. */
@@ -93,7 +126,7 @@ mkdirSync(TMP, { recursive: true });
 
 const db = new PrismaClient();
 const tomadas = new Set();
-const guardar = elGuardado({ salida: SALIDA, tomadas });
+const guardar = crearGuardar({ salida: SALIDA, tomadas });
 const focos = {};
 
 /* ------------------------------------------------------------------ */
@@ -196,17 +229,13 @@ async function limpiarLaSala(titulo) {
 /* Las páginas                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Los botones del borde (copiloto, equipo, nota) son de TODAS las pantallas: aquí no explican nada. */
-const SIN_EL_BORDE = "[data-columna-del-borde]{display:none !important}";
-
 async function abrirReuniones(p) {
     await p.goto(`${BASE}/reuniones`, { waitUntil: "domcontentloaded" });
     await p.waitForSelector("[data-lista-de-reuniones]", { timeout: 90000 });
     await p.evaluate(() => document.fonts.ready);
     await espera(p, 2000);
     await despejar(p);
-    await p.addStyleTag({ content: SIN_EL_BORDE });
-    await espera(p, 300);
+    await esconderLosBotonesDelBorde(p);
 }
 
 const pestana = (p, nombre) =>
@@ -216,15 +245,8 @@ const laFila = (p, titulo) =>
 const elBotonDeCaducidad = (p) => p.locator('button[aria-label^="Reunión nueva"]').first();
 const elBotonNuevo = (p) => p.getByRole("button", { name: /Nuevo/ }).first();
 
-/** Los apartados de Panel: la barra de pestañas que sale encima de la pantalla. */
-async function losApartados(p) {
-    return p.evaluate(() => {
-        const a = document.querySelector('nav a[href="/reuniones"]');
-        const barra = a?.closest(".sticky") ?? a?.closest("nav");
-        const r = barra.getBoundingClientRect();
-        return { x: r.left, y: r.top, w: r.width, h: r.height };
-    });
-}
+/** Las pestañas del Panel, que salen encima de la pantalla (la misma barra que en Catálogo). */
+const LAS_PESTANAS = (p) => p.locator('nav a[href="/reuniones"]').first().locator("xpath=ancestor::div[contains(@class,'sticky')][1]");
 
 /** La sala entera, dentro de la plataforma. */
 const SALA = "[data-sala-de-video]";
@@ -336,22 +358,12 @@ async function laFranjaDeEspera(p) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Una miniatura: la zona que la sección explica, nítida y en su recuadro; el
- * resto bajo el velo; 16:9 y centrada (`encuadre-de-la-miniatura.mjs`). La
- * MISMA receta que las de Leads; lo único distinto es que aquí varias se
- * toman a mitad de la reunión, porque es donde está lo que enseñan.
+ * Una miniatura, con la MISMA receta que las de Leads y Catálogo
+ * (`tomarUnaMiniatura`). Lo único distinto es cuándo: aquí varias se toman a
+ * mitad de la reunión, porque es donde está lo que enseñan.
  */
 async function miniatura(p, slug, foco) {
-    const vista = p.viewportSize();
-    const e = encuadreDeLaMiniatura(foco, vista);
-    await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
-    const nombre = `mini-${slug}.webp`;
-    const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
-    await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(SALIDA, nombre));
-    tomadas.add(nombre);
-    focos[nombre] = { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h };
-    console.log("  ✓", nombre);
-    await desmarcar(p);
+    Object.assign(focos, await tomarUnaMiniatura(p, slug, foco, { salida: SALIDA, tomadas }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -432,7 +444,13 @@ async function capturas(p, args) {
     // ── La lista ────────────────────────────────────────────────────────
     await guardar(p, "portada.webp");
 
-    const cApartados = await losApartados(p);
+    // 1. La pantalla de un vistazo: las seis zonas, en el orden de
+    // `ZONAS_DE_LA_PANTALLA` —las tres primeras, las mismas que en Catálogo—.
+    // El menú y la barra de arriba van metidos unos píxeles: pegados al
+    // borde, su recuadro se saldría.
+    const cMenuLateral = await caja(p, elMenuLateral(p));
+    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
+    const cDelPanel = await caja(p, LAS_PESTANAS(p));
     const cPestanas = unir(
         await caja(p, pestana(p, "Abiertas")),
         await caja(p, pestana(p, "Pasadas")),
@@ -440,18 +458,29 @@ async function capturas(p, args) {
     );
     const cCaducidad = await caja(p, elBotonDeCaducidad(p));
     const cNuevo = await caja(p, elBotonNuevo(p));
-    const cLista = await caja(p, "[data-lista-de-reuniones]");
     const cListaHastaLaUltima = unir(...(await Promise.all([0, 1, 2].map((i) => caja(p, p.locator("[data-lista-de-reuniones] > div").nth(i))))));
+    const bajoElMenu = await dondeAcabaElMenu(p);
     await marcar(p, [
-        { c: cApartados, n: 1 },
-        { c: cPestanas, n: 2 },
-        { c: cCaducidad, n: 3 },
-        { c: cNuevo, n: 4 },
-        { c: cListaHastaLaUltima, n: 5 },
+        { c: dentro(cMenuLateral, 6), n: 1, numeroEn: { x: cMenuLateral.x + cMenuLateral.w / 2, y: bajoElMenu + 34 } },
+        { c: dentro(cCabecera, 6), n: 2, esquina: "centro" },
+        { c: dentro(cDelPanel, 4), n: 3 },
+        { c: cPestanas, n: 4 },
+        { c: unir(cCaducidad, cNuevo), n: 5 },
+        { c: cListaHastaLaUltima, n: 6 },
     ]);
     await guardar(p, "vista-general.webp");
+    writeFileSync(MENU, JSON.stringify(await loQuePintaElMenu(p), null, 2) + "\n");
     await desmarcar(p);
     await miniatura(p, "vista-general", unir(cPestanas, cNuevo));
+
+    // Las pestañas del Panel, con Reuniones señalada (la misma foto que en Catálogo).
+    const laPestana = await caja(p, p.locator('nav a[href="/reuniones"]').first());
+    await marcar(p, [{ c: dentro(cDelPanel, 4), soloLuz: true }, { c: laPestana, texto: "Estás en Reuniones", lado: "abajo" }], { atenuar: true });
+    // Arranca en el borde de las pestañas: con margen por arriba asomaría el
+    // pie de los botones de la barra de arriba, cortado.
+    const zonaPestanas = holgura({ ...cDelPanel, h: cDelPanel.h + 110 }, 12, vista);
+    await guardar(p, "pestanas.webp", { ...zonaPestanas, y: cDelPanel.y, h: zonaPestanas.h - (cDelPanel.y - zonaPestanas.y) });
+    await desmarcar(p);
 
     // Una fila abierta: Entrar, copiar y el «⋯».
     const fila = laFila(p, "Reunión semanal del equipo");
@@ -836,8 +865,7 @@ async function capturas(p, args) {
     await espera(p, 500);
 
     // El marco de la pantalla: la barra de arriba y el menú con Panel.
-    writeFileSync(MENU, JSON.stringify(await (await import("./herramientas-de-la-guia.mjs")).loQuePintaElMenu(p), null, 2) + "\n");
-    await elMarcoDeLaPantalla(p, guardar, { modulo: "Panel", rotulo: "Reuniones está en Panel" });
+    await elMarcoDeLaPantalla(p, guardar, { modulo: "Panel", texto: "Reuniones está en Panel" });
     writeFileSync(FOCOS, JSON.stringify(focos, null, 2) + "\n");
 }
 
@@ -855,11 +883,7 @@ async function video(navegador, estado, args) {
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
 
-    if (usaCedar()) await llenarLaCache(Object.values(NARRACION).map((n) => n.texto));
-    const dicho = (texto) => (usaCedar() ? texto : comoSeDice(texto));
-    const voz = Object.fromEntries(
-        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(dicho(n.texto), path.join(dir, `${id}.wav`)) }]),
-    );
+    const voz = await prepararLaVoz(NARRACION, dir, comoSeDice);
 
     // Los otros dos llegan preparados: con la sesión abierta y la página
     // cargada, para que entren a tiempo de la frase que los nombra.
@@ -879,29 +903,7 @@ async function video(navegador, estado, args) {
     const grabadora = await grabar(p, mudo, { ancho: 1280, alto: 800 });
     const t0 = Date.now();
     grabadora.empezarEn(t0);
-    const tramos = [];
-    let calla = 0;
-    let frase = null;
-    const decir = async (id) => {
-        await callar();
-        const n = voz[id];
-        await rotulo(p, n.rotulo);
-        const ahora = Date.now();
-        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: ahora - t0 });
-        frase = { texto: n.texto, inicio: ahora, ms: n.audio.ms };
-        calla = ahora + n.audio.ms;
-    };
-    const alDecir = async (fragmento, adelanto = 450) => {
-        const i = frase ? frase.texto.indexOf(fragmento) : -1;
-        if (i < 0) throw new Error(`[guia] «${fragmento}» no está en la frase que suena: ${frase?.texto}`);
-        const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
-        if (falta > 0) await espera(p, falta);
-    };
-    const callar = async (respiro = RESPIRO_ENTRE_FRASES_MS) => {
-        const falta = calla + respiro - Date.now();
-        if (calla && falta > 0) await espera(p, falta);
-        calla = 0;
-    };
+    const { decir, alDecir, callar, tramos } = empezarLaNarracion(p, voz, t0, { respiro: RESPIRO_ENTRE_FRASES_MS });
 
     await abrirReuniones(p);
     await p.mouse.move(640, 400, { steps: 8 });
@@ -1044,22 +1046,7 @@ async function video(navegador, estado, args) {
     const destino = path.join(SALIDA, "demostracion.webm");
     mezclar(mudo, pista, destino, { desdeMs });
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
-    writeFileSync(
-        path.join(import.meta.dirname, "voz-de-la-guia", "reuniones.json"),
-        JSON.stringify(
-            usaCedar()
-                ? {
-                      voz: VOZ_CEDAR.voz,
-                      modelo: VOZ_CEDAR.modelo,
-                      ritmo: { ...RITMO, respiroEntreFrasesMs: RESPIRO_ENTRE_FRASES_MS },
-                      frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)),
-                      empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
-                  }
-                : { voz: process.env.VOZ_GUIA, frases: [] },
-            null,
-            2,
-        ) + "\n",
-    );
+    escribirLaVozDelVideo("reuniones", { narracion: NARRACION, colocados, desdeMs, respiro: RESPIRO_ENTRE_FRASES_MS });
     console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
@@ -1102,12 +1089,5 @@ try {
     await db.$disconnect();
 }
 
-const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
-const faltan = esperadas.filter((n) => !tomadas.has(n) && !(SOLO_VIDEO && existsSync(path.join(SALIDA, n))));
-const sobran = readdirSync(SALIDA).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
-if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
-if (faltan.length) {
-    console.error("[guia] faltan capturas que la guía enseña:", faltan.join(", "));
-    process.exit(1);
-}
+comprobarLasCapturas({ salida: SALIDA, tomadas, conservaLasDemas: SOLO_VIDEO });
 console.log(`[guia] ${tomadas.size} capturas${SIN_VIDEO ? "" : " y el vídeo"} en public/guia/reuniones`);

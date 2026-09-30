@@ -12,7 +12,8 @@ import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
 import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
 
 /**
- * El índice de la guía de Reuniones, en este orden: la demostración en vídeo, la
+ * El índice de la guía de Reuniones —el mismo que el de Leads, con las mismas
+ * piezas—, en este orden: la demostración en vídeo, la
  * introducción (editable desde Documentación › Administrador guías) y una
  * tarjeta por sección, con las tarjetas de cierre que dejan la cuadrícula
  * simétrica (`lib/cierre-de-la-guia.ts`). Pública y no indexada (ver
@@ -71,8 +72,7 @@ export default async function IndiceDeLaGuiaDeReuniones() {
                     </div>
                     <CuadriculaDeSecciones
                         secciones={SECCIONES}
-                        moduloPath="/guia/reuniones"
-                        carpeta={CARPETA_DE_CAPTURAS}
+                        moduloPath={CARPETA_DE_CAPTURAS}
                         contactoHref={contactoHref}
                         videoHref="#demostracion"
                     />

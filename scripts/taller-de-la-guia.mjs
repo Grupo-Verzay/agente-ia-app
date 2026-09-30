@@ -1,29 +1,41 @@
 /**
- * Las HERRAMIENTAS de captura que comparten todas las guías públicas
- * (`capturar-guia-leads.mjs`, `capturar-guia-reuniones.mjs`…): entrar con
- * sesión, medir, marcar, fotografiar y mover el ratón del vídeo.
+ * El TALLER de las guías públicas: lo que comparten los guiones de capturas y
+ * vídeo de todos los módulos (`capturar-guia-<modulo>.mjs`).
  *
- * # Por qué viven aquí y no copiadas en cada guía
+ * Aquí vive todo lo que NO depende de la pantalla que se documenta: entrar con
+ * sesión, medir cajas, pintar las marcas (recuadros, números, flechas y el
+ * velo), guardar una foto en webp, las miniaturas del índice, el marco que
+ * rodea a cualquier pantalla (el menú y la barra de arriba), mover el ratón,
+ * la narración que enlaza las frases y el registro de con qué voz se narró el
+ * vídeo publicado.
  *
- * Una guía se lee al lado de otra. Si cada una pintara sus recuadros, sus
- * números y su velo a su manera, el primer día que se afinara el trazo de una
- * la otra se quedaría atrás, y dos guías de la misma plataforma dejarían de
- * parecerse sin que nadie sepa cuál es la buena. Aquí se escriben UNA vez: lo
- * único propio de cada guía son sus recetas (qué se abre, qué se pulsa, qué
- * se señala) y su guion del vídeo.
- *
- * Nada de esto sabe de ningún módulo: el que necesita saber dónde vive su
- * pantalla en el menú lo dice al llamar (`elMarcoDeLaPantalla`).
+ * Lo propio de cada guía —qué se abre, qué se señala, qué se dice— se queda en
+ * su guion. Con estas piezas copiadas en cada uno, el día que se afinara el
+ * velo o el ritmo de la narración se afinaría en una guía y la otra saldría
+ * distinta: dos guías de la misma plataforma que no se parecen.
  */
 import { createRequire } from "node:module";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
+import { RITMO, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
 export const espera = (p, ms) => p.waitForTimeout(ms);
 
-/** Entra con la cuenta de los datos de ejemplo (`sembrar-barra.mjs`). */
+/* ------------------------------------------------------------------ */
+/* Entrar y despejar                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Entra con la cuenta de las capturas (la siembra `sembrar-barra.mjs`). Otra
+ * persona de esa cuenta —la de una reunión, que entra desde su navegador— pasa
+ * su `email`: la clave es la misma para todas las cuentas de la semilla.
+ */
 export async function entrar(contexto, base, { email = "jefe@banco.test", clave = "banco1234" } = {}) {
     const p = await contexto.newPage();
     await p.goto(`${base}/login`, { waitUntil: "domcontentloaded" });
@@ -54,6 +66,65 @@ export async function quitarAvisos(p) {
     await p.mouse.move(10, 450);
     await p.waitForFunction(() => document.querySelectorAll("[data-sonner-toast]").length === 0, null, { timeout: 20000 }).catch(() => {});
     await espera(p, 300);
+}
+
+/**
+ * Los botones del borde (copiloto, equipo, nota) son de TODAS las pantallas:
+ * en la guía de un módulo tapan lo que hay a la derecha y no explican nada de
+ * ese módulo.
+ */
+export async function esconderLosBotonesDelBorde(p) {
+    await p.addStyleTag({ content: "[data-columna-del-borde]{display:none !important}" });
+    await espera(p, 300);
+}
+
+/**
+ * El dominio que se LEE en las capturas. La guía se genera sobre `localhost`,
+ * y lo que la pantalla enseña con el dominio de la página («URL activa»,
+ * «Catálogo público») saldría como `localhost:3940/c/…`, una dirección que no
+ * le sirve a nadie. En producción esa misma pantalla dice el de la
+ * plataforma: se reescribe en el TEXTO pintado, nunca en los enlaces, así que
+ * pulsar sigue llevando a la App servida.
+ */
+export const DOMINIO_DE_LA_GUIA = "agente.ia-app.com";
+
+/**
+ * Pone `DOMINIO_DE_LA_GUIA` donde la página pinta el de `base`, en cuanto
+ * aparece y cada vez que React lo vuelve a pintar (un observador, antes de
+ * cargar la página).
+ */
+export async function conElDominioDeLaGuia(contexto, base) {
+    const local = new URL(base).host;
+    await contexto.addInitScript(
+        ({ local, dominio }) => {
+            const arreglar = (nodo) => {
+                if (nodo.nodeType === Node.TEXT_NODE) {
+                    if (nodo.data.includes(local)) nodo.data = nodo.data.split(local).join(dominio);
+                    return;
+                }
+                if (nodo.nodeType !== Node.ELEMENT_NODE && nodo.nodeType !== Node.DOCUMENT_NODE) return;
+                const recorrido = document.createTreeWalker(nodo, NodeFilter.SHOW_TEXT);
+                for (let t = recorrido.nextNode(); t; t = recorrido.nextNode()) if (t.data.includes(local)) t.data = t.data.split(local).join(dominio);
+            };
+            new MutationObserver((cambios) => {
+                for (const c of cambios) {
+                    if (c.type === "characterData") arreglar(c.target);
+                    for (const n of c.addedNodes) arreglar(n);
+                }
+            }).observe(document, { childList: true, subtree: true, characterData: true });
+        },
+        { local, dominio: DOMINIO_DE_LA_GUIA },
+    );
+}
+
+/** Cierra un menú o un diálogo que siga abierto, sin tocar nada de la página. */
+export async function cerrarLoAbierto(p) {
+    for (let i = 0; i < 3; i += 1) {
+        const abierto = await p.$('[role="menu"], [role="alertdialog"]');
+        if (!abierto) break;
+        await p.keyboard.press("Escape");
+        await espera(p, 350);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,7 +161,7 @@ export function holgura(c, px, vista) {
     return { x, y, w: r - x, h: b - y };
 }
 
-/** Una caja metida unos píxeles: pegada al borde, su recuadro se saldría. */
+/** Una caja metida `px` hacia dentro: lo pegado al borde no se sale con su recuadro. */
 export const dentro = (c, px) => ({ x: c.x + px, y: c.y + px, w: c.w - 2 * px, h: c.h - 2 * px });
 
 /* ------------------------------------------------------------------ */
@@ -105,7 +176,7 @@ export const VELO_SOBRE_BLANCO = "#7b7f8a";
 
 /**
  * Las partes de la barra de arriba, en el orden de `PARTES_DE_LA_BARRA_DE_ARRIBA`
- * (`lib/guia-leads.ts`): el banco exige que sean las mismas y en ese orden.
+ * (`lib/guia-de-modulo.ts`): el banco exige que sean las mismas y en ese orden.
  */
 export const lasPartesDeArriba = (p) => [
     p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]'),
@@ -127,9 +198,9 @@ export async function dondeAcabaElMenu(p) {
 
 /**
  * Lo que pinta el menú RECOGIDO, módulo por módulo: su nombre y si lleva
- * icono. Se guarda junto a cada guía (`scripts/menu-guia-*.json`) y lo lee el
- * banco: un módulo sin icono sale como letras recortadas («C…»), que es
- * exactamente como se veía la primera versión de la guía de Leads.
+ * icono. Se guarda en `scripts/menu-guia-<modulo>.json` y lo lee el banco: un
+ * módulo sin icono sale como letras recortadas («C…»), que es exactamente como
+ * se veía la primera versión de la guía de Leads.
  */
 export async function loQuePintaElMenu(p) {
     return p.evaluate(() => {
@@ -145,14 +216,23 @@ export async function loQuePintaElMenu(p) {
     });
 }
 
-/** Cierra un menú o un diálogo que siga abierto, sin tocar nada de la página. */
-export async function cerrarLoAbierto(p) {
-    for (let i = 0; i < 3; i += 1) {
-        const abierto = await p.$('[role="menu"], [role="alertdialog"]');
-        if (!abierto) break;
-        await p.keyboard.press("Escape");
-        await espera(p, 350);
-    }
+/** Abre o recoge el menú con las dos flechas de la barra, y espera a que termine de moverse. */
+export async function elMenuAbierto(p, abierto) {
+    const ancho = async () => (await caja(p, elMenuLateral(p))).w;
+    if ((await ancho()) > 80 === abierto) return;
+    await p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]').click();
+    await p.waitForFunction(
+        (abierto) => {
+            const m = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((x) => x.getBoundingClientRect().width > 0);
+            return m && m.getBoundingClientRect().width > 80 === abierto;
+        },
+        abierto,
+        { timeout: 10000 },
+    );
+    // La transición del ancho dura 200 ms; se deja que acabe y que el contenido se recoloque.
+    await espera(p, 700);
+    const { width, height } = p.viewportSize();
+    await p.mouse.move(width / 2, height - 20);
 }
 
 /* ------------------------------------------------------------------ */
@@ -259,13 +339,16 @@ export async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
 
 export const desmarcar = (p) => p.evaluate(() => document.getElementById("__guia")?.remove());
 
+/* ------------------------------------------------------------------ */
+/* Guardar                                                             */
+/* ------------------------------------------------------------------ */
+
 /**
- * El `guardar` de UNA guía: foto → webp en su carpeta de `public/`, y la
- * apunta en `tomadas` (el script se cae si falta alguna que la guía enseña).
+ * El `guardar` de una guía: foto → webp en su carpeta, apuntada en `tomadas`.
  * Las de pantalla completa se bajan a 1600 de ancho; los zoom conservan su
  * nitidez.
  */
-export function elGuardado({ salida, tomadas }) {
+export function crearGuardar({ salida, tomadas }) {
     return async function guardar(p, nombre, clip, { margenArriba = 0, fondo = "#ffffff" } = {}) {
         let buf = await p.screenshot(clip ? { clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } } : {});
         // Lo que va pegado al borde de arriba de la pantalla (la barra de arriba)
@@ -285,16 +368,55 @@ export function elGuardado({ salida, tomadas }) {
 }
 
 /**
+ * Una miniatura por sección, TODAS con la misma receta: la zona que la
+ * sección explica, nítida y en su recuadro; el resto, bajo el velo; y el
+ * encuadre 16:9 centrado en la zona (`encuadre-de-la-miniatura.mjs`). Cada
+ * zona es `[slug, async () => caja, antes?]`; `antes` deja la pantalla como
+ * hace falta (abrir un menú) y `cerrarLoAbierto` la limpia después.
+ *
+ * Escribe en `focos` dónde quedó el recuadro dentro de cada miniatura (en
+ * fracción): lo lee el banco para medir el enfoque sin saber el tamaño.
+ */
+export async function tomarLasMiniaturas(p, zonas, { salida, tomadas, focos: ficheroDeFocos, despues }) {
+    const focos = {};
+    for (const [slug, zona] of zonas) {
+        Object.assign(focos, await tomarUnaMiniatura(p, slug, await zona(), { salida, tomadas }));
+        await cerrarLoAbierto(p);
+        if (despues) await despues();
+    }
+    await desmarcar(p);
+    writeFileSync(ficheroDeFocos, JSON.stringify(focos, null, 2) + "\n");
+}
+
+/**
+ * UNA miniatura con la receta de siempre (la de `tomarLasMiniaturas`), para la
+ * guía cuyas zonas no se pueden recorrer seguidas: en Reuniones varias solo
+ * existen a mitad de la reunión, así que se toman cuando se llega a ellas.
+ * Devuelve `{ [nombre]: foco }` para juntarlo en el fichero de focos.
+ */
+export async function tomarUnaMiniatura(p, slug, foco, { salida, tomadas }) {
+    const e = encuadreDeLaMiniatura(foco, p.viewportSize());
+    await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
+    const nombre = `mini-${slug}.webp`;
+    const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
+    await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(salida, nombre));
+    tomadas.add(nombre);
+    console.log("  ✓", nombre);
+    await desmarcar(p);
+    return { [nombre]: { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h } };
+}
+
+/**
  * El marco que rodea a la pantalla —la barra de arriba y el menú de la
  * izquierda—, fotografiado en una ventana de PORTÁTIL. A 1440 la barra sale
  * en una tira tan larga que en la página sus iconos se leen de 6 px, y el
  * menú abierto de alto entero ocupa más de una pantalla de la guía. Se vuelve
  * a la ventana de antes al terminar.
  *
- * `modulo` es el módulo del menú donde vive la pantalla («Contactos» para
- * Leads, «Panel» para Reuniones) y `rotulo`, lo que dice su flecha.
+ * `modulo` es el módulo del menú donde vive la pantalla, y `texto` el rótulo
+ * de su flecha («Leads está en Contactos»).
  */
-export async function elMarcoDeLaPantalla(p, guardar, { modulo, rotulo }) {
+export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
     const vista = p.viewportSize();
     const cambiarA = async (tam) => {
         await p.setViewportSize(tam);
@@ -312,45 +434,26 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, rotulo }) {
     await desmarcar(p);
 
     // El menú, ABIERTO con las dos flechas, como lo abre un cliente: entero y
-    // a la vista, con el módulo de la pantalla señalado; lo de al lado, bajo
-    // el velo. Abrirlo corre la pantalla, así que se vuelve a recoger antes de
-    // seguir (y el vídeo, que sale del estado de esta sesión, lo encuentra
-    // recogido: el menú se guarda en una cookie).
+    // a la vista, con el módulo señalado; lo de al lado, bajo el velo. Abrirlo
+    // corre la pantalla, así que se vuelve a recoger antes de seguir (y el
+    // vídeo, que sale del estado de esta sesión, lo encuentra recogido: el
+    // menú se guarda en una cookie).
     await cambiarA({ width: 1280, height: 720 });
     await elMenuAbierto(p, true);
     const lateral = elMenuLateral(p);
     const cLateral = await caja(p, lateral);
-    const elModulo = lateral.locator('[data-sidebar="menu-item"]', {
+    const item = lateral.locator('[data-sidebar="menu-item"]', {
         has: p.locator('[data-sidebar="menu-button"]', { hasText: modulo }),
     });
-    await marcar(p, [{ c: cLateral, soloLuz: true }, { c: await caja(p, elModulo.first()), texto: rotulo, lado: "derecha" }], { atenuar: true });
+    await marcar(p, [{ c: cLateral, soloLuz: true }, { c: await caja(p, item.first()), texto, lado: "derecha" }], { atenuar: true });
     await guardar(p, "menu-lateral.webp", { x: 0, y: 0, w: Math.min(1280, cLateral.w + 520), h: 720 });
     await desmarcar(p);
     await elMenuAbierto(p, false);
     await cambiarA(vista);
 }
 
-/** Abre o recoge el menú con las dos flechas de la barra, y espera a que termine de moverse. */
-export async function elMenuAbierto(p, abierto) {
-    const ancho = async () => (await caja(p, elMenuLateral(p))).w;
-    if ((await ancho()) > 80 === abierto) return;
-    await p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]').click();
-    await p.waitForFunction(
-        (abierto) => {
-            const m = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((x) => x.getBoundingClientRect().width > 0);
-            return m && m.getBoundingClientRect().width > 80 === abierto;
-        },
-        abierto,
-        { timeout: 10000 },
-    );
-    // La transición del ancho dura 200 ms; se deja que acabe y que el contenido se recoloque.
-    await espera(p, 700);
-    const { width, height } = p.viewportSize();
-    await p.mouse.move(width / 2, height - 20);
-}
-
 /* ------------------------------------------------------------------ */
-/* El ratón del vídeo                                                  */
+/* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
 
 export async function mover(p, locator) {
@@ -365,5 +468,102 @@ export async function pulsar(p, locator) {
     // El clic lo hace el ratón (así el vídeo lo enseña): no se vuelve a pulsar.
     await p.mouse.up();
 }
-/** El rótulo de abajo del vídeo (lo pinta `CURSOR`, en `cursor-de-la-guia.mjs`). */
 export const rotulo = (p, t) => p.evaluate((t) => window.__rotulo?.(t), t);
+
+/**
+ * Las frases de una narración, sintetizadas ANTES de grabar: así se sabe
+ * cuánto dura cada una. Con Cedar, lo que falte se pide a OpenAI (o se dice
+ * por qué no se pudo); nunca cae a otra voz.
+ */
+export async function prepararLaVoz(narracion, dir, comoSeDice = (t) => t) {
+    if (usaCedar()) await llenarLaCache(Object.values(narracion).map((n) => n.texto));
+    const dicho = (texto) => (usaCedar() ? texto : comoSeDice(texto));
+    return Object.fromEntries(
+        Object.entries(narracion).map(([id, n]) => [id, { ...n, audio: sintetizar(dicho(n.texto), path.join(dir, `${id}.wav`)) }]),
+    );
+}
+
+/**
+ * La narración de un vídeo: `decir` empieza una frase y lo que venga detrás
+ * ocurre MIENTRAS suena; `alDecir` espera a que la frase llegue a la palabra
+ * que nombra la acción; `callar` espera a que termine, más un respiro corto.
+ * Las frases se ENLAZAN: esperar a que acabe cada una para actuar es lo que
+ * dejaba la narración cortada.
+ */
+export function empezarLaNarracion(p, voz, t0, { respiro: respiroEntreFrases }) {
+    const tramos = [];
+    let calla = 0;
+    /** La frase que suena: con ella `alDecir` sabe en qué palabra va. */
+    let frase = null;
+    const callar = async (respiro = respiroEntreFrases) => {
+        const falta = calla + respiro - Date.now();
+        if (calla && falta > 0) await espera(p, falta);
+        calla = 0;
+    };
+    const decir = async (id) => {
+        await callar();
+        const n = voz[id];
+        if (!n) throw new Error(`[guia] la narración no tiene la frase «${id}»`);
+        await rotulo(p, n.rotulo);
+        const ahora = Date.now();
+        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: ahora - t0 });
+        frase = { texto: n.texto, inicio: ahora, ms: n.audio.ms };
+        calla = ahora + n.audio.ms;
+    };
+    /**
+     * Espera a que la frase que suena llegue a `fragmento`, y `adelanto` ms
+     * antes —lo que tarda el ratón en llegar—: así se pulsa en la palabra que
+     * lo nombra y no después de callar. Dónde cae la palabra se estima por su
+     * posición en el texto, que con las pausas ya acortadas va casi parejo.
+     */
+    const alDecir = async (fragmento, adelanto = 450) => {
+        const i = frase ? frase.texto.indexOf(fragmento) : -1;
+        if (i < 0) throw new Error(`[guia] «${fragmento}» no está en la frase que suena: ${frase?.texto}`);
+        const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
+        if (falta > 0) await espera(p, falta);
+    };
+    return { decir, alDecir, callar, tramos };
+}
+
+/**
+ * Qué voz lleva el vídeo publicado de una guía, en
+ * `scripts/voz-de-la-guia/<guia>.json`: el banco lo compara con el guion de
+ * hoy y busca en la imagen el cambio del rótulo en cada `empiezanEnMs`.
+ */
+export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, respiro }) {
+    writeFileSync(
+        path.join(import.meta.dirname, "voz-de-la-guia", `${guia}.json`),
+        JSON.stringify(
+            usaCedar()
+                ? {
+                      voz: VOZ_CEDAR.voz,
+                      modelo: VOZ_CEDAR.modelo,
+                      ritmo: { ...RITMO, respiroEntreFrasesMs: respiro },
+                      frases: Object.values(narracion).map((n) => llaveDeLaFrase(n.texto)),
+                      // Dónde empieza cada frase EN EL VÍDEO PUBLICADO (ms). En ese
+                      // instante cambia el rótulo de abajo: el banco lo busca en la
+                      // imagen y así comprueba que la imagen no se despega de la voz.
+                      empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
+                  }
+                : { voz: process.env.VOZ_GUIA, frases: [] },
+            null,
+            2,
+        ) + "\n",
+    );
+}
+
+/**
+ * Las capturas que la guía enseña tienen que estar TODAS (`CAPTURAS_ESPERADAS`,
+ * sacadas del propio contenido). Con una parte (`conservaLasDemas`), lo demás
+ * se conserva del disco: basta con que esté. Sale en rojo si falta alguna.
+ */
+export function comprobarLasCapturas({ salida, tomadas, conservaLasDemas }) {
+    const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
+    const faltan = esperadas.filter((n) => !tomadas.has(n) && !(conservaLasDemas && existsSync(path.join(salida, n))));
+    const sobran = readdirSync(salida).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
+    if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
+    if (faltan.length) {
+        console.error("[guia] faltan capturas que la guía enseña:", faltan.join(", "));
+        process.exit(1);
+    }
+}

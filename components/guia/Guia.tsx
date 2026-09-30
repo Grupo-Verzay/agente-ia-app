@@ -13,20 +13,25 @@ import {
     LayoutDashboard,
     LayoutGrid,
     Lightbulb,
+    Link2,
     Maximize2,
     MessageCircle,
     MessageSquare,
     Mic,
     MoreHorizontal,
+    Palette,
     PlayCircle,
     Search,
+    Share2,
+    SlidersHorizontal,
+    Store,
     ToggleRight,
+    Type,
     UserPlus,
     Video,
-    type LucideIcon,
 } from "lucide-react";
 
-import { laRutaEnLaCarpeta, type IconoDeSeccion as NombreDeIcono, type Paso, type Seccion } from "@/lib/guia";
+import type { Paso, Seccion } from "@/lib/guia-de-modulo";
 import { lasClasesDelCierre } from "@/lib/cierre-de-la-guia";
 import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
 
@@ -38,13 +43,11 @@ import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
  */
 
 /**
- * Las piezas son las MISMAS para la guía de cualquier módulo: lo que cambia es
- * de dónde salen las capturas (`carpeta`, la de `public/`) y a qué ruta llevan
- * las tarjetas (`moduloPath`). Por eso se pasan siempre, sin valor por defecto:
- * con el de Leads escrito aquí, una guía nueva que se olvidara de pasarlos
- * enseñaría las capturas de Leads sin dar ningún error.
+ * Un icono por nombre de `ICONOS_DE_SECCION` (`lib/guia-de-modulo.ts`). El
+ * tipo obliga a que estén todos: un nombre de la lista sin su icono aquí no
+ * compila, en vez de pintar una tarjeta sin icono.
  */
-const ICONOS: Record<NombreDeIcono, LucideIcon> = {
+const ICONOS: Record<Seccion["icono"], typeof Search> = {
     LayoutDashboard,
     Columns3,
     ToggleRight,
@@ -53,6 +56,13 @@ const ICONOS: Record<NombreDeIcono, LucideIcon> = {
     Download,
     UserPlus,
     MoreHorizontal,
+    Link2,
+    MessageCircle,
+    Palette,
+    Type,
+    Share2,
+    SlidersHorizontal,
+    Store,
     CalendarPlus,
     Video,
     Mic,
@@ -63,7 +73,7 @@ const ICONOS: Record<NombreDeIcono, LucideIcon> = {
     History,
 };
 
-export function IconoDeSeccion({ nombre, className }: { nombre: NombreDeIcono; className?: string }) {
+export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
     const Icono = ICONOS[nombre];
     return <Icono className={className} aria-hidden />;
 }
@@ -89,6 +99,7 @@ export function CabeceraDeLaGuia({
     volver?: { href: string; texto: string };
     /** El ancla del vídeo del índice: si viene, la barra la ofrece en el centro. */
     demostracion?: { href: string; texto: string };
+    /** El nombre del módulo, tal cual lo ve el cliente en el menú. */
     modulo: string;
 }) {
     return (
@@ -132,19 +143,14 @@ export function CabeceraDeLaGuia({
     );
 }
 
-/** Una captura: con borde, sombra y un enlace para verla a tamaño completo. */
-export function Captura({
-    imagen,
-    alt,
-    carpeta,
-    prioridad = false,
-}: {
-    imagen: string;
-    alt: string;
-    carpeta: string;
-    prioridad?: boolean;
-}) {
-    const src = laRutaEnLaCarpeta(carpeta, imagen);
+/**
+ * Una captura: con borde, sombra y un enlace para verla a tamaño completo.
+ *
+ * `carpeta` es la de la guía (`/guia/<modulo>`, `laGuiaDe`): la misma
+ * dirección sirve las páginas y, en `public/`, sus capturas.
+ */
+export function Captura({ carpeta, imagen, alt, prioridad = false }: { carpeta: string; imagen: string; alt: string; prioridad?: boolean }) {
+    const src = `${carpeta}/${imagen}`;
     return (
         <a
             href={src}
@@ -173,12 +179,11 @@ export function TarjetaDeSeccion({
     seccion,
     numero,
     moduloPath,
-    carpeta,
 }: {
     seccion: Seccion;
     numero: number;
+    /** La carpeta de la guía (`/guia/<modulo>`): de ahí cuelgan la sección y su miniatura. */
     moduloPath: string;
-    carpeta: string;
 }) {
     return (
         <Link
@@ -189,7 +194,7 @@ export function TarjetaDeSeccion({
             <div className="aspect-[16/9] overflow-hidden border-b border-slate-100 bg-slate-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={laRutaEnLaCarpeta(carpeta, seccion.miniatura)}
+                    src={`${moduloPath}/${seccion.miniatura}`}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover object-left-top transition duration-300 group-hover:scale-[1.02]"
@@ -215,7 +220,7 @@ export function TarjetaDeSeccion({
     );
 }
 
-export function PasoDeLaGuia({ paso, numero, carpeta }: { paso: Paso; numero: number; carpeta: string }) {
+export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso: Paso; numero: number }) {
     return (
         <li data-paso className="flex flex-col gap-3">
             <div className="flex items-start gap-3">
@@ -227,7 +232,7 @@ export function PasoDeLaGuia({ paso, numero, carpeta }: { paso: Paso; numero: nu
                     <p className="text-sm leading-relaxed text-slate-600">{paso.texto}</p>
                 </div>
             </div>
-            <Captura imagen={paso.imagen} alt={paso.alt} carpeta={carpeta} prioridad={numero === 1} />
+            <Captura carpeta={carpeta} imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
         </li>
     );
 }
@@ -253,19 +258,20 @@ export function Consejos({ consejos }: { consejos: string[] }) {
 }
 
 export function NavegacionEntreSecciones({
+    carpeta,
     anterior,
     siguiente,
-    moduloPath,
 }: {
+    /** La carpeta de la guía (`/guia/<modulo>`): el índice y sus secciones. */
+    carpeta: string;
     anterior: Seccion | null;
     siguiente: Seccion | null;
-    moduloPath: string;
 }) {
     return (
         <nav className="grid gap-3 sm:grid-cols-2" aria-label="Otras secciones">
             {anterior ? (
                 <Link
-                    href={`${moduloPath}/${anterior.slug}`}
+                    href={`${carpeta}/${anterior.slug}`}
                     className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"
                 >
                     <ArrowLeft className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
@@ -279,7 +285,7 @@ export function NavegacionEntreSecciones({
             )}
             {siguiente ? (
                 <Link
-                    href={`${moduloPath}/${siguiente.slug}`}
+                    href={`${carpeta}/${siguiente.slug}`}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="min-w-0">
@@ -290,7 +296,7 @@ export function NavegacionEntreSecciones({
                 </Link>
             ) : (
                 <Link
-                    href={moduloPath}
+                    href={carpeta}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="block text-sm font-medium text-slate-900">Volver al índice</span>
@@ -339,13 +345,11 @@ const MARCO_DE_TARJETA =
 export function CuadriculaDeSecciones({
     secciones,
     moduloPath,
-    carpeta,
     contactoHref,
     videoHref,
 }: {
     secciones: readonly Seccion[];
     moduloPath: string;
-    carpeta: string;
     contactoHref: string;
     videoHref: string;
 }) {
@@ -353,7 +357,7 @@ export function CuadriculaDeSecciones({
     return (
         <div data-cuadricula-de-secciones className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {secciones.map((s, i) => (
-                <TarjetaDeSeccion key={s.slug} seccion={s} numero={i + 1} moduloPath={moduloPath} carpeta={carpeta} />
+                <TarjetaDeSeccion key={s.slug} seccion={s} numero={i + 1} moduloPath={moduloPath} />
             ))}
             <a
                 href={contactoHref}

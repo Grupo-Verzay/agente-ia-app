@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
+import { GUIA_CATALOGO } from "@/lib/guia-catalogo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
@@ -17,6 +18,7 @@ import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccio
 
 const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     leads: { titulo: GUIA_LEADS.titulo, subtitulo: GUIA_LEADS.subtitulo, descripcion: GUIA_LEADS.descripcion },
+    catalogo: { titulo: GUIA_CATALOGO.titulo, subtitulo: GUIA_CATALOGO.subtitulo, descripcion: GUIA_CATALOGO.descripcion },
     reuniones: { titulo: GUIA_REUNIONES.titulo, subtitulo: GUIA_REUNIONES.subtitulo, descripcion: GUIA_REUNIONES.descripcion },
 };
 

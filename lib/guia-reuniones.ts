@@ -10,6 +10,9 @@
  * imágenes: si la página nombrara una captura que el script no toma se vería un
  * hueco, y si el script tomara una que nadie enseña sería peso muerto.
  *
+ * Mismo estándar que Leads y Catálogo, y con las MISMAS piezas: la forma de
+ * una sección, la barra de arriba y la carpeta salen de `lib/guia-de-modulo.ts`.
+ *
  * Y el texto se ata al CÓDIGO de la pantalla, como en Leads: las pestañas, los
  * mandos de la reunión, los de su cabecera, las acciones de una fila, las
  * caducidades y las opciones de grabar que se documentan aquí se comparan con
@@ -17,20 +20,29 @@
  * El día que la pantalla gane un mando, el banco se pone en rojo y dice cuál
  * falta.
  */
-import { lasCapturasDe, lasVecinasEn, laRutaEnLaCarpeta, type Paso, type Seccion } from "./guia";
+import { laGuiaDe, TEXTO_DE_LA_BARRA_DE_ARRIBA, type Contenido } from "@/lib/guia-de-modulo";
 
-export type { Paso, Seccion };
+/** La ruta de la pantalla que documenta esta guía. */
+export const RUTA_DE_REUNIONES = "/reuniones";
 
-/** Dónde viven las capturas, servidas desde `public/`. */
-export const CARPETA_DE_CAPTURAS = "/guia/reuniones";
-
-/** El vídeo de demostración, grabado por el mismo script que las capturas. */
-export const VIDEO_DE_DEMOSTRACION = `${CARPETA_DE_CAPTURAS}/demostracion.webm`;
-export const PORTADA_DEL_VIDEO = `${CARPETA_DE_CAPTURAS}/portada.webp`;
-
-/** El módulo del menú donde vive la pantalla, y cómo se llama su opción. */
+/** El módulo del menú donde vive la pantalla, y cómo se llama su pestaña. El banco lo compara con el menú sembrado. */
 export const MODULO_DE_REUNIONES = "Panel";
 export const OPCION_DE_REUNIONES = "Reunion";
+
+/**
+ * Las seis ZONAS de la pantalla, en el orden en que se leen, tal como las
+ * numera la captura de «Todo en una pantalla». Las tres primeras son las de
+ * Catálogo, que también vive en Panel: el marco de las dos pantallas es el
+ * mismo y se dice con las mismas palabras.
+ */
+export const ZONAS_DE_LA_PANTALLA = [
+    "El menú de la plataforma",
+    "La barra de arriba",
+    "Las pestañas del Panel",
+    "Abiertas, Pasadas y Grabaciones",
+    "Cuánto vale el enlace y Nuevo",
+    "La lista de reuniones",
+] as const;
 
 /** Las pestañas de la barra. El banco las compara con las `PastillaDeFiltro` de `ReunionesClient.tsx`. */
 export const PESTANAS_DOCUMENTADAS = ["Abiertas", "Pasadas", "Grabaciones"] as const;
@@ -75,7 +87,7 @@ export const OPCIONES_DE_GRABAR = ["Grabar video y audio", "Grabar solo el audio
 /** Las opciones del menú del fondo que no son una muestra de color. */
 export const OPCIONES_DE_FONDO = ["Sin fondo", "Desenfocar el fondo", "Subir imagen…"] as const;
 
-export const GUIA_REUNIONES: { titulo: string; subtitulo: string; descripcion: string; secciones: Seccion[] } = {
+export const GUIA_REUNIONES: Contenido = {
     titulo: "Reuniones",
     subtitulo: "Videollamadas con tu equipo y tus clientes, sin salir de la plataforma",
     descripcion:
@@ -86,27 +98,39 @@ export const GUIA_REUNIONES: { titulo: string; subtitulo: string; descripcion: s
         {
             slug: "vista-general",
             titulo: "La pantalla de un vistazo",
-            resumen: "Dónde está en el menú, la barra de arriba, las pestañas y el botón para abrir una reunión.",
+            resumen: "El menú, la barra de arriba, las pestañas del Panel, las de la lista, el botón para abrir una reunión y la lista.",
             icono: "LayoutDashboard",
             miniatura: "mini-vista-general.webp",
             pasos: [
                 {
-                    titulo: "Dónde está",
-                    texto: "Reuniones está en el menú de la izquierda, dentro de Panel, en la opción «Reunion». Las dos flechas de arriba abren y recogen el menú.",
+                    titulo: "Todo en una pantalla",
+                    texto:
+                        "1 El menú de la plataforma · 2 La barra de arriba · 3 Las pestañas del Panel · " +
+                        "4 Abiertas, Pasadas y Grabaciones, cada una con su número · 5 Cuánto vale el enlace y Nuevo · 6 La lista de reuniones.",
+                    imagen: "vista-general.webp",
+                    alt: "La pantalla de Reuniones con sus seis partes numeradas",
+                },
+                {
+                    titulo: "El menú de la plataforma",
+                    texto:
+                        "Todos los módulos de la plataforma. Reuniones está dentro de Panel. Al entrar a una pantalla " +
+                        "el menú se recoge en sus iconos; las dos flechas de arriba lo abren entero.",
                     imagen: "menu-lateral.webp",
-                    alt: "El menú de la plataforma abierto, con Panel desplegado y la opción Reunion resaltada",
+                    alt: "El menú de la izquierda abierto, con Reuniones dentro de Panel",
                 },
                 {
                     titulo: "La barra de arriba",
-                    texto: "Es la misma en toda la plataforma: el menú, Chats y Correos, «Ver tutoriales», el buscador, Soporte y la campana de avisos.",
+                    texto: TEXTO_DE_LA_BARRA_DE_ARRIBA,
                     imagen: "barra-de-arriba.webp",
-                    alt: "La barra de arriba de la plataforma con sus seis partes numeradas",
+                    alt: "La barra de arriba con cada botón numerado",
                 },
                 {
-                    titulo: "Las partes de la pantalla",
-                    texto: "Arriba, los apartados de Panel con «Reunion» marcado. Debajo, las pestañas Abiertas, Pasadas y Grabaciones con su número; a la derecha, cuánto vale el enlace y «+ Nuevo»; y la lista.",
-                    imagen: "vista-general.webp",
-                    alt: "La pantalla de Reuniones con los apartados de Panel, las pestañas, el botón de caducidad, Nuevo y la lista numerados",
+                    titulo: "Las pestañas del Panel",
+                    texto:
+                        "Reuniones es la pestaña «Reunion» del Panel, junto a Catálogo, Cobros, Proyectos y las demás: " +
+                        "pasas de una a otra sin volver al menú.",
+                    imagen: "pestanas.webp",
+                    alt: "Las pestañas del Panel con Reunion señalada",
                 },
             ],
             consejos: [
@@ -393,22 +417,13 @@ export const GUIA_REUNIONES: { titulo: string; subtitulo: string; descripcion: s
     ],
 };
 
-export const SECCIONES: readonly Seccion[] = GUIA_REUNIONES.secciones;
+/** La guía armada: su carpeta, su vídeo y la navegación (`lib/guia-de-modulo.ts`). */
+export const GUIA = laGuiaDe("reuniones", GUIA_REUNIONES);
 
-export function laSeccion(slug: string): Seccion | null {
-    return SECCIONES.find((s) => s.slug === slug) ?? null;
-}
-
-/** La anterior y la siguiente, para navegar sin volver al índice. */
-export function lasVecinas(slug: string): { anterior: Seccion | null; siguiente: Seccion | null } {
-    return lasVecinasEn(SECCIONES, slug);
-}
-
-/** Todas las capturas que la guía enseña, sin repetir: lo que el script tiene que tomar. */
-export function lasCapturasQueSeEnsenan(): string[] {
-    return lasCapturasDe(SECCIONES, PORTADA_DEL_VIDEO);
-}
-
-export function laRutaDeLaCaptura(nombre: string): string {
-    return laRutaEnLaCarpeta(CARPETA_DE_CAPTURAS, nombre);
-}
+/** Dónde viven las capturas, servidas desde `public/`. */
+export const CARPETA_DE_CAPTURAS = GUIA.carpeta;
+/** El vídeo de demostración, grabado por el mismo script que las capturas. */
+export const VIDEO_DE_DEMOSTRACION = GUIA.video;
+export const PORTADA_DEL_VIDEO = GUIA.portada;
+export const SECCIONES = GUIA.secciones;
+export const { laSeccion, lasVecinas, lasCapturasQueSeEnsenan, laRutaDeLaCaptura } = GUIA;

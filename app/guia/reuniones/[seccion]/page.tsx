@@ -11,7 +11,8 @@ import {
 import { CARPETA_DE_CAPTURAS, laSeccion, lasVecinas, SECCIONES } from "@/lib/guia-reuniones";
 
 /**
- * Una sección de la guía de Reuniones, con sus pasos y sus capturas. Se genera
+ * Una sección de la guía de Reuniones, con sus pasos y sus capturas (la misma
+ * página que la de Leads y la de Catálogo). Se genera
  * entera al construir (`generateStaticParams`): no hay nada que leer de la
  * base, así que no tiene por qué pintarse en cada visita.
  */
@@ -34,7 +35,7 @@ export default function SeccionDeLaGuiaDeReuniones({ params }: { params: { secci
 
     return (
         <>
-            <CabeceraDeLaGuia volver={{ href: "/guia/reuniones", texto: "Todas las secciones" }} modulo="Reuniones" />
+            <CabeceraDeLaGuia volver={{ href: CARPETA_DE_CAPTURAS, texto: "Todas las secciones" }} modulo="Reuniones" />
             <article className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
                 <header className="space-y-3">
                     <div className="flex items-center gap-2">
@@ -51,13 +52,13 @@ export default function SeccionDeLaGuiaDeReuniones({ params }: { params: { secci
 
                 <ol className="space-y-10">
                     {seccion.pasos.map((p, i) => (
-                        <PasoDeLaGuia key={p.imagen + i} paso={p} numero={i + 1} carpeta={CARPETA_DE_CAPTURAS} />
+                        <PasoDeLaGuia key={p.imagen + i} carpeta={CARPETA_DE_CAPTURAS} paso={p} numero={i + 1} />
                     ))}
                 </ol>
 
                 <Consejos consejos={seccion.consejos ?? []} />
 
-                <NavegacionEntreSecciones anterior={anterior} siguiente={siguiente} moduloPath="/guia/reuniones" />
+                <NavegacionEntreSecciones carpeta={CARPETA_DE_CAPTURAS} anterior={anterior} siguiente={siguiente} />
             </article>
         </>
     );

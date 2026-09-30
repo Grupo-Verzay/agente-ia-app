@@ -24,42 +24,43 @@
  * Se lanza con `scripts/generar-guia-leads.sh`.
  */
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { CURSOR } from "./cursor-de-la-guia.mjs";
 import { grabar } from "./grabadora-de-la-guia.mjs";
-import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
-import { RITMO, guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
-import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
+import { guardarWav, mezclar, montarLaPista } from "./voz-de-la-guia.mjs";
 import {
+    LA_BARRA_DE_ARRIBA,
     caja,
-    cerrarLoAbierto,
+    comprobarLasCapturas,
+    crearGuardar,
     dentro,
     desmarcar,
     despejar,
     dondeAcabaElMenu,
-    elGuardado,
     elMarcoDeLaPantalla,
     elMenuLateral,
+    empezarLaNarracion,
     entrar,
+    escribirLaVozDelVideo,
+    esconderLosBotonesDelBorde,
     espera,
     holgura,
-    LA_BARRA_DE_ARRIBA,
     lasPartesDeArriba,
     loQuePintaElMenu,
     marcar,
     mover,
+    prepararLaVoz,
     pulsar,
-    quitarAvisos,
     rotulo,
+    tomarLasMiniaturas,
     unir,
-} from "./herramientas-de-la-guia.mjs";
+} from "./taller-de-la-guia.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const sharp = require("sharp");
 
 const BASE = process.env.BASE ?? "http://localhost:3940";
 const RAIZ = path.resolve(import.meta.dirname, "..");
@@ -79,8 +80,7 @@ mkdirSync(SALIDA, { recursive: true });
 mkdirSync(TMP, { recursive: true });
 
 const tomadas = new Set();
-/** Las marcas, el guardado y el ratón son los de todas las guías (`herramientas-de-la-guia.mjs`). */
-const guardar = elGuardado({ salida: SALIDA, tomadas });
+const guardar = crearGuardar({ salida: SALIDA, tomadas });
 
 async function abrirLeads(p) {
     await p.goto(`${BASE}/sessions`, { waitUntil: "domcontentloaded" });
@@ -88,11 +88,8 @@ async function abrirLeads(p) {
     await p.evaluate(() => document.fonts.ready);
     await espera(p, 2500);
     await despejar(p);
-    // Los botones del borde (copiloto, equipo, nota) son de TODAS las
-    // pantallas: en una guía de Leads tapan la columna Acciones y no explican
-    // nada de este módulo.
-    await p.addStyleTag({ content: "[data-columna-del-borde]{display:none !important}" });
-    await espera(p, 300);
+    // Los botones del borde tapan la columna Acciones.
+    await esconderLosBotonesDelBorde(p);
 }
 
 /* ------------------------------------------------------------------ */
@@ -217,7 +214,6 @@ async function losGruposDelMenu(p) {
  * toman sobre la pantalla limpia, así que no dependen del orden de las demás.
  */
 async function miniaturas(p) {
-    const vista = p.viewportSize();
     const nombreFila = "Juan Pablo Restrepo";
     const interruptor = async (rotulo) => caja(p, (await celdaDe(p, nombreFila, rotulo)).locator('[role="switch"]'));
     const zonas = [
@@ -232,22 +228,7 @@ async function miniaturas(p) {
         // dice qué hay dentro.
         ["acciones-masivas", async () => unir(await caja(p, MASIVAS), await caja(p, await abrirLasMasivas(p)))],
     ];
-    const focos = {};
-    for (const [slug, zona] of zonas) {
-        const foco = await zona();
-        const e = encuadreDeLaMiniatura(foco, vista);
-        await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
-        const nombre = `mini-${slug}.webp`;
-        const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
-        await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(SALIDA, nombre));
-        tomadas.add(nombre);
-        // En fracción de la miniatura: así el banco mide sin saber el tamaño de la vista.
-        focos[nombre] = { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h };
-        console.log("  ✓", nombre);
-        await cerrarLoAbierto(p);
-    }
-    await desmarcar(p);
-    writeFileSync(FOCOS, JSON.stringify(focos, null, 2) + "\n");
+    await tomarLasMiniaturas(p, zonas, { salida: SALIDA, tomadas, focos: FOCOS });
 }
 
 /* ------------------------------------------------------------------ */
@@ -531,7 +512,7 @@ async function capturas(p) {
     await alerta.waitFor({ state: "hidden", timeout: 10000 });
     await espera(p, 400);
 
-    await elMarcoDeLaPantalla(p, guardar, { modulo: "Contactos", rotulo: "Leads está en Contactos" });
+    await elMarcoDeLaPantalla(p, guardar, { modulo: "Contactos", texto: "Leads está en Contactos" });
 }
 
 async function pintarElCsv(p, fichero, nombre) {
@@ -581,13 +562,8 @@ async function video(navegador, estado) {
     mkdirSync(dir, { recursive: true });
 
     // Las frases se sintetizan ANTES de grabar: así se sabe cuánto dura cada
-    // una y el guion espera a que termine de sonar antes de seguir.
-    // Con Cedar, lo que falte se pide a OpenAI (o se dice por qué no se pudo).
-    if (usaCedar()) await llenarLaCache(Object.values(NARRACION).map((n) => n.texto));
-    const dicho = (texto) => (usaCedar() ? texto : comoSeDice(texto));
-    const voz = Object.fromEntries(
-        Object.entries(NARRACION).map(([id, n]) => [id, { ...n, audio: sintetizar(dicho(n.texto), path.join(dir, `${id}.wav`)) }]),
-    );
+    // una (`prepararLaVoz`, en el taller).
+    const voz = await prepararLaVoz(NARRACION, dir, comoSeDice);
     const ctx = await navegador.newContext({
         viewport: { width: 1280, height: 800 },
         locale: "es-CO",
@@ -603,38 +579,9 @@ async function video(navegador, estado) {
     const grabadora = await grabar(p, mudo, { ancho: 1280, alto: 800 });
     const t0 = Date.now();
     grabadora.empezarEn(t0);
-    const tramos = [];
-    let calla = 0;
-    /** La frase que suena: con ella `alDecir` sabe en qué palabra va. */
-    let frase = null;
-    /** Empieza una frase ahora mismo; lo que venga detrás ocurre MIENTRAS suena. */
-    const decir = async (id) => {
-        await callar();
-        const n = voz[id];
-        await rotulo(p, n.rotulo);
-        const ahora = Date.now();
-        tramos.push({ texto: n.texto, audio: n.audio, inicioMs: ahora - t0 });
-        frase = { texto: n.texto, inicio: ahora, ms: n.audio.ms };
-        calla = ahora + n.audio.ms;
-    };
-    /**
-     * Espera a que la frase que suena llegue a `fragmento`, y `adelanto` ms
-     * antes —lo que tarda el ratón en llegar—: así se pulsa en la palabra que
-     * lo nombra y no después de callar. Dónde cae la palabra se estima por su
-     * posición en el texto, que con las pausas ya acortadas va casi parejo.
-     */
-    const alDecir = async (fragmento, adelanto = 450) => {
-        const i = frase ? frase.texto.indexOf(fragmento) : -1;
-        if (i < 0) throw new Error(`[guia] «${fragmento}» no está en la frase que suena: ${frase?.texto}`);
-        const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
-        if (falta > 0) await espera(p, falta);
-    };
-    /** Espera a que la frase en curso termine, más un respiro corto: las frases se ENLAZAN. */
-    const callar = async (respiro = RESPIRO_ENTRE_FRASES_MS) => {
-        const falta = calla + respiro - Date.now();
-        if (calla && falta > 0) await espera(p, falta);
-        calla = 0;
-    };
+    // La narración enlaza las frases: lo de detrás de `decir` ocurre MIENTRAS
+    // suena, y `alDecir` pulsa en la palabra que lo nombra.
+    const { decir, alDecir, callar, tramos } = empezarLaNarracion(p, voz, t0, { respiro: RESPIRO_ENTRE_FRASES_MS });
 
     await abrirLeads(p);
     await p.mouse.move(640, 400, { steps: 8 });
@@ -759,25 +706,7 @@ async function video(navegador, estado) {
     mezclar(mudo, pista, destino, { desdeMs });
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
     // Qué voz lleva el vídeo publicado: el banco lo compara con el guion de hoy.
-    writeFileSync(
-        path.join(import.meta.dirname, "voz-de-la-guia", "leads.json"),
-        JSON.stringify(
-            usaCedar()
-                ? {
-                      voz: VOZ_CEDAR.voz,
-                      modelo: VOZ_CEDAR.modelo,
-                      ritmo: { ...RITMO, respiroEntreFrasesMs: RESPIRO_ENTRE_FRASES_MS },
-                      frases: Object.values(NARRACION).map((n) => llaveDeLaFrase(n.texto)),
-                      // Dónde empieza cada frase EN EL VÍDEO PUBLICADO (ms). En ese
-                      // instante cambia el rótulo de abajo: el banco lo busca en la
-                      // imagen y así comprueba que la imagen no se despega de la voz.
-                      empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
-                  }
-                : { voz: process.env.VOZ_GUIA, frases: [] },
-            null,
-            2,
-        ) + "\n",
-    );
+    escribirLaVozDelVideo("leads", { narracion: NARRACION, colocados, desdeMs, respiro: RESPIRO_ENTRE_FRASES_MS });
     console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
@@ -803,15 +732,7 @@ try {
     await navegador.close();
 }
 
-// Las que la guía enseña tienen que estar TODAS.
-const esperadas = JSON.parse(process.env.CAPTURAS_ESPERADAS ?? "[]");
-// Con SOLO_MINIATURAS, lo demás se conserva del disco: basta con que esté.
-const faltan = esperadas.filter((n) => !tomadas.has(n) && !((SOLO_MINIATURAS || SOLO_VIDEO) && existsSync(path.join(SALIDA, n))));
-const sobran = readdirSync(SALIDA).filter((n) => n.endsWith(".webp") && !esperadas.includes(n));
-if (sobran.length) console.warn("[guia] capturas que la guía no enseña:", sobran.join(", "));
-if (faltan.length) {
-    console.error("[guia] faltan capturas que la guía enseña:", faltan.join(", "));
-    process.exit(1);
-}
+// Las que la guía enseña tienen que estar TODAS (con una parte, lo demás se conserva del disco).
+comprobarLasCapturas({ salida: SALIDA, tomadas, conservaLasDemas: SOLO_MINIATURAS || SOLO_VIDEO });
 writeFileSync(path.join(TMP, "tomadas.json"), JSON.stringify([...tomadas], null, 2));
 console.log(`[guia] ${tomadas.size} capturas${SIN_VIDEO || SOLO_MINIATURAS ? "" : " y el vídeo"} en public/guia/leads`);

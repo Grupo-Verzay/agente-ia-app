@@ -23088,7 +23088,7 @@ Cuatro cosas que hay que mantener:
 1. **Es la octava sección, y la última**, porque es el último mando de la
    barra; la barra de la vista general lo numera como su sexto. Con ocho, el
    cierre del índice es solo «Contáctanos» (1 hueco a 3 columnas, ninguno a 2):
-   `probar-guia-leads.mjs` lo calcula con `losHuecos` en vez de dar por hecho
+   `probar-guia.mjs` lo calcula con `losHuecos` en vez de dar por hecho
    las siete de antes.
 2. **Las capturas leen los grupos del menú PINTADO** (`losGruposDelMenu`),
    cortados por sus separadores, y la miniatura lo enseña ABIERTO: cerrado es
@@ -23104,23 +23104,69 @@ Lo prueba `lib/__tests__/guia-leads.test.mjs` (y el vídeo, en su banco);
 los grupos ni las acciones de exportar y de riesgo alto (Activar y Desactivar
 clientes sí salían, de pasada, en un consejo de Sesión).
 
-### La segunda guía, Reuniones (`/guia/reuniones`): las MISMAS piezas, y el contenido atado al código
+### La segunda guía, Catálogo: las piezas son COMUNES, y lo que cambia es el contenido
+
+`/guia/catalogo` documenta Panel › Catálogo (`/mis-catalogo`) con el mismo
+estándar que Leads: ocho secciones con al menos tres pasos cada una, una
+miniatura con enfoque por tarjeta, y el vídeo de un minuto y medio con la voz
+Cedar y el MISMO ritmo (`leads.json` y `catalogo.json` tienen que decir el
+mismo `ritmo`).
+
+> **Lo que se repetiría en cada guía vive en un sitio**: el modelo de sección y
+> paso y la barra de arriba en `lib/guia-de-modulo.ts` (`laGuiaDe`), el taller
+> de capturas —marcas, velo, cursor, grabadora, voz— en
+> `scripts/taller-de-la-guia.mjs`, el marco (menú y barra de un cliente) en
+> `scripts/sembrar-marco-de-la-guia.mjs`, el lanzador en
+> `scripts/generar-guia.sh <modulo>` y la sonda de la guía servida en
+> `scripts/probar-guia.mjs` (`GUIA=<modulo>`). Cada guía pone su contenido
+> (`lib/guia-<modulo>.ts`), su semilla, su receta de capturas y su narración.
+> **Una guía nueva no copia ninguna de esas piezas.**
+
+Cinco cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: `APARTADOS_DOCUMENTADOS` se
+   compara con los cinco apartados y sus campos leídos de `CatalogoPanel.tsx`
+   (por `data-seccion-del-catalogo`). Un campo nuevo sin su sitio en la guía
+   pone el banco en rojo.
+2. **El catálogo público es público**: `/catalogo/` y `/c/` no estaban en el
+   middleware, así que a cualquier cliente sin sesión lo mandaba al login (el
+   dueño no lo notaba: él sí tiene sesión). Enseña solo productos `isActive`.
+3. **El enlace se escribe como el nombre del negocio** (`lib/enlace-del-catalogo.ts`):
+   la tilde se quita y la letra se queda —antes «Café» salía «caf-»—, la
+   pantalla y el servidor con la misma regla, y los dos enlaces de la pantalla
+   leen el dominio de la página: el pie llevaba `agente.ia-app.com` a mano.
+4. **Los «así queda» se toman en el catálogo PÚBLICO de verdad**, y los que
+   enseñan un ajuste distinto (una red vacía, los interruptores apagados) lo
+   cambian, guardan, fotografían y lo DEVUELVEN (`conUnCambio`), y se caen si
+   el cambio no se ve. Las tarjetas se enseñan con su vecina bajo el velo.
+5. **Las capturas enseñan `agente.ia-app.com`**, no `localhost`: el taller
+   reescribe el TEXTO visible (`conElDominioDeLaGuia`), nunca los enlaces.
+
+Lo prueba `scripts/banco-guia-catalogo.sh`: el contenido contra la pantalla,
+el vídeo medido con ffmpeg, las miniaturas en los píxeles (el mismo test de
+Leads con `GUIA=catalogo`) y la guía servida sin sesión. `MODO=roto` lee
+`24ba0b2` y afirma que no había guía, que el catálogo pedía sesión y que el
+enlace se escribía mal. Regenerar: `npm run build && scripts/generar-guia-catalogo.sh`
+y volver a construir.
+
+### La tercera guía, Reuniones (`/guia/reuniones`): las MISMAS piezas, y el contenido atado al código
 
 Nueve secciones —la pantalla de un vistazo, abrir una reunión, las abiertas,
 los mandos, cómo ver la reunión, invitados, chat y gente, grabar y las
 pasadas— con sus capturas, su miniatura con enfoque y el vídeo narrado de un
 minuto. Mismo estándar que Leads, y no por copiarlo:
 
-> **Lo común de una guía vive una vez.** La forma de un paso y de una sección
-> en `lib/guia.ts`; las piezas en `components/guia/Guia.tsx`, que reciben SIEMPRE
-> la carpeta de capturas y la ruta del módulo (sin valor por defecto: con el de
-> Leads escrito dentro, una guía nueva que se olvidara de pasarlos enseñaría las
-> capturas de Leads sin ningún error); las herramientas de captura —entrar,
-> medir, marcar, fotografiar, el marco de la pantalla, el cursor del vídeo— en
-> `scripts/herramientas-de-la-guia.mjs`. Lo propio de cada guía son sus recetas
-> y su guion. Y la lista de guías (`MODULOS_CON_GUIA`, `NOMBRE_DEL_MODULO`)
-> alimenta el editor de introducciones y el «Contáctanos», que ya no escriben
-> «leads» a mano.
+> **No copia ninguna pieza común** (las de la sección de arriba): contenido con
+> `laGuiaDe("reuniones", …)`, capturas con el taller, el marco con
+> `sembrarElMarco` y el lanzador y la sonda comunes. La vista general numera las
+> MISMAS seis zonas que Leads y Catálogo —menú, barra de arriba, pestañas del
+> Panel— y lleva sus mismos pasos (`menu-lateral`, `barra-de-arriba`,
+> `pestanas`). Lo único que necesitó el marco es `modulosQueSeVenden`: grabar
+> depende de que exista el módulo `/reuniones/grabaciones`, que se siembra
+> ESCONDIDO del menú (una semilla con su propio `db.module.create` sería un
+> segundo sitio donde se siembra el menú, y `menu-de-la-guia` lo prohíbe). La
+> lista de guías (`MODULOS_CON_GUIA`, `NOMBRE_DEL_MODULO`) alimenta el editor
+> de introducciones y el «Contáctanos».
 
 Cinco cosas que hay que mantener:
 
@@ -23137,8 +23183,9 @@ Cinco cosas que hay que mantener:
    personas ILUSTRADAS (la guía es pública: ninguna cara real) y solo quien
    habla lleva voz, que es lo que decide quién sale en grande. Sin ficheros,
    Chromium pone su patrón verde y un pitido que «habla».
-3. **La semilla corre en la zona de la cuenta** (`TZ=America/Bogota`): con la
-   del contenedor (UTC) las pasadas salían a las 5 de la mañana.
+3. **La semilla corre en la zona de la cuenta** (`process.env.TZ =
+   "America/Bogota"` dentro de `sembrar-guia-reuniones.mjs`): con la del
+   contenedor (UTC) las pasadas salían a las 5 de la mañana.
 4. **El vídeo NO enciende el desenfoque**: lo señala y cierra el menú. El
    desenfoque corre un modelo de segmentación en el procesador y, con tres
    cámaras en la misma máquina, lo que quedaba del minuto se estiraba a más de
@@ -23164,13 +23211,13 @@ de una capa como la de la plataforma, el menú se VE; portado al `body`, el
 banco lo ve detrás), el segundo `sala-de-video.test.mjs` y el tercero
 `guia-reuniones.test.mjs`.
 
-Lo prueba `scripts/banco-guia-reuniones.sh`: el contenido contra el código, el
-vídeo (Cedar a ritmo de conversación, sin huecos, el rótulo cambiando cuando
-empieza cada frase y la imagen acabando con la voz), las miniaturas con la
-MISMA vara que las de Leads (`medir-miniatura.mjs`; el umbral de lo nítido es
-algo más bajo porque la sala es oscura) y la guía servida sin sesión con el
-probador de Leads (`GUIA=reuniones`). `MODO=roto` lee `24ba0b2` y afirma que no
-había guía, ni vídeo, ni miniaturas, y la espera ilegible.
+Lo prueba `scripts/banco-guia-reuniones.sh`: el contenido contra el código y la
+simetría con las otras dos guías, el vídeo (Cedar a ritmo de conversación, sin
+huecos, el rótulo cambiando cuando empieza cada frase y la imagen acabando con
+la voz), las miniaturas con el MISMO test que Leads y Catálogo
+(`GUIA=reuniones`), `fin-de-la-guia` y `menu-de-la-guia`, y la guía servida
+sin sesión (`probar-guia.mjs`). `MODO=roto` lee `24ba0b2` y afirma que no había
+guía, ni vídeo, ni miniaturas, y la espera ilegible.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
