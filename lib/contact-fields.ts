@@ -26,16 +26,31 @@ export const DEFAULT_CONTACT_SECTIONS: ContactSectionDef[] = [
   { title: 'Libre', icon: 'FileText' },
 ];
 
-// Los dos campos FIJOS de la ficha. No son datos de la ficha: son el mismo
+// Los dos campos FIJOS de arriba. No son datos de la ficha: son el mismo
 // nombre y el mismo número que la plataforma ya guarda de cada contacto (la
 // columna de chats, la cabecera, el CRM). Se editan donde aparezcan y el cambio
 // sale en todos lados porque es el MISMO dato. Por eso no viven en la lista
-// editable: no se ocultan, no se renombran, no se mueven y no se borran.
-export const CAMPOS_FIJOS: { key: string; label: string; icon: string }[] = [
-  { key: 'nombre', label: 'Nombre', icon: 'User' },
-  { key: 'telefono', label: 'Teléfono', icon: 'Phone' },
+// editable: no se ocultan, no se renombran, no se mueven y no se borran. Su
+// sección es la REAL, «Contacto», y el diálogo la enseña igual que la de
+// cualquier otro campo.
+export type CampoFijo = { key: string; label: string; icon: string; section: string; multiline?: boolean };
+export const SECCION_DE_LOS_FIJOS: string = 'Contacto';
+export const CAMPOS_FIJOS: CampoFijo[] = [
+  { key: 'nombre', label: 'Nombre', icon: 'User', section: SECCION_DE_LOS_FIJOS },
+  { key: 'telefono', label: 'Teléfono', icon: 'Phone', section: SECCION_DE_LOS_FIJOS },
 ];
-export const CLAVES_FIJAS = new Set(CAMPOS_FIJOS.map((c) => c.key));
+
+// Notas: texto libre que TODA ficha trae, y siempre el ÚLTIMO campo, se
+// agreguen o se reordenen los que se agreguen. Tampoco vive en la lista
+// editable: si viviera, arrastrar otro campo debajo lo dejaría de último. Su
+// dato sigue en `ExternalClientData.data.notas`, la misma clave que el campo
+// «Notas» de fábrica de antes, así que lo que ya estaba escrito no se pierde.
+export const SECCION_DE_LAS_NOTAS: string = 'Libre';
+export const CAMPO_NOTAS: CampoFijo = {
+  key: 'notas', label: 'Notas', icon: 'FileText', section: SECCION_DE_LAS_NOTAS, multiline: true,
+};
+
+export const CLAVES_FIJAS = new Set([...CAMPOS_FIJOS, CAMPO_NOTAS].map((c) => c.key));
 
 // Una cuenta que nunca tocó la ficha arranca SIN campos: solo los dos fijos y
 // el botón de agregar. No hay campos prellenados.
@@ -186,4 +201,62 @@ export function normalizeContactFieldsConfig(raw: unknown): ContactFieldDef[] {
 /** Lo que se escribe en la columna: siempre la forma de la versión 2. */
 export function comoSeGuardaLaFicha(campos: unknown): FichaGuardada {
   return { version: VERSION_DE_LA_FICHA, campos: Array.isArray(campos) ? limpiar(campos) : [] };
+}
+
+/** Una fila de la ficha abierta: un fijo de arriba, un campo de la cuenta o Notas. */
+export type FilaDeLaFicha =
+  | { tipo: 'fijo'; campo: CampoFijo }
+  | { tipo: 'campo'; campo: ContactFieldDef }
+  | { tipo: 'notas'; campo: CampoFijo };
+export type SeccionDeLaFicha = { title: string; filas: FilaDeLaFicha[] };
+
+/**
+ * Las secciones de la ficha abierta, en el MISMO orden que el diálogo de
+ * configuración: Nombre y Teléfono primero (su sección, «Contacto», va la
+ * primera), después los campos encendidos de la cuenta agrupados por sección
+ * en orden de primera aparición, y Notas el ÚLTIMO (su sección, «Libre», va
+ * la última y Notas cierra la sección). Nunca hay dos secciones con el mismo
+ * título: un campo de la cuenta en «Contacto» o en «Libre» cae en la misma.
+ */
+export function lasSeccionesDeLaFicha(defs: ContactFieldDef[]): SeccionDeLaFicha[] {
+  const campos = limpiar(Array.isArray(defs) ? defs : []).filter((f) => f.enabled);
+  const orden: string[] = [];
+  const porSeccion = new Map<string, FilaDeLaFicha[]>();
+  const meter = (title: string, fila: FilaDeLaFicha, alPrincipio = false) => {
+    if (!porSeccion.has(title)) {
+      porSeccion.set(title, []);
+      if (alPrincipio) orden.unshift(title); else orden.push(title);
+    }
+    porSeccion.get(title)!.push(fila);
+  };
+  for (const f of campos) meter(f.section, { tipo: 'campo', campo: f });
+
+  // Los fijos, delante de todo: su sección pasa a ser la primera.
+  const deLosFijos = porSeccion.get(SECCION_DE_LOS_FIJOS) ?? [];
+  porSeccion.set(SECCION_DE_LOS_FIJOS, [
+    ...CAMPOS_FIJOS.map((c) => ({ tipo: 'fijo', campo: c }) as FilaDeLaFicha),
+    ...deLosFijos,
+  ]);
+  const i = orden.indexOf(SECCION_DE_LOS_FIJOS);
+  if (i >= 0) orden.splice(i, 1);
+  orden.unshift(SECCION_DE_LOS_FIJOS);
+
+  // Notas, detrás de todo: su sección pasa a ser la última.
+  const j = orden.indexOf(SECCION_DE_LAS_NOTAS);
+  if (j >= 0) orden.splice(j, 1);
+  if (!orden.includes(SECCION_DE_LAS_NOTAS)) orden.push(SECCION_DE_LAS_NOTAS);
+  if (!porSeccion.has(SECCION_DE_LAS_NOTAS)) porSeccion.set(SECCION_DE_LAS_NOTAS, []);
+  porSeccion.get(SECCION_DE_LAS_NOTAS)!.push({ tipo: 'notas', campo: CAMPO_NOTAS });
+
+  return orden.map((title) => ({ title, filas: porSeccion.get(title)! }));
+}
+
+/**
+ * Los campos que se exportan (Google Sheets), después de Teléfono y Nombre:
+ * los encendidos de la cuenta en su orden y Notas el último. Notas ya no vive
+ * en la lista, así que sin esto la columna se perdería de la hoja.
+ */
+export function losCamposQueSeExportan(defs: ContactFieldDef[]): { key: string; label: string }[] {
+  const campos = limpiar(Array.isArray(defs) ? defs : []).filter((f) => f.enabled);
+  return [...campos.map((f) => ({ key: f.key, label: f.label })), { key: CAMPO_NOTAS.key, label: CAMPO_NOTAS.label }];
 }
