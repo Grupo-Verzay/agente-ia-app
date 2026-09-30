@@ -85,6 +85,11 @@ const apiExternalClientDataPrefix = "/api/external-client-data";
 // La cotización que arma el agente (`Enviar_Cotizacion`): la llama el backend
 // con la clave interna y nunca un navegador. Tiene su propia puerta.
 const apiCotizacionIaPrefix = "/api/cotizacion-ia";
+// Los archivos que adjunta quien llena un formulario público (`/f/...`), que no
+// tiene cuenta. Sin este prefijo recibía el `307` hacia `/login` y el campo
+// «Archivo» no subía nada. Su puerta es el formulario: la ruta exige uno
+// activo con un campo de archivo y guarda en SU carpeta.
+const apiUploadFormFilePrefix = "/api/upload-form-file";
 
 
 export default auth((req) => {
@@ -120,6 +125,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiProductsPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCotizacionIaPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiUploadFormFilePrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
@@ -175,7 +181,15 @@ export default auth((req) => {
     // a quien todavía no tiene cuenta. Su contenido sale de `lib/guia-<modulo>.ts`
     // y no se indexa (metadata y `X-Robots-Tag`).
     currentPath === "/guia" ||
-    currentPath.startsWith("/guia/");
+    currentPath.startsWith("/guia/") ||
+    // Formulario público (/f/<nombre> y /f/<cuenta>/<slug>): el enlace que una
+    // cuenta reparte para que SUS clientes lo llenen. No estaba aquí, así que a
+    // quien no tiene sesión lo mandaba al login —medido en producción:
+    // `307 -> /login?callbackUrl=%2Ff%2F…`— y el dueño no lo notaba porque él
+    // sí tiene sesión al pulsar «Ver formulario». Ser pública no abre nada:
+    // solo se pinta un formulario ACTIVO, sin su hoja de Google Sheets, y el
+    // envío guarda solo lo que es un campo suyo.
+    currentPath.startsWith("/f/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

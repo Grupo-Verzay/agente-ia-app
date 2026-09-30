@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { CheckCircle2, Loader2, Upload, X, FileText } from 'lucide-react';
-import { submitFormResponse, type FormData, type FormFieldData, type FormFieldType } from '@/actions/forms-actions';
+import { submitFormResponse, type PublicFormData, type FormFieldData, type FormFieldType } from '@/actions/forms-actions';
+import { elEnlaceDeWhatsapp } from '@/lib/formularios';
 
 interface Props {
-  form: FormData;
+  form: PublicFormData;
   accentColor?: string | null;
 }
 
@@ -35,6 +36,9 @@ export function PublicFormClient({ form, accentColor }: Props) {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      // La puerta de la subida es el formulario: sin su id la ruta no acepta
+      // nada, y lo que sube cae en SU carpeta.
+      fd.append('formId', form.id);
       const res = await fetch('/api/upload-form-file', { method: 'POST', body: fd });
       const json = await res.json();
       if (!json.success) {
@@ -68,26 +72,12 @@ export function PublicFormClient({ form, accentColor }: Props) {
     return errs;
   };
 
-  const buildWpUrl = (data: Record<string, unknown>) => {
-    if (!form.whatsappEnabled || !form.whatsappNumber || !form.whatsappMessage) return null;
-    const num = form.whatsappNumber.replace(/\D/g, '');
-    let msg = form.whatsappMessage;
-    for (const field of form.fields) {
-      const raw = data[field.id];
-      let display = '';
-      if (Array.isArray(raw)) {
-        display = (raw as string[]).join(', ');
-      } else if (typeof raw === 'boolean') {
-        display = raw ? 'Sí' : 'No';
-      } else if (field.type === 'file' && typeof raw === 'string' && raw.startsWith('{')) {
-        try { display = JSON.parse(raw).url; } catch { display = String(raw); }
-      } else {
-        display = String(raw ?? '');
-      }
-      msg = msg.replace(new RegExp(`\\{\\{${field.label}\\}\\}`, 'g'), display);
-    }
-    return `https://api.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(msg)}`;
-  };
+  // Cada `{{Pregunta}}` se sustituye por su respuesta con la MISMA función
+  // que la vista previa del editor. La de antes armaba una expresión regular
+  // con la pregunta tal cual: con un «?» la variable no se sustituía y con un
+  // «(» sin cerrar la expresión reventaba y el envío se quedaba a medias.
+  const buildWpUrl = (data: Record<string, unknown>) =>
+    form.whatsappEnabled ? elEnlaceDeWhatsapp(form.whatsappNumber, form.whatsappMessage, form.fields, data) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +95,15 @@ export function PublicFormClient({ form, accentColor }: Props) {
     }
 
     setSubmitting(true);
-    const res = await submitFormResponse(form.id, payload);
+    // Una acción no solo devuelve `success: false`: puede reventar (la red, un
+    // despliegue a medias). Sin el `try` el botón se quedaba en «Enviando…»
+    // para siempre y quien llenaba el formulario no sabía si llegó.
+    let res: { success: boolean; error?: string };
+    try {
+      res = await submitFormResponse(form.id, payload);
+    } catch {
+      res = { success: false, error: 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.' };
+    }
     setSubmitting(false);
 
     if (!res.success) {
