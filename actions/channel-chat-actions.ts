@@ -232,7 +232,18 @@ export async function sendChannelQuickReplyAction(
 
     const { db } = await import('@/lib/db');
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
-    if (!rr?.mensaje?.trim()) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    if (!rr) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    // Una respuesta de FLUJO no tiene texto que mandar, y en este canal no hay
+    // flujos manuales (`sendChannelWorkflowAction`). Se dice con esas palabras:
+    // «no encontrada» sobre una respuesta que está ahí manda a buscar otra cosa.
+    if (!rr.mensaje?.trim()) {
+      return {
+        success: false,
+        message: rr.workflowId
+          ? 'Esta respuesta ejecuta un flujo, y los flujos no están disponibles en este canal.'
+          : 'La respuesta rápida no tiene mensaje.',
+      };
+    }
     // No comprobaba de quién era: cualquier respuesta rápida de la plataforma
     // salía por esta línea. Tiene que ser de la cuenta de la línea
     // (`lib/atajos-de-la-linea.ts`).

@@ -3,6 +3,7 @@ import {
     Archive,
     ArrowLeft,
     ArrowRight,
+    ArrowUpDown,
     BookOpen,
     CalendarPlus,
     CircleDot,
@@ -33,10 +34,12 @@ import {
     StickyNote,
     Store,
     ToggleRight,
+    Trash2,
     Type,
     UserPlus,
     Users,
     Video,
+    Zap,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -87,6 +90,9 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    ArrowUpDown,
+    Zap,
+    Trash2,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

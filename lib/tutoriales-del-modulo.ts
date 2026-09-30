@@ -21,6 +21,7 @@ import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -125,6 +126,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/notas",
         contenido: GUIA_NOTAS,
         tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
+    },
+    {
+        modulo: "respuestas-rapidas",
+        ruta: "/auto-replies",
+        contenido: GUIA_RESPUESTAS_RAPIDAS,
+        tarjeta: "Aprende a crear y usar tus respuestas rápidas en la plataforma",
     },
 ];
 

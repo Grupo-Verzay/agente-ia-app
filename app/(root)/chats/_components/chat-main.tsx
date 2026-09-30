@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
+import { seSugiereConLaBarra } from '@/lib/respuestas-rapidas';
 import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { EtapaDeLaFila } from '@/lib/embudos';
@@ -945,7 +946,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   const slashSuggestions = useMemo(() => {
     if (!slashOpen) return [];
-    return quickReplies.filter((qr) => qr.name && qr.name.toLowerCase().startsWith(slashQuery));
+    // Solo las de texto con atajo: elegir una PONE su mensaje en la caja, y una
+    // de flujo no tiene mensaje que poner (`seSugiereConLaBarra`).
+    return quickReplies.filter((qr) => seSugiereConLaBarra(qr, slashQuery));
   }, [slashOpen, slashQuery, quickReplies]);
 
   useEffect(() => {
