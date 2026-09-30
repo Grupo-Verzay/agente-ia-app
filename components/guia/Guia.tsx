@@ -6,10 +6,12 @@ import {
     BookOpen,
     CalendarPlus,
     CircleDot,
+    ClipboardList,
     Columns3,
     DoorOpen,
     Download,
     FileStack,
+    FileText,
     Filter,
     FolderOpen,
     GitBranch,
@@ -87,6 +89,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    ClipboardList,
+    FileText,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

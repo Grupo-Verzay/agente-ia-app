@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { elementosQueFaltan, StepTemplate, esInstruccionDelSistema } from "./helpers/stepTemplates";
 import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
@@ -610,7 +611,7 @@ export function TrainingBuilder({
     <Card className="border-muted/60">
       <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-base uppercase">Entrenamiento</CardTitle>
+          <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.training}</CardTitle>
 
           {/* 🔹 Indicador de autosave */}
           {autosaveStatus !== "idle" && (
@@ -635,19 +636,18 @@ export function TrainingBuilder({
 
         <div className="flex items-center gap-2">
           {steps.length > 1 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs text-muted-foreground"
+            <button
+              type="button"
+              className={BOTON_EXPANDIR_TODO}
               onClick={expandedSteps.size === 0 ? expandAll : collapseAll}
             >
               {expandedSteps.size === 0 ? "Expandir todo" : "Colapsar todo"}
-            </Button>
+            </button>
           )}
           {steps.length < 1 && (
             <Button size="sm" onClick={addStep} className="gap-2">
               <Plus className="w-4 h-4" />
-              Agregar paso
+              {AGREGAR_EN_LA_PESTANA.training}
             </Button>
           )}
         </div>
@@ -656,7 +656,7 @@ export function TrainingBuilder({
       <CardContent className="space-y-4">
         {steps.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-2">
-            No has creado pasos. Crea tu primer paso con Agregar paso.
+            {PESTANA_VACIA.training}
           </div>
         ) : (
           <DndContext
@@ -769,7 +769,7 @@ export function TrainingBuilder({
                                 <button
                                   type="button"
                                   className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                  title="Eliminar paso"
+                                  title={ELIMINAR_EN_LA_PESTANA.training.titulo}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPasoAEliminar(step.id);
@@ -882,7 +882,7 @@ export function TrainingBuilder({
                                               />
                                             </div>
                                             <div className="space-y-1.5">
-                                              <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
+                                              <label className="text-xs font-medium text-foreground/70">Condición para avanzar</label>
                                               <Input
                                                 value={step.condicionParaAvanzar ?? ""}
                                                 onChange={(e) => updateStepCondicion(step.id, e.target.value)}
@@ -999,7 +999,7 @@ export function TrainingBuilder({
           </div>
           <Button size="sm" onClick={addStep} className="gap-2">
             <Plus className="w-4 h-4" />
-            Agregar paso
+            {AGREGAR_EN_LA_PESTANA.training}
           </Button>
         </CardFooter>
       )}
@@ -1009,9 +1009,9 @@ export function TrainingBuilder({
       <AlertDialog open={pasoAEliminar !== null} onOpenChange={(abierto) => !abierto && setPasoAEliminar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar entrenamiento</AlertDialogTitle>
+            <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.training.titulo}</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Seguro que quieres eliminar este entrenamiento? Esta acción no se puede deshacer.
+              {ELIMINAR_EN_LA_PESTANA.training.texto}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { getAgentMetrics, type AgentMetrics } from "@/actions/agent-metrics-actions";
 import { cn } from "@/lib/utils";
+import { OPCIONES_DEL_AGENTE } from "./ai-section-labels";
 
 interface Props {
   open: boolean;
@@ -79,9 +80,9 @@ export function AgentMetricsPanel({ open, onOpenChange }: Props) {
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-base">
               <BarChart2 className="h-4 w-4" />
-              Métricas del Agente IA
+              {OPCIONES_DEL_AGENTE.metricas}
             </SheetTitle>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending} aria-label="Actualizar métricas" title="Actualizar métricas">
               <RefreshCw className={cn("h-3.5 w-3.5", isPending && "animate-spin")} />
             </Button>
           </div>

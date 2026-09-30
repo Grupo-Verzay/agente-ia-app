@@ -27,7 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSpeechDictation } from "@/hooks/useSpeechDictation";
-import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
+import { OPCIONES_DEL_AGENTE, TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
 type GenStage = "idle" | "running" | "done" | "error";
 type QuickPrompt = { label: string; icon: React.ElementType; text: string };
@@ -567,7 +567,7 @@ export function AgentPromptChatDialog({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Bot className="h-3.5 w-3.5" />
                 </span>
-                Chat IA
+                {OPCIONES_DEL_AGENTE.asistente}
                 <button
                   type="button"
                   onClick={handleClear}

@@ -14,6 +14,7 @@ import { Workflow } from "@prisma/client";
 import { useManagementAutosave, AutosaveStatus } from "./hooks/useManagementAutosave";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { PromptFragment } from "./helpers/prompt-fragments";
 import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
 import { GripVertical, ChevronDown, Trash2, Copy, ArrowRight } from "lucide-react";
@@ -512,7 +513,7 @@ export const ManagementBuilder = ({
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base uppercase">Gestión</CardTitle>
+                    <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.management}</CardTitle>
                     {autosaveStatus !== "idle" && (
                         <span
                             className={
@@ -537,7 +538,7 @@ export const ManagementBuilder = ({
                     {steps.length > 1 && (
                         <button
                             type="button"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                            className={BOTON_EXPANDIR_TODO}
                             onClick={expandedSteps.size === 0 ? expandAll : collapseAll}
                         >
                             {expandedSteps.size === 0 ? "Expandir todo" : "Colapsar todo"}
@@ -558,7 +559,7 @@ export const ManagementBuilder = ({
             <CardContent className="space-y-3">
                 {steps.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-2">
-                        No has agregado bloques de gestión. Usa &quot;Agregar acción&quot; para comenzar.
+                        {PESTANA_VACIA.management}
                     </div>
                 ) : (
                     <DndContext
@@ -642,7 +643,7 @@ export const ManagementBuilder = ({
                                                                     <button
                                                                         type="button"
                                                                         className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                                                        title="Eliminar gestión"
+                                                                        title={ELIMINAR_EN_LA_PESTANA.management.titulo}
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                         <Trash2 className="h-4 w-4" />
@@ -650,9 +651,9 @@ export const ManagementBuilder = ({
                                                                 </AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
-                                                                        <AlertDialogTitle>Eliminar gestión</AlertDialogTitle>
+                                                                        <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.management.titulo}</AlertDialogTitle>
                                                                         <AlertDialogDescription>
-                                                                            ¿Seguro que quieres eliminar esta gestión? Esta acción no se puede deshacer.
+                                                                            {ELIMINAR_EN_LA_PESTANA.management.texto}
                                                                         </AlertDialogDescription>
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>

@@ -12,6 +12,7 @@ import { Plus as PlusIcon, ArrowRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
 import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
@@ -408,7 +409,7 @@ export const ProductBuilder = ({
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base uppercase">Productos</CardTitle>
+                    <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.products}</CardTitle>
                     {autosaveStatus !== "idle" && (
                         <span
                             className={
@@ -432,7 +433,7 @@ export const ProductBuilder = ({
                     {items.length > 1 && (
                         <button
                             type="button"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                            className={BOTON_EXPANDIR_TODO}
                             onClick={expandedItems.size === 0 ? expandAll : collapseAll}
                         >
                             {expandedItems.size === 0 ? "Expandir todo" : "Colapsar todo"}
@@ -441,7 +442,7 @@ export const ProductBuilder = ({
                     {items.length < 1 && (
                         <Button size="sm" onClick={addProduct} className="gap-2">
                             <Plus className="w-4 h-4" />
-                            Agregar producto
+                            {AGREGAR_EN_LA_PESTANA.products}
                         </Button>
                     )}
                 </div>
@@ -450,7 +451,7 @@ export const ProductBuilder = ({
             <CardContent className="space-y-3">
                 {items.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-2">
-                        No has creado productos. Crea tu primer producto con &quot;Agregar producto&quot;.
+                        {PESTANA_VACIA.products}
                     </div>
                 ) : (
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -524,7 +525,7 @@ export const ProductBuilder = ({
                                                                     <button
                                                                         type="button"
                                                                         className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                                                        title="Eliminar producto"
+                                                                        title={ELIMINAR_EN_LA_PESTANA.products.titulo}
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                         <Trash2 className="h-4 w-4" />
@@ -532,9 +533,9 @@ export const ProductBuilder = ({
                                                                 </AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
-                                                                        <AlertDialogTitle>Eliminar producto</AlertDialogTitle>
+                                                                        <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.products.titulo}</AlertDialogTitle>
                                                                         <AlertDialogDescription>
-                                                                            ¿Seguro que quieres eliminar este producto? Esta acción no se puede deshacer.
+                                                                            {ELIMINAR_EN_LA_PESTANA.products.texto}
                                                                         </AlertDialogDescription>
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>
@@ -653,7 +654,7 @@ export const ProductBuilder = ({
                     </div>
                     <Button size="sm" onClick={addProduct} className="gap-2">
                         <Plus className="w-4 h-4" />
-                        Agregar producto
+                        {AGREGAR_EN_LA_PESTANA.products}
                     </Button>
                 </CardFooter>
             )}

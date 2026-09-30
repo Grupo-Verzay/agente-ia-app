@@ -9,6 +9,7 @@ import { Plus, Trash2, GripVertical, ChevronDown, Copy, ArrowRight } from "lucid
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { elementosQueFaltan, StepTemplate } from "./helpers/stepTemplates";
 import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 import { Badge } from "@/components/ui/badge";
@@ -411,7 +412,7 @@ export function FqaBuilder({
             <Card className="border-muted/60">
                 <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                     <div className="flex items-center gap-2">
-                        <CardTitle className="text-base uppercase">Preguntas</CardTitle>
+                        <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.faq}</CardTitle>
                         {autosaveStatus !== "idle" && (
                             <span
                                 className={
@@ -435,16 +436,16 @@ export function FqaBuilder({
                         {items.length > 1 && (
                             <button
                                 type="button"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                                className={BOTON_EXPANDIR_TODO}
                                 onClick={expandedItems.size === 0 ? expandAll : collapseAll}
                             >
                                 {expandedItems.size === 0 ? "Expandir todo" : "Colapsar todo"}
                             </button>
                         )}
                         {items.length < 1 && (
-                            <Button size="sm" onClick={addFaq}>
+                            <Button size="sm" onClick={addFaq} className="gap-2">
                                 <Plus className="w-4 h-4" />
-                                Agregar Pregunta
+                                {AGREGAR_EN_LA_PESTANA.faq}
                             </Button>
                         )}
                     </div>
@@ -453,7 +454,7 @@ export function FqaBuilder({
                 <CardContent className="space-y-4">
                     {items.length === 0 ? (
                         <div className="text-center text-sm text-muted-foreground py-2">
-                            No has creado Preguntas. Crea tu primera Pregunta con &quot;Agregar Pregunta&quot;.
+                            {PESTANA_VACIA.faq}
                         </div>
                     ) : (
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -527,7 +528,7 @@ export function FqaBuilder({
                                                                         <button
                                                                             type="button"
                                                                             className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                                                            title="Eliminar pregunta"
+                                                                            title={ELIMINAR_EN_LA_PESTANA.faq.titulo}
                                                                             onClick={(e) => e.stopPropagation()}
                                                                         >
                                                                             <Trash2 className="h-4 w-4" />
@@ -535,9 +536,9 @@ export function FqaBuilder({
                                                                     </AlertDialogTrigger>
                                                                     <AlertDialogContent>
                                                                         <AlertDialogHeader>
-                                                                            <AlertDialogTitle>Eliminar Pregunta</AlertDialogTitle>
+                                                                            <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.faq.titulo}</AlertDialogTitle>
                                                                             <AlertDialogDescription>
-                                                                                ¿Seguro que quieres eliminar esta Pregunta? Esta acción no se puede deshacer.
+                                                                                {ELIMINAR_EN_LA_PESTANA.faq.texto}
                                                                             </AlertDialogDescription>
                                                                         </AlertDialogHeader>
                                                                         <AlertDialogFooter>
@@ -657,7 +658,7 @@ export function FqaBuilder({
                         </div>
                         <Button size="sm" onClick={addFaq} className="gap-2">
                             <Plus className="w-4 h-4" />
-                            Agregar Pregunta
+                            {AGREGAR_EN_LA_PESTANA.faq}
                         </Button>
                     </CardFooter>
                 )}
