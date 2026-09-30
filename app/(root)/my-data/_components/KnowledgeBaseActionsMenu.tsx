@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { MoreVertical, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
+import { PowerOff, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   activateAllKnowledgeBlocks,
@@ -10,7 +10,6 @@ import {
   deleteInactiveKnowledgeBlocks,
   getKnowledgeBlockCounts,
 } from '@/actions/knowledge-block-actions';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CrmConfirmActionDialog } from '@/app/(root)/crm/dashboard/components/CrmConfirmActionDialog';
+import { elNombreDeLaSeccion } from '@/lib/pantalla-de-mis-datos';
+import { BotonDelMenuDeLaSeccion } from './PestanasDeLaSeccion';
 
 type ActionId = 'activate-all' | 'deactivate-all' | 'delete-inactive' | 'delete-all';
 
@@ -33,9 +34,15 @@ export function KnowledgeBaseActionsMenu({ userId, refreshKey, onDataChanged }: 
   const [counts, setCounts] = useState({ total: 0, active: 0, inactive: 0 });
   const [selectedAction, setSelectedAction] = useState<ActionId | null>(null);
 
+  // Se cuentan al ABRIR el menú, además de cuando algo cambia: el interruptor
+  // de cada bloque no avisa a este menú, así que después de apagar uno el menú
+  // seguía diciendo «Activar todos los bloques (0)», apagado.
   const loadCounts = useCallback(async () => {
-    const c = await getKnowledgeBlockCounts(userId);
-    setCounts(c);
+    try {
+      setCounts(await getKnowledgeBlockCounts(userId));
+    } catch (error) {
+      console.error('[mis-datos] no se pudieron contar los bloques', error);
+    }
   }, [userId]);
 
   useEffect(() => { loadCounts(); }, [loadCounts, refreshKey]);
@@ -81,7 +88,12 @@ export function KnowledgeBaseActionsMenu({ userId, refreshKey, onDataChanged }: 
     if (!selectedAction) return;
     const toastId = `kb-action-${selectedAction}`;
     toast.loading('Aplicando cambios...', { id: toastId });
-    const result = await actions[selectedAction].execute();
+    // Si la acción REVIENTA —no solo si dice que no— el aviso se cierra y lo
+    // dice. El diálogo se traga el error, así que sin esto se quedaba girando.
+    const result = await actions[selectedAction].execute().catch((error: unknown) => {
+      console.error('[mis-datos] la acción sobre los bloques falló', error);
+      return { success: false, message: 'No se pudo aplicar el cambio. Inténtalo de nuevo.' };
+    });
     if (!result.success) {
       toast.error(result.message, { id: toastId });
       throw new Error(result.message);
@@ -93,14 +105,12 @@ export function KnowledgeBaseActionsMenu({ userId, refreshKey, onDataChanged }: 
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(open) => { if (open) void loadCounts(); }}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="h-9 w-9">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
+          <BotonDelMenuDeLaSeccion seccion="knowledge" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
-          <DropdownMenuLabel>Base de Conocimiento</DropdownMenuLabel>
+          <DropdownMenuLabel>{elNombreDeLaSeccion('knowledge')}</DropdownMenuLabel>
           <DropdownMenuItem disabled={actions['activate-all'].disabled} onSelect={() => setSelectedAction('activate-all')}>
             <RefreshCw className="h-4 w-4" />
             {actions['activate-all'].label}

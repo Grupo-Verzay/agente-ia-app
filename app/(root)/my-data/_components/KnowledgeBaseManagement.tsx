@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  BookOpen, Edit2, Loader2, Plus, RefreshCw, Search, Trash2,
+  BookOpen, Loader2, RefreshCw, Search,
 } from 'lucide-react';
 import type { KnowledgeBlock } from '@prisma/client';
 import {
@@ -28,6 +28,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { EditarYEliminar } from '@/components/shared/EditarYEliminar';
 
 interface Props {
   userId: string;
@@ -62,7 +64,8 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
     try {
       const data = await listKnowledgeBlocks(userId);
       setBlocks(data as KnowledgeBlock[]);
-    } catch {
+    } catch (error) {
+      console.error('[mis-datos] no se pudieron leer los bloques', error);
       setBlocks([]);
     } finally {
       setIsLoading(false);
@@ -70,6 +73,10 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
   }, [userId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
+
+  // Después de crear, editar o borrar se avisa a la sección: vuelve a leer la
+  // lista (por `refreshKey`) y el «⋯» vuelve a contar. Sin sección, se relee aquí.
+  const cambio = () => (onDataChanged ? onDataChanged() : void load());
 
   const filtered = useMemo(() => {
     if (!search.trim()) return blocks;
@@ -126,7 +133,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
       }
 
       setDialogOpen(false);
-      load();
+      cambio();
     } catch (err: any) {
       toast.error(err?.message ?? 'Error al guardar');
     } finally {
@@ -150,7 +157,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
       await deleteKnowledgeBlock(deleteTarget.id, userId);
       toast.success('Bloque eliminado');
       setDeleteTarget(null);
-      load();
+      cambio();
     } catch (err: any) {
       toast.error(err?.message ?? 'Error al eliminar');
     } finally {
@@ -160,60 +167,85 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
 
   return (
     <>
-      <div className="space-y-4">
+      <div data-gestionar="knowledge" className="space-y-4">
         <Card>
+          {/* La MISMA forma que la tarjeta de los datos importados: su título,
+              su frase con el número y «Actualizar» a la derecha. Arriba iban
+              además «Nuevo bloque» y, debajo, el buscador suelto. */}
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-primary" />
-                <div>
-                  <CardTitle className="text-lg">Gestión de Base de Conocimiento</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    {blocks.length} bloque(s) — {blocks.filter((b) => b.isActive).length} activos
-                  </CardDescription>
-                </div>
+                <CardTitle className="text-lg">Bloques de conocimiento</CardTitle>
               </div>
-              <div className="toolbar-collapse flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={load} disabled={isLoading} title="Refrescar">
-                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button size="sm" onClick={openCreate} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Nuevo bloque
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={load}
+                disabled={isLoading}
+                title="Actualizar"
+                aria-label="Actualizar"
+              >
+                {isLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <RefreshCw className="h-4 w-4" />}
+              </Button>
             </div>
+            <CardDescription>
+              Revisa y edita los bloques que el agente IA consulta en tus conversaciones.
+              {blocks.length > 0 && (
+                <span data-cuenta-de-bloques className="ml-1 font-medium text-foreground">
+                  {blocks.length} bloque(s), {blocks.filter((b) => b.isActive).length} activo(s).
+                </span>
+              )}
+            </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por título, keyword o categoría..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 text-xs h-8 w-72"
-              />
-            </div>
+            {/* La barra de la plataforma, como la tabla de datos importados:
+                el buscador primero y «Nuevo» en azul a la derecha. */}
+            <BarraDeAcciones
+              buscador={
+                <div className="relative w-56 shrink-0 sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Buscar por título o clave..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8 text-xs"
+                  />
+                </div>
+              }
+              crear={<BotonDeCrear onClick={openCreate}>Nuevo</BotonDeCrear>}
+            />
 
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            {isLoading && blocks.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Cargando bloques...
               </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-10 text-sm text-muted-foreground">
-                {blocks.length === 0
-                  ? 'No hay bloques aún. Importa desde la pestaña "Importar" o crea uno manualmente.'
-                  : 'Sin resultados para esa búsqueda.'}
-              </div>
+              blocks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
+                  <BookOpen className="h-8 w-8 opacity-30" />
+                  <p className="text-sm">No tienes bloques todavía.</p>
+                  <p className="text-xs">Usa la pestaña <strong>Importar</strong> para dividir tu contenido en bloques, o crea uno con <strong>Nuevo</strong>.</p>
+                </div>
+              ) : (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  Ningún bloque coincide con la búsqueda.
+                </div>
+              )
             ) : (
-              <div className="divide-y divide-border/50">
+              <div data-lista-de-bloques className="divide-y divide-border/50">
                 {filtered.map((block) => (
-                  <div key={block.id} className="py-3 flex items-start gap-3">
+                  <div key={block.id} data-bloque={block.title} className="py-3 flex items-start gap-3">
                     <Switch
                       checked={block.isActive}
                       onCheckedChange={(v) => handleToggle(block, v)}
                       className="mt-0.5 shrink-0"
+                      aria-label={block.isActive ? 'Desactivar bloque' : 'Activar bloque'}
                     />
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -241,26 +273,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">{block.content}</p>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openEdit(block)}
-                        title="Editar"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteTarget(block)}
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <EditarYEliminar onEditar={() => openEdit(block)} onEliminar={() => setDeleteTarget(block)} />
                   </div>
                 ))}
               </div>
@@ -275,7 +288,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
           <DialogHeader className="shrink-0">
             <DialogTitle>{editBlock ? 'Editar bloque' : 'Nuevo bloque'}</DialogTitle>
             <DialogDescription>
-              Define el contenido que el agente IA inyectará cuando el cliente mencione las keywords.
+              Define el contenido que el agente IA usará cuando el cliente mencione sus palabras clave.
             </DialogDescription>
           </DialogHeader>
 
@@ -285,15 +298,20 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
               <Input
                 id="kb-title"
                 value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value.toUpperCase() }))}
+                // Tal cual se escribe. Iba en mayúsculas —con CSS y convertido al
+                // teclear—, así que un bloque importado («Horarios de atención») se
+                // VEÍA en mayúsculas al editarlo y, con tocar una letra, se guardaba
+                // así sin decirlo; y uno creado a mano salía distinto de los
+                // importados en la misma lista.
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="Ej: Producto A — Características"
-                className="text-sm uppercase"
+                className="text-sm"
               />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="kb-keywords" className="text-xs">
-                Keywords <span className="text-muted-foreground">(separadas por coma)</span>
+                Palabras clave <span className="text-muted-foreground">(separadas por coma)</span>
               </Label>
               <Input
                 id="kb-keywords"
@@ -336,7 +354,8 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+            {/* Crear va en azul y guardar en verde, como en toda la plataforma. */}
+            <Button variant={editBlock ? 'save' : 'default'} onClick={handleSave} disabled={isSaving} className="gap-2">
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
               {editBlock ? 'Guardar cambios' : 'Crear bloque'}
             </Button>

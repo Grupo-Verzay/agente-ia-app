@@ -5,6 +5,8 @@ import { currentUser } from '@/lib/auth';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { db } from '@/lib/db';
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from '@/lib/whatsapp-jid';
+import { laUrlDelCsv } from '@/lib/url-de-google-sheets';
+import { esUnNumeroDeWhatsApp, lasFormasDelMismoNumero } from '@/lib/pantalla-de-mis-datos';
 import { autoSyncContactIfEnabled } from '@/actions/google-sheets-actions';
 import type {
   ExternalClientData,
@@ -76,6 +78,31 @@ export async function getExternalClientDataByRemoteJid(
   return record as ExternalClientData | null;
 }
 
+// ─── El mismo cliente con otra forma de su número ─────────────────────────────
+
+/**
+ * El registro de este cliente, esté guardado con la forma canónica de su número
+ * o con otra del MISMO teléfono (el número pelado, `@c.us`). Importar y guardar
+ * a mano buscaban solo por la canónica: un registro de antes con el número
+ * pelado no se encontraba y se creaba otro al lado —el mismo cliente dos veces,
+ * y el agente leyendo el que le tocara—. Quien lo encuentra lo reescribe con la
+ * forma canónica, así que el duplicado no vuelve.
+ */
+async function elRegistroDelMismoNumero(userId: string, canonicalJid: string): Promise<{ id: string } | null> {
+  const exacto = await db.externalClientData.findUnique({
+    where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
+    select: { id: true },
+  });
+  if (exacto) return exacto;
+  const formas = lasFormasDelMismoNumero(canonicalJid).filter((f) => f !== canonicalJid);
+  if (formas.length === 0) return null;
+  return db.externalClientData.findFirst({
+    where: { userId, remoteJid: { in: formas } },
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true },
+  });
+}
+
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
 /**
@@ -89,13 +116,38 @@ export async function upsertExternalClientData(
   source = 'manual',
 ): Promise<ExternalClientData> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
-  const canonicalJid = normalizeWhatsAppConversationJid(remoteJid) || remoteJid;
+  const clave = remoteJid.trim();
 
-  const record = await db.externalClientData.upsert({
-    where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
-    create: { userId, remoteJid: canonicalJid, data: data as Prisma.InputJsonValue, source },
-    update: { data: data as Prisma.InputJsonValue, source, updatedAt: new Date() },
-  });
+  // Editar un registro manda su clave TAL CUAL está guardada: ese registro se
+  // actualiza sin tocar su clave, sea un número o el SKU de un catálogo.
+  const mismo = clave
+    ? await db.externalClientData.findUnique({
+        where: { userId_remoteJid: { userId, remoteJid: clave } },
+        select: { id: true, remoteJid: true },
+      })
+    : null;
+
+  // Solo un NÚMERO pasa a su forma de WhatsApp: una clave de catálogo se queda
+  // como se escribió (`esUnNumeroDeWhatsApp`).
+  const canonicalJid = mismo
+    ? mismo.remoteJid
+    : esUnNumeroDeWhatsApp(clave)
+      ? normalizeWhatsAppConversationJid(clave) || clave
+      : clave;
+
+  // Si el cliente ya estaba guardado con otra forma de su número, se actualiza
+  // ESE registro en vez de crear otro al lado (`elRegistroDelMismoNumero`).
+  const existente = mismo ?? (await elRegistroDelMismoNumero(userId, canonicalJid));
+  const record = existente
+    ? await db.externalClientData.update({
+        where: { id: existente.id },
+        data: { remoteJid: canonicalJid, data: data as Prisma.InputJsonValue, source, updatedAt: new Date() },
+      })
+    : await db.externalClientData.upsert({
+        where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
+        create: { userId, remoteJid: canonicalJid, data: data as Prisma.InputJsonValue, source },
+        update: { data: data as Prisma.InputJsonValue, source, updatedAt: new Date() },
+      });
 
   // Sincronización automática a Google Sheets (solo si la cuenta la activó).
   await autoSyncContactIfEnabled(userId, canonicalJid);
@@ -131,15 +183,19 @@ export async function importExternalClientDataBulk(
         continue;
       }
 
-      const existing = await db.externalClientData.findUnique({
-        where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
-        select: { id: true },
-      });
+      // Un catálogo guarda su clave tal cual: solo es igual a sí misma. Un
+      // cliente se busca por TODAS las formas de su número.
+      const existing = skipNormalization
+        ? await db.externalClientData.findUnique({
+            where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
+            select: { id: true },
+          })
+        : await elRegistroDelMismoNumero(userId, canonicalJid);
 
       if (existing) {
         await db.externalClientData.update({
-          where: { userId_remoteJid: { userId, remoteJid: canonicalJid } },
-          data: { data: row.data as Prisma.InputJsonValue, source, updatedAt: new Date() },
+          where: { id: existing.id },
+          data: { remoteJid: canonicalJid, data: row.data as Prisma.InputJsonValue, source, updatedAt: new Date() },
         });
         updated++;
       } else {
@@ -148,8 +204,15 @@ export async function importExternalClientDataBulk(
         });
         created++;
       }
-    } catch {
+    } catch (error) {
+      // Una fila que no entra se cuenta, y se dice por qué: el resumen solo da
+      // el número, y sin esto no queda ni rastro de qué falló.
       errors++;
+      console.warn('[mis-datos] una fila de la importación no se pudo guardar', {
+        clave: row.remoteJid,
+        codigo: (error as { code?: string } | null)?.code,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -197,6 +260,17 @@ export async function deleteExternalClientData(
   }
 }
 
+/**
+ * Cuántos registros tiene la cuenta, sin traerse ninguno. Lo pide el «⋯» de
+ * Google Sheets al abrirse: su número salía de la pestaña Gestionar, que solo
+ * existe mientras se mira, así que en la de Importar decía «(0)» y apagaba
+ * «Eliminar todos los datos» sobre una cuenta con registros.
+ */
+export async function contarExternalClientData(userIdPedido: string): Promise<number> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
+  return db.externalClientData.count({ where: { userId } });
+}
+
 export async function deleteAllExternalClientData(userIdPedido: string): Promise<number> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const result = await db.externalClientData.deleteMany({ where: { userId } });
@@ -204,30 +278,6 @@ export async function deleteAllExternalClientData(userIdPedido: string): Promise
 }
 
 // ─── Google Sheets import ─────────────────────────────────────────────────────
-
-/**
- * Convierte una URL de edición de Google Sheets a URL de exportación CSV.
- * Soporta ambas formas:
- *   .../edit?gid=123456
- *   .../edit#gid=123456
- */
-function buildGoogleSheetsCsvUrl(sheetUrl: string): string | null {
-  try {
-    const url = new URL(sheetUrl);
-    const pathMatch = url.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
-    if (!pathMatch) return null;
-
-    const spreadsheetId = pathMatch[1];
-    const gid =
-      url.searchParams.get('gid') ??
-      url.hash.replace('#gid=', '').trim() ??
-      '0';
-
-    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Parser CSV robusto que maneja valores entre comillas con comas internas.
@@ -293,12 +343,12 @@ export async function previewGoogleSheet(
   // No recibe ninguna cuenta —solo una URL—, así que no entra en el barrido de
   // las que la reciben del navegador. Pero hace que **nuestro servidor**
   // descargue algo, y eso no puede quedar abierto a quien no ha entrado. El
-  // destino no es libre: `buildGoogleSheetsCsvUrl` rearma la dirección contra
+  // destino no es libre: `laUrlDelCsv` rearma la dirección contra
   // `docs.google.com` y solo deja pasar el id de la hoja.
   const persona = await currentUser();
   if (!persona) return { success: false, error: 'No autorizado.' };
 
-  const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);
+  const csvUrl = laUrlDelCsv(sheetUrl);
   if (!csvUrl) return { success: false, error: 'URL de Google Sheets inválida' };
 
   try {
@@ -341,7 +391,7 @@ export async function importFromGoogleSheetUrl(
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   const { remoteJidColumn = 'WHATSAPP', source = 'google_sheets', catalogMode = false } = options;
 
-  const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);
+  const csvUrl = laUrlDelCsv(sheetUrl);
   if (!csvUrl) {
     return { created: 0, updated: 0, errors: 0, parseErrors: ['URL de Google Sheets inválida'] };
   }
