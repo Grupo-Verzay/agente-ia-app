@@ -342,8 +342,9 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
    una de esas dos secciones cae en la misma, nunca en una repetida.
 3. **En la ficha, Nombre y Teléfono son el nombre y el número REALES**: Nombre
    se guarda por el mismo camino que el lápiz de la cabecera
-   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre más
-   alta (`LINEAS_DE_LAS_NOTAS`, `min-h-[8rem]`) y con la manija de la esquina
+   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre con
+   3 líneas (`LINEAS_DE_LAS_NOTAS`, sin `min-h`: pisaría a `rows`), se desplaza
+   por dentro si el texto es más largo, y lleva la manija de la esquina
    (`resize-y`); los demás campos no se estiran.
 4. **Su dato sigue en `ExternalClientData.data.notas`**, la clave del Notas de
    fábrica de antes: lo escrito no se pierde, y una lista vieja con esa clave la
@@ -352,7 +353,7 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
 
 Lo prueba `scripts/banco-ficha-simetrica.sh`: la regla, y el diálogo y la ficha
 REALES en Chromium a 1440/1024/390 (mismas columnas y altos en todas las filas,
-Notas la última al agregar campos, Notas más alta y estirable arrastrando la
+Notas la última al agregar campos, Notas con 3 líneas y estirable arrastrando la
 esquina). `MODO=roto` monta los de `4834a9e` y afirma «Fijo», las filas sin asa
 ni interruptor y la ficha sin Nombre, Teléfono ni Notas.
 
