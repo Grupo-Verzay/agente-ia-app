@@ -20,8 +20,21 @@
 
 const SEPARADOR = "\x1e";
 
+/**
+ * Cuánto espera el cliente un ping antes de dar la conexión por muerta.
+ *
+ * Una semana, y no los 20 s de un servidor de verdad, por el RELOJ DE LA
+ * HISTORIA: el vídeo salta horas —del mensaje al seguimiento, y de ahí al día
+ * del recordatorio— con `clock.setSystemTime`, y engine.io comprueba su plazo
+ * contra `Date.now()` (`_hasPingExpired`). Con el plazo normal, cada salto
+ * cerraba la conexión por «ping timeout» y el panel se reconectaba: el aviso
+ * que caía en ese segundo no le llegaba a nadie, y el mensaje salía en el
+ * celular y no en el panel. Los pings se siguen mandando cada 20 s reales.
+ */
+export const PLAZO_DEL_PING_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** El paquete de apertura de engine.io, como lo manda un servidor v4. */
-export function laApertura(sid, { pingInterval = 25_000, pingTimeout = 20_000 } = {}) {
+export function laApertura(sid, { pingInterval = 25_000, pingTimeout = PLAZO_DEL_PING_MS } = {}) {
     return "0" + JSON.stringify({ sid, upgrades: [], pingInterval, pingTimeout, maxPayload: 1_000_000 });
 }
 

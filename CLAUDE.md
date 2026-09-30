@@ -23333,6 +23333,87 @@ con el contenedor ancho se leerían a 140. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
 1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
 
+## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
+
+`/demo` es una página pública (noindex, sin sesión) con un vídeo de menos de dos
+minutos para que un lead lo vea antes de agendar: la historia de una clínica
+contada en **tres pantallas a la vez** —el celular del negocio, WhatsApp Web y
+el **panel de Verzay de verdad**—, con la voz Cedar y el ritmo de las guías.
+
+Se genera con `npm run build && scripts/generar-video-de-ventas.sh` y **después
+se vuelve a construir** (`next start` solo sirve lo que había en `public/`).
+`ENSAYO=1` graba sin tocar `public/demo/` y deja una captura por escena en
+`/tmp/video-de-ventas`.
+
+> **Lo que es de verdad y lo que no se dice en la propia página**
+> (`LO_QUE_ES_EL_VIDEO`, `lib/video-de-ventas.ts`): el panel es la App servida
+> con `next start` leyendo la base que va escribiendo la historia; el celular y
+> WhatsApp Web son recreaciones fieles; las respuestas de la IA siguen un guion
+> (`scripts/video-de-ventas/historia.mjs`). Un lead que después ve la plataforma
+> no puede sentir que el vídeo le mintió.
+
+### Cómo se graba sin fingir el panel
+
+- **Cada mensaje lo escribe `backend.mjs` en la base como lo haría el webhook**
+  —mismo tipo, `sentByAi`, transcripción, adjunto— y **el aviso en vivo sale por
+  el mismo socket que en producción**: `tiempo-real.mjs` sirve socket.io v4 sobre
+  sondeo desde Playwright, y la App pide su token y se conecta como siempre. Sin
+  eso el panel solo se enteraría por sus relojes de respaldo, que es lo que ve
+  una cuenta con el socket caído y no un cliente.
+- **La historia salta horas con un reloj falso** (`clock.setSystemTime`: del
+  mensaje al seguimiento, y al día del recordatorio). Por eso el `pingTimeout`
+  del socket emulado es de una semana (`PLAZO_DEL_PING_MS`): engine.io mide su
+  plazo con `Date.now()` y cada salto cerraba la conexión; el aviso que caía en
+  ese segundo no le llegaba a nadie. **Un aviso que no llega a ninguna pestaña
+  tumba la grabación de verdad**; en un ensayo solo avisa.
+- **Lo que viaja en la conversación sale de `MEDIOS`**, también lo que se sirve
+  al estudio. Con la lista escrita a mano se quedó sirviendo un `.mp4` viejo
+  cuando el vídeo pasó a `.webm`: 404, y el vídeo de WhatsApp Web se quedaba en
+  su portada sin decir nada. **Un vídeo que el estudio no puede pintar también
+  tumba la grabación.**
+- **Dentro de la grabación los vídeos van en WebM VP9** (el Chromium de
+  Playwright no trae H.264) y se sirven como `video/webm`. El vídeo publicado sí
+  es H.264 + AAC, que se reproduce en cualquier sitio.
+- **El vídeo se graba con `grabadora-de-la-guia.mjs`, nunca con `recordVideo`**
+  (estira las animaciones y la imagen se despega de la voz; ver la sección de
+  las guías).
+
+### Lo que hubo que arreglar en la App para poder grabarlo
+
+Grabar la App de verdad destapó tres fallos que un cliente también ve:
+
+1. **El borrador de un aviso en vivo no se sustituía nunca**
+   (`lib/aviso-en-vivo-del-chat.ts`). La conversación abierta pinta al instante
+   lo que trae el socket como texto plano; el mensaje de verdad —con su
+   reproductor, su archivo y su «Agente IA»— lo trae el reloj con el MISMO id y
+   la misma hora, así que `areListsDifferent` no veía nada nuevo y el borrador
+   se quedaba: una nota de voz como «🎧 Audio» sin reproductor, un PDF como su
+   etiqueta, la IA firmada «Asesor». Ahora el borrador lleva `DEL_AVISO_EN_VIVO`
+   y mientras la respuesta del reloj traiga su versión real, la lista cambió.
+2. **La ficha, la cabecera y la etapa no se enteraban de lo que la IA hacía**
+   (`lib/crm-de-la-conversacion-abierta.ts`): al entrar un mensaje NUEVO en la
+   conversación abierta se vuelve a leer lo de ESA conversación, agrupando la
+   ráfaga. No es un reloj nuevo: el de sesiones sigue a 60 s.
+3. **Un chat que nace no salía hasta el reloj de la lista**: el servidor
+   recuerda la bandeja 10 s (`MEMORIA_DE_LA_BANDEJA_MS`) y la primera vuelta
+   traía la foto de antes. Hay una segunda vuelta pasada esa memoria
+   (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
+
+### La página
+
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las ocho capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, dos filas de cuatro o cuatro de
+dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
+`noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
+(`/demo/:path*`, también el vídeo).
+
+Lo prueba `scripts/banco-video-de-ventas.sh`: el borrador que se sustituye (con
+la `areListsDifferent` sacada del fichero), el CRM de la conversación abierta,
+la historia y el estudio, la voz Cedar completa y el guion, el vídeo publicado
+medido con ffmpeg (H.264 1920×1080, menos de dos minutos, sin huecos mudos) y la
+página servida sin sesión a 390 y 1440. `MODO=roto` saca la función de
+`316b70c` y afirma que el borrador se quedaba y que no había ni vídeo ni página.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

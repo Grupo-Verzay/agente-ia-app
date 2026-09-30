@@ -140,7 +140,7 @@ export function enfocar(zona, { tope = 1.6 } = {}) {
 export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
     const medio = m.medio ? MEDIOS[m.medio] : null;
     const url = (archivo) => `/__estudio/medios/${archivo}`;
-    const base = { id: m.id, de: m.de, tipo: m.tipo, texto: m.texto ?? "", hora: laHora(m.en) };
+    const base = { id: m.id, de: m.de, tipo: m.tipo, texto: m.texto ?? "", hora: laHora(m.en), ts: m.en };
     if (SEPARADORES[m.id]) base.separador = SEPARADORES[m.id];
     switch (m.tipo) {
         case "nota":
@@ -425,7 +425,8 @@ body::before {
 .cta { margin-top: 46px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .cta .boton { padding: 22px 46px; border-radius: 40px; font-size: 30px; font-weight: 700; color: #04121f; background: linear-gradient(90deg,#4da3ff,#39e08b); box-shadow: 0 20px 50px rgba(57,224,139,.3); }
 .cta .web { font-size: 22px; color: #9fb0cf; font-weight: 500; }
-.aviso { position: absolute; bottom: 34px; width: 100%; text-align: center; font-size: 15px; color: #6d7d9c; }
+/* En el flujo, debajo del llamado: abajo del todo lo tapaba el subtítulo del cierre. */
+.aviso { margin-top: 30px; font-size: 16px; color: #6d7d9c; }
 
 /* ---------- lo que va encima ---------- */
 #capacidad { position: absolute; left: 64px; top: 34px; display: flex; align-items: center; gap: 14px; opacity: 0; transform: translateX(-20px); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
@@ -453,9 +454,6 @@ body::before {
 #cursor { position: absolute; left: 0; top: 0; z-index: 60; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); opacity: 0; transition: opacity .3s; }
 #cursor.sale { opacity: 1; }
 #cursor .dib { transform: scale(1.35); transform-origin: 0 0; line-height: 0; }
-#cursor .onda { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.95); opacity: 0; }
-#cursor .onda.va { animation: onda .55s ease-out; }
-@keyframes onda { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 `;
 
 /* ------------------------------------------------------------------ */
@@ -482,9 +480,13 @@ function programa(DATOS) {
     const horaReloj = (ms) => new Date(ms).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: false, timeZone: DATOS.zona });
 
     /* ---------- el reloj del celular ---------- */
+    // La hora del celular es la de la historia: el reloj de la página corre,
+    // pero un mensaje sellado a las 9:41 no puede llegar a un celular que dice
+    // 9:40. Manda la más tardía de las dos.
+    let horaDeLaHistoria = 0;
     const pintarReloj = () => {
         const r = $("#tel .estado .hora");
-        if (r) r.textContent = horaReloj(Date.now());
+        if (r) r.textContent = horaReloj(Math.max(Date.now(), horaDeLaHistoria));
     };
     setInterval(pintarReloj, 1000);
 
@@ -519,11 +521,10 @@ function programa(DATOS) {
         const yo = m.de === "ia";
         const lado = yo ? "yo" : "el";
         const meta = `<span class="meta${m.tipo === "imagen" || m.tipo === "video" ? " sobre" : ""}">${esc(m.hora)}${yo ? I.checks : ""}</span>`;
-        const marcaIa = yo && donde === "web" && false ? `<div class="ia">IA</div>` : "";
         let b;
         switch (m.tipo) {
             case "texto":
-                b = el("div", `bur ${lado}`, `${marcaIa}${esc(m.texto)}${meta}`);
+                b = el("div", `bur ${lado}`, `${esc(m.texto)}${meta}`);
                 break;
             case "nota": {
                 b = el("div", `bur ${lado} nota`);
@@ -533,7 +534,7 @@ function programa(DATOS) {
                 const orden = yo ? `${quien}<div class="boton">${I.play}</div>` : `<div class="boton">${I.play}</div>`;
                 b.innerHTML =
                     `<div class="fila2">${yo ? orden : quien + orden}<div class="onda"><div class="barras">${ondas()}</div><div class="barras color">${ondas()}</div><div class="punto"></div></div></div>` +
-                    `<div class="abajo" style="margin-left:${yo ? 88 : 88}px"><span class="dur">${esc(m.duracion)}</span><span>${esc(m.hora)}${yo ? " " + I.checks : ""}</span></div>`;
+                    `<div class="abajo" style="margin-left:88px"><span class="dur">${esc(m.duracion)}</span><span>${esc(m.hora)}${yo ? " " + I.checks : ""}</span></div>`;
                 (notas[m.id] ??= []).push(b);
                 break;
             }
@@ -541,7 +542,7 @@ function programa(DATOS) {
                 b = el(
                     "div",
                     `bur ${lado} doc`,
-                    `<div class="prev"><img src="${m.portada}"></div><div class="ficha">${I.pdf}<div style="min-width:0"><b>${esc(m.nombre)}</b><small>${esc(m.detalle)}</small></div></div>` +
+                    `${m.portada ? `<div class="prev"><img src="${m.portada}"></div>` : ""}<div class="ficha">${I.pdf}<div style="min-width:0"><b>${esc(m.nombre)}</b><small>${esc(m.detalle)}</small></div></div>` +
                         `<div style="padding:4px 6px 0">${meta}<div style="clear:both"></div></div>`,
                 );
                 break;
@@ -649,12 +650,19 @@ function programa(DATOS) {
                 const marco = b.querySelector(".marco");
                 const v = document.createElement("video");
                 v.src = m.url;
+                // Con su portada: mientras decodifica el primer fotograma no
+                // queda un hueco en blanco en la burbuja.
+                v.poster = m.portada;
                 v.muted = true;
                 v.playsInline = true;
                 v.style.cssText = "display:block;width:100%;border-radius:7px";
                 marco.innerHTML = "";
                 marco.appendChild(v);
-                v.play().catch(() => {});
+                // Que no reproduzca no puede ser mudo: el vídeo se quedaría en su
+                // portada y la grabación saldría con un fotograma fijo sin que
+                // nadie supiera por qué.
+                v.addEventListener("error", () => console.warn("[estudio] el vídeo no carga:", m.url), { once: true });
+                v.play().catch((e) => console.warn("[estudio] el vídeo no arranca:", m.url, String(e)));
                 if (ms) setTimeout(() => v.pause(), ms);
             }
         },
@@ -662,6 +670,10 @@ function programa(DATOS) {
 
     /* ---------- los mensajes ---------- */
     function llega(m) {
+        if (m.ts) {
+            horaDeLaHistoria = Math.max(horaDeLaHistoria, m.ts);
+            pintarReloj();
+        }
         if (m.de === "cliente") sinLeer += 1;
         if (m.separador) separador(m.separador);
         for (const donde of ["tel", "web"]) muros[donde].appendChild(burbuja(m, donde));
@@ -734,7 +746,7 @@ function programa(DATOS) {
                     setTimeout(() => escr.remove(), t);
                 }
                 const mm = m.adjunto
-                    ? { de: m.de, tipo: "documento", nombre: m.adjunto.nombre, detalle: m.adjunto.detalle, portada: DATOS.portadaDoc, hora: m.hora }
+                    ? { de: m.de, tipo: "documento", nombre: m.adjunto.nombre, detalle: m.adjunto.detalle, hora: m.hora }
                     : { de: m.de, tipo: "texto", texto: m.texto, hora: m.hora };
                 setTimeout(() => muro.appendChild(burbuja(mm, "mini")), t);
                 t += yo ? 900 : 1000;
@@ -816,12 +828,12 @@ function programa(DATOS) {
         cursor.style.transform = `translate(${x}px, ${y}px)`;
         pos = { x, y };
     }
-    function clic() {
-        const o = cursor.querySelector(".onda");
-        o.classList.remove("va");
-        void o.offsetWidth;
-        o.classList.add("va");
-    }
+    /**
+     * Pulsar no pinta nada encima: es el estándar de las guías (cursor de
+     * verdad, sin halo ni círculo). Lo que dice que se pulsó es la mano y lo
+     * que pasa en la pantalla.
+     */
+    function clic() {}
     forma("flecha");
     cursor.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
 
@@ -939,7 +951,7 @@ export function laPaginaDelEstudio(datos) {
   <div id="anillos"></div>
   <div id="cartel"><div class="caja"><div class="icono"></div><b></b><span></span></div></div>
   <div id="subtitulo"></div>
-  <div id="cursor"><div class="dib"></div><div class="onda"></div></div>
+  <div id="cursor"><div class="dib"></div></div>
 </div>
 <script>(${programa.toString()})(${JSON.stringify(D)});</script>
 </body></html>`;

@@ -175,7 +175,13 @@ export default auth((req) => {
     // a quien todavía no tiene cuenta. Su contenido sale de `lib/guia-<modulo>.ts`
     // y no se indexa (metadata y `X-Robots-Tag`).
     currentPath === "/guia" ||
-    currentPath.startsWith("/guia/");
+    currentPath.startsWith("/guia/") ||
+    // El vídeo de ventas (/demo): la pieza que un lead ve ANTES de agendar una
+    // reunión, así que no tiene cuenta. No lee nada de la base —todo sale de
+    // `lib/video-de-ventas.ts` y de `public/demo/`— y no se indexa (metadata y
+    // `X-Robots-Tag`).
+    currentPath === "/demo" ||
+    currentPath.startsWith("/demo/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

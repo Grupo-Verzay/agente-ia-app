@@ -41,9 +41,11 @@ import {
     CHIPS_DE_LA_MARCA,
     CLIENTA,
     LLAMADO,
+    MEDIOS,
     NEGOCIOS_DEL_ARRANQUE,
     NOTAS_DE_VOZ,
     OTROS_CHATS,
+    SECCION_DE_LA_FICHA,
     ZONA,
     elDia,
     laHora,
@@ -81,10 +83,12 @@ const NUMERO = CLIENTA.jid.split("@")[0];
  * esa trae la foto de antes y la fila sale con la segunda vuelta (11 s). Para
  * que en el vídeo salga al instante —lo que ve un negocio cuando no acaba de
  * mirar su lista— el primer mensaje llega cuando la última vuelta de la lista
- * fue hace más de `VENTANA_DE_LA_LISTA.desde` y la siguiente del reloj (20 s)
- * no llegará antes que la del aviso.
+ * fue hace más de `desde` y antes de que salga la siguiente: `desde` es la
+ * memoria del servidor menos los 2 s del aviso, con margen, y la siguiente sale
+ * a los 15 s (`REALTIME_OFF_LIST_INTERVAL_MS`: todavía no ha entrado ningún
+ * aviso en vivo) más lo que tarde la vuelta. El ciclo no se supone: se MIDE.
  */
-const VENTANA_DE_LA_LISTA = Object.freeze({ desde: 8_600, hasta: 17_400, ciclo: 20_000 });
+const VENTANA_DE_LA_LISTA = Object.freeze({ desde: 8_600, margenAntesDeLaSiguiente: 600 });
 
 mkdirSync(TRABAJO, { recursive: true });
 mkdirSync(SALIDA, { recursive: true });
@@ -112,7 +116,13 @@ const back = elBackend({
     segundos: medios.segundos,
     avisar: (nombre, datos) => {
         const n = rt?.emitir(nombre, datos) ?? 0;
-        if (!n) console.warn("[video] el aviso en vivo no le llegó a ninguna pestaña", nombre);
+        if (!n) {
+            // Un aviso perdido no se ve como un error: se ve como un mensaje que
+            // sale en el celular y no en el panel. En el vídeo final no se acepta.
+            const que = `${nombre} ${datos?.message?.id ?? datos?.presence ?? ""}`;
+            if (!ENSAYO) throw new Error(`[video] el aviso en vivo no le llegó a ninguna pestaña: ${que}`);
+            console.warn("[video] el aviso en vivo no le llegó a ninguna pestaña:", que);
+        }
     },
 });
 const porId = Object.fromEntries(back.mensajes.map((m) => [m.id, m]));
@@ -170,12 +180,24 @@ await ctx.addInitScript(() => {
 });
 rt = await servirElTiempoReal(ctx);
 
+// Lo que se sirve sale de MEDIOS —el mismo sitio del que el estudio saca las
+// direcciones—, más lo que no viaja en la conversación (la portada del PDF y el
+// logo). Con la lista escrita a mano se quedó sirviendo el .mp4 viejo cuando el
+// vídeo pasó a .webm: el estudio pedía un archivo que daba 404 y el vídeo de
+// WhatsApp Web se quedaba en su portada sin decir nada.
 const archivos = Object.fromEntries(
-    ["nota-clienta.ogg", "nota-ia.ogg", "lista-de-precios.pdf", "lista-de-precios.jpg", "conoce-la-clinica.mp4", "conoce-la-clinica.jpg", "promo-instagram.jpg", "horarios.jpg", "logo-sonrie.png"].map((f) => [
+    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), "lista-de-precios.jpg", "logo-sonrie.png"])].map((f) => [
         f,
         path.join(MEDIOS_DIR, f),
     ]),
 );
+for (const [f, ruta] of Object.entries(archivos)) {
+    try {
+        statSync(ruta);
+    } catch {
+        throw new Error(`[video] falta un archivo que el estudio sirve: ${f}`);
+    }
+}
 archivos["verzay.png"] = path.join(RAIZ, "public", "icon-512.png");
 archivos["inter-latin.woff2"] = path.join(RAIZ, "scripts", "video-de-ventas", "fuentes", "inter-latin.woff2");
 
@@ -195,10 +217,22 @@ await servirElEstudio(ctx, { pagina: () => laPaginaDelEstudio(datos), archivos }
 
 const p = await ctx.newPage();
 p.on("pageerror", (e) => console.warn("[video] error en la página:", e.message));
+// Lo que el estudio dice que no pudo pintar (un vídeo que no carga) se cuenta:
+// en la grabación de verdad es un fallo, no un aviso que se pierde en el registro.
+const fallosDelEstudio = [];
+p.on("console", (m) => {
+    if (!m.text().startsWith("[estudio]")) return;
+    console.warn(m.text());
+    fallosDelEstudio.push(m.text());
+});
 // Cuándo pidió la lista su bandeja por última vez (ver `VENTANA_DE_LA_LISTA`).
 const pedidasDeLaLista = [];
+/** El instante en que empieza la grabación: el cero de todo lo que suena. */
+let t0 = 0;
 p.on("request", (r) => {
-    if (r.url().includes("/api/chats/lista")) pedidasDeLaLista.push(Date.now());
+    if (!r.url().includes("/api/chats/lista")) return;
+    pedidasDeLaLista.push(Date.now());
+    if (ENSAYO && t0) console.log(`  · lista pedida a los ${((Date.now() - t0) / 1000).toFixed(1)} s desde ${new URL(r.frame().url()).pathname}`);
 });
 
 /* ------------------------------------------------------------------ */
@@ -243,7 +277,14 @@ async function esperarEn(id, buscar, arg, { ms = 15_000, que } = {}) {
     for (;;) {
         const r = await f.evaluate(buscar, arg).catch(() => null);
         if (r) return r;
-        if (Date.now() > hasta) throw new Error(`[video] no apareció en ${id}: ${que ?? buscar.toString().slice(0, 80)}`);
+        if (Date.now() > hasta) {
+            if (ENSAYO) {
+                await p.screenshot({ path: path.join(CAPTURAS, "fallo.png") }).catch(() => {});
+                const ficha = await f.evaluate(() => [...document.querySelectorAll("[data-ficha-de-contacto] label")].map((l) => `${l.textContent.trim()}=${l.parentElement?.querySelector("input,textarea")?.value ?? ""}`)).catch(() => []);
+                console.log("  · la ficha tenía:", ficha);
+            }
+            throw new Error(`[video] no apareció en ${id}: ${que ?? buscar.toString().slice(0, 80)}`);
+        }
         await espera(p, 150);
     }
 }
@@ -266,6 +307,12 @@ const ENCONTRAR = {
         if (!e) return null;
         const r = e.getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height, abierta: e.title.startsWith("Cerrar") };
+    },
+    seccionDeLaFicha: (titulo) => {
+        const b = [...document.querySelectorAll("[data-ficha-de-contacto] button")].find((x) => x.offsetParent && x.textContent.trim() === titulo);
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return r.width ? { x: r.x, y: r.y, w: r.width, h: r.height, abierta: !!b.nextElementSibling } : null;
     },
     campoDeLaFicha: ([rotulo, valor]) => {
         const l = [...document.querySelectorAll("[data-ficha-de-contacto] label")].find((x) => x.textContent.trim() === rotulo);
@@ -293,7 +340,10 @@ const ENCONTRAR = {
     },
     textoEnLaFila: ([jid, texto]) => {
         const e = document.querySelector(`[data-chat-id="${jid}"]`);
-        if (!e || !e.textContent.includes(texto)) return null;
+        // Una pastilla recorta su nombre («Cita confirma…») y lo lleva entero en
+        // su `title`: se mira en los dos sitios.
+        const loDice = (x) => x.textContent.includes(texto) || [...x.querySelectorAll("[title]")].some((t) => t.getAttribute("title").includes(texto));
+        if (!e || !loDice(e)) return null;
         const r = e.getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
     },
@@ -348,7 +398,6 @@ async function clicEn(id, selector, texto) {
 /** El reloj del navegador (el de la historia). */
 const ahoraEnLaPagina = () => p.evaluate(() => Date.now());
 
-let t0 = 0;
 const sonidos = [];
 const sonar = (clase, audio, texto) => sonidos.push({ clase, audio, texto, inicioMs: Date.now() - t0 });
 
@@ -356,6 +405,10 @@ const sonar = (clase, audio, texto) => sonidos.push({ clase, audio, texto, inici
 async function llega(id, { banner = false } = {}) {
     const m = porId[id];
     if (!m) throw new Error(`[video] la historia no tiene ${id}`);
+    // El reloj del navegador va a la hora del mensaje si se había quedado atrás:
+    // entre dos mensajes de la historia pasan minutos y en el vídeo segundos, y
+    // sin esto el embudo decía «hace -3 min» de algo que acababa de pasar.
+    if (m.en > (await ahoraEnLaPagina())) await ctx.clock.setSystemTime(new Date(m.en));
     const vista = elMensajeDelEstudio(m, { segundos: medios.segundos });
     await est("llega", vista);
     if (banner) await est("tel.banner", vista);
@@ -411,7 +464,9 @@ if (rt.conectadas() < 1) throw new Error("[video] el panel no se conectó al tie
 await esperarEn("agenda", () => !!document.querySelector(".fc-semanaBtn-button"), null, { ms: 60_000, que: "la agenda" });
 await clicEn("agenda", ".fc-semanaBtn-button");
 // El embudo, con sus columnas.
-await esperarEn("embudo", () => document.body.innerText.includes("Cita confirmada"), null, { ms: 60_000, que: "el embudo" });
+// Por `textContent` y no `innerText`: las columnas van en mayúsculas por CSS,
+// e `innerText` devuelve el texto ya transformado.
+await esperarEn("embudo", () => document.body.textContent.includes("Cita confirmada"), null, { ms: 60_000, que: "el embudo" });
 for (const capa of CAPAS_DEL_PORTATIL) {
     const f = await laCapa(capa.id);
     for (let i = 0; i < 3; i += 1) {
@@ -429,14 +484,22 @@ await espera(p, 1500);
  */
 const ESPERA_DEL_PRIMER_MENSAJE_MS = 2_600;
 const hastaElPrimerMensaje = 450 + voz.gancho.audio.ms + voz.promesa.audio.ms + 2 * RESPIRO_ENTRE_FRASES_MS + 900 + ESPERA_DEL_PRIMER_MENSAJE_MS;
-const fase = (ms) => ((ms % VENTANA_DE_LA_LISTA.ciclo) + VENTANA_DE_LA_LISTA.ciclo) % VENTANA_DE_LA_LISTA.ciclo;
 {
-    // Se espera (sin grabar) a que la llegada caiga en la mitad de la ventana.
-    const ultima = pedidasDeLaLista.at(-1) ?? Date.now();
-    const objetivo = (VENTANA_DE_LA_LISTA.desde + VENTANA_DE_LA_LISTA.hasta) / 2;
-    const ahora2 = Date.now();
-    const esperar = fase(objetivo - (ahora2 + hastaElPrimerMensaje - ultima));
-    console.log(`· alineando con el reloj de la lista: ${esperar} ms`);
+    // Se miden dos vueltas seguidas de la lista (sin grabar) y se arranca para
+    // que el primer mensaje caiga en la mitad de la ventana de una vuelta.
+    const unaPedidaDespuesDe = async (t) => {
+        for (let i = 0; i < 600 && !(pedidasDeLaLista.at(-1) > t); i += 1) await espera(p, 100);
+        if (!(pedidasDeLaLista.at(-1) > t)) throw new Error("[video] la lista del panel no se pide sola");
+        return pedidasDeLaLista.at(-1);
+    };
+    const l1 = await unaPedidaDespuesDe(Date.now());
+    const l2 = await unaPedidaDespuesDe(l1 + 1_000);
+    const ciclo = l2 - l1;
+    const mitad = (VENTANA_DE_LA_LISTA.desde + ciclo - VENTANA_DE_LA_LISTA.margenAntesDeLaSiguiente) / 2;
+    let llegada = l2 + mitad;
+    while (llegada - hastaElPrimerMensaje < Date.now() + 200) llegada += ciclo;
+    const esperar = Math.round(llegada - hastaElPrimerMensaje - Date.now());
+    console.log(`· la lista va cada ${ciclo} ms; se arranca en ${esperar} ms`);
     await espera(p, esperar);
 }
 
@@ -508,7 +571,7 @@ await espera(p, ESPERA_DEL_PRIMER_MENSAJE_MS - 900);
     if (desdeLaUltima < VENTANA_DE_LA_LISTA.desde) {
         const falta = VENTANA_DE_LA_LISTA.desde - desdeLaUltima;
         console.log(`  · el primer mensaje espera ${falta} ms a la lista`);
-        if (falta < 3_500) await espera(p, falta);
+        if (falta < 7_000) await espera(p, falta);
     }
 }
 await llega("M01", { banner: true });
@@ -519,6 +582,15 @@ const fila = await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid);
 await pulsarEn(fila, { ms: 700, antes: () => clicEn("app", `[data-chat-id="${CLIENTA.jid}"] button`, CLIENTA.nombreDeWhatsapp) });
 await est("tel.abrir");
 await est("web.abrir");
+// Y abre su ficha en el panel: es donde se va a ver lo que hace la IA.
+await espera(p, 350);
+{
+    const boton = await esperarEn("app", ENCONTRAR.botonDeLaFicha, null, { que: "el botón de la ficha" });
+    if (!boton.abierta) await pulsarEn(await enElCuadro("app", ENCONTRAR.botonDeLaFicha), { ms: 500, antes: () => clicEn("app", 'button[title="Ver ficha del contacto"]') });
+}
+await espera(p, 600);
+// La portada: las tres pantallas con la conversación ya abierta.
+const portadaMs = Date.now() - t0;
 await captura("tres-pantallas");
 
 // 4. Texto: responde y llena la ficha.
@@ -527,10 +599,11 @@ await est("cursor.esconder");
 await capacidad("texto");
 await est("plano", PLANOS.telPanel);
 await decir("texto");
-await espera(p, 1250);
-const boton = await esperarEn("app", ENCONTRAR.botonDeLaFicha, null, { que: "el botón de la ficha" });
-if (!boton.abierta) {
-    await pulsarEn(await enElCuadro("app", ENCONTRAR.botonDeLaFicha), { ms: 600, antes: () => clicEn("app", 'button[title="Ver ficha del contacto"]') });
+await espera(p, 1200);
+// Los campos de la cuenta viven en su sección de la ficha, plegada al abrir.
+{
+    const seccion = await esperarEn("app", ENCONTRAR.seccionDeLaFicha, SECCION_DE_LA_FICHA, { que: "la sección de la ficha" });
+    if (!seccion.abierta) await pulsarEn(await enElCuadro("app", ENCONTRAR.seccionDeLaFicha, SECCION_DE_LA_FICHA), { ms: 500, antes: () => clicEn("app", "[data-ficha-de-contacto] button", SECCION_DE_LA_FICHA) });
 }
 await alDecir("La IA le da");
 await llega("M02");
@@ -680,11 +753,12 @@ await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
 await decir("embudo");
 await espera(p, 1300);
-await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO]), texto: "Laura, en Cita confirmada" }]);
+await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO]), texto: "Laura, en Cita confirmada", abajo: true }]);
+await espera(p, 700);
+await captura("embudo");
 await alDecir("con toda su historia", 400);
 await anillos([]);
 await est("mostrarApp", "app");
-await captura("embudo");
 await acabar(900);
 
 // 12. El cierre.
@@ -700,6 +774,7 @@ await espera(p, 1500);
 
 const totalMs = Date.now() - t0;
 const grabado = await grabadora.parar();
+if (fallosDelEstudio.length && !ENSAYO) throw new Error(`[video] el estudio no pudo pintar: ${fallosDelEstudio.join(" | ")}`);
 console.log(`· grabados ${grabado.fotogramas} fotogramas (${(grabado.fotogramas / 25).toFixed(1)} s) de ${grabado.recibidos} pintados, en ${(totalMs / 1000).toFixed(1)} s`);
 await ctx.close();
 await navegador.close();
@@ -729,10 +804,7 @@ execFileSync(
     ],
     { stdio: "inherit" },
 );
-// La portada: las tres pantallas con la conversación ya abierta.
-const tres = colocados.find((c) => c.texto === NARRACION.texto.texto);
-const enSegundo = ((tres?.inicioMs ?? 20_000) - 400) / 1000;
-execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", enSegundo.toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS_DEL_VIDEO.portada)]);
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", (portadaMs / 1000).toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS_DEL_VIDEO.portada)]);
 
 const frases = Object.fromEntries(Object.entries(NARRACION).map(([id, n]) => [id, llaveDeLaFrase(n.texto, VOZ_DE_VENTAS)]));
 writeFileSync(

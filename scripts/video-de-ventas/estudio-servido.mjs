@@ -16,6 +16,10 @@ const TIPOS = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".mp4": "video/mp4",
+    // Sin su tipo, el video de la historia —que es WebM, porque el Chromium
+    // que graba no trae H.264— salía como `application/octet-stream` y el
+    // `<video>` de WhatsApp Web se quedaba en blanco, sin error.
+    ".webm": "video/webm",
     ".pdf": "application/pdf",
     ".ogg": "audio/ogg",
 };

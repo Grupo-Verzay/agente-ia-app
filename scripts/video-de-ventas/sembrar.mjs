@@ -18,6 +18,7 @@ import { laHoraDeLaPosicion } from "./backend.mjs";
 import {
     CALIFICACION,
     CAMPOS_DE_LA_FICHA,
+    SECCION_DE_LA_FICHA,
     ETAPAS,
     ETIQUETAS,
     NEGOCIO,
@@ -51,7 +52,7 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
                 campos: CAMPOS_DE_LA_FICHA.map((c, i) => ({
                     key: c.key,
                     label: c.label,
-                    section: "Tratamiento",
+                    section: SECCION_DE_LA_FICHA,
                     icon: c.icon,
                     enabled: true,
                     order: i,

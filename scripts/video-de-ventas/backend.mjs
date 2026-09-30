@@ -209,8 +209,12 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
         await db.session.update({ where: { id: sesionId }, data: { updatedAt: new Date(m.en) } });
         // Como el webhook: primero se guarda y después se avisa. El aviso sale
         // ANTES de los efectos de la IA, que en producción llegan después.
-        avisar("chat:changed", elAvisoEnVivo(m, fila));
+        // Lo que la IA hace en el CRM va ANTES del aviso, como en el motor: las
+        // herramientas corren mientras compone la respuesta y el mensaje sale
+        // después. Al revés, la conversación abierta se pone al día con el aviso
+        // (1,2 s después) y puede leer la ficha un instante antes de que se escriba.
         for (const efecto of m.efectos ?? []) await aplicar(efecto, m);
+        avisar("chat:changed", elAvisoEnVivo(m, fila));
         if (m.seguimiento && seguimientoId) {
             await db.seguimiento.update({ where: { id: seguimientoId }, data: { followUpStatus: "sent" } });
         }

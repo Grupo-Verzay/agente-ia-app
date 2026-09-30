@@ -216,6 +216,8 @@ export async function generarLosMedios(dir, { chromium, ahora = Date.now() } = {
         await pdf.close();
 
         // El video: tres diapositivas con un zum lento y un fundido entre ellas.
+        // En WebM (VP9) y no en MP4: el Chromium con el que se graba no trae
+        // H.264, así que un MP4 salía en blanco en WhatsApp Web y en el panel.
         const cuadros = [];
         for (const [i, d] of DIAPOSITIVAS.entries()) {
             const r = path.join(dir, `diapositiva-${i}.png`);
@@ -227,7 +229,7 @@ export async function generarLosMedios(dir, { chromium, ahora = Date.now() } = {
         const entradas = cuadros.flatMap((c) => ["-loop", "1", "-t", "3.6", "-i", c]);
         const zum = (i) => `[${i}:v]scale=2560:1440,zoompan=z='min(zoom+0.0009,1.08)':d=90:s=1280x720:fps=25,setsar=1[v${i}]`;
         const filtro = `${zum(0)};${zum(1)};${zum(2)};[v0][v1]xfade=transition=fade:duration=0.6:offset=3[a];[a][v2]xfade=transition=fade:duration=0.6:offset=6,format=yuv420p[v]`;
-        execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...entradas, "-filter_complex", filtro, "-map", "[v]", "-t", "9", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-movflags", "+faststart", path.join(dir, MEDIOS.videoDeLaClinica.archivo)]);
+        execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...entradas, "-filter_complex", filtro, "-map", "[v]", "-t", "9", "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "31", "-deadline", "good", "-cpu-used", "2", "-row-mt", "1", path.join(dir, MEDIOS.videoDeLaClinica.archivo)]);
     } finally {
         await navegador.close();
     }

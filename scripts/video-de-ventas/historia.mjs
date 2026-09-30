@@ -51,7 +51,7 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
         contacto: "Andrés",
         color: "#e76f51",
         mensajes: [
-            { de: "cliente", texto: "¿Tienen mesa para 4 hoy a las 8? 🍽️" },
+            { de: "cliente", texto: "¿Tienen mesa para 4 hoy a las 8?" },
             { de: "ia", texto: "¡Sí, Andrés! Te reservé mesa para 4 a las 8:00 p. m. ¿La quieres en la terraza?" },
         ],
     },
@@ -108,7 +108,7 @@ export const MEDIOS = Object.freeze({
     notaDeLaClienta: { archivo: "nota-clienta.ogg", mime: "audio/ogg; codecs=opus" },
     notaDeLaIa: { archivo: "nota-ia.ogg", mime: "audio/ogg; codecs=opus" },
     listaDePrecios: { archivo: "lista-de-precios.pdf", mime: "application/pdf", nombre: "Lista de precios · Clínica Sonríe.pdf", paginas: 2 },
-    videoDeLaClinica: { archivo: "conoce-la-clinica.mp4", mime: "video/mp4", portada: "conoce-la-clinica.jpg" },
+    videoDeLaClinica: { archivo: "conoce-la-clinica.webm", mime: "video/webm", portada: "conoce-la-clinica.jpg" },
     promoDeInstagram: { archivo: "promo-instagram.jpg", mime: "image/jpeg" },
     horarios: { archivo: "horarios.jpg", mime: "image/jpeg" },
 });
@@ -245,7 +245,7 @@ export function laConversacion(cal = elCalendario()) {
             id: "M12",
             de: "ia",
             tipo: "texto",
-            texto: `¡Listo, Laura! ✅ Te agendé tu valoración el ${cita}. Te enviaré un recordatorio el día antes.`,
+            texto: `¡Listo, Laura! ✅ Te agendé tu valoración el ${cita}, y te enviaré un recordatorio el día antes.`,
             en: m("seguimiento", 6),
             efectos: [{ cita: true }, { etapa: "Cita agendada" }, { etiqueta: "Cita agendada" }, { ficha: { proximaCita: `${elDia(cal.cita)}, ${laHora(cal.cita)}` } }],
         },
@@ -280,6 +280,9 @@ export const ETAPAS = Object.freeze([
 ]);
 
 /** Los campos de la ficha de la clínica: los que el CRM llena solo. */
+/** La sección de la ficha donde la clínica agrupa sus campos (la ficha la abre plegada). */
+export const SECCION_DE_LA_FICHA = "Tratamiento";
+
 export const CAMPOS_DE_LA_FICHA = Object.freeze([
     { key: "servicio", label: "Servicio de interés", icon: "Tag" },
     { key: "financiacion", label: "Financiación", icon: "CreditCard" },

@@ -114,6 +114,7 @@ import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
 import { SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS } from "@/lib/bandeja";
+import { DEL_AVISO_EN_VIVO, traeLoQueFaltabaDeUnAviso } from "@/lib/aviso-en-vivo-del-chat";
 import {
   ESPERA_PARA_PONER_AL_DIA_MS,
   conLaSesionAlDia,
@@ -161,7 +162,12 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
   if (a.length !== b.length) return true;
   const la = getLastIdTimestamp(a);
   const lb = getLastIdTimestamp(b);
-  return la.id !== lb.id || la.ts !== lb.ts;
+  if (la.id !== lb.id || la.ts !== lb.ts) return true;
+  // Mismo largo y mismo ultimo mensaje, pero lo que se ve puede ser el
+  // BORRADOR de un aviso en vivo y lo que trae el reloj su version real (la
+  // nota con su reproductor, el PDF con su archivo, la marca de «Agente IA»).
+  // Sin esto el borrador no se sustituia nunca: ver `lib/aviso-en-vivo-del-chat`.
+  return traeLoQueFaltabaDeUnAviso(a, b, (m) => idDeWhatsapp(m.key?.id) || undefined);
 }
 
 type ApiKeyData = { url: string; key: string };
@@ -5302,6 +5308,9 @@ export function ChatsClient({
         messageType: "conversation",
         messageTimestamp: tsEnSegundos,
         pushName: m.pushName ?? undefined,
+        // Es un borrador: el reloj lo sustituye por el mensaje real en cuanto lo
+        // trae. Sin la marca no lo sustituia nunca (`lib/aviso-en-vivo-del-chat`).
+        [DEL_AVISO_EN_VIVO]: true,
       } as unknown as EvolutionMessage;
       if (esUnMensajeNuevo(getLastIdTimestamp(messagesRef.current), { id: m.id, ts: epochToMs(tsEnSegundos) })) {
         avisarDeUnMensajeNuevoRef.current();
