@@ -530,6 +530,114 @@ async function enviarAWaha(
   }
 }
 
+/* ─── A quién se le entrega ──────────────────────────────────────────────── */
+
+/**
+ * Destinatarios ya confirmados con WhatsApp, por línea: la identidad de un
+ * número no cambia de un mensaje al siguiente, así que se pregunta una vez.
+ * Media hora, como las líneas de Evolution (`destinatarioSegunWhatsApp`).
+ */
+const destinosConfirmados = new Map<string, { chatId: string; expira: number }>();
+const VIGENCIA_DEL_DESTINO_MS = 30 * 60_000;
+const PLAZO_PARA_CONFIRMAR_MS = 6000;
+
+export type DestinoWaha =
+  | { tipo: 'confirmado'; chatId: string }
+  | { tipo: 'sin_whatsapp' }
+  | { tipo: 'sin_respuesta' };
+
+/**
+ * Lo que decide `GET /api/contacts/check-exists`, en puro, para poder probarlo.
+ *
+ * Se manda al NÚMERO (`pn`) siempre que Waha lo diga, que es la misma regla que
+ * las líneas de Evolution; el `chatId` (a menudo un `@lid`) solo si no hay
+ * número. `numberExists: false` es una respuesta firme; cualquier otra cosa que
+ * no se entienda es «no se sabe» y NO bloquea el envío.
+ */
+export function elDestinoDeLaRespuesta(cuerpo: unknown): DestinoWaha {
+  const b = (cuerpo ?? {}) as Record<string, unknown>;
+  if (b.numberExists === false) return { tipo: 'sin_whatsapp' };
+  if (b.numberExists !== true) return { tipo: 'sin_respuesta' };
+  const pn = typeof b.pn === 'string' ? b.pn.trim() : '';
+  const chatId = typeof b.chatId === 'string' ? b.chatId.trim() : '';
+  const elegido = /@c\.us$/i.test(pn) ? pn : chatId;
+  return elegido ? { tipo: 'confirmado', chatId: elegido } : { tipo: 'sin_respuesta' };
+}
+
+/**
+ * Le pregunta a WhatsApp, por la línea, a quién entregarle un número.
+ *
+ * Es la hermana de `resolveWhatsAppJid` (Evolution): las líneas de Evolution
+ * confirmaban el destinatario antes de enviar y las de Waha no. Con un contacto
+ * que nunca ha escrito —un lead recién guardado en el CRM— eso es justo lo que
+ * separa «llegó» de «el servidor no contestó a tiempo»: Waha no conoce todavía a
+ * ese contacto y, con una forma que no reconoce, el envío se queda colgado en
+ * vez de fallar. Aquí se contesta en milisegundos (medido: 0,1-0,2 s).
+ *
+ * Solo para un número (`@c.us`): un `@lid`, un grupo o una difusión ya son la
+ * forma que Waha entiende. Si la consulta falla o tarda, se sigue con lo que se
+ * tenía: es una mejora del acierto, no un requisito para escribir.
+ */
+export async function destinoSegunWaha(session: string, chatId: string): Promise<DestinoWaha> {
+  if (!/@c\.us$/i.test(chatId)) return { tipo: 'confirmado', chatId };
+  const clave = `${session}::${chatId}`;
+  const enCache = destinosConfirmados.get(clave);
+  if (enCache && enCache.expira > Date.now()) return { tipo: 'confirmado', chatId: enCache.chatId };
+
+  const cfg = await getWahaConfig();
+  if (!cfg) return { tipo: 'sin_respuesta' };
+  const telefono = chatId.split('@')[0];
+  try {
+    const res = await wahaFetch(
+      cfg,
+      `/api/contacts/check-exists?session=${encodeURIComponent(session)}&phone=${encodeURIComponent(telefono)}`,
+      {},
+      PLAZO_PARA_CONFIRMAR_MS,
+    );
+    if (!res.ok) {
+      console.warn('[waha] no se pudo confirmar el destinatario; se envía con lo que había', {
+        session,
+        chatId,
+        estado: res.status,
+      });
+      return { tipo: 'sin_respuesta' };
+    }
+    const destino = elDestinoDeLaRespuesta(await res.json().catch(() => null));
+    if (destino.tipo === 'confirmado') {
+      destinosConfirmados.set(clave, { chatId: destino.chatId, expira: Date.now() + VIGENCIA_DEL_DESTINO_MS });
+    }
+    return destino;
+  } catch (error) {
+    console.warn('[waha] no se pudo confirmar el destinatario; se envía con lo que había', {
+      session,
+      chatId,
+      error: String(error),
+    });
+    return { tipo: 'sin_respuesta' };
+  }
+}
+
+/**
+ * El `chatId` con el que de verdad se envía, o el motivo firme para no enviar.
+ * Lo usan `sendWahaText` y `sendWahaMedia`, que son por donde sale TODO envío a
+ * Waha (Chats, flujos, respuestas rápidas y el despachador de avisos).
+ */
+async function elChatIdParaEnviar(
+  session: string,
+  chatId: string,
+): Promise<{ ok: true; chatId: string } | { ok: false; message: string }> {
+  const destino = await destinoSegunWaha(session, chatId);
+  if (destino.tipo === 'sin_whatsapp') {
+    const numero = chatId.split('@')[0];
+    console.warn('[waha] el número no tiene WhatsApp; no se envía', { session, chatId });
+    return {
+      ok: false,
+      message: `El número +${numero} no tiene WhatsApp. Revisa que lleve el indicativo del país y esté bien escrito.`,
+    };
+  }
+  return { ok: true, chatId: destino.tipo === 'confirmado' ? destino.chatId : chatId };
+}
+
 /** `POST /api/sendText`. `replyTo` es el id del mensaje citado, tal y como lo guardamos. */
 /**
  * "Escribiendo…" un instante antes del texto, como hace Evolution con su
@@ -558,16 +666,18 @@ export async function sendWahaText(params: {
   text: string;
   replyTo?: string | null;
 }): Promise<WahaSendResult> {
-  await gestoDeEscribir(params.session, params.chatId);
+  const destino = await elChatIdParaEnviar(params.session, params.chatId);
+  if (!destino.ok) return { ok: false, message: destino.message };
+  await gestoDeEscribir(params.session, destino.chatId);
   return enviarAWaha(
     '/api/sendText',
     {
       session: params.session,
-      chatId: params.chatId,
+      chatId: destino.chatId,
       text: params.text,
       ...(params.replyTo ? { reply_to: params.replyTo } : {}),
     },
-    params.chatId,
+    destino.chatId,
     PLAZO_DE_ENVIO_MS,
   );
 }
@@ -613,10 +723,12 @@ export async function sendWahaMedia(params: {
   ptt?: boolean;
   replyTo?: string | null;
 }): Promise<WahaSendResult> {
+  const destino = await elChatIdParaEnviar(params.session, params.chatId);
+  if (!destino.ok) return { ok: false, message: destino.message };
   const file = archivoParaWaha(params.mediaUrl, params.mimetype, params.fileName);
   const base = {
     session: params.session,
-    chatId: params.chatId,
+    chatId: destino.chatId,
     file,
     ...(params.replyTo ? { reply_to: params.replyTo } : {}),
   };
@@ -643,7 +755,7 @@ export async function sendWahaMedia(params: {
     path = '/api/sendFile';
     body = { ...base, ...conCaption };
   }
-  return enviarAWaha(path, body, params.chatId, PLAZO_DE_ENVIO_DE_MEDIA_MS);
+  return enviarAWaha(path, body, destino.chatId, PLAZO_DE_ENVIO_DE_MEDIA_MS);
 }
 
 /**
