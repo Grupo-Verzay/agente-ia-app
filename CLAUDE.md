@@ -23413,6 +23413,77 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
+### La sexta guía, Agente IA: la pantalla Y su editor, y las ocho pestañas de UNA fuente
+
+`/guia/agente-ia` documenta Entrenamiento › Agente IA (`/ia`) **y su editor
+interno** con el estándar de las cinco guías anteriores: diez secciones —vista
+general, canales, perfil, pasos, acciones y respuestas de un paso, preguntas
+productos y extras, palabras clave, gestión, cotizaciones, y guardar y más
+opciones—, una miniatura con enfoque por tarjeta y el vídeo narrado con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/ia` (`GUIAS_PUBLICADAS`): «Aprende a entrenar tu agente de IA paso a paso en
+la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-agente-ia.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-agente-ia.mjs`, sobre `sembrarElMarco`, con
+un negocio de ejemplo —«Café de la Montaña»— y sus ocho pestañas llenas),
+receta de capturas y vídeo (`capturar-guia-agente-ia.mjs`, sobre el taller) y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-agente-ia.sh && npm run build`.
+
+**La guía se compara con el CÓDIGO de `/ia`, no con una lista escrita en el
+banco**: los canales (`lib/channel-training.ts`), las ocho pestañas
+(`TYPE_AI_LABELS`), lo que ofrece «Agregar acción» (`FunctionSelector.tsx`,
+grupo por grupo y sin el emoji), los modos de la bienvenida, los tipos de
+captura de Gestión (`SUBTYPE_OPTIONS`), las coincidencias y acciones de una
+palabra clave, el «⋯» del editor (`OPCIONES_DEL_AGENTE`) y los campos fijos del
+Perfil. Una pestaña o una acción nueva sin su nombre en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+La pantalla eran ocho pestañas escritas cada una a su manera, y ninguna de esas
+diferencias daba un error: se veían como una pantalla que no es de una pieza.
+
+| lo que se veía | ahora |
+| --- | --- |
+| la pestaña «Inicio» abría una tarjeta que decía «Entrenamiento»; «Perfil», una que decía «Información del Negocio» | el título de cada tarjeta ES el de su pestaña (`TYPE_AI_LABELS`) |
+| «Agregar Pregunta» con mayúscula al lado de «Agregar producto», y cada mensaje vacío con su frase | `AGREGAR_EN_LA_PESTANA` y `PESTANA_VACIA`, una fuente |
+| el paso de Inicio abría «Eliminar entrenamiento» —se lee como borrar el agente entero— y una regla de palabras clave se borraba al primer clic, sin preguntar | `ELIMINAR_EN_LA_PESTANA`, y la regla pide confirmación como las demás |
+| el contador de «Elementos del paso» enseñaba el NÚMERO del paso | cuenta sus elementos (`data-cuantos-elementos`) |
+| cada lista con sus bordes (`px-6` en Preguntas, Productos y Extras) | los de un paso de Inicio: el contenido arranca bajo el título (`pl-10`) y acaba bajo la papelera (`pr-3`) |
+| unas tarjetas de elemento con icono en el título y otras sin él; «Enrutamiento por paso» con el relleno de la `Card` y su título en azul | TODAS por `TituloDelElemento` y con `px-3` |
+| el asa decía «Arrastrar» a secas | dice qué arrastra: «Arrastrar paso», «Arrastrar pregunta»… |
+| abrir una pestaña ponía «Guardar» en verde sin haber cambiado nada | la foto de lo guardado se arma con las secciones enderezadas (`laSeccionEnOrden`), igual que las pinta cada lista al abrirse |
+| el «⋯» decía «IA Prompts» y abría «Chat IA»; «Métricas del agente» abría «Métricas del Agente IA» | `OPCIONES_DEL_AGENTE`: el menú y la ventana se llaman igual |
+| la «X» de Métricas caía encima del botón de actualizar, y Métricas e Historial medían distinto | `pr-8` en la fila, y las dos hojas `sm:max-w-md` |
+| el botón verde de un campo de Gestión se anunciaba «Guardar» y lo que hace es agregarlo | «Agregar campo» |
+| «Condicion para avanzar», «crear formulas», «quedara claro», «Desplazar pestanas» | con sus tildes |
+
+Cuatro cosas que hay que mantener:
+
+1. **Los nombres de la pantalla salen de `ai-section-labels.ts`** y de ningún
+   otro sitio. Una tarjeta que vuelva a escribir su título, su botón o su
+   mensaje a mano pone el banco en rojo.
+2. **Toda tarjeta de elemento lleva `TituloDelElemento` y `px-3`**, también
+   las que ya no se ofrecen (Enrutamiento, Consulta, Actualizar datos): los
+   bloques que las tengan guardadas se siguen viendo al lado de las demás.
+3. **La pantalla expone marcas para la receta** (`data-canales-del-agente`,
+   `data-canal`, `data-barra-del-editor`, `data-progreso-del-agente`,
+   `data-editor-del-agente`, `data-vista-previa`, `data-bloque`,
+   `data-motor-de-flujo`…), y las recetas no usan coordenadas. Las ventanas de
+   Radix se quedan montadas escondidas, así que la receta busca con `:visible`.
+4. **Ninguna marca tapa lo que se lee**: donde un rótulo de campo ocupa el
+   borde de arriba de la caja, el número va al final de ese borde
+   (`arribaALaDerecha`) o en el de abajo.
+
+Lo prueban `scripts/banco-guia-agente-ia.sh` —la pantalla
+(`pestanas-del-agente`), el contenido contra el código, el vídeo medido como el
+de Mis notas, las miniaturas en sus píxeles (`GUIA=agente-ia`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las seis guías— y la guía
+servida a 390 y 1440—. `MODO=roto` lee `ab6b110` para afirmar los fallos de la
+pantalla y `24ba0b2` para afirmar que no había guía, ni vídeo, ni miniaturas,
+ni marcas en la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
