@@ -46,7 +46,8 @@ const pass = await bcrypt.hash("banco1234", 10);
 // Con id FIJO: el color de las iniciales sale de él (`colorFor`), y la base se
 // crea de cero en cada vuelta del generador. Con ids al azar, la misma persona
 // salía de un color en las capturas y de otro en el vídeo. Estos cuatro dan
-// cuatro colores distintos: azul, rosa, cian y fucsia.
+// cuatro colores distintos: Sofía cian, Laura rosa, Andrés azul y Valeria
+// fucsia.
 const EQUIPO = [
     { id: "guia-usuarios-sofia", email: "sofia@banco.test", name: "Sofía Martínez", advisorRole: "administrador", advisorAvailable: true },
     { id: "guia-usuarios-laura", email: "laura@banco.test", name: "Laura Gómez", advisorRole: "agente", advisorAvailable: true },
@@ -67,6 +68,18 @@ const sobran = conservar
 if (sobran.length) {
     await db.session.updateMany({ where: { assignedAdvisorId: { in: sobran.map((u) => u.id) } }, data: { assignedAdvisorId: null } });
     await db.user.deleteMany({ where: { id: { in: sobran.map((u) => u.id) } } });
+}
+// La semilla común (`sembrar-barra.mjs`) ya crea a Sofía, con un id al azar:
+// el `upsert` por correo la conservaría con ese id y su color cambiaría de una
+// vuelta a otra (en las capturas salía cian y en el vídeo azul). Se quita la
+// que no tenga el id fijo y nace con el suyo.
+const conOtroId = await db.user.findMany({
+    where: { email: { in: correos }, id: { notIn: EQUIPO.map((p) => p.id) } },
+    select: { id: true },
+});
+if (conOtroId.length) {
+    await db.session.updateMany({ where: { assignedAdvisorId: { in: conOtroId.map((u) => u.id) } }, data: { assignedAdvisorId: null } });
+    await db.user.deleteMany({ where: { id: { in: conOtroId.map((u) => u.id) } } });
 }
 const equipo = {};
 for (const p of EQUIPO) {

@@ -762,6 +762,28 @@ async function desplazarHasta(p, locator, { arriba = 160, sobre = { x: 760, y: 5
     await espera(p, 250);
 }
 
+/**
+ * A 1280 px la barra de trabajo no cabe entera —le sobran unos píxeles— y su
+ * carril enseña la flecha «Ver más filtros» ENCIMA del final: lo que queda
+ * debajo se ve a medias y el clic se lo lleva la flecha (se comprobó: el
+ * Pipeline no llegaba nunca a abrirse). Como haría una persona, se pulsa la
+ * flecha que lo tapa y después lo que se quería.
+ */
+async function alAlcance(p, locator) {
+    for (let i = 0; i < 3; i += 1) {
+        const b = await locator.boundingBox();
+        if (!b) return;
+        const tapa = await p.evaluate(({ x, y }) => {
+            const flecha = document.elementFromPoint(x, y)?.closest('button[aria-label^="Ver "]');
+            return flecha && !flecha.hasAttribute("data-vista") ? flecha.getAttribute("aria-label") : null;
+        }, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+        if (!tapa) return;
+        await pulsar(p, p.locator(`button[aria-label="${tapa}"]`).first());
+        await espera(p, 600);
+    }
+    throw new Error(`[guia] la flecha de la barra sigue tapando: ${locator}`);
+}
+
 async function video(navegador, estado) {
     const dir = path.join(TMP, "video");
     rmSync(dir, { recursive: true, force: true });
@@ -785,6 +807,9 @@ async function video(navegador, estado) {
     const { decir, alDecir, callar, tramos } = empezarLaNarracion(p, voz, t0, { respiro: RESPIRO_ENTRE_FRASES_MS });
 
     await abrirEquipo(p);
+    // Dónde empieza la tabla con la página arriba del todo: al volver del
+    // Pipeline se deja otra vez ahí (ver «permisos»).
+    const arribaDeLaTabla = (await p.locator(TABLA).boundingBox()).y;
     await p.mouse.move(640, 400, { steps: 8 });
     // Lo grabado hasta aquí es la página cargando: el vídeo empieza justo
     // antes de la primera palabra.
@@ -864,13 +889,25 @@ async function video(navegador, estado) {
     await decir("pipeline");
     await alDecir("el Pipeline", 0);
     await desplazarHasta(p, laVista(p, "pipeline"), { arriba: 90 });
+    await alAlcance(p, laVista(p, "pipeline"));
     await pulsar(p, laVista(p, "pipeline"));
     await p
         .waitForSelector('[data-columna-del-asesor="sin-asignar"] [data-tarjeta-del-contacto]', { timeout: 30000 })
         .catch(async (e) => {
             // Un plazo agotado a secas no dice qué había en la pantalla.
             await p.screenshot({ path: path.join(TMP, "video-fallo.png") });
+            const b = await laVista(p, "pipeline").boundingBox();
+            const debajo = b
+                ? await p.evaluate(({ x, y }) => {
+                      const cadena = [];
+                      for (let e = document.elementFromPoint(x, y); e && cadena.length < 5; e = e.parentElement) {
+                          cadena.push(`${e.tagName.toLowerCase()}${e.id ? "#" + e.id : ""}[${[...e.attributes].filter((a) => a.name.startsWith("data-") || a.name.startsWith("aria-")).map((a) => `${a.name}=${a.value}`).join(" ")}]`);
+                      }
+                      return cadena;
+                  }, { x: b.x + b.width / 2, y: b.y + b.height / 2 })
+                : ["(sin caja)"];
             console.error(`[guia] el Pipeline no llegó; así estaba la pantalla: ${path.join(TMP, "video-fallo.png")}`);
+            console.error(`[guia] en el centro del botón había: ${debajo.join(" < ")}`);
             throw e;
         });
     await alDecir("su columna", 100);
@@ -888,8 +925,13 @@ async function video(navegador, estado) {
 
     // Qué ve cada persona: el «⋯» de su fila, Módulos y Permisos.
     await decir("permisos");
+    await alAlcance(p, laVista(p, "tabla"));
     await pulsar(p, laVista(p, "tabla"));
     await p.waitForSelector(TABLA, { timeout: 20000 });
+    // La página se quedó desplazada desde las gráficas: la tabla vuelve a su
+    // sitio, o la primera fila queda debajo de la barra y lo que viene
+    // (porcentajes incluidos) se pulsaría a ciegas.
+    await desplazarHasta(p, p.locator(TABLA), { arriba: arribaDeLaTabla });
     await alDecir("el menú de cada fila", 0);
     await pulsar(p, suMenu(p, "Laura Gómez"));
     await elMenu(p).waitFor({ state: "visible", timeout: 10000 });
@@ -911,24 +953,33 @@ async function video(navegador, estado) {
     // La auto-asignación y el tope.
     await decir("reparto");
     await alDecir("la auto-asignación encendida", 150);
+    await alAlcance(p, p.locator("#auto-assign-toggle"));
     await mover(p, p.locator("#auto-assign-toggle"));
     await alDecir("un tope de chats", 150);
+    await alAlcance(p, p.locator("#max-chats"));
     await mover(p, p.locator("#max-chats"));
     await alDecir("sin tope", 100);
+    await alAlcance(p, elModo(p, "ilimitado"));
     await mover(p, elModo(p, "ilimitado"));
 
     // Por porcentaje: el modo, la parte de cada uno y la suma en verde.
     await decir("porcentaje");
     await alDecir("por porcentaje", 0);
+    await alAlcance(p, elModo(p, "porcentaje"));
     await pulsar(p, elModo(p, "porcentaje"));
     await p.waitForSelector('[data-columna="porcentaje"]', { timeout: 10000 });
     await alDecir("su parte", 100);
     for (const [nombre, valor] of [["Laura Gómez", "50"], ["Andrés Ruiz", "30"], ["Sofía Martínez", "20"], ["Camilo Ortiz", "0"]]) {
-        await pulsar(p, p.locator(`input[aria-label="Porcentaje de ${nombre}"]`));
+        const campo = p.locator(`input[aria-label="Porcentaje de ${nombre}"]`);
+        await pulsar(p, campo);
+        // Sin el foco dentro, Ctrl+A selecciona la PÁGINA entera (pasó: la
+        // fila estaba debajo de la barra) y el número cae en otro sitio.
+        if (!(await campo.evaluate((e) => e === document.activeElement))) throw new Error(`[guia] el porcentaje de ${nombre} no recibió el foco`);
         await p.keyboard.press("Control+A");
         await p.keyboard.type(valor, { delay: 60 });
     }
     await alDecir("en verde", 0);
+    await p.locator(SUMA, { hasText: /^\s*Suma 100%\s*$/ }).waitFor({ state: "visible", timeout: 5000 });
     await mover(p, p.locator(SUMA));
     await alDecir("Así se trabaja con Usuarios", 0);
     await mover(p, p.locator(TABLA));
