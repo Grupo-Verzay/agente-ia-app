@@ -23769,6 +23769,63 @@ una línea de WhatsApp Mensajería no salía nada y decía «Macro aplicada.»�
 `scripts/banco-guia-macros.sh` (el contenido contra el código, el vídeo, las
 miniaturas y la guía servida; `MODO=roto` contra `ab6b110`).
 
+#### La voz iba por delante de Chats: la carga es un CORTE que no se graba
+
+El vídeo publicado decía «Luego, en cualquier conversación de Chats, pulsas
+Macros…» encima de la lista de macros y de «Cargando mensajes…»: la frase
+empezaba y DESPUÉS se abría Chats, que tarda unos segundos. Medido en la
+imagen, la conversación se veía **2,5 s después** de que la voz la nombrara, y
+sin rótulo, porque la navegación se lo llevaba.
+
+> **Lo que tarda en cargar una pantalla no sale en el vídeo.**
+> `sinGrabarLaEspera(hacer)` (del taller, junto a `decir`) calla la frase que
+> suena, hace `hacer` —abrir Chats y esperar a que la conversación tenga sus
+> burbujas (`laConversacionCargada`)— y apunta ese rato como un CORTE. Al
+> montar, la imagen lo pierde (`filtroSinLosCortes`) y la voz de después se
+> adelanta lo mismo (`tramosSinLosCortes`); la frase empieza con la pantalla ya
+> entera, y con su rótulo.
+
+Cuatro cosas que hay que mantener:
+
+1. **Un corte nunca parte una frase**: por eso calla antes, y
+   `tramosSinLosCortes` se cae si alguna sonara dentro de uno.
+2. **Es opcional**: las guías que no lo llaman se montan exactamente igual. Y
+   `macros.json` dice dónde se empalmó (`cortes`) solo cuando lo hay.
+3. **La grabadora escribe a 25 fps fijos**, y eso es lo que deja numerar los
+   fotogramas seguidos al quitar el corte (`setpts=N/25/TB`): la imagen queda en
+   el mismo reloj que la pista.
+4. **Volver a Mis macros con «Gestionar macros» no necesita corte**: es una
+   navegación dentro de la App y se pinta en menos de medio segundo (medido).
+
+Lo prueba `lib/__tests__/video-guia-macros.test.mjs`: el corte con un vídeo de
+colores hecho con ffmpeg, el guion, y en el vídeo publicado que la zona de la
+conversación ya se ve como cargada cuando empieza la frase. `MODO=roto` lee el
+vídeo de `7c6869f` y afirma que la conversación aparecía segundos después.
+
+#### La ruedita del menú «Macros» de Chats va en el hueco del punto
+
+Al lanzar una macro, la ruedita iba al FINAL de su fila y le quitaba su ancho
+(14 px más 8 de hueco) al nombre: «Marcar como caliente» se leía «Marcar como
+cali…» justo mientras corría. Ahora gira **en el hueco del punto de color**, con
+el color de la macro, así que el nombre no cambia de ancho ni de sitio.
+
+Dos cosas que hay que mantener:
+
+1. **El hueco mide lo que el punto (10 px, `HUECO_DE_LA_MARCA`)**, no lo que la
+   ruedita. Con un hueco de 14 px el nombre perdía 4 px también EN REPOSO, y
+   con el panel más estrecho (a 1024) «Marcar como caliente» salía cortado sin
+   que corriera nada. La ruedita (14 px) gira encima, centrada con `inset`
+   negativo, y sobresale 2 px por lado sobre el relleno y el hueco.
+2. **`inset` y no `translate`, y con `!`**: `animate-spin` es un `transform` y
+   se comería el desplazamiento; y la fila de un menú fuerza todo `svg` a 16 px
+   (`[&_svg]:size-4`), así que sin `!h-3.5 !w-3.5` la ruedita sale de 16.
+
+Lo prueba `scripts/banco-ruedita-de-macros.sh`, en Chromium con el `MacrosMenu`
+real, Poppins y el ancho de panel de la cabecera, a 1440/1280/1024: el nombre
+mide lo mismo antes y mientras gira, la ruedita cae centrada donde estaba el
+punto, y ninguna macro de la guía sale con «…».
+`MODO=roto` monta el de `7c6869f` y afirma el recorte.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

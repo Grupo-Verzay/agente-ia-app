@@ -35,7 +35,7 @@ import path from "node:path";
 import { CURSOR } from "./cursor-de-la-guia.mjs";
 import { grabar } from "./grabadora-de-la-guia.mjs";
 import { NARRACION, comoSeDice } from "./narracion-guia-macros.mjs";
-import { guardarWav, mezclar, montarLaPista } from "./voz-de-la-guia.mjs";
+import { guardarWav, loQueSeCorta, mezclar, montarLaPista, tramosSinLosCortes } from "./voz-de-la-guia.mjs";
 import {
     LA_BARRA_DE_ARRIBA,
     caja,
@@ -187,6 +187,17 @@ async function apartarLoQueTapa(p) {
         else await p.keyboard.press("Escape");
         await espera(p, 400);
     }
+}
+
+/**
+ * La conversación ya enseña sus mensajes: sin «Cargando mensajes…» y con
+ * burbujas pintadas en el hilo. Es lo que se espera sin grabar antes de que la
+ * voz diga «en cualquier conversación de Chats».
+ */
+async function laConversacionCargada(p) {
+    await p.locator("[data-hilo-de-chat] [data-message-id]").first().waitFor({ state: "visible", timeout: 60000 });
+    await p.getByText("Cargando mensajes…").waitFor({ state: "hidden", timeout: 60000 });
+    await p.evaluate(() => document.fonts.ready);
 }
 
 /** La conversación de ejemplo, abierta en Chats. */
@@ -822,7 +833,7 @@ async function video(navegador, estado) {
     const grabadora = await grabar(p, mudo, { ancho: 1280, alto: 800 });
     const t0 = Date.now();
     grabadora.empezarEn(t0);
-    const { decir, alDecir, callar, tramos } = empezarLaNarracion(p, voz, t0, { respiro: RESPIRO_ENTRE_FRASES_MS });
+    const { decir, alDecir, callar, sinGrabarLaEspera, tramos, cortes } = empezarLaNarracion(p, voz, t0, { respiro: RESPIRO_ENTRE_FRASES_MS });
 
     // Si el vídeo se cae a medias, una foto de cómo estaba la pantalla: el
     // error de Playwright solo dice qué esperaba, no qué había.
@@ -908,12 +919,25 @@ async function video(navegador, estado) {
     await editor.waitFor({ state: "hidden", timeout: 10000 });
 
     // En Chats: el botón «Macros», la macro y lo que se hizo.
+    //
+    // Abrir Chats tarda unos segundos (la bandeja, y después «Cargando
+    // mensajes…»). Grabado, la frase decía «en cualquier conversación de Chats»
+    // encima de la lista de macros y de una conversación en blanco: la voz iba
+    // por delante de la imagen. Así que la carga NO se graba (`sinGrabarLaEspera`):
+    // se abre la conversación, se espera a que sus mensajes estén pintados, y la
+    // frase empieza con la pantalla ya entera.
+    await sinGrabarLaEspera(async () => {
+        await p.goto(`${BASE}/chats?jid=${encodeURIComponent(JID)}&instance=${LINEA}`, { waitUntil: "domcontentloaded" });
+        await elBotonMacros(p).waitFor({ state: "visible", timeout: 60000 });
+        await laConversacionCargada(p);
+        await apartarLoQueTapa(p);
+        await esconderLosBotonesDelBorde(p);
+        // El cursor es un dibujo de la página, así que la navegación lo borró:
+        // un movimiento lo vuelve a poner donde estaba el ratón.
+        await p.mouse.move(700, 470, { steps: 2 });
+        await espera(p, 300);
+    });
     await decir("chat");
-    await alDecir("conversación de Chats", 100);
-    await p.goto(`${BASE}/chats?jid=${encodeURIComponent(JID)}&instance=${LINEA}`, { waitUntil: "domcontentloaded" });
-    await elBotonMacros(p).waitFor({ state: "visible", timeout: 60000 });
-    await apartarLoQueTapa(p);
-    await esconderLosBotonesDelBorde(p);
     await alDecir("pulsas Macros");
     await pulsar(p, elBotonMacros(p));
     const menu = elMenu(p);
@@ -989,13 +1013,16 @@ async function video(navegador, estado) {
     console.log(`  · grabados ${grabado.fotogramas} fotogramas (${(grabado.fotogramas / 25).toFixed(1)} s) de ${grabado.recibidos} pintados, en ${(totalMs / 1000).toFixed(1)} s`);
     await ctx.close();
 
-    const { wav, colocados } = montarLaPista(tramos, totalMs);
+    // La voz se monta ya SIN los cortes: la frase que viene después de una
+    // carga se adelanta lo que tardó la carga, igual que la imagen.
+    const { wav, colocados } = montarLaPista(tramosSinLosCortes(tramos, cortes), totalMs - loQueSeCorta(cortes));
     const pista = path.join(dir, "narracion.wav");
     guardarWav(pista, wav);
     const destino = path.join(SALIDA, "demostracion.webm");
-    mezclar(mudo, pista, destino, { desdeMs });
+    mezclar(mudo, pista, destino, { desdeMs, cortes });
+    for (const c of cortes) console.log(`  · sin grabar ${((c.hastaMs - c.desdeMs) / 1000).toFixed(1)} s de carga (en el ${(c.desdeMs / 1000).toFixed(1)} s)`);
     writeFileSync(path.join(TMP, "narracion.json"), JSON.stringify(colocados, null, 2));
-    escribirLaVozDelVideo("macros", { narracion: NARRACION, colocados, desdeMs, respiro: RESPIRO_ENTRE_FRASES_MS });
+    escribirLaVozDelVideo("macros", { narracion: NARRACION, colocados, desdeMs, respiro: RESPIRO_ENTRE_FRASES_MS, cortes });
     console.log("  ✓ demostracion.webm", Math.round(statSync(destino).size / 1024), "KB,", colocados.length, "frases narradas");
 }
 
