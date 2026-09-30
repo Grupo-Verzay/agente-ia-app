@@ -33,15 +33,15 @@ export const CAPACIDADES_DEL_VIDEO = Object.freeze([
 ] as const);
 
 /**
- * Los negocios de ejemplo que abren el vídeo, en su orden (las cuatro
+ * Los negocios de ejemplo que abren el vídeo, en su orden (las cinco
  * tarjetas del montaje), y la frase que cierra esa sección. La página los
  * nombra con las mismas palabras: el banco los compara con
  * `NEGOCIOS_DEL_ARRANQUE` y `CIERRE_DEL_MONTAJE` de la historia.
  */
-export const NEGOCIOS_DEL_VIDEO = Object.freeze(["Tienda en línea", "Clínica", "Cursos", "Consultoría"] as const);
+export const NEGOCIOS_DEL_VIDEO = Object.freeze(["Tienda en línea", "Clínica", "Cursos", "Consultoría", "Agencia de viajes"] as const);
 export const CIERRE_DE_LOS_NEGOCIOS = "y cualquier negocio que venda por WhatsApp";
 
-/** «tienda en línea, clínica, cursos, consultoría y cualquier negocio que venda por WhatsApp». */
+/** «tienda en línea, clínica, cursos, consultoría, agencia de viajes y cualquier negocio que venda por WhatsApp». */
 export function losNegociosEnUnaFrase(): string {
     return `${NEGOCIOS_DEL_VIDEO.map((n) => n.toLowerCase()).join(", ")} ${CIERRE_DE_LOS_NEGOCIOS}`;
 }

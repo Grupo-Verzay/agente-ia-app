@@ -24259,35 +24259,51 @@ Grabar la App de verdad destapó tres fallos que un cliente también ve:
    traía la foto de antes. Hay una segunda vuelta pasada esa memoria
    (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
 
-### El arranque: cuatro negocios, un contenido distinto cada uno
+### El arranque: cinco negocios, un contenido distinto cada uno
 
-Los primeros segundos son cuatro tarjetas de ejemplo, en este orden:
-**tienda en línea, clínica, cursos y consultoría** (`NEGOCIOS_DEL_ARRANQUE`), y
-a la derecha de la cuarta, «y cualquier negocio que venda por WhatsApp»
-(`CIERRE_DEL_MONTAJE`). Después, la pantalla de la marca: el logo, el nombre y
-la frase `LEMA_DE_LA_MARCA`, **sin la lista de píldoras** de antes.
+Los primeros segundos son cinco tarjetas de ejemplo, en este orden: **tienda en
+línea, clínica, cursos, consultoría y agencia de viajes**
+(`NEGOCIOS_DEL_ARRANQUE`), y **debajo de las cinco**, en UNA línea centrada, «y
+cualquier negocio que venda por WhatsApp» (`CIERRE_DEL_MONTAJE`). Después, la
+pantalla de la marca: el logo, el nombre y la frase `LEMA_DE_LA_MARCA`, **sin la
+lista de píldoras** de antes.
 
-Cinco cosas que hay que mantener:
+Seis cosas que hay que mantener:
 
-1. **Cada tarjeta enseña un contenido distinto** —imagen, nota de voz, video y
-   PDF— y su `medio` tiene que ser el de sus mensajes (el banco lo compara). La
-   foto y la portada del video se generan al grabar (`MEDIOS_DEL_MONTAJE`,
-   `generarLosMediosDelMontaje`), ilustradas: la página es pública.
+1. **Cada tarjeta enseña un contenido distinto** —imagen, nota de voz, video,
+   PDF y ubicación— y su `medio` tiene que ser el de sus mensajes (el banco lo
+   compara). **El PDF de la consultoría y el mapa del viaje los manda la IA**:
+   es lo que la IA hace por el negocio. La foto, la portada del video y el mapa
+   se generan al grabar (`MEDIOS_DEL_MONTAJE`, `generarLosMediosDelMontaje`),
+   ilustrados: la página es pública y no lleva ni fotos de nadie ni teselas de
+   un servicio de mapas.
 2. **El encabezado es el de un chat de WhatsApp**: 56 px, gris claro, pegado
    arriba, con atrás, videollamada y llamada. Nada de franja de color.
 3. **Los mensajes arrancan pegados arriba** (`.mini .muro` con
    `justify-content: flex-start`), no al fondo como en un chat largo.
 4. **El teléfono de una tarjeta es `.caja > .pant`, no `.marco > .vid`**: una
    burbuja de video también lleva `.vid` y `.marco` dentro, y con esos nombres
-   heredaba los 600 px de alto del teléfono y salía como una columna negra.
-5. **El cierre sale con la frase que lo dice y nunca antes del último mensaje
-   de la cuarta tarjeta**: `yCualquierNegocio()` espera lo que falte y devuelve
+   heredaba los 600 px de alto y el fondo del teléfono y salía como **un
+   recuadro negro con un punto en el centro**. La portada se comprueba en los
+   píxeles —en la página pintada y en los fotogramas del vídeo publicado
+   (`montaje.cajas`)—: una imagen con el botón de reproducir encima, y la
+   duración sobre una franja oscura abajo, como en WhatsApp (sin ella se perdía
+   sobre una portada clara). Y los nombres se leen enteros: el del PDF sin «…»
+   y el del lugar en una línea.
+5. **El cierre es una línea DEBAJO, no una columna al lado**: va fuera de la
+   fila de tarjetas (`#montaje > .cierreMontaje`), centrado, por encima de los
+   subtítulos. Al lado se leía como una tarjeta más.
+6. **El cierre sale con la frase que lo dice y nunca antes del último mensaje
+   de la última tarjeta**: `yCualquierNegocio()` espera lo que falte y devuelve
    cuánto, y el `.json` del vídeo guarda cuándo salió (`montaje.cierreMs`). La
    página nombra los mismos negocios (`NEGOCIOS_DEL_VIDEO`).
 
 Lo mide pintado `lib/__tests__/montaje-del-video.test.mjs` (en el banco del
-vídeo), y en el vídeo publicado se busca el cierre en los fotogramas. Su
-`MODO=roto` pinta el estudio de `1807a22` y afirma el arranque viejo.
+vídeo), y en el vídeo publicado se buscan el cierre, la portada y el mapa en los
+fotogramas. Su `MODO=roto` pinta el estudio de `1807a22` (el arranque viejo),
+el de `a7e2b45` (cuatro tarjetas, el PDF del cliente, el cierre al lado y la
+duración ilegible) y las tarjetas de hoy con el marco del celular de `1807a22`
+—el choque de clases de la regla 4—, y afirma sus fallos.
 
 ### La página
 

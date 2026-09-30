@@ -249,6 +249,52 @@ td.sel { background: #d1fae5; font-weight: 700; box-shadow: inset 0 0 0 3px #10b
 }
 
 /**
+ * El mapa que manda la agencia de viajes del arranque: un plano de calles
+ * dibujado, con el punto de encuentro marcado. Dibujado y no una captura de un
+ * servicio de mapas: el vídeo es público y no lleva teselas de nadie.
+ */
+export function elMapaDelPuntoDeEncuentro() {
+    const calle = (x1, y1, x2, y2, ancho = 26) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffffff" stroke-width="${ancho}" stroke-linecap="round"/>`;
+    const borde = (x1, y1, x2, y2, ancho = 26) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#dcd6ca" stroke-width="${ancho + 6}" stroke-linecap="round"/>`;
+    const vias = [
+        [0, 150, 1200, 110, 30], [0, 420, 1200, 470, 44], [0, 610, 1200, 640, 26],
+        [170, 0, 130, 680, 26], [520, 0, 560, 680, 34], [880, 0, 860, 680, 26], [1080, 0, 1120, 680, 22],
+        [300, 150, 700, 460, 18],
+    ];
+    const manzanas = [
+        [30, 180, 90, 210], [220, 190, 270, 200], [610, 180, 230, 220], [920, 170, 150, 230],
+        [30, 490, 90, 100], [220, 500, 290, 100], [610, 510, 230, 90], [920, 510, 170, 90],
+        [220, 20, 270, 100], [610, 20, 230, 70], [920, 20, 150, 70],
+    ];
+    return `<!doctype html><html><head><meta charset="utf-8"><style>${BASE}
+body { width: 1200px; height: 680px; overflow: hidden; background: #efe9dc; position: relative; }
+svg { position: absolute; inset: 0; }
+.rotulo { position: absolute; font-size: 22px; font-weight: 600; color: #6b6558; letter-spacing: .5px; }
+.parque { position: absolute; left: 626px; top: 206px; width: 196px; font-size: 24px; font-weight: 700; color: #2f6b3a; text-align: center; }
+</style></head><body>
+<svg viewBox="0 0 1200 680" xmlns="http://www.w3.org/2000/svg">
+  ${manzanas.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#e4ddcd"/>`).join("")}
+  <rect x="600" y="180" width="250" height="220" rx="26" fill="#bfe3b4"/>
+  <circle cx="650" cy="230" r="18" fill="#9fd08f"/><circle cx="790" cy="250" r="22" fill="#9fd08f"/><circle cx="700" cy="350" r="20" fill="#9fd08f"/><circle cx="810" cy="355" r="16" fill="#9fd08f"/>
+  <path d="M0 40 C 180 60, 260 20, 420 34 S 700 10, 900 30" stroke="#a9d4f0" stroke-width="20" fill="none" stroke-linecap="round"/>
+  ${vias.map(([a, b, c, d, w]) => borde(a, b, c, d, w)).join("")}
+  ${vias.map(([a, b, c, d, w]) => calle(a, b, c, d, w)).join("")}
+  <line x1="0" y1="420" x2="1200" y2="470" stroke="#f5c451" stroke-width="6" stroke-dasharray="26 18"/>
+  <circle cx="725" cy="455" r="70" fill="rgba(234,67,53,.14)"/>
+  <circle cx="725" cy="455" r="26" fill="rgba(234,67,53,.22)"/>
+  <g transform="translate(725 455)">
+    <path d="M0 0 C -12 -26, -44 -48, -44 -84 A 44 44 0 1 1 44 -84 C 44 -48, 12 -26, 0 0 Z" fill="#ea4335" stroke="#b3261e" stroke-width="3"/>
+    <circle cx="0" cy="-84" r="16" fill="#fff"/>
+  </g>
+</svg>
+<div class="rotulo" style="left:28px;top:398px">Calle 93</div>
+<div class="rotulo" style="left:538px;top:560px;transform:rotate(-86deg);transform-origin:left top">Cra. 11</div>
+<div class="rotulo" style="left:30px;top:120px">Calle 97</div>
+<div class="parque">Parque de la 93</div>
+</body></html>`;
+}
+
+/**
  * Lo que pintan las tarjetas del arranque. Aparte de los medios de la historia
  * porque no viajan en ninguna conversación, y exportado para que el banco
  * pinte las tarjetas con las mismas imágenes que el vídeo.
@@ -257,6 +303,7 @@ export async function generarLosMediosDelMontaje(dir, navegador) {
     mkdirSync(dir, { recursive: true });
     await foto(navegador, laFotoDelSofa(), path.join(dir, MEDIOS_DEL_MONTAJE["sofa-gris"].archivo), { ancho: 1080, alto: 1080 });
     await foto(navegador, laClaseDeExcel(), path.join(dir, MEDIOS_DEL_MONTAJE["clase-de-excel"].archivo), { ancho: 1280, alto: 720 });
+    await foto(navegador, elMapaDelPuntoDeEncuentro(), path.join(dir, MEDIOS_DEL_MONTAJE["mapa-punto-de-encuentro"].archivo), { ancho: 1200, alto: 680 });
 }
 
 /** El logo de la clínica, cuadrado: la foto de perfil de su WhatsApp. */

@@ -545,17 +545,32 @@ const capacidad = async (escena2) => {
     await est("capacidad", i + 1, CAPACIDADES[i].titulo, CAPACIDADES[i].detalle);
 };
 
-// 1. El gancho: cuatro negocios a la vez, y cualquier otro.
+// 1. El gancho: cinco negocios a la vez, y debajo, cualquier otro.
 await est("plano", PLANOS.montaje);
 await est("montaje");
 await espera(p, 450);
 await decir("gancho");
 // El cierre del arranque sale con la frase que lo dice, y nunca antes del
-// último mensaje de la cuarta tarjeta (el estudio espera si hace falta).
+// último mensaje de la última tarjeta (el estudio espera si hace falta).
 await alDecir("y cualquier negocio");
 const cierreDelMontajeMs = Date.now() - t0 + (await est("yCualquierNegocio"));
 await alDecir("Tus clientes");
 await captura("montaje");
+// Dónde quedaron, en el cuadro, la portada del video de Cursos y el mapa del
+// viaje, y cuándo: el banco mira ahí en los fotogramas del vídeo publicado
+// que se ven como una imagen (no un recuadro negro con un punto).
+const cajasDelMontajeMs = Date.now() - t0;
+const cajasDelMontaje = await p.evaluate(() =>
+    Object.fromEntries(
+        [
+            ["video", '.mini[data-negocio="cursos"] .bur.vid .marco'],
+            ["mapa", '.mini[data-negocio="viajes"] .bur.ubic img'],
+        ].map(([clave, selector]) => {
+            const r = document.querySelector(selector)?.getBoundingClientRect();
+            return [clave, r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null];
+        }),
+    ),
+);
 
 // 2. La promesa: la marca.
 await callar();
@@ -826,6 +841,8 @@ writeFileSync(
                 medios: NEGOCIOS_DEL_ARRANQUE.map((n) => n.medio),
                 cierre: CIERRE_DEL_MONTAJE,
                 cierreMs: cierreDelMontajeMs,
+                cajas: cajasDelMontaje,
+                cajasMs: cajasDelMontajeMs,
             },
             // Dónde suena cada cosa EN EL VÍDEO: el banco lo compara con el audio.
             colocados: colocados.map((c) => ({ clase: c.clase, texto: c.texto, inicioMs: c.inicioMs, finMs: c.finMs })),

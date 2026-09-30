@@ -37,18 +37,20 @@ export const CLIENTA = Object.freeze({
 });
 
 /**
- * Los negocios del arranque: cuatro tarjetas de WhatsApp a la vez, cada una
- * con su conversación, y detrás el cierre «y cualquier negocio que venda por
- * WhatsApp» (`CIERRE_DEL_MONTAJE`). Es lo que dice «da igual el negocio» sin
- * decirlo.
+ * Los negocios del arranque: cinco tarjetas de WhatsApp a la vez, cada una
+ * con su conversación, y debajo, en una línea, el cierre «y cualquier negocio
+ * que venda por WhatsApp» (`CIERRE_DEL_MONTAJE`). Es lo que dice «da igual el
+ * negocio» sin decirlo.
  *
  *   - `tipo` es el rótulo grande de debajo de cada tarjeta y va en el orden en
  *     que los nombra la narración (`gancho`); `detalle`, lo que cubre.
- *   - Cada una enseña un tipo de contenido DISTINTO —imagen, nota de voz, video
- *     y PDF— para que se vea todo lo que la IA maneja (`medio` de la burbuja
- *     que lo lleva; lo comprueba el banco).
+ *   - Cada una enseña un tipo de contenido DISTINTO —imagen, nota de voz,
+ *     video, PDF y ubicación— para que se vea todo lo que la IA maneja
+ *     (`medio` de la burbuja que lo lleva; lo comprueba el banco). Lo que
+ *     ENVÍA la IA lleva `de: "ia"`: el PDF de la consultoría lo manda ella,
+ *     no el cliente.
  *   - Los archivos de las tarjetas son solo lo que pinta la tarjeta: la foto
- *     del sofá y la portada de la clase los dibuja `medios.mjs`
+ *     del sofá, la portada de la clase y el mapa los dibuja `medios.mjs`
  *     (`MEDIOS_DEL_MONTAJE`); la nota de voz y el PDF son su burbuja, sin
  *     archivo detrás.
  */
@@ -97,19 +99,32 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
         color: "#264653",
         medio: "documento",
         mensajes: [
-            { de: "cliente", tipo: "documento", nombre: "RUT-2026.pdf", detalle: "1 página · PDF" },
-            { de: "ia", tipo: "texto", texto: "Recibido, Jorge ✅ ¿Agendamos 20 minutos mañana para tu declaración?" },
+            { de: "cliente", tipo: "texto", texto: "¿Qué papeles necesito para declarar renta?" },
+            { de: "ia", tipo: "documento", nombre: "Requisitos-renta.pdf", detalle: "2 páginas · PDF", texto: "Aquí tienes la lista, Jorge ✅ ¿Agendamos 20 minutos mañana?" },
+        ],
+    },
+    {
+        id: "viajes",
+        tipo: "Agencia de viajes",
+        detalle: "Tours, vuelos y paquetes",
+        contacto: "Valentina",
+        color: "#0284c7",
+        medio: "ubicacion",
+        mensajes: [
+            { de: "cliente", tipo: "texto", texto: "¿Dónde nos recogen para el tour de mañana? 🌴" },
+            { de: "ia", tipo: "ubicacion", archivo: "mapa-punto-de-encuentro", nombre: "Punto de encuentro", direccion: "Parque de la 93, Bogotá" },
         ],
     },
 ]);
 
-/** El cierre del arranque: sale después de la cuarta tarjeta, antes de la marca. */
+/** El cierre del arranque: una línea debajo de las cinco tarjetas, después de la última; antes de la marca. */
 export const CIERRE_DEL_MONTAJE = "y cualquier negocio que venda por WhatsApp";
 
 /** Los archivos que pintan las tarjetas del arranque (no viajan en la conversación). */
 export const MEDIOS_DEL_MONTAJE = Object.freeze({
     "sofa-gris": { archivo: "montaje-sofa-gris.jpg" },
     "clase-de-excel": { archivo: "montaje-clase-de-excel.jpg" },
+    "mapa-punto-de-encuentro": { archivo: "montaje-mapa-punto-de-encuentro.jpg" },
 });
 
 /** Los archivos que viajan en la conversación. Los genera `medios.mjs`. */

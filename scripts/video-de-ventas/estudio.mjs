@@ -16,8 +16,8 @@
  * manda `X-Frame-Options: SAMEORIGIN` y desde otro origen el portátil saldría
  * en blanco.
  *
- * Además: el montaje del arranque (cuatro negocios a la vez y el cierre «y
- * cualquier negocio que venda por WhatsApp»), la tarjeta de la marca, los carteles del tiempo que pasa, los subtítulos de la narración, la
+ * Además: el montaje del arranque (cinco negocios a la vez y, debajo, el
+ * cierre «y cualquier negocio que venda por WhatsApp»), la tarjeta de la marca, los carteles del tiempo que pasa, los subtítulos de la narración, la
  * capacidad que se está enseñando, los anillos que señalan lo que cambió en el
  * CRM y el cursor.
  *
@@ -159,8 +159,9 @@ export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
 /**
  * Las tarjetas del arranque como las pinta el estudio: cada mensaje con su hora
  * y, si lleva archivo, su dirección servida (`/__estudio/medios/…`); la nota de
- * voz con su duración y el avatar de quien la manda. Puro: el banco comprueba
- * que las cuatro salen con lo que su burbuja necesita.
+ * voz con su duración y el avatar de quien la manda; la ubicación con su mapa,
+ * su nombre y su dirección. Puro: el banco comprueba que las cinco salen con lo
+ * que su burbuja necesita.
  */
 export function losNegociosDelMontaje(negocios, { hora }) {
     const url = (clave) => {
@@ -189,6 +190,8 @@ export function losNegociosDelMontaje(negocios, { hora }) {
                         return { ...base, url: url(m.archivo) };
                     case "video":
                         return { ...base, portada: url(m.archivo), duracion: comoDuracion(m.segundos ?? 0) };
+                    case "ubicacion":
+                        return { ...base, url: url(m.archivo), nombre: m.nombre, direccion: m.direccion };
                     default:
                         return base;
                 }
@@ -347,13 +350,25 @@ body::before {
 .bur.vid { width: 260px; }
 .bur.vid .marco { position: relative; }
 .bur.vid .marco .play { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; display: grid; place-items: center; }
-.bur.vid .marco .dur { position: absolute; left: 8px; bottom: 7px; color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); display: flex; gap: 4px; align-items: center; }
+.bur.vid .marco .dur { position: absolute; left: 8px; bottom: 7px; color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); display: flex; gap: 4px; align-items: center; z-index: 1; }
+/* La franja oscura de abajo de la portada, como en WhatsApp: sin ella la
+   duración se pierde sobre una portada clara. Solo mientras hay portada
+   (con su duración): el video reproduciéndose no la lleva. */
+.bur.vid .marco:has(.dur)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 38px; border-radius: 0 0 7px 7px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.5)); pointer-events: none; }
 .bur.doc { width: 270px; padding: 3px 3px 5px; }
 .bur.doc .prev { height: 120px; border-radius: 7px 7px 0 0; overflow: hidden; background: #fff; }
 .bur.doc .prev img { width: 100%; display: block; }
 .bur.doc .ficha { display: flex; gap: 10px; align-items: center; padding: 9px 9px; background: rgba(0,0,0,.045); border-radius: 0 0 7px 7px; }
 .bur.doc .ficha b { display: block; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
 .bur.doc .ficha small { font-size: 12px; color: #667781; }
+.bur.doc .ficha:first-child { border-radius: 7px; }
+.bur.doc .cap { padding: 5px 6px 0; }
+/* Una ubicación de WhatsApp: el mapa, y debajo el nombre del sitio y su dirección. */
+.bur.ubic { width: 260px; }
+.bur.ubic img { aspect-ratio: 1200 / 680; object-fit: cover; }
+.bur.ubic .lugar { padding: 6px 6px 0; }
+.bur.ubic .lugar b { display: block; font-size: 14px; font-weight: 600; }
+.bur.ubic .lugar small { display: block; font-size: 12px; color: #667781; margin-top: 1px; }
 .bur.nota { width: 280px; padding: 8px 10px 6px 8px; }
 .nota .fila2 { display: flex; align-items: center; gap: 8px; }
 .nota .quien { width: 42px; height: 42px; border-radius: 50%; position: relative; flex-shrink: 0; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; background-size: cover; }
@@ -457,6 +472,8 @@ body::before {
 .mini .bur.doc { width: 210px; } .mini .bur.doc .ficha b { max-width: 140px; font-size: 13px; }
 .mini .bur.foto { width: 200px; }
 .mini .bur.vid { width: 214px; }
+.mini .bur.ubic { width: 214px; }
+.mini .bur.ubic .lugar b { font-size: 13px; }
 .mini .bur.vid .marco .play { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
 .mini .bur.vid .marco .play svg { width: 24px; height: 24px; }
 .mini .bur.nota { width: 232px; padding: 6px 8px 5px 6px; }
@@ -467,11 +484,13 @@ body::before {
 .mini .nota .abajo { margin-left: 78px; }
 .mini .pie2 { text-align: center; margin-top: 18px; font-size: 20px; font-weight: 700; color: #fff; }
 .mini .pie2 small { display: block; font-size: 14px; font-weight: 500; color: #9fb0cf; margin-top: 4px; }
-/* El cierre del arranque: la quinta columna, después de la cuarta tarjeta. */
-.cierreMontaje { width: 330px; height: 600px; display: flex; align-items: center; opacity: 0; transform: translateX(-24px); transition: opacity .7s, transform .9s cubic-bezier(.2,.8,.2,1); }
-.cierreMontaje.sale { opacity: 1; transform: none; }
-.cierreMontaje div { font-size: 50px; font-weight: 800; letter-spacing: -1.4px; line-height: 1.1; color: #fff; }
-.cierreMontaje span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* El cierre del arranque: UNA línea horizontal, centrada, debajo de las cinco
+   tarjetas (no una columna al lado: ahí se leía como una tarjeta más). */
+#montaje .cierreMontaje { position: absolute; top: 872px; left: 0; right: 0; text-align: center; white-space: nowrap;
+  font-size: 46px; font-weight: 800; letter-spacing: -1.2px; line-height: 1.15; color: #fff;
+  opacity: 0; transform: translateY(18px); transition: opacity .7s, transform .9s cubic-bezier(.2,.8,.2,1); }
+#montaje .cierreMontaje.sale { opacity: 1; transform: none; }
+#montaje .cierreMontaje span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .escribiendo { align-self: flex-start; background: #fff; border-radius: 9px; border-top-left-radius: 2px; padding: 10px 12px; display: flex; gap: 4px; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
 .escribiendo i { width: 7px; height: 7px; border-radius: 50%; background: #9aa5ab; animation: puntito 1.1s infinite; }
 .escribiendo i:nth-child(2) { animation-delay: .15s; } .escribiendo i:nth-child(3) { animation-delay: .3s; }
@@ -605,7 +624,14 @@ function programa(DATOS) {
                     "div",
                     `bur ${lado} doc`,
                     `${m.portada ? `<div class="prev"><img src="${m.portada}"></div>` : ""}<div class="ficha">${I.pdf}<div style="min-width:0"><b>${esc(m.nombre)}</b><small>${esc(m.detalle)}</small></div></div>` +
-                        `<div style="padding:4px 6px 0">${meta}<div style="clear:both"></div></div>`,
+                        (m.texto ? `<div class="cap">${esc(m.texto)}${meta}<div style="clear:both"></div></div>` : `<div style="padding:4px 6px 0">${meta}<div style="clear:both"></div></div>`),
+                );
+                break;
+            case "ubicacion":
+                b = el(
+                    "div",
+                    `bur ${lado} media ubic`,
+                    `<img src="${m.url}"><div class="lugar"><b>${esc(m.nombre)}</b><small>${esc(m.direccion)}</small></div><div style="padding:0 6px">${meta}<div style="clear:both"></div></div>`,
                 );
                 break;
             case "imagen":
@@ -633,6 +659,7 @@ function programa(DATOS) {
         if (m.tipo === "documento") return `📄 ${m.nombre}`;
         if (m.tipo === "imagen") return `📷 ${m.texto || "Foto"}`;
         if (m.tipo === "video") return `🎥 ${m.texto || "Video"}`;
+        if (m.tipo === "ubicacion") return "📍 Ubicación";
         return "";
     }
 
@@ -794,7 +821,7 @@ function programa(DATOS) {
 
     /* ---------- el montaje ---------- */
     // Cuándo sale el último mensaje de las tarjetas: el cierre del arranque no
-    // puede salir antes, o se leería por delante de la cuarta tarjeta.
+    // puede salir antes, o se leería por delante de la última tarjeta.
     let montajeTermina = 0;
     function montaje() {
         const minis = [...document.querySelectorAll(".mini")];
@@ -822,7 +849,7 @@ function programa(DATOS) {
         });
         montajeTermina = Date.now() + ultimo + 450;
     }
-    /** El cierre del arranque, después de la cuarta tarjeta (nunca antes de su último mensaje). */
+    /** El cierre del arranque, debajo de las cinco tarjetas (nunca antes del último mensaje de la última). */
     function yCualquierNegocio() {
         const c = $("#montaje .cierreMontaje");
         const falta = Math.max(0, montajeTermina - Date.now());
@@ -962,7 +989,7 @@ export function laPaginaDelEstudio(datos) {
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Verzay · video de ventas</title>
 <style>${CSS}</style></head><body>
 <div class="escena">
-  <div id="montaje"><div class="titulo">Tus clientes escriben. <span>La IA responde.</span></div><div class="tarjetas">${miniaturas}<div class="cierreMontaje"><div>${cierre}</div></div></div></div>
+  <div id="montaje"><div class="titulo">Tus clientes escriben. <span>La IA responde.</span></div><div class="tarjetas">${miniaturas}</div><div class="cierreMontaje">${cierre}</div></div>
 
   <div id="marca" class="tarjeta">
     <img class="logo" src="${datos.logo}">

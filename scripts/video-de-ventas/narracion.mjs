@@ -54,7 +54,7 @@ export const VOZ_DE_SOFIA = Object.freeze({
  * lo que se está VIENDO pasar en ese momento.
  */
 export const NARRACION = Object.freeze({
-    gancho: { texto: "Tiendas en línea, clínicas, cursos, consultorías… y cualquier negocio que venda por WhatsApp. Tus clientes te escriben a cualquier hora." },
+    gancho: { texto: "Tiendas en línea, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp. Tus clientes te escriben a cualquier hora." },
     promesa: { texto: "Con Verzay, una inteligencia artificial les contesta al instante, entiende lo que piden y lo deja todo listo en tu CRM." },
     tresPantallas: { texto: "Mira la misma conversación en el celular del negocio, en WhatsApp Web y en el panel de Verzay, al mismo tiempo." },
     texto: { texto: "Laura pregunta por un blanqueamiento. La IA le da el precio, y su ficha se llena sola." },
