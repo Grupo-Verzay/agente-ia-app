@@ -8,6 +8,7 @@ import { GUIA_DIAGRAMAS } from "@/lib/guia-diagramas";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_MIS_DATOS } from "@/lib/guia-mis-datos";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
@@ -34,6 +35,11 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     diagramas: { titulo: GUIA_DIAGRAMAS.titulo, subtitulo: GUIA_DIAGRAMAS.subtitulo, descripcion: GUIA_DIAGRAMAS.descripcion },
     reuniones: { titulo: GUIA_REUNIONES.titulo, subtitulo: GUIA_REUNIONES.subtitulo, descripcion: GUIA_REUNIONES.descripcion },
     notas: { titulo: GUIA_NOTAS.titulo, subtitulo: GUIA_NOTAS.subtitulo, descripcion: GUIA_NOTAS.descripcion },
+    "mis-datos": {
+        titulo: GUIA_MIS_DATOS.titulo,
+        subtitulo: GUIA_MIS_DATOS.subtitulo,
+        descripcion: GUIA_MIS_DATOS.descripcion,
+    },
     "respuestas-rapidas": {
         titulo: GUIA_RESPUESTAS_RAPIDAS.titulo,
         subtitulo: GUIA_RESPUESTAS_RAPIDAS.subtitulo,

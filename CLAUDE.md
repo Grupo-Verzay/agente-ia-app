@@ -24438,6 +24438,91 @@ guías— y la guía servida a 390 y 1440— y `scripts/banco-finanzas-simetrica
 con las reglas y un barrido de las seis pantallas. Los dos con `MODO=roto`
 contra `ab6b110`, que afirma que no había guía y los fallos de la tabla.
 
+### La decimosexta guía, Mis datos: una hoja de Google FINGIDA, y la pantalla arreglada
+
+`/guia/mis-datos` documenta Integraciones › Mis datos (`/my-data`) con el
+mismo estándar: seis secciones —vista general, Google Sheets, los datos
+importados, la base de conocimiento, los bloques y el «⋯» de cada opción—, una
+miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y el MISMO ritmo.
+Su tarjeta sale sola en «Tutoriales del módulo» de `/my-data`
+(`GUIAS_PUBLICADAS`): «Aprende a darle a tu agente IA los datos de tu negocio
+en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-mis-datos.sh && npm run build`.
+
+Cinco cosas que hay que mantener:
+
+1. **La hoja de Google la contesta `scripts/fingido-guia-mis-datos.mjs`**,
+   cargado DENTRO de `next start` con el MISMO mecanismo que el Gemini fingido
+   de AI Imágenes (`generar-guia.sh` lo pone con `--import` cuando existe
+   `fingido-guia-<modulo>.mjs`). Nació como un `servidor-guia-*.cjs` con
+   `--require` en otra rama y se fundió al juntarlas: dos mecanismos para lo
+   mismo son uno que se afina y otro que se queda atrás. Este equipo no sale a
+   internet, y una guía no puede depender de una hoja que alguien puede
+   borrar. Sus filas se cruzan a propósito con la semilla —ocho existen y
+   cuatro son nuevas—, así el resumen enseña «Creados» y «Actualizados».
+2. **Los nombres que la pantalla y la guía comparten salen de
+   `lib/pantalla-de-mis-datos.ts`** (las dos opciones, sus pestañas, las
+   columnas, los separadores, el título), y el banco comprueba que la pantalla
+   también los lee de ahí.
+3. **Las dos opciones se pintan con las MISMAS piezas**: `PestanasDeLaSeccion`
+   (las pestañas Importar y Gestionar y el «⋯»), y el lápiz y la papelera de
+   cada fila con `components/shared/EditarYEliminar.tsx` —la tabla los
+   escondía detrás de un «⋯» y la lista de bloques los enseñaba sueltos—.
+4. **El vídeo abre el «⋯» y lo cierra con Escape**: sus acciones borran o
+   apagan TODO, y nada se confirma delante de la cámara.
+5. **Seis secciones y no ocho**: `miniaturas-guia-leads` compara lo leído con
+   las secciones de la guía compilada, tenga las que tenga.
+
+Y dos que el vídeo destapó en el taller común (`taller-de-la-guia.mjs`), que
+valen para todas las guías:
+
+- **`mover` trae a la vista lo que está fuera de la ventana** (desplazamiento
+  suave) y se cae si aun así no se ve. Antes movía el ratón a un punto fuera de
+  la pantalla, el clic no tocaba nada y el vídeo se quedaba esperando un
+  resultado que no llegaba.
+- **`pulsar` trae a la vista, espera a los avisos y después mira que no haya
+  NADA encima.** Un aviso lo resuelve `sinAvisoEncima` —el cursor espera fuera
+  de él, porque con el ratón encima sonner pausa su reloj y no se va nunca—, y
+  por eso va ANTES de `mover` y después de traer el botón a la ventana (un
+  aviso solo tapa lo que está en ella). Lo demás —un menú que no se cerró, una
+  capa puesta— lo caza `sinNadaEncima`, que se cae diciendo qué lo tapa. Y lo
+  que se arregló en Mis datos fue la pantalla que ponía el aviso encima del
+  botón, no la espera.
+
+Y lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| «Línea en blanco doble» llevaba `value="\n\n"` en el JSX: un atributo no interpreta la barra, viajaban cuatro caracteres y el texto entraba como UN bloque | `SEPARADORES_DE_LA_BASE` separa `valor` de lo que parte (`elSeparador`) |
+| sin pestaña en la URL se pedía `&gid=` vacío (`"".trim() ?? "0"` nunca cae en el `"0"`), y un `#heading=…` se colaba | `laUrlDelCsv` (`lib/url-de-google-sheets.ts`): siempre `docs.google.com`, y el `gid` solo si son dígitos |
+| el «⋯» de Google Sheets contaba lo que le pasaba Gestionar: en Importar decía «(0)» y apagaba el borrado | cuenta él al abrirse (`contarExternalClientData`) |
+| la cabecera decía «Mis Datos Externos» y el menú «Mis datos»; las pestañas, «Importar/Gestión» en una y «Importar contenido/Gestionar bloques» en la otra | un nombre, de `lib/pantalla-de-mis-datos.ts` |
+| la tabla cargaba 200 y el pie decía el total, así que el resto no se alcanzaba | «Cargar más» de 200 en 200, y el pie dice «200 de 350» |
+| importar buscaba al cliente solo por su forma canónica (`…@s.whatsapp.net`): uno guardado antes con el número pelado o con `@c.us` no se encontraba y se creaba OTRO | `elRegistroDelMismoNumero` busca por todas las formas del MISMO teléfono (`lasFormasDelMismoNumero`) y deja la fila en la canónica; nunca un `@lid` |
+| guardar a mano pasaba cualquier clave por la regla del número: editar el SKU «SKU-001» de un catálogo guardaba `001@s.whatsapp.net` y dejaba el de verdad sin cambiar | solo un número pasa a su forma de WhatsApp (`esUnNumeroDeWhatsApp`); una clave de catálogo se queda como está |
+| la tabla pintaba `573004522013@s.whatsapp.net` | enseña el número (`laClaveQueSeLee`), con la clave entera en su `title` |
+| una fila que no entraba en la importación se contaba como error sin decir por qué | `[mis-datos] una fila de la importación no se pudo guardar`, con su código |
+| «Ver columnas» sacaba el aviso «6 columnas detectadas» abajo a la derecha, justo ENCIMA de «Iniciar importación»: el clic se lo comía el aviso | sin aviso: la cifra ya se lee debajo del selector de la columna |
+| el selector del tipo de datos y el del separador recortaban su texto; la vista previa se cortaba a 160 px de alto | miden lo que dicen (`w-auto max-w-full`), y la vista previa enseña sus cinco filas |
+| un bloque importado guardaba su «### título» dentro del contenido: la lista lo enseñaba dos veces, con la almohadilla, y el agente recibía la marca | `elContenidoSinElTitulo`: el contenido es lo de debajo del encabezado; y «Encabezados Markdown» parte en la LÍNEA que empieza por `###` (`ANTES_DE_CADA_ENCABEZADO`), como la detección automática |
+| el título de un bloque se pintaba en MAYÚSCULAS en el diálogo y se convertía al teclear: un bloque importado se veía distinto de lo guardado y, con tocar una letra, quedaba en mayúsculas; uno creado a mano salía distinto de los importados | se ve y se guarda tal cual se escribe; lo ya guardado no se toca |
+
+Lo prueban `scripts/banco-guia-mis-datos.sh` (el contenido contra la pantalla,
+la tarjeta de Tutoriales, el vídeo medido, las miniaturas en sus píxeles y la
+guía servida), `scripts/banco-pantalla-de-mis-datos.sh` (las reglas y un
+barrido de las piezas compartidas y de los `catch` mudos) y
+`scripts/banco-mis-datos.sh`, que ahora corre también
+`mis-datos-sin-duplicados-db.test.mjs` contra Postgres: una hoja con clientes
+guardados en formas viejas los ACTUALIZA, importarla dos veces no duplica, un
+`@lid` no casa con nadie y editar un SKU no crea un registro fantasma. Los tres
+con `MODO=roto` contra `ab6b110` (el de Postgres empaqueta las acciones de ese
+commit en un `git worktree`), que afirma los fallos de la tabla de arriba.
+
+La voz se sintetizó desde el contenedor de la App con la llave «Agente IA» de
+Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
+«Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
+por nombre hasta la que conteste.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

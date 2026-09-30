@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { ANTES_DE_CADA_ENCABEZADO, elContenidoSinElTitulo } from '@/lib/pantalla-de-mis-datos';
 import { revalidatePath } from 'next/cache';
 import OpenAI from 'openai';
 
@@ -209,12 +210,17 @@ type ParsedSection = { title: string; keywords: string[]; content: string };
 function splitIntoSections(rawText: string, separator?: string): ParsedSection[] {
   let chunks: string[] = [];
 
-  if (separator && separator !== 'auto') {
+  if (separator === '###') {
+    // Por encabezados, igual que la detección automática: parte en la LÍNEA que
+    // empieza por ###, y el encabezado se queda en su trozo para ser su título.
+    // Con split('###') se perdía la marca y el título se quedaba dentro del texto.
+    chunks = rawText.split(ANTES_DE_CADA_ENCABEZADO).filter((c) => c.trim().length > 0);
+  } else if (separator && separator !== 'auto') {
     chunks = rawText.split(separator).filter((c) => c.trim().length > 0);
   } else {
     // Detección automática: ### encabezados, ---, líneas vacías dobles
     if (/^###\s/m.test(rawText)) {
-      chunks = rawText.split(/(?=^###\s)/m).filter((c) => c.trim().length > 0);
+      chunks = rawText.split(ANTES_DE_CADA_ENCABEZADO).filter((c) => c.trim().length > 0);
     } else if (/^---+$/m.test(rawText)) {
       chunks = rawText.split(/^---+$/m).filter((c) => c.trim().length > 0);
     } else if (/\n\n\n/.test(rawText)) {
@@ -233,7 +239,8 @@ function parseChunk(chunk: string): ParsedSection {
   const lines = chunk.split('\n').filter((l) => l.trim().length > 0);
   const rawTitle = lines[0]?.replace(/^#+\s*/, '').trim() ?? 'Bloque sin título';
   const title = rawTitle.length > 120 ? rawTitle.slice(0, 120) : rawTitle;
-  const content = chunk;
+  // Sin la línea del título: ya va en su campo (ver `elContenidoSinElTitulo`).
+  const content = elContenidoSinElTitulo(chunk);
   const keywords = extractKeywords(title, content);
   return { title, keywords, content };
 }
