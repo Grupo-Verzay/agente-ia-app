@@ -456,7 +456,8 @@ export function ReminderGroupAutomationsPanel({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold mb-1">Automatizaciones — {groupLabel}</h3>
+        {/* Sin título propio: el panel siempre va dentro de una hoja cuyo título ya
+            dice «Automatizaciones — …»; con los dos, la hoja lo repetía. */}
         <p className="text-xs text-muted-foreground">
           Acciones que se ejecutan automáticamente cuando un recordatorio entra en este grupo.
         </p>

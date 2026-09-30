@@ -955,7 +955,7 @@ export async function saveAutoAssignSettings(input: {
    */
   modo?: ModoDeReparto;
   porcentajes?: Record<string, number>;
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ asignadas: number }>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
@@ -1010,16 +1010,22 @@ export async function saveAutoAssignSettings(input: {
       onlyIfEnabled: true,
     });
 
+    // Guardar con la auto-asignación encendida REPARTE en ese momento lo que
+    // estaba sin asesor. Eso cambia datos, así que se DEVUELVE cuántas, y la
+    // pantalla lo dice: con un «Configuración guardada» a secas, cambiar de
+    // modo se llevaba la columna Sin asignar del Pipeline sin que nadie supiera
+    // por qué.
     return {
       success: true,
+      data: { asignadas: result.assigned },
       message:
         result.assigned > 0
-          ? `Configuracion guardada. ${result.assigned} conversacion${result.assigned === 1 ? "" : "es"} asignada${result.assigned === 1 ? "" : "s"}.`
-          : "Configuracion guardada. No hay conversaciones pendientes para asignar.",
+          ? `Configuración guardada. ${result.assigned} ${result.assigned === 1 ? "conversación" : "conversaciones"} sin asesor asignada${result.assigned === 1 ? "" : "s"}.`
+          : "Configuración guardada.",
     };
   }
 
-  return { success: true, message: "Configuración guardada." };
+  return { success: true, data: { asignadas: 0 }, message: "Configuración guardada." };
 }
 
 export type ClienteAsignable = {

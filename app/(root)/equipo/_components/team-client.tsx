@@ -62,6 +62,7 @@ import {
   deleteAdvisor,
   linkExistingAdvisor,
   getTeamAdvisors,
+  getTeamMetrics,
   getAdvisorModuleIds,
   saveAdvisorModules,
   saveAutoAssignSettings,
@@ -247,7 +248,12 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       porcentajes: args.porcentajes,
     }).then((res) => {
       if (!res.success) toast.error(res.message);
+      // Si al guardar se repartió lo que estaba sin asesor, se DICE cuántas,
+      // también al encender el interruptor (que no avisa de lo demás): es un
+      // cambio de datos, no un ajuste.
+      else if ((res.data?.asignadas ?? 0) > 0) toast.success(res.message ?? "Configuración guardada.");
       else if (args.avisar) toast.success("Configuración guardada.");
+      if (res.success && (res.data?.asignadas ?? 0) > 0) void refrescarElEquipo();
       setAutoAssignSaving(false);
     });
   }
@@ -318,7 +324,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   }
 
   function downloadCsv() {
-    const metricsMap = new Map((teamMetrics?.advisors ?? []).map((a) => [a.id, a]));
+    const metricsMap = new Map((metrics?.advisors ?? []).map((a) => [a.id, a]));
     const date = new Date().toISOString().split("T")[0];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const headers = ["Asesor", "Email", "Rol", "Disponible", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
@@ -362,6 +368,20 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     if (list?.success && list.data) {
       setAdvisors(list.data);
     }
+  }
+
+  /**
+   * Lo que cambia cuando se REPARTEN conversaciones: la carga de cada persona
+   * (Activas y su barra) y sus métricas (las columnas y las gráficas). Sin
+   * esto, «Asignar sin atender» decía «5 asignadas» y la tabla seguía con los
+   * números de antes hasta recargar la página.
+   */
+  async function refrescarElEquipo() {
+    const [, m] = await Promise.all([
+      refreshAdvisors(),
+      safeInvoke("refrescarElEquipo", () => getTeamMetrics()),
+    ]);
+    if (m?.success && m.data) setMetrics(m.data);
   }
 
   function handleCreateField(field: keyof CreateForm, value: string) {
@@ -587,7 +607,11 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               role="radio"
               aria-checked={view === "tabla"}
               data-vista="tabla"
-              onClick={() => setView("tabla")}
+              onClick={() => {
+                // Al volver del Pipeline: los arrastres cambiaron quién lleva qué.
+                if (view === "pipeline") void refrescarElEquipo();
+                setView("tabla");
+              }}
               className={claseDelSegmento(view === "tabla")}
             >
               <Table2 className="h-3.5 w-3.5" />
@@ -623,7 +647,12 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                 const res = await bulkAutoAssign();
                 if (!res.success) { toast.error(res.message ?? "Error."); return; }
                 const n = res.assigned ?? 0;
-                toast.success(n > 0 ? `${n} conversación${n !== 1 ? 'es' : ''} asignada${n !== 1 ? 's' : ''}.` : "No hay conversaciones pendientes.");
+                toast.success(
+                  n === 0 ? "No hay conversaciones pendientes."
+                    : n === 1 ? "1 conversación asignada."
+                    : `${n} conversaciones asignadas.`,
+                );
+                if (n > 0) await refrescarElEquipo();
               });
             }}
           >
@@ -691,13 +720,13 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       ) : (() => {
         // Mapa de métricas por asesor para lookup O(1)
         const metricsMap = new Map(
-          (teamMetrics?.advisors ?? []).map((a) => [a.id, a])
+          (metrics?.advisors ?? []).map((a) => [a.id, a])
         );
 
         // Máximos del equipo para barras relativas
         const maxActive    = Math.max(...advisors.map((a) => a.activeCount), 1);
-        const maxHot       = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.hotCount), 1);
-        const maxConverted = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.convertedCount), 1);
+        const maxHot       = Math.max(...(metrics?.advisors ?? []).map((a) => a.hotCount), 1);
+        const maxConverted = Math.max(...(metrics?.advisors ?? []).map((a) => a.convertedCount), 1);
 
         return (
           <div data-tabla-del-equipo className="rounded-xl border overflow-hidden shrink-0">
