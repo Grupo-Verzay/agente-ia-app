@@ -25,7 +25,7 @@ export default async function FinanceSettingsPage() {
     <div className="space-y-3">
       <Card className="border-border">
         <CardHeader className="py-3">
-          <CardTitle className="text-sm">Configuración Finance</CardTitle>
+          <CardTitle className="text-sm">Configuración de Finanzas</CardTitle>
         </CardHeader>
 
         <CardContent className="pt-0">

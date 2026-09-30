@@ -340,23 +340,6 @@ export async function deleteSale(id: string, userIdPedido: string): Promise<Oper
   }
 }
 
-/** Elimina (soft-delete) varias ventas por id. */
-export async function deleteManySales(ids: string[], userIdPedido: string): Promise<OperationResponse> {
-  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
-  try {
-    if (!userId) return { success: false, message: 'No existe el userId.' };
-    if (!ids?.length) return { success: false, message: 'No hay ventas seleccionadas.' };
-    const deleted = await db.financeTransaction.updateMany({
-      where: { id: { in: ids }, userId, type: SALES_TYPE, status: { not: FinanceTxStatus.DELETED } },
-      data: { status: FinanceTxStatus.DELETED, deletedAt: new Date() },
-    });
-    return { success: true, message: `${deleted.count} venta(s) eliminada(s).` };
-  } catch (error) {
-    console.error('deleteManySales error:', error);
-    return { success: false, message: 'Error al eliminar ventas.' };
-  }
-}
-
 /** Elimina (soft-delete) TODAS las ventas del usuario. */
 export async function deleteAllSales(userIdPedido: string): Promise<OperationResponse> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);

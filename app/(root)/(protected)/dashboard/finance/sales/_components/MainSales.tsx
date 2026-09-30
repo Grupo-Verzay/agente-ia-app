@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import { DataTable } from './data-table';
+import { TablaDeFinanzas } from '../../_components/TablaDeFinanzas';
+import { FiltroDePeriodo } from '../../_components/FiltroDePeriodo';
+import { AccionesDeLaFila, ConfirmarBorrado } from '../../_components/AccionesDeLaFila';
 import { buildSalesColumns, type SaleTxRow } from './columns';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
@@ -20,7 +22,6 @@ import {
   createSale,
   updateSale,
   deleteSale,
-  deleteManySales,
   deleteAllSales,
   addSaleAttachments,
   deleteSaleAttachment,
@@ -28,18 +29,22 @@ import {
 
 import { listProducts } from '@/actions/products-actions';
 import { searchSessionsByUserId } from '@/actions/session-action';
+import { eliminarVentasAction } from '@/actions/borrado-en-bloque-actions';
+import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { filtrarPorPeriodo, laFechaDeUnoNuevo, elDiaDeHoy, unPeriodo, type Periodo } from '@/lib/periodo-de-finanzas';
+import { comoImporte, elNombreDelContacto, elNumeroDelContacto, elTotalDeLaVenta, formatoDeDinero } from '@/lib/tabla-de-finanzas';
+import { CABECERA_DEL_DETALLE, CUERPO_DEL_DETALLE, DIALOGO_DEL_DETALLE, REJILLA_DEL_DETALLE } from '@/lib/detalle-de-finanzas';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { SafeImage } from '@/components/custom/SafeImage';
@@ -56,7 +61,6 @@ import {
   Check,
   UserRound,
   Phone,
-  Pencil,
   Trash2,
 } from 'lucide-react';
 
@@ -128,22 +132,6 @@ const toISODate = (d: Date | string) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-function isSameMonth(date: Date, base: Date) {
-  return date.getUTCFullYear() === base.getUTCFullYear() && date.getUTCMonth() === base.getUTCMonth();
-}
-
-function parseMonthValue(value?: string) {
-  const match = value?.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return new Date();
-
-  const year = Number(match[1]);
-  const monthIndex = Number(match[2]) - 1;
-  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) {
-    return new Date();
-  }
-
-  return new Date(year, monthIndex, 1);
-}
 
 function guessIsImage(mimeType?: string | null, url?: string) {
   if (mimeType?.startsWith('image/')) return true;
@@ -157,45 +145,6 @@ function guessIsPdf(mimeType?: string | null, url?: string) {
   return /\.pdf$/i.test(url);
 }
 
-function toAmountNumber(v: string | number | null | undefined): number {
-  if (v === null || v === undefined) return 0;
-  const n = Number(String(v));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function calcTotal(row: { amount?: string | number | null; extra?: string | number | null; discount?: string | number | null }) {
-  const base = toAmountNumber(row.amount);
-  const extra = toAmountNumber(row.extra);
-  const disc = toAmountNumber(row.discount);
-  return base + extra - disc;
-}
-
-function sumByCurrency(list: SaleTxRow[]) {
-  return list.reduce<Record<string, number>>((acc, r) => {
-    const code = r.currencyCode || '—';
-    const total = calcTotal(r as { amount?: string | null; extra?: string | null; discount?: string | null });
-    acc[code] = (acc[code] || 0) + total;
-    return acc;
-  }, {});
-}
-
-function moneyFormat(currencies: FinCurrency[], code: string, value: number) {
-  const meta = currencies.find((c) => c.code === code);
-  const decimals = typeof meta?.decimals === 'number' ? meta.decimals : 2;
-
-  // locale CO está bien para COP y USD (formato), si luego quieres lo hacemos dinámico
-  try {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: code,
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(value);
-  } catch {
-    const symbol = meta?.symbol ? `${meta.symbol} ` : '';
-    return `${symbol}${value.toFixed(decimals)} ${code}`;
-  }
-}
 
 function MiniField({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -252,14 +201,9 @@ export default function MainSales({
     setDetailRow(null);
   };
 
-  // Por defecto mostramos TODAS las ventas (Total); el filtro por mes queda oculto.
-  const [tab, setTab] = useState<'month' | 'total'>('total');
-  const [selectedMonthDate, setSelectedMonthDate] = useState(() => parseMonthValue(initialMonth));
-  const monthInputVal = `${selectedMonthDate.getFullYear()}-${String(selectedMonthDate.getMonth() + 1).padStart(2, '0')}`;
-  const selectedMonthLabel = useMemo(
-    () => selectedMonthDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
-    [selectedMonthDate],
-  );
+  // Por defecto se ven TODAS las ventas; el periodo se elige en la barra, con
+  // el mismo botón que Gastos y Cuentas (`FiltroDePeriodo`).
+  const [periodo, setPeriodo] = useState<Periodo>(() => unPeriodo('todo', initialMonth));
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SaleTxRow | null>(null);
   const didAutoOpenCreate = useRef(false);
@@ -341,7 +285,7 @@ export default function MainSales({
   }, [currencies, primaryCurrencyCode]);
 
   const [form, setForm] = useState<FormState>({
-    occurredAt: toISODate(new Date()),
+    occurredAt: elDiaDeHoy(),
     amount: '',
     extra: '',
     discount: '',
@@ -368,7 +312,7 @@ export default function MainSales({
 
   const resetForm = () => {
     setForm({
-      occurredAt: toISODate(selectedMonthDate),
+      occurredAt: laFechaDeUnoNuevo(periodo),
       amount: '',
       extra: '',
       discount: '',
@@ -400,7 +344,7 @@ export default function MainSales({
     didAutoOpenCreate.current = true;
     setEditing(null);
     setForm({
-      occurredAt: toISODate(selectedMonthDate),
+      occurredAt: laFechaDeUnoNuevo(periodo),
       amount: '',
       extra: '',
       discount: '',
@@ -419,7 +363,7 @@ export default function MainSales({
     setContactQuery('');
     setContactOptions([]);
     setOpen(true);
-  }, [autoOpenCreate, defaultAccountId, defaultCurrency, selectedMonthDate]);
+  }, [autoOpenCreate, defaultAccountId, defaultCurrency, periodo]);
 
   const openEdit = (row: SaleTxRow) => {
     setEditing(row);
@@ -562,44 +506,40 @@ export default function MainSales({
     });
   };
 
-  const onDelete = (id: string) => {
-    startTransition(() => {
-      void (async () => {
-        const res = await deleteSale(id, userId);
-        if (!res.success) return toast.error(res.message);
-
-        setRows((prev) => prev.filter((r) => r.id !== id));
-        toast.success('Venta eliminada');
-        if (detailRow?.id === id) closeDetail();
-
-        router.refresh();
-      })();
-    });
+  // Devuelve si se borró: la confirmación se queda abierta si el servidor dice
+  // que no, y solo se cierra cuando de verdad se fue.
+  const onDelete = async (row: SaleTxRow): Promise<boolean> => {
+    const res = await deleteSale(row.id, userId);
+    if (!res.success) {
+      toast.error(res.message);
+      return false;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    toast.success('Venta eliminada');
+    if (detailRow?.id === row.id) closeDetail();
+    router.refresh();
+    return true;
   };
 
-  const onDeleteMany = (ids: string[]) => {
-    if (!ids.length) return;
-    startTransition(() => {
-      void (async () => {
-        const res = await deleteManySales(ids, userId);
-        if (!res.success) return toast.error(res.message);
-        setRows((prev) => prev.filter((r) => !ids.includes(r.id)));
-        toast.success(res.message);
-        router.refresh();
-      })();
-    });
+  // El borrado en bloque pregunta UNA vez —la del `⋯`— y avisa con el número
+  // de verdad. Antes preguntaba dos veces y decía «eliminadas» antes de borrar.
+  const borrarLosMarcados = async (ids: string[]) => {
+    const resumen = await eliminarVentasAction(ids, userId);
+    if (!resumen.success) toast.error(resumen.message);
+    return { fallaron: resumen.fallaron };
   };
 
-  const onDeleteAll = () => {
-    startTransition(() => {
-      void (async () => {
-        const res = await deleteAllSales(userId);
-        if (!res.success) return toast.error(res.message);
-        setRows([]);
-        toast.success(res.message);
-        router.refresh();
-      })();
-    });
+  const [borrandoTodas, setBorrandoTodas] = useState(false);
+  const onDeleteAll = async (): Promise<boolean> => {
+    const res = await deleteAllSales(userId);
+    if (!res.success) {
+      toast.error(res.message);
+      return false;
+    }
+    setRows([]);
+    toast.success(res.message);
+    router.refresh();
+    return true;
   };
 
   /* ── Consolidar varias cuentas de la familia ─────────────────────────────
@@ -622,6 +562,7 @@ export default function MainSales({
   const columns = useMemo(
     () => {
       const propias = buildSalesColumns({
+        monedas: currencies,
         onEdit: openEdit,
         onDelete,
         busy: isPending,
@@ -634,7 +575,7 @@ export default function MainSales({
         ? [columnaDeCuenta<SaleTxRow>((f) => f.userId, nombresDeCuenta), ...propias]
         : propias;
     },
-    [isPending, consolidando, nombresDeCuenta, filaAjena] // eslint-disable-line react-hooks/exhaustive-deps
+    [isPending, consolidando, nombresDeCuenta, filaAjena, currencies] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const selectorDeCuentas =
@@ -642,37 +583,7 @@ export default function MainSales({
       <SelectorDeCuentas disponibles={cuentasDisponibles} elegidas={cuentasElegidas} />
     ) : null;
 
-  const monthRows = useMemo(() => {
-    return rows.filter((r) => isSameMonth(new Date(r.occurredAt), selectedMonthDate));
-  }, [rows, selectedMonthDate]);
-
-  const totalsMonth = useMemo(() => sumByCurrency(monthRows), [monthRows]);
-  const totalsAll = useMemo(() => sumByCurrency(rows), [rows]);
-
-  const orderedEntries = useCallback((totals: Record<string, number>) => {
-    const entries = Object.entries(totals);
-    if (!entries.length) return [];
-
-    // prioriza la moneda del setting en los resúmenes
-    const safe = currencies.find((c) => c.code === primaryCurrencyCode)?.code || defaultCurrency;
-
-    return [
-      ...entries.filter(([code]) => code === safe),
-      ...entries.filter(([code]) => code !== safe),
-    ];
-  }, [currencies, primaryCurrencyCode, defaultCurrency]);
-
-  const monthTotalText = useMemo(() => {
-    const entries = orderedEntries(totalsMonth);
-    if (!entries.length) return '—';
-    return entries.map(([code, v]) => moneyFormat(currencies, code, v)).join(' • ');
-  }, [totalsMonth, currencies, orderedEntries]);
-
-  const grandTotalText = useMemo(() => {
-    const entries = orderedEntries(totalsAll);
-    if (!entries.length) return '—';
-    return entries.map(([code, v]) => moneyFormat(currencies, code, v)).join(' • ');
-  }, [totalsAll, currencies, orderedEntries]);
+  const filas = useMemo(() => filtrarPorPeriodo(rows, periodo, (r) => r.occurredAt), [rows, periodo]);
 
   const detailAccountName = useMemo(() => {
     if (!detailRow?.accountId) return '';
@@ -684,200 +595,117 @@ export default function MainSales({
     return categories.find((c) => c.id === detailRow.categoryId)?.name || 'Sin categoría';
   }, [detailRow, categories]);
 
-  const detailCurrency = useMemo(() => {
-    if (!detailRow?.currencyCode) return null;
-    return currencies.find((c) => c.code === detailRow.currencyCode) || null;
-  }, [detailRow, currencies]);
 
   const detailAttachments = useMemo(
     () => (Array.isArray(detailRow?.attachments) ? (detailRow?.attachments as DraftAttachment[]) : []),
     [detailRow]
   );
 
-  const detailBase = useMemo(() => toAmountNumber(detailRow?.amount), [detailRow]);
-  const detailExtra = useMemo(() => toAmountNumber(detailRow?.extra), [detailRow]);
-  const detailDiscount = useMemo(() => toAmountNumber(detailRow?.discount), [detailRow]);
-  const detailTotal = useMemo(() => detailBase + detailExtra - detailDiscount, [detailBase, detailExtra, detailDiscount]);
+  const detailBase = comoImporte(detailRow?.amount);
+  const detailExtra = comoImporte(detailRow?.extra);
+  const detailDiscount = comoImporte(detailRow?.discount);
+  const detailTotal = detailRow ? elTotalDeLaVenta(detailRow) : 0;
+  const dinero = (valor: number) => formatoDeDinero(currencies, detailRow?.currencyCode || defaultCurrency, valor);
 
   return (
     <TooltipProvider>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
         <Card className="border-border flex-1 min-h-0 flex flex-col">
-          <CardHeader className="py-3 flex-1 min-h-0">
-            {/* Se ocultan el título "Ventas" (ya estamos en Ventas) y el resumen
-                "Total mes / Acumulado" (la info está en las tarjetas superiores).
-                El botón "+ Nueva venta" va en la barra de la tabla, junto a
-                Eliminar / Columnas. */}
-
-            <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="flex flex-col flex-1 min-h-0">
-              {/* Sin barra de tabs: por defecto se ven TODAS; el filtro por mes
-                  se elige con el botón de calendario en la barra de la tabla. */}
-
-              <TabsContent value="month" className="mt-0 flex-1 min-h-0">
-                <DataTable
-                  columns={columns}
-                  data={monthRows}
-                  searchKey="title"
-                  searchPlaceholder="Buscar..."
-                  initialSearch={initialSearch}
-                  onRowClick={openDetail}
-                  enableSelection
+          <CardHeader className="py-3 flex-1 min-h-0 flex flex-col">
+            <TablaDeFinanzas
+              columns={columns}
+              data={filas}
+              searchKey="concepto"
+              searchPlaceholder="Buscar una venta..."
+              initialSearch={initialSearch}
+              onRowClick={openDetail}
+              queEs="venta"
+              vacio={periodo.modo === 'todo' ? 'Todavía no hay ventas.' : 'No hay ventas en este periodo.'}
+              filaEditable={(fila) => !filaAjena(fila)}
+              filtros={
+                <>
+                  <FiltroDePeriodo periodo={periodo} alCambiar={setPeriodo} queSon="Todas" />
+                  {selectorDeCuentas}
+                </>
+              }
+              crear={<BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>}
+              acciones={(seleccionados, limpiar) => (
+                <AccionesMasivas
+                  seleccionados={seleccionados}
                   queSon="ventas"
-                  getRowId={(r) => r.id}
-                  onDeleteSelected={onDeleteMany}
-                  onDeleteAll={consolidando ? undefined : onDeleteAll}
-                  deleteBusy={isPending}
-                  entityLabel="venta"
-                  filtrosExtra={selectorDeCuentas}
-                  filaEditable={(fila) => !filaAjena(fila)}
-                  toolbarExtra={
-                    <>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-8 px-2 text-sm" title="Filtrar por mes">
-                            <CalendarDays className="h-4 w-4" />
-                            {tab === 'month' && <span className="ml-1 capitalize hidden sm:inline">{selectedMonthLabel}</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-3" align="end">
-                          <div className="flex flex-col gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Filtrar por mes</p>
-                            <input
-                              type="month"
-                              value={monthInputVal}
-                              onChange={(e) => {
-                                const [y, m] = e.target.value.split('-').map(Number);
-                                if (y && m) { setSelectedMonthDate(new Date(y, m - 1, 1)); setTab('month'); }
-                              }}
-                              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                            />
-                            <Button variant="ghost" size="sm" className="h-7 justify-start text-xs" onClick={() => setTab('total')}>
-                              Ver todas
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
-                    </>
+                  onEliminar={borrarLosMarcados}
+                  onTerminar={() => {
+                    limpiar();
+                    router.refresh();
+                  }}
+                  extras={
+                    // Borrar todas acota por la cuenta propia: debajo de una
+                    // lista consolidada prometería lo que no hace.
+                    consolidando || rows.length === 0
+                      ? []
+                      : [
+                          {
+                            clave: 'todas',
+                            etiqueta: 'Eliminar todas las ventas',
+                            icono: <Trash2 className="h-4 w-4" />,
+                            destructiva: true,
+                            sinSeleccion: true,
+                            onSelect: () => setBorrandoTodas(true),
+                          },
+                        ]
                   }
                 />
-              </TabsContent>
-
-              <TabsContent value="total" className="mt-0 flex-1 min-h-0">
-                <DataTable
-                  columns={columns}
-                  data={rows}
-                  searchKey="title"
-                  searchPlaceholder="Buscar..."
-                  initialSearch={initialSearch}
-                  onRowClick={openDetail}
-                  enableSelection
-                  queSon="ventas"
-                  getRowId={(r) => r.id}
-                  onDeleteSelected={onDeleteMany}
-                  onDeleteAll={consolidando ? undefined : onDeleteAll}
-                  deleteBusy={isPending}
-                  entityLabel="venta"
-                  filtrosExtra={selectorDeCuentas}
-                  filaEditable={(fila) => !filaAjena(fila)}
-                  toolbarExtra={
-                    <>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-8 px-2 text-sm" title="Filtrar por mes">
-                            <CalendarDays className="h-4 w-4" />
-                            {tab === 'month' && <span className="ml-1 capitalize hidden sm:inline">{selectedMonthLabel}</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-3" align="end">
-                          <div className="flex flex-col gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Filtrar por mes</p>
-                            <input
-                              type="month"
-                              value={monthInputVal}
-                              onChange={(e) => {
-                                const [y, m] = e.target.value.split('-').map(Number);
-                                if (y && m) { setSelectedMonthDate(new Date(y, m - 1, 1)); setTab('month'); }
-                              }}
-                              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                            />
-                            <Button variant="ghost" size="sm" className="h-7 justify-start text-xs" onClick={() => setTab('total')}>
-                              Ver todas
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
-                    </>
-                  }
-                />
-              </TabsContent>
-            </Tabs>
+              )}
+            />
           </CardHeader>
         </Card>
 
-{/* Modal Detalle (MEJORADO) */}
+        <ConfirmarBorrado
+          abierto={borrandoTodas}
+          alCambiar={setBorrandoTodas}
+          queEs={`las ${rows.length} ventas`}
+          detalle="Se borran todas las ventas de esta cuenta, no solo las que se ven."
+          onConfirmar={onDeleteAll}
+        />
+
+{/* Detalle: la misma forma que el de un gasto (lib/detalle-de-finanzas.ts).
+    La cabecera deja sitio a la X: con los botones pegados al borde, la X
+    quedaba encima de Eliminar. */}
 <Dialog open={detailOpen} onOpenChange={(v) => (v ? setDetailOpen(true) : closeDetail())}>
-  <DialogContent className="sm:max-w-[980px] rounded-2xl p-0 overflow-hidden">
+  <DialogContent className={DIALOGO_DEL_DETALLE} data-detalle-de-finanzas>
     {/* Header */}
-    <div className="border-b bg-background/95 p-4 sm:p-5">
+    <div className={CABECERA_DEL_DETALLE} data-cabecera-del-detalle>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <DialogTitle className="text-base sm:text-lg font-semibold truncate">
-            {/** Cambia el texto según sea Sales/Expenses */}
-            Detalle de venta
+            Detalle de la venta
           </DialogTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             Visualiza el resumen, contacto y soportes.
           </p>
         </div>
 
-{(detailRow ? filaAjena(detailRow) : false) ? null : (
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => {
-                  if (!detailRow) return;
-                  closeDetail();
-                  openEdit(detailRow);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Editar</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="destructive"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => {
-                  if (!detailRow) return;
-                  onDelete(detailRow.id);
-                }}
-                disabled={isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Eliminar</TooltipContent>
-          </Tooltip>
-        </div>
-)}
+        {detailRow ? (
+          <AccionesDeLaFila
+            queEs="la venta"
+            nombre={detailRow.title}
+            ajena={filaAjena(detailRow)}
+            ocupado={isPending}
+            tamano="detalle"
+            onEditar={() => {
+              closeDetail();
+              openEdit(detailRow);
+            }}
+            onEliminar={() => onDelete(detailRow)}
+          />
+        ) : null}
       </div>
     </div>
 
     {detailRow ? (
-      <div className="p-4 sm:p-5">
+      <div className={CUERPO_DEL_DETALLE}>
         {/* Layout: info + total */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+        <div className={REJILLA_DEL_DETALLE}>
           {/* LEFT */}
           <div className="space-y-4">
             {/* Hero card */}
@@ -907,7 +735,7 @@ export default function MainSales({
                         <span className="inline-flex items-center gap-1">
                           <UserRound className="h-3.5 w-3.5" />
                           <span className="truncate max-w-[170px]">
-                            {detailRow.counterparty || 'Contacto'}
+                            {elNombreDelContacto(detailRow.counterparty, detailRow.reference)}
                           </span>
 
                           {detailRow.reference ? (
@@ -915,7 +743,7 @@ export default function MainSales({
                               <span className="mx-1 opacity-50">·</span>
                               <Phone className="h-3.5 w-3.5" />
                               <span className="truncate max-w-[180px]">
-                                {detailRow.reference}
+                                {elNumeroDelContacto(detailRow.reference)}
                               </span>
                             </>
                           ) : null}
@@ -1006,76 +834,41 @@ export default function MainSales({
 
           {/* RIGHT */}
           <div className="space-y-3 lg:sticky lg:top-4">
-            <div className="rounded-2xl border bg-background p-4">
+            <div className="rounded-2xl border bg-background p-4" data-total-del-detalle>
               <p className="text-xs text-muted-foreground">Total</p>
 
               <div className="mt-1 flex items-end justify-between gap-3">
-                <p className="text-2xl font-bold leading-none">
-                  {detailCurrency?.symbol ? `${detailCurrency.symbol} ` : ''}
-                  {String(detailTotal)}
-                </p>
+                <p className="text-2xl font-bold leading-none tabular-nums">{dinero(detailTotal)}</p>
                 <Badge variant="outline" className="h-7 rounded-xl text-[11px]">
                   {detailRow.currencyCode}
                 </Badge>
               </div>
 
-              {/* Solo para Sales: breakdown bonito */}
-              {(detailBase !== undefined || detailExtra !== undefined || detailDiscount !== undefined) ? (
+              {/* Base, extra y descuento: el total es base + extra − descuento.
+                  Una fila por importe y la cifra a la derecha, entera: en tres
+                  cajitas de 87 px los importes se recortaban con «…», o sea que
+                  el detalle no decía cuánto era cada cosa. */}
+              {(detailExtra !== 0 || detailDiscount !== 0) ? (
                 <>
                   <Separator className="my-3" />
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Base</p>
-                      <p className="text-sm font-semibold truncate">{String(detailBase)}</p>
+                  <dl className="space-y-1.5 text-sm" data-desglose-del-detalle>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Base</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">{dinero(detailBase)}</dd>
                     </div>
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Extra</p>
-                      <p className="text-sm font-semibold truncate">{String(detailExtra)}</p>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Extra</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">+ {dinero(detailExtra)}</dd>
                     </div>
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Desc</p>
-                      <p className="text-sm font-semibold truncate">{String(detailDiscount)}</p>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Descuento</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">− {dinero(detailDiscount)}</dd>
                     </div>
-                  </div>
+                  </dl>
                 </>
               ) : null}
             </div>
 
-            {/* Acciones secundarias (opcional) */}
-            <div className="rounded-2xl border bg-muted/10 p-4">
-              <p className="text-sm font-medium">Acciones</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Edita o elimina este registro.
-              </p>
-
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="outline"
-                  className="h-9 flex-1 rounded-xl"
-                  onClick={() => {
-                    if (!detailRow) return;
-                    closeDetail();
-                    openEdit(detailRow);
-                  }}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-
-                <Button
-                  variant="destructive"
-                  className="h-9 flex-1 rounded-xl"
-                  onClick={() => {
-                    if (!detailRow) return;
-                    onDelete(detailRow.id);
-                  }}
-                  disabled={isPending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Eliminar
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -1103,14 +896,15 @@ export default function MainSales({
                 ? categories.find((c) => c.id === form.categoryId)?.name || 'Sin categoría'
                 : 'Sin categoría';
 
-              const base = toAmountNumber(form.amount);
-              const extra = toAmountNumber(form.extra);
-              const disc = toAmountNumber(form.discount);
+              const base = comoImporte(form.amount);
+              const extra = comoImporte(form.extra);
+              const disc = comoImporte(form.discount);
               const total = base + extra - disc;
+              const enSuMoneda = (v: number) => formatoDeDinero(currencies, form.currencyCode, v);
 
               const contactText =
                 form.contactName?.trim() || form.contactJid?.trim()
-                  ? `${form.contactName?.trim() || 'Contacto'}${form.contactJid?.trim() ? ` · ${form.contactJid.trim()}` : ''}`
+                  ? `${elNombreDelContacto(form.contactName, form.contactJid)}${form.contactJid?.trim() ? ` · ${elNumeroDelContacto(form.contactJid)}` : ''}`
                   : 'Sin contacto';
 
               return (
@@ -1134,7 +928,13 @@ export default function MainSales({
                           <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                             <Command>
                               <CommandInput placeholder="Buscar producto..." value={productQuery} onValueChange={setProductQuery} />
-                              <CommandEmpty>{productLoading ? 'Buscando...' : 'Sin resultados.'}</CommandEmpty>
+                              <CommandEmpty>
+                                {productLoading
+                                  ? 'Buscando...'
+                                  : productQuery.trim()
+                                    ? 'Sin resultados.'
+                                    : 'Aún no hay productos. Créalos en Productos.'}
+                              </CommandEmpty>
 
                               <CommandGroup>
                                 {productOptions.map((p) => (
@@ -1153,7 +953,7 @@ export default function MainSales({
                                   >
                                     <Check className={cn('mr-2 h-4 w-4', form.productId === p.id ? 'opacity-100' : 'opacity-0')} />
                                     <span className="flex-1 truncate">{p.title}</span>
-                                    <span className="ml-2 text-xs text-muted-foreground">{String(p.price ?? 0)}</span>
+                                    <span className="ml-2 text-xs text-muted-foreground tabular-nums">{enSuMoneda(comoImporte(p.price))}</span>
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
@@ -1162,13 +962,13 @@ export default function MainSales({
                         </Popover>
                       </MiniField>
 
-                      <MiniField label="Contacto (opcional)" hint="Selecciona de Sessions">
+                      <MiniField label="Contacto" hint="Opcional, de tus chats">
                         <Popover open={contactOpen} onOpenChange={setContactOpen}>
                           <PopoverTrigger asChild>
                             <Button type="button" variant="outline" role="combobox" className="h-9 w-full justify-between text-sm" disabled={isPending}>
                               <span className="truncate">
                                 {form.contactName || form.contactJid
-                                  ? `${form.contactName || 'Contacto'}${form.contactJid ? ` · ${form.contactJid}` : ''}`
+                                  ? `${elNombreDelContacto(form.contactName, form.contactJid)}${form.contactJid ? ` · ${elNumeroDelContacto(form.contactJid)}` : ''}`
                                   : 'Selecciona un contacto'}
                               </span>
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1207,8 +1007,8 @@ export default function MainSales({
                                   >
                                     <Check className={cn('mr-2 h-4 w-4', form.sessionId === s.id ? 'opacity-100' : 'opacity-0')} />
                                     <div className="min-w-0 flex-1">
-                                      <p className="truncate text-sm">{s.pushName || 'Sin nombre'}</p>
-                                      <p className="truncate text-[11px] text-muted-foreground">{s.remoteJid}</p>
+                                      <p className="truncate text-sm">{elNombreDelContacto(s.pushName, s.remoteJid)}</p>
+                                      <p className="truncate text-[11px] text-muted-foreground">{elNumeroDelContacto(s.remoteJid)}</p>
                                     </div>
                                   </CommandItem>
                                 ))}
@@ -1290,28 +1090,33 @@ export default function MainSales({
                     </div>
 
                     <div className="rounded-xl border bg-background p-3">
+                      {/* El desglose va en su propia línea, debajo: dentro de la
+                          columna del total (que no encoge) se comía el ancho del
+                          concepto —«Café O…»— y partía la cuenta en dos líneas. */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[11px] text-muted-foreground">Concepto</p>
                           <p className="truncate text-sm font-medium">{form.title?.trim() ? form.title.trim() : '—'}</p>
-
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant="outline" className="h-6 text-[11px]">{previewAccountName}</Badge>
-                            <Badge variant="outline" className="h-6 text-[11px]">{previewCategoryName}</Badge>
-                            <Badge variant="outline" className="h-6 text-[11px]">
-                              <span className="inline-flex items-center gap-1">
-                                <UserRound className="h-3.5 w-3.5" />
-                                <span className="truncate max-w-[170px]">{contactText}</span>
-                              </span>
-                            </Badge>
-                          </div>
                         </div>
 
                         <div className="shrink-0 text-right">
                           <p className="text-[11px] text-muted-foreground">Total</p>
-                          <p className="text-lg font-bold leading-tight">{moneyFormat(currencies, form.currencyCode, total)}</p>
-                          <p className="text-[11px] text-muted-foreground">Base: {base} · Extra: {extra} · Desc: {disc}</p>
+                          <p className="text-lg font-bold leading-tight tabular-nums">{enSuMoneda(total)}</p>
                         </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground tabular-nums" data-desglose-de-la-venta>
+                        Base {enSuMoneda(base)} · Extra {enSuMoneda(extra)} · Descuento {enSuMoneda(disc)}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">{previewAccountName}</Badge>
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">{previewCategoryName}</Badge>
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound className="h-3.5 w-3.5" />
+                            <span className="truncate max-w-[170px]">{contactText}</span>
+                          </span>
+                        </Badge>
                       </div>
 
                       {form.description?.trim() ? (

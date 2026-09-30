@@ -9,6 +9,7 @@ import {
     BookOpen,
     Bot,
     CalendarPlus,
+    CalendarRange,
     CircleDot,
     ClipboardList,
     Unlink,
@@ -44,6 +45,7 @@ import {
     Pin,
     PlayCircle,
     PlusCircle,
+    Receipt,
     Search,
     Send,
     Settings,
@@ -57,12 +59,15 @@ import {
     Tags,
     ToggleRight,
     Trash2,
+    TrendingUp,
     TriangleAlert,
+    Truck,
     Type,
     Upload,
     UserPlus,
     Users,
     Video,
+    Wallet,
     Zap,
 } from "lucide-react";
 
@@ -141,6 +146,11 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     LayoutTemplate,
     Cpu,
     Sparkles,
+    TrendingUp,
+    Receipt,
+    CalendarRange,
+    Truck,
+    Wallet,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

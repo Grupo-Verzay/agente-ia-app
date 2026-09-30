@@ -14,7 +14,7 @@
 export type Introduccion = { titulo: string; subtitulo: string; descripcion: string };
 
 /** Los módulos con guía pública. La llave de la tabla y el `/guia/<modulo>`. */
-export const MODULOS_CON_GUIA = ["leads", "catalogo", "diagramas", "reuniones", "notas", "google-sheets", "integraciones", "agente-ia", "usuarios", "respuestas-rapidas", "macros", "formularios", "copiloto", "ai-imagenes"] as const;
+export const MODULOS_CON_GUIA = ["leads", "catalogo", "diagramas", "reuniones", "notas", "google-sheets", "integraciones", "agente-ia", "usuarios", "respuestas-rapidas", "macros", "formularios", "copiloto", "ai-imagenes", "finanzas"] as const;
 export type ModuloConGuia = (typeof MODULOS_CON_GUIA)[number];
 
 /** Cómo se llama cada guía para una persona: el mismo nombre que su menú. */
@@ -33,6 +33,7 @@ export const NOMBRE_DE_LA_GUIA: Record<ModuloConGuia, string> = {
     formularios: "Mis formularios",
     copiloto: "Copiloto",
     "ai-imagenes": "AI Imágenes",
+    finanzas: "Finanzas",
 };
 
 /** El nombre de una guía; lo que no se reconoce se enseña tal cual. */

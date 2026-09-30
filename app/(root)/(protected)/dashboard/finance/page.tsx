@@ -7,6 +7,9 @@ import { db } from '@/lib/db';
 import { getFinanceUser } from '@/lib/finance-user';
 import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
 import { consolidar } from '@/lib/finanzas-de-la-familia';
+import { nombreDeLaCuenta } from '@/lib/nombre-de-la-cuenta';
+import { elMesDeOtroAno } from '@/lib/periodo-de-finanzas';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 import { BarraDeFinanzas } from './_components/BarraDeFinanzas';
@@ -109,7 +112,9 @@ export default async function FinanceHomePage({
     where: { id: me.id },
     select: { name: true, company: true, email: true },
   });
-  const accountLabel = account?.company || account?.name || account?.email || null;
+  // Con `nombreDeLaCuenta`, no `company` a secas: nace «Empresa Demo», y el
+  // diálogo de vaciar preguntaría por una empresa que no es la de nadie.
+  const accountLabel = account ? nombreDeLaCuenta(account) || null : null;
 
   const yearTx = await db.financeTransaction.findMany({
     where: {
@@ -200,6 +205,10 @@ export default async function FinanceHomePage({
   // El mes viaja en los enlaces de la rejilla anual; las cuentas elegidas
   // también, o pulsar un mes deshacía la consolidación sin decir nada.
   const cuentasEnElEnlace = consolidando ? `&cuentas=${elegidas.join(',')}` : '';
+  // El año de al lado, con el mismo mes: la rejilla solo cambia de mes.
+  const mesActual = monthInputValue(selectedMonth);
+  const anoAnterior = elMesDeOtroAno(mesActual, -1);
+  const anoSiguiente = elMesDeOtroAno(mesActual, 1);
 
   return (
     <div className="space-y-1">
@@ -231,10 +240,35 @@ export default async function FinanceHomePage({
 
       {sePuedeSumar ? (
         <>
-          <Card className="border-border">
+          <Card className="border-border" data-resumen-anual>
             <CardHeader className="px-2 pb-1 pt-2">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm">Resumen anual por mes {selectedMonth.getFullYear()}</CardTitle>
+                <div className="flex min-w-0 items-center gap-2" data-anos-del-resumen>
+                  <CardTitle className="text-sm">Resumen anual por mes</CardTitle>
+                  <div className="flex items-center gap-0.5">
+                    {anoAnterior ? (
+                      <Link
+                        href={`/dashboard/finance?month=${anoAnterior}${cuentasEnElEnlace}`}
+                        aria-label={`Ver ${selectedMonth.getFullYear() - 1}`}
+                        title={`Ver ${selectedMonth.getFullYear() - 1}`}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Link>
+                    ) : null}
+                    <span className="text-sm font-semibold tabular-nums">{selectedMonth.getFullYear()}</span>
+                    {anoSiguiente ? (
+                      <Link
+                        href={`/dashboard/finance?month=${anoSiguiente}${cuentasEnElEnlace}`}
+                        aria-label={`Ver ${selectedMonth.getFullYear() + 1}`}
+                        title={`Ver ${selectedMonth.getFullYear() + 1}`}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
                 <Badge variant="outline" className="h-5 shrink-0 px-2 text-[10px]">
                   Ingresos - gastos = balance
                 </Badge>
@@ -266,10 +300,10 @@ export default async function FinanceHomePage({
           </Card>
 
           {/* Chart */}
-          <Card className="border-border">
+          <Card className="border-border" data-grafica-del-mes>
             <CardHeader className="px-3 pb-1 pt-2">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm">Ventas vs Gastos por dia {monthLabel}</CardTitle>
+                <CardTitle className="text-sm">Ventas vs Gastos por día {monthLabel}</CardTitle>
                 <Badge variant="outline" className="h-5 px-2 text-[10px]">
                   {daysInMonth} días
                 </Badge>

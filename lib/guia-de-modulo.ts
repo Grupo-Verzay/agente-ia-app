@@ -82,6 +82,11 @@ export const ICONOS_DE_SECCION = [
     "LayoutTemplate",
     "Cpu",
     "Sparkles",
+    "TrendingUp",
+    "Receipt",
+    "CalendarRange",
+    "Truck",
+    "Wallet",
 ] as const;
 
 export type Seccion = {

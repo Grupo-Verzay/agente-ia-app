@@ -1,9 +1,9 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Trash2, Link2 } from 'lucide-react';
+import { Link2 } from 'lucide-react';
+import { AccionesDeLaFila } from '../_components/AccionesDeLaFila';
 import {
   CONTACT_LINK_KEY,
   readContactValue,
@@ -39,14 +39,17 @@ const LONG_TEXT_KEYS = new Set(['address', 'notes']);
 
 export function buildContactsColumns({
   fields,
+  queEs,
   onEdit,
   onDelete,
   busy,
   esDeOtraCuenta,
 }: {
   fields: FinanceFieldDef[];
+  /** Qué es una fila, con su artículo: «el cliente», «el proveedor». */
+  queEs: string;
   onEdit: (row: FinanceContactRow) => void;
-  onDelete: (id: string) => void;
+  onDelete: (row: FinanceContactRow) => Promise<boolean>;
   busy?: boolean;
   /**
    * Una fila de otra cuenta se ve y no se toca. Las acciones de escritura de
@@ -104,19 +107,16 @@ export function buildContactsColumns({
     header: '',
     enableHiding: false,
     enableSorting: false,
-    cell: ({ row }) =>
-      esDeOtraCuenta?.(row.original) ? (
-        <span className="block text-right text-xs text-muted-foreground">—</span>
-      ) : (
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => onEdit(row.original)} disabled={busy}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => onDelete(row.original.id)} disabled={busy}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+    cell: ({ row }) => (
+      <AccionesDeLaFila
+        queEs={queEs}
+        nombre={row.original.name}
+        ajena={esDeOtraCuenta?.(row.original)}
+        ocupado={busy}
+        onEditar={() => onEdit(row.original)}
+        onEliminar={() => onDelete(row.original)}
+      />
+    ),
   });
 
   return cols;

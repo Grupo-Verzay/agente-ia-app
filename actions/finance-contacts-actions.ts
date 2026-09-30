@@ -5,6 +5,7 @@ import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasCuentasQueSeConsultan } from '@/lib/cuentas-de-finanzas';
 import type { Prisma } from '@prisma/client';
 import { isSystemColumnKey, CONTACT_LINK_KEY } from '@/lib/finance-contact-fields';
+import { elPrefijoDelContacto, elSiguienteCodigo } from '@/lib/tabla-de-finanzas';
 
 /**
  * Directorio de contactos de finanzas (proveedores y clientes).
@@ -58,11 +59,14 @@ async function findSessionIdByPhone(userId: string, phone?: string | null): Prom
   return session?.id ?? null;
 }
 
-/** Genera un código incremental por tipo: P-1, P-2… (proveedor) o C-1… (cliente). */
+/**
+ * El código que se pone solo: P-1, P-2… (proveedor) o C-1… (cliente), el que
+ * sigue al más alto que ya exista, borrados incluidos (`elSiguienteCodigo`).
+ * Era un conteo, y después de un borrado repetía el código de otro contacto.
+ */
 async function nextCode(userId: string, kind: Kind): Promise<string> {
-  const prefix = kind === 'SUPPLIER' ? 'P' : 'C';
-  const count = await db.financeContact.count({ where: { userId, kind } });
-  return `${prefix}-${count + 1}`;
+  const filas = await db.financeContact.findMany({ where: { userId, kind }, select: { code: true } });
+  return elSiguienteCodigo(elPrefijoDelContacto(kind), filas.map((f) => f.code));
 }
 
 /**
