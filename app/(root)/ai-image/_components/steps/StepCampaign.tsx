@@ -52,8 +52,8 @@ export const StepCampaign = ({
 }: StepCampaignProps) => (
   <ScrollArea className="h-full pr-2">
     <div className="flex min-h-full flex-col gap-3 pb-1">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div data-zona="texto-y-modo" className="grid gap-3 sm:grid-cols-2">
+        <div data-interruptor="texto" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
               <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Texto</Label>
@@ -63,7 +63,7 @@ export const StepCampaign = ({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+        <div data-interruptor="kit" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="space-y-1">
               <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Modo</Label>
@@ -76,7 +76,7 @@ export const StepCampaign = ({
 
       {/* Format selector — hidden in landing kit mode (always 1:1) */}
       {!isLandingKitMode && (
-        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+        <div data-zona="formatos-a-generar" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
           <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Formatos a generar
           </p>
@@ -88,6 +88,8 @@ export const StepCampaign = ({
                 <button
                   key={format.id}
                   type="button"
+                  data-formato={format.id}
+                  aria-pressed={selected}
                   onClick={() => onToggleFormat(format.id)}
                   disabled={isLast}
                   title={isLast ? 'Debe haber al menos un formato seleccionado' : undefined}
@@ -115,7 +117,7 @@ export const StepCampaign = ({
       )}
 
       {!isLandingKitMode ? (
-        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-2">
+        <div data-zona="estructura" className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-2">
           <Label>Estructura de marketing</Label>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
             {MARKETING_TEMPLATES.map((template) => {
@@ -126,6 +128,8 @@ export const StepCampaign = ({
                 <button
                   key={template.id}
                   type="button"
+                  data-etapa={template.id}
+                  aria-pressed={isSelected}
                   title={label}
                   onClick={() => onTemplateChange(template.id)}
                   className={[
@@ -141,7 +145,10 @@ export const StepCampaign = ({
                   ].join(' ')}>
                     {num}
                   </span>
-                  <span className="truncate text-xs font-medium">{label}</span>
+                  {/* Sin `truncate`: con cinco columnas «Identificación Dolor» o
+                      «Presentación Solución» salían cortadas con «…» y no se
+                      sabía qué etapa se elegía. El nombre pasa a dos líneas. */}
+                  <span className="text-xs font-medium leading-tight">{label}</span>
                 </button>
               )
             })}
@@ -149,18 +156,18 @@ export const StepCampaign = ({
           <p className="text-xs text-muted-foreground pt-0.5">{selectedTemplateMeta.description}</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+        <div data-zona="kit-activado" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
           <Alert className="rounded-2xl border-border bg-background/80">
             <Sparkles className="h-4 w-4" />
             <AlertTitle>Modo kit landing activado</AlertTitle>
             <AlertDescription>
-              Se generaran las 10 etapas de la landing para cada producto con una narrativa completa.
+              Se generarán las 10 etapas de la landing para cada producto con una narrativa completa.
             </AlertDescription>
           </Alert>
         </div>
       )}
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-3">
+      <div data-zona="adn" className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-3">
         <div className="space-y-2">
           <Label htmlFor="visual-dna">ADN visual</Label>
           <Input
@@ -176,6 +183,8 @@ export const StepCampaign = ({
             <button
               key={chip}
               type="button"
+              data-idea={chip}
+              aria-pressed={visualDNA === chip}
               title={chip}
               onClick={() => onVisualDNAChange(chip)}
               className={[
@@ -192,7 +201,7 @@ export const StepCampaign = ({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div data-zona="detalles" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <Label htmlFor="custom-prompt">Detalles específicos del anuncio</Label>
         <Textarea
           id="custom-prompt"

@@ -23413,6 +23413,83 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
+### La sexta guía, AI Imágenes: la única pantalla que habla con FUERA, y se fotografía igual
+
+`/guia/ai-imagenes` documenta Apps Externas › AI imágenes (`/ai-image`) con el
+estándar de las otras cinco: nueve secciones —vista general, la API key, el
+producto, la campaña, el estilo, el motor, generar, el texto del post y el kit
+de landing—, una miniatura con enfoque por tarjeta y el vídeo de un minuto con
+la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo»
+de `/ai-image` (`GUIAS_PUBLICADAS`): «Guía de AI Imágenes» y «Aprende a crear
+anuncios de tu producto con IA en la plataforma».
+
+No trae ninguna pieza propia salvo una, y es la que la distingue: **generar un
+anuncio es una llamada a Gemini con la API key de la cuenta**, y en el banco no
+hay clave de Google —ni debe haberla: sería la de un cliente— ni red hacia
+Google. Así que la contesta un doble.
+
+> **El Gemini fingido (`scripts/fingido-guia-ai-imagenes.mjs`) se carga DENTRO
+> de `next start`** con `NODE_OPTIONS=--import`, y lo pone el lanzador común
+> (`generar-guia.sh`) para cualquier guía que tenga su
+> `fingido-guia-<modulo>.mjs`. Parchea `globalThis.fetch` antes de que Next
+> ponga el suyo, así que **todo lo demás es de verdad**: la acción, el SDK con
+> su petición, el cobro de créditos, el hook que reparte por vista y el panel
+> del texto. Lo único que no sale de la casa es la respuesta.
+
+Seis cosas que hay que mantener:
+
+1. **Qué devuelve lo decide la PETICIÓN, no un contador**: la etapa se lee del
+   prompt (`MARCAS_DE_LA_ETAPA`, las frases que escribe `generateAdImage`), el
+   formato de `aspectRatio` y la red del prompt del copy (`REDES_DEL_PROMPT`).
+   El banco comprueba que las marcas son las de la acción y las redes las de
+   `LAS_REDES`: si la pantalla gana una etapa, el doble no la reconoce y se pone
+   rojo.
+2. **Las imágenes de ejemplo se generaron UNA vez** con Gemini de verdad
+   (`generar-ejemplos-ai-imagenes.mjs`, desde el contenedor de la App, como la
+   voz) y viven en `scripts/guia-ai-imagenes/` con sus textos
+   (`copies.json`). Solo el producto héroe tiene todos los formatos y redes, así
+   que **el vídeo se queda en Hero**: una etapa sin ejemplo saldría vacía.
+3. **La pantalla expone sus marcas** (`data-panel`, `data-zona`, `data-paso`,
+   `data-boton`, `data-formato`, `data-etapa`…) y las recetas no usan
+   coordenadas. Y **no hay `SOLO_MINIATURAS`**: cada miniatura se toma con su
+   captura, porque hace falta una tanda generada y el kit encendido.
+4. **El vídeo no guarda la clave ni borra estilos**: nombra «Cambiar» y la
+   papelera, no las pulsa. El banco falla si el guion pulsa «Guardar».
+5. **La API key se pone en ESTA pantalla, con «Configurar»**, no en Mi Perfil
+   (Perfil solo ofrece OpenAI): el mensaje de antes mandaba a un sitio donde no
+   se puede poner. Y sin clave, el último paso ofrece **«Configurar API key»**
+   en vez de «Generar imagen»: un botón que al pulsarlo solo puede dar error es
+   peor que uno que dice qué falta.
+6. **Regenerar**: `npm run build && scripts/generar-guia-ai-imagenes.sh`
+   (`SIN_VIDEO=1` o `SOLO_VIDEO=1`) y volver a construir.
+
+#### Y documentarla destapó diez fallos de la pantalla, que ya están arreglados
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el paso 2 se llamaba «imagen», en minúscula y diciendo otra cosa | «Campaña» |
+| sin clave, el aviso mandaba a «Mi Perfil» | al botón «Configurar» de la propia pantalla (`FALTA_LA_CLAVE`, que `porQueFalloGemini` reconoce como `sin_clave`) |
+| la foto del producto y la generada viajaban siempre como `image/png`, fueran lo que fueran | con SU tipo (`lib/imagen-en-base64.ts`: `partirLaImagen`, `comoDataUrl`) |
+| borrar un estilo lo quitaba de la pantalla pasara lo que pasara, sin preguntar | pide confirmación, se pinta al momento y vuelve a su sitio si el servidor dice que no, con aviso |
+| el chulito del estilo elegido caía encima de la papelera | cada uno en su sitio |
+| el servidor guardaba una clave vacía y un estilo sin nombre | los rechaza, con su motivo |
+| los dos `catch` de la página eran mudos: un fallo de lectura se veía como «te falta la API key» | avisan en la consola (`[ai-image]`) |
+| los nombres de las etapas de la campaña se cortaban con «…» («Identificación del pro…») | parten en dos líneas y se leen enteros |
+| la vista previa recortaba el anuncio: la caja se estira con el panel y la imagen iba `object-cover`, así que de un 9:16 se veía una tira | `object-contain`: el anuncio se ve entero, en su formato |
+| arriba del menú, en TODAS las pantallas, decía «1 cuenta asociadas» | el adjetivo va con el número (`getAccountCountLabel`): «1 cuenta asociada», «3 cuentas asociadas» |
+
+Más los acentos que faltaban en toda la pantalla (Iluminación, Solución,
+Demostración, «Aún no hay vista generada»…).
+
+Lo prueba `scripts/banco-guia-ai-imagenes.sh`: los arreglos de la pantalla
+(`pantalla-ai-imagenes.test.mjs`), el contenido contra el código —los pasos, los
+formatos, las etapas, los estilos, los motores, las calidades y las redes—, el
+doble contra la acción, el vídeo medido como el de Diagramas, las miniaturas en
+sus píxeles (`GUIA=ai-imagenes`), `fin-de-la-guia` y `menu-de-la-guia` —que
+barren las seis guías— y la guía servida a 390 y 1440. `MODO=roto` lee
+`ab6b110` y afirma que no había guía, ni doble, ni vídeo, y los fallos de la
+pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

@@ -28,13 +28,13 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
 
   return (
     <div className="grid gap-3 p-2 sm:p-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-      <Card className="flex flex-col overflow-hidden rounded-[28px] border-border shadow-sm lg:min-h-0">
+      <Card data-panel="generador" className="flex flex-col overflow-hidden rounded-[28px] border-border shadow-sm lg:min-h-0">
         <CardHeader className="space-y-2.5 border-b bg-gradient-to-b from-muted/40 to-background px-4 py-3">
           <CardTitle className="text-lg font-semibold">Generador de imágenes</CardTitle>
           {/* Siempre visible, con o sin key: si desaparecia al configurarla no
               quedaba forma de reabrir el dialogo para cambiarla despues. */}
           {keyConfigured ? (
-            <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5">
+            <div data-zona="api-key" className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5">
               <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="flex-1 text-sm text-muted-foreground">
                 API key de Google (Gemini) configurada.
@@ -49,7 +49,7 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
+            <div data-zona="api-key" className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span className="flex-1 text-sm text-amber-700 dark:text-amber-400">
                 Necesitas una API key de Google (Gemini) para generar imágenes.
@@ -79,7 +79,7 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
               onStepClick={studio.setActiveStep}
             />
 
-            <div className="flex-1 px-4 py-2 lg:min-h-0">
+            <div data-zona="paso-abierto" className="flex-1 px-4 py-2 lg:min-h-0">
               <TabsContent value="images" className="mt-0 h-full data-[state=inactive]:hidden">
                 <StepImages
                   fileInputRef={studio.fileInputRef}
@@ -156,6 +156,8 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
               canGenerate={studio.canGenerate}
               isLandingKitMode={studio.isLandingKitMode}
               error={studio.error}
+              sinClave={!keyConfigured}
+              onConfigurarClave={() => setDialogOpen(true)}
               onPrevious={studio.goToPreviousStep}
               onNext={studio.goToNextStep}
               onGenerate={studio.handleGenerateAll}
@@ -168,7 +170,7 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
           del post de esa misma vista. La previa cede el alto (`min-h-0`) y el
           panel del texto se queda con el suyo, para que la imagen no empuje al
           copy fuera de la pantalla ni al revés. */}
-      <div className="flex min-h-0 flex-col gap-3">
+      <div data-zona="resultado" className="flex min-h-0 flex-col gap-3">
       <AdPreviewPanel
         sourceImagesCount={studio.sourceImages.length}
         activeImageIndex={studio.activeImageIndex}

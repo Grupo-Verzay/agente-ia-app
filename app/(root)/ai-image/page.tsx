@@ -19,7 +19,11 @@ const AiImagePage = async () => {
       });
       hasGoogleKey = !!config;
     }
-  } catch { /* ignorar */ }
+  } catch (err) {
+    // Callado, esto se veía como «te falta la API key» sobre una cuenta que sí
+    // la tiene: el aviso ámbar salía por un fallo de lectura, no por la clave.
+    console.warn("[ai-image] no se pudo leer la API key de Google", err);
+  }
 
   try {
     dbStyles = await db.userVisualStyle.findMany({
@@ -27,7 +31,10 @@ const AiImagePage = async () => {
       select: { id: true, name: true, description: true },
       orderBy: { createdAt: "asc" },
     });
-  } catch { /* ignorar hasta que el cliente Prisma esté regenerado */ }
+  } catch (err) {
+    // Sin sus estilos la biblioteca sale solo con los de fábrica: se dice por qué.
+    console.warn("[ai-image] no se pudieron leer los estilos de la cuenta", err);
+  }
 
   return <MainAiImage hasGoogleKey={hasGoogleKey} dbStyles={dbStyles} />;
 };
