@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # El banco de la GUÍA PÚBLICA de Usuarios (`/guia/usuarios`). Mismo estándar que
-# la de Leads, Catálogo, Diagramas, Reuniones y Mis notas, y las mismas piezas:
+# la de Leads, Catálogo, Diagramas, Reuniones, Mis notas, Google Sheets, Integrar
+# URLs y Agente IA, y las mismas piezas:
 #
 #   1. `lib/__tests__/guia-usuarios.test.mjs`: la guía documenta EXACTAMENTE la
 #      barra de trabajo, los modos de reparto, las columnas de la tabla, los
@@ -42,7 +43,7 @@ if [ "$MODO" = "roto" ]; then
 fi
 
 # Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
-for G in leads catalogo diagramas reuniones notas usuarios; do
+for G in leads catalogo diagramas reuniones notas google-sheets integraciones agente-ia usuarios; do
   OUT="lib/__tests__/.compilado/guia-$G"
   mkdir -p "$OUT"
   npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning
