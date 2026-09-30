@@ -26,6 +26,7 @@ import { assertCanAccessTargetUser } from '@/actions/billing/helpers/app-access-
 import type { SendMessageResult } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
 import { sendManualWorkflowAction } from '@/actions/chat-manual-actions';
+import { buildChatHistorySessionId } from '@/lib/chat-history/build-session-id';
 
 /**
  * Acciones de la pantalla de Chats para las lineas de WhatsApp Mensajeria (waha).
@@ -320,14 +321,53 @@ export async function sendWahaQuickReplyAction(
     if (!linea.ok) return { success: false, message: linea.message };
 
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
-    const texto = rr?.mensaje?.trim();
-    if (!texto) return { success: false, message: 'Respuesta rápida no encontrada.' };
-    if (!(await esAtajoDeLaLinea(rr!.userId, instanceName)).ok) {
+    if (!rr) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    if (!(await esAtajoDeLaLinea(rr.userId, instanceName)).ok) {
       return { success: false, message: porQueNoEsDeLaLinea('respuesta rápida', instanceName) };
     }
 
-    const result = await sendWahaTextAction(instanceName, remoteJid, { kind: 'text', text: texto });
-    return { success: result.success, message: result.message };
+    // Una respuesta puede ser de TEXTO o de FLUJO (`lib/respuestas-rapidas.ts`).
+    // Esto solo sabía mandar texto, así que una de flujo contestaba «no
+    // encontrada» en toda línea de Waha. Va igual que en Evolution
+    // (`sendManualQuickReplyAction`): el texto si lo hay, después el flujo, y
+    // se anota la intención para que el webhook no lo vuelva a disparar.
+    const texto = rr.mensaje?.trim() ?? '';
+    const flujo = rr.workflowId?.trim() ?? '';
+    if (!texto && !flujo) {
+      return { success: false, message: 'La respuesta rápida no tiene mensaje ni flujo configurado.' };
+    }
+
+    if (texto) {
+      const result = await sendWahaTextAction(instanceName, remoteJid, { kind: 'text', text: texto });
+      if (!result.success) return { success: false, message: result.message };
+    }
+
+    if (flujo) {
+      // El flujo tiene que ser de la MISMA cuenta que la respuesta: un id que
+      // se quedó colgando de un flujo borrado no puede lanzar otro.
+      const workflow = await db.workflow.findFirst({
+        where: { id: flujo, userId: rr.userId },
+        select: { id: true, name: true },
+      });
+      if (!workflow) return { success: false, message: 'El flujo de esta respuesta ya no existe.' };
+
+      const res = await sendManualWorkflowAction({ apiKeyData: null, instanceName }, remoteJid, workflow.id);
+      if (!res.success) return res;
+
+      await db.n8nChatHistory.create({
+        data: {
+          sessionId: buildChatHistorySessionId(instanceName, remoteJid),
+          message: {
+            type: 'intention',
+            name: workflow.name,
+            tipo: 'intention',
+            executedAt: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    return { success: true, message: 'Respuesta rápida enviada.' };
   } catch (error) {
     return {
       success: false,

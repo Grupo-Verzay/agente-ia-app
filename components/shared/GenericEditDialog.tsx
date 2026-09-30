@@ -51,7 +51,10 @@ export const GenericEditDialog = ({
             )}
             <DialogContent className="sm:max-w-lg flex flex-col overflow-hidden">
                 <CustomDialogHeader icon={icon} title={title} subTitle={subTitle} />
-                {children && typeof children === 'function' ? children({ onClose: () => setInternalOpen(false) }) : children}
+                {/* `handleOpenChange` y no `setInternalOpen`: controlado desde
+                    fuera, cerrar el estado interno no cerraba nada y el botón
+                    «Cancelar» de dentro no hacía nada. */}
+                {children && typeof children === 'function' ? children({ onClose: () => handleOpenChange(false) }) : children}
             </DialogContent>
         </Dialog>
     );

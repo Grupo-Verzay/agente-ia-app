@@ -4,6 +4,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     ArrowRight,
+    ArrowUpDown,
     BarChart3,
     BookOpen,
     CalendarPlus,
@@ -48,6 +49,7 @@ import {
     UserPlus,
     Users,
     Video,
+    Zap,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -98,13 +100,15 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    ArrowUpDown,
+    Zap,
+    Trash2,
     Sheet,
     ExternalLink,
     ArrowLeftRight,
     TriangleAlert,
     ClipboardList,
     Unlink,
-    Trash2,
     FileText,
     Percent,
     BarChart3,

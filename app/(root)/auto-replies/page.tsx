@@ -1,15 +1,15 @@
 import { currentUser } from '@/lib/auth';
-import { QuickReply, Workflow } from '@prisma/client';
+import { Workflow } from '@prisma/client';
 import { Suspense } from 'react';
 import { AutoRepliesContent, SkeletonAutoReplies } from './_components';
-import { getAllRRs } from '@/actions/rr-actions';
+import { getAllRRs, type RespuestaRapida } from '@/actions/rr-actions';
 import { getWorkFlowByUser } from '@/actions/workflow-actions';
 
 function hasWorkflow(result: { data?: Workflow[] }): result is { data: Workflow[] } {
     return !!result.data;
 }
 
-function hasAutoReplies(result: { data?: QuickReply[] }): result is { data: QuickReply[] } {
+function hasAutoReplies(result: { data?: RespuestaRapida[] }): result is { data: RespuestaRapida[] } {
     return !!result.data;
 }
 
