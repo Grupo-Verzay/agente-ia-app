@@ -31,13 +31,17 @@ export const espera = (p, ms) => p.waitForTimeout(ms);
 /* Entrar y despejar                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Entra con la cuenta de las capturas (la siembra `sembrar-barra.mjs`). */
-export async function entrar(contexto, base) {
+/**
+ * Entra con la cuenta de las capturas (la siembra `sembrar-barra.mjs`). Otra
+ * persona de esa cuenta —la de una reunión, que entra desde su navegador— pasa
+ * su `email`: la clave es la misma para todas las cuentas de la semilla.
+ */
+export async function entrar(contexto, base, { email = "jefe@banco.test", clave = "banco1234" } = {}) {
     const p = await contexto.newPage();
     await p.goto(`${base}/login`, { waitUntil: "domcontentloaded" });
     await espera(p, 2500);
-    await p.fill('input[name="email"]', "jefe@banco.test");
-    await p.fill('input[name="password"]', "banco1234");
+    await p.fill('input[name="email"]', email);
+    await p.fill('input[name="password"]', clave);
     await p.click('button[type="submit"]');
     for (let i = 0; i < 120 && p.url().includes("/login"); i += 1) await espera(p, 500);
     if (p.url().includes("/login")) throw new Error("no se pudo entrar: la página sigue en /login");
@@ -380,23 +384,32 @@ export function crearGuardar({ salida, tomadas }) {
  * fracción): lo lee el banco para medir el enfoque sin saber el tamaño.
  */
 export async function tomarLasMiniaturas(p, zonas, { salida, tomadas, focos: ficheroDeFocos, despues }) {
-    const vista = p.viewportSize();
     const focos = {};
     for (const [slug, zona] of zonas) {
-        const foco = await zona();
-        const e = encuadreDeLaMiniatura(foco, vista);
-        await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
-        const nombre = `mini-${slug}.webp`;
-        const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
-        await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(salida, nombre));
-        tomadas.add(nombre);
-        focos[nombre] = { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h };
-        console.log("  ✓", nombre);
+        Object.assign(focos, await tomarUnaMiniatura(p, slug, await zona(), { salida, tomadas }));
         await cerrarLoAbierto(p);
         if (despues) await despues();
     }
     await desmarcar(p);
     writeFileSync(ficheroDeFocos, JSON.stringify(focos, null, 2) + "\n");
+}
+
+/**
+ * UNA miniatura con la receta de siempre (la de `tomarLasMiniaturas`), para la
+ * guía cuyas zonas no se pueden recorrer seguidas: en Reuniones varias solo
+ * existen a mitad de la reunión, así que se toman cuando se llega a ellas.
+ * Devuelve `{ [nombre]: foco }` para juntarlo en el fichero de focos.
+ */
+export async function tomarUnaMiniatura(p, slug, foco, { salida, tomadas }) {
+    const e = encuadreDeLaMiniatura(foco, p.viewportSize());
+    await marcar(p, [{ c: foco }], { atenuar: true, escala: e.escala });
+    const nombre = `mini-${slug}.webp`;
+    const buf = await p.screenshot({ clip: { x: e.x, y: e.y, width: e.w, height: e.h } });
+    await sharp(buf).resize(TAMANO_MINI.ancho, TAMANO_MINI.alto, { fit: "fill" }).webp({ quality: 84 }).toFile(path.join(salida, nombre));
+    tomadas.add(nombre);
+    console.log("  ✓", nombre);
+    await desmarcar(p);
+    return { [nombre]: { x: (foco.x - e.x) / e.w, y: (foco.y - e.y) / e.h, w: foco.w / e.w, h: foco.h / e.h } };
 }
 
 /**

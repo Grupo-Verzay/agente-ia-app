@@ -46,6 +46,13 @@ export const ICONOS_DE_SECCION = [
     "GitBranch",
     "StickyNote",
     "LayoutGrid",
+    "CalendarPlus",
+    "Video",
+    "Mic",
+    "DoorOpen",
+    "MessageSquare",
+    "CircleDot",
+    "History",
 ] as const;
 
 export type Seccion = {

@@ -6,6 +6,7 @@ import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 import { GUIA_CATALOGO } from "@/lib/guia-catalogo";
 import { GUIA_DIAGRAMAS } from "@/lib/guia-diagramas";
 import { GUIA_LEADS } from "@/lib/guia-leads";
+import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -20,6 +21,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     leads: { titulo: GUIA_LEADS.titulo, subtitulo: GUIA_LEADS.subtitulo, descripcion: GUIA_LEADS.descripcion },
     catalogo: { titulo: GUIA_CATALOGO.titulo, subtitulo: GUIA_CATALOGO.subtitulo, descripcion: GUIA_CATALOGO.descripcion },
     diagramas: { titulo: GUIA_DIAGRAMAS.titulo, subtitulo: GUIA_DIAGRAMAS.subtitulo, descripcion: GUIA_DIAGRAMAS.descripcion },
+    reuniones: { titulo: GUIA_REUNIONES.titulo, subtitulo: GUIA_REUNIONES.subtitulo, descripcion: GUIA_REUNIONES.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

@@ -11,7 +11,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { laRejilla, lasIniciales } from "@/lib/sala-de-video";
+import { laAlturaDelMenuDelRecuadro, laRejilla, lasIniciales } from "@/lib/sala-de-video";
 import { laTiraDeMiniaturas } from "@/lib/voz-activa";
 import type { MandosDeModeracion } from "@/lib/moderar-en-la-sala";
 import type { QueSeModera } from "@/hooks/useModerarEnLaSala";
@@ -102,6 +102,8 @@ export type MandosDelRecuadro = {
     /** Si hay algo en vuelo sobre ESTA persona. */
     ocupado: boolean;
     hacer: (que: QueSeModera) => void;
+    /** Dónde se porta el menú. Ver `ModeracionDeLosRecuadros.container`. */
+    container?: HTMLElement | null;
 };
 
 export type ModeracionDeLosRecuadros = {
@@ -111,6 +113,18 @@ export type ModeracionDeLosRecuadros = {
     moderar: (que: QueSeModera, id: string) => void;
     /** Sobre quién hay algo en vuelo, para apagar solo sus botones. */
     ocupadoCon: string | null;
+    /**
+     * Dónde se porta el menú «⋯» de cada recuadro: la raíz de la sala.
+     *
+     * Es la misma regla que los menús de fondo y de grabar, y a este se le
+     * había pasado. La reunión es una capa `z-[99]` —y puede estar en pantalla
+     * completa—, y un `DropdownMenuContent` portado al `body` nace en `z-50`:
+     * el menú se abría **detrás del video**, con el botón pulsado y nada a la
+     * vista. Desde fuera se leía como que el «⋯» no hacía nada. No se vio
+     * porque su banco monta los recuadros sueltos, sin la capa encima; lo cazó
+     * la captura de la guía, que abre la reunión dentro de la plataforma.
+     */
+    container?: HTMLElement | null;
 };
 
 export function RecuadrosDeLaSala({
@@ -172,6 +186,7 @@ function mandosDe(
         mandos,
         ocupado: moderacion.ocupadoCon === id,
         hacer: (que: QueSeModera) => moderacion.moderar(que, id),
+        container: moderacion.container,
     };
 }
 
@@ -190,7 +205,7 @@ function repartoEnCuadricula(
         // encima. Lo único que separa un recuadro de otro es el `gap`.
         <div data-rejilla-de-la-sala className={cn("min-h-0 flex-1 overflow-hidden", className)}>
             <div className={cn("grid h-full gap-1.5", laRejilla(gente.length))}>
-                {gente.map((g) => (
+                {gente.map((g, i) => (
                     // Con una sola persona el recuadro ES la caja, así que
                     // ni borde ni esquinas: un marco redondeado a sangre
                     // deja cuatro muescas del fondo en las esquinas y se
@@ -200,6 +215,11 @@ function repartoEnCuadricula(
                         {...g}
                         sinMarco={gente.length <= 1}
                         moderar={mandosDe(g.id, moderacion)}
+                        alturaDelMenu={laAlturaDelMenuDelRecuadro({
+                            vista: "cuadricula",
+                            cuantos: gente.length,
+                            posicion: i,
+                        })}
                     />
                 ))}
             </div>
@@ -234,7 +254,16 @@ function repartoDeOrador(
                 encoger a su hijo por debajo de su contenido y el recuadro
                 grande empuja la tira fuera de la caja. */}
             <div className="min-h-0 min-w-0 flex-1">
-                <Recuadro {...grande} grande moderar={mandosDe(grande.id, moderacion)} />
+                <Recuadro
+                    {...grande}
+                    grande
+                    moderar={mandosDe(grande.id, moderacion)}
+                    alturaDelMenu={laAlturaDelMenuDelRecuadro({
+                        vista: "orador",
+                        cuantos: gente.length,
+                        posicion: 0,
+                    })}
+                />
             </div>
             <div
                 className={cn(
@@ -252,7 +281,7 @@ function repartoDeOrador(
                     tiraPlegada ? "hidden" : "",
                 )}
             >
-                {resto.map((g) => (
+                {resto.map((g, i) => (
                     <div
                         key={g.id}
                         // Alto completo y ancho fijo en la tira de abajo; al
@@ -268,7 +297,16 @@ function repartoDeOrador(
                             esperar a que esa persona hablara para poder
                             moderarla. Cabe: son 24 px en una miniatura de
                             112. */}
-                        <Recuadro {...g} moderar={mandosDe(g.id, moderacion)} />
+                        <Recuadro
+                            {...g}
+                            moderar={mandosDe(g.id, moderacion)}
+                            alturaDelMenu={laAlturaDelMenuDelRecuadro({
+                                vista: "orador",
+                                cuantos: gente.length,
+                                posicion: i,
+                                enLaTira: true,
+                            })}
+                        />
                     </div>
                 ))}
             </div>
@@ -351,11 +389,18 @@ export function Recuadro({
     grande = false,
     sinMarco = false,
     moderar,
+    alturaDelMenu = "top-1",
 }: LoQueSePinta & {
     grande?: boolean;
     sinMarco?: boolean;
     /** Sin esto no se pinta ningún mando. Lo resuelve `mandosDe`. */
     moderar?: MandosDelRecuadro;
+    /**
+     * A qué altura va el «⋯»: debajo de la cabecera en los recuadros que tocan
+     * el borde de arriba. Lo decide el reparto (`laAlturaDelMenuDelRecuadro`),
+     * que es el único que sabe dónde cae cada recuadro.
+     */
+    alturaDelMenu?: string;
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -482,8 +527,17 @@ export function Recuadro({
                 resuelve es el **`z-30`**: ni el recuadro (`relative` sin `z`)
                 ni la rejilla crean contexto de apilamiento, así que el botón
                 compite DIRECTAMENTE con las barras y les gana. Bajarlo a `z-10`
-                —que es lo que se escribe solo— lo devuelve debajo de las dos. */}
-            {moderar ? <MenuDeModeracion nombre={nombre} {...moderar} /> : null}
+                —que es lo que se escribe solo— lo devuelve debajo de las dos.
+
+                Y ganarles tiene su reverso: en el recuadro que toca el borde
+                de arriba, el «⋯» caía ENCIMA de un mando de la cabecera —en la
+                vista de orador, justo sobre el del chat—. Así que en esos
+                recuadros baja por debajo de la cabecera; cuáles son lo decide
+                el reparto con `laAlturaDelMenuDelRecuadro`, que es el único
+                que sabe dónde cae cada uno. */}
+            {moderar ? (
+                <MenuDeModeracion nombre={nombre} altura={alturaDelMenu} {...moderar} />
+            ) : null}
 
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
                 {manoLevantada ? (
@@ -522,10 +576,12 @@ export function Recuadro({
  */
 function MenuDeModeracion({
     nombre,
+    altura,
     mandos,
     ocupado,
     hacer,
-}: MandosDelRecuadro & { nombre: string }) {
+    container,
+}: MandosDelRecuadro & { nombre: string; altura: string }) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -538,7 +594,10 @@ function MenuDeModeracion({
                     //
                     // Con su propio fondo: flota sobre la imagen, y un icono
                     // claro sobre una cara clara no se ve.
-                    className="absolute right-1 top-1 z-30 h-6 w-6 rounded-full bg-black/60 text-zinc-100 hover:bg-black/80 hover:text-white"
+                    className={cn(
+                        "absolute right-1 z-30 h-6 w-6 rounded-full bg-black/60 text-zinc-100 hover:bg-black/80 hover:text-white",
+                        altura,
+                    )}
                     disabled={ocupado}
                     aria-label={`Moderar a ${nombre}`}
                     title={`Moderar a ${nombre}`}
@@ -549,7 +608,7 @@ function MenuDeModeracion({
             {/* Alineado al final y hacia arriba: el pie está abajo del todo, y
                 un menú que se abriera hacia abajo se saldría de la caja del
                 video. */}
-            <DropdownMenuContent align="end" side="top" className="w-56">
+            <DropdownMenuContent align="end" side="top" className="w-56" container={container}>
                 <DropdownMenuItem
                     disabled={!mandos.silenciar.puede}
                     onSelect={() => hacer("silenciar")}
