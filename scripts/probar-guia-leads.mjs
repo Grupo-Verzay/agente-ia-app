@@ -1,5 +1,8 @@
 /**
- * La guía pública de Leads, SERVIDA (`next start`) y SIN sesión, en Chromium.
+ * Una guía pública, SERVIDA (`next start`) y SIN sesión, en Chromium: la de
+ * Leads por defecto, y cualquier otra con `GUIA=<modulo>` (la de Reuniones la
+ * prueba `banco-guia-reuniones.sh` con este MISMO script: dos probadores
+ * serían dos varas de medir para dos guías que tienen que salir iguales).
  *
  * Lo que un barrido del código no puede decir: que sin sesión no redirige al
  * login, que la cabecera `X-Robots-Tag` llega de verdad —a la página y a las
@@ -14,11 +17,12 @@ const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
 const BASE = process.env.BASE ?? "http://localhost:3941";
+const GUIA = process.env.GUIA ?? "leads";
 // Cuántas secciones enseña la guía lo dice su contenido (compilado por el
 // banco), no un número escrito aquí: una sección nueva no puede quedarse
 // fuera del índice sin que esto lo cante.
-const { SECCIONES } = await import(new URL("../lib/__tests__/.compilado/guia-leads/guia-leads.mjs", import.meta.url).href);
-const { losHuecos } = await import(new URL("../lib/__tests__/.compilado/guia-leads/cierre-de-la-guia.mjs", import.meta.url).href);
+const { SECCIONES } = await import(new URL(`../lib/__tests__/.compilado/guia-${GUIA}/guia-${GUIA}.mjs`, import.meta.url).href);
+const { losHuecos } = await import(new URL(`../lib/__tests__/.compilado/guia-${GUIA}/cierre-de-la-guia.mjs`, import.meta.url).href);
 const fallos = [];
 const exigir = (bien, que) => {
     if (!bien) fallos.push(que);
@@ -28,24 +32,24 @@ const exigir = (bien, que) => {
 const navegador = await chromium.launch({ executablePath: process.env.CHROME_BIN || undefined });
 try {
     // 1. Pública y no indexable, por la cabecera.
-    const r = await fetch(`${BASE}/guia/leads`, { redirect: "manual" });
-    exigir(r.status === 200, `GET /guia/leads sin sesión contesta 200 (contestó ${r.status})`);
+    const r = await fetch(`${BASE}/guia/${GUIA}`, { redirect: "manual" });
+    exigir(r.status === 200, `GET /guia/${GUIA} sin sesión contesta 200 (contestó ${r.status})`);
     exigir(/noindex/.test(r.headers.get("x-robots-tag") ?? ""), "la página lleva X-Robots-Tag: noindex");
-    const img = await fetch(`${BASE}/guia/leads/vista-general.webp`, { redirect: "manual" });
+    const img = await fetch(`${BASE}/guia/${GUIA}/vista-general.webp`, { redirect: "manual" });
     exigir(img.status === 200 && /noindex/.test(img.headers.get("x-robots-tag") ?? ""), "las capturas también llevan noindex");
-    const mala = await fetch(`${BASE}/guia/leads/no-existe`, { redirect: "manual" });
+    const mala = await fetch(`${BASE}/guia/${GUIA}/no-existe`, { redirect: "manual" });
     exigir(mala.status === 404, `una sección que no existe da 404 (dio ${mala.status})`);
 
     for (const vista of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
         const ctx = await navegador.newContext({ viewport: vista });
         const p = await ctx.newPage();
-        await p.goto(`${BASE}/guia/leads`, { waitUntil: "networkidle" });
+        await p.goto(`${BASE}/guia/${GUIA}`, { waitUntil: "networkidle" });
         const tag = `${vista.width}px`;
         exigir(/noindex/.test(await p.getAttribute('meta[name="robots"]', "content")), `${tag}: meta robots noindex`);
         const tarjetas = await p.$$eval("[data-tarjeta-de-seccion]", (els) => els.map((e) => e.getAttribute("href")));
         exigir(tarjetas.length === SECCIONES.length, `${tag}: el índice tiene ${SECCIONES.length} secciones (${tarjetas.length})`);
         exigir(
-            JSON.stringify(tarjetas) === JSON.stringify(SECCIONES.map((s) => `/guia/leads/${s.slug}`)),
+            JSON.stringify(tarjetas) === JSON.stringify(SECCIONES.map((s) => `/guia/${GUIA}/${s.slug}`)),
             `${tag}: las tarjetas van en el orden de la guía (${tarjetas.join(", ")})`,
         );
         const duracion = await p.$eval("[data-video-de-la-guia]", (v) => new Promise((ok) => {
@@ -119,4 +123,4 @@ if (fallos.length) {
     console.error(`\n${fallos.length} fallos:\n - ${fallos.join("\n - ")}`);
     process.exit(1);
 }
-console.log("\nla guía pública se sirve bien");
+console.log(`\nla guía pública de ${GUIA} se sirve bien`);

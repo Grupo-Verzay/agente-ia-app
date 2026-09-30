@@ -14,8 +14,16 @@
 export type Introduccion = { titulo: string; subtitulo: string; descripcion: string };
 
 /** Los módulos con guía pública. La llave de la tabla y el `/guia/<modulo>`. */
-export const MODULOS_CON_GUIA = ["leads"] as const;
+export const MODULOS_CON_GUIA = ["leads", "reuniones"] as const;
 export type ModuloConGuia = (typeof MODULOS_CON_GUIA)[number];
+
+/**
+ * Cómo se llama cada módulo con guía, escrito UNA vez: lo usan el editor de
+ * Documentación › Administrador guías y el mensaje de «Contáctanos». Con el
+ * nombre en cada sitio, la guía nueva saldría con su clave cruda («reuniones»)
+ * en el WhatsApp de contacto.
+ */
+export const NOMBRE_DEL_MODULO: Record<ModuloConGuia, string> = { leads: "Leads", reuniones: "Reuniones" };
 
 export const TOPES: Record<keyof Introduccion, number> = {
     titulo: 80,

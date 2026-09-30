@@ -7,7 +7,7 @@ import {
     FinDeLaGuia,
     IntroduccionDeLaGuia,
 } from "@/components/guia/Guia";
-import { GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
+import { CARPETA_DE_CAPTURAS, GUIA_LEADS, PORTADA_DEL_VIDEO, SECCIONES, VIDEO_DE_DEMOSTRACION } from "@/lib/guia-leads";
 import { laIntroduccionPublica } from "@/lib/introduccion-publica.server";
 import { elContactoDeLaGuia } from "@/lib/contacto-de-la-guia.server";
 
@@ -72,6 +72,7 @@ export default async function IndiceDeLaGuiaDeLeads() {
                     <CuadriculaDeSecciones
                         secciones={SECCIONES}
                         moduloPath="/guia/leads"
+                        carpeta={CARPETA_DE_CAPTURAS}
                         contactoHref={contactoHref}
                         videoHref="#demostracion"
                     />

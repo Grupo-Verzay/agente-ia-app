@@ -23104,6 +23104,74 @@ Lo prueba `lib/__tests__/guia-leads.test.mjs` (y el vídeo, en su banco);
 los grupos ni las acciones de exportar y de riesgo alto (Activar y Desactivar
 clientes sí salían, de pasada, en un consejo de Sesión).
 
+### La segunda guía, Reuniones (`/guia/reuniones`): las MISMAS piezas, y el contenido atado al código
+
+Nueve secciones —la pantalla de un vistazo, abrir una reunión, las abiertas,
+los mandos, cómo ver la reunión, invitados, chat y gente, grabar y las
+pasadas— con sus capturas, su miniatura con enfoque y el vídeo narrado de un
+minuto. Mismo estándar que Leads, y no por copiarlo:
+
+> **Lo común de una guía vive una vez.** La forma de un paso y de una sección
+> en `lib/guia.ts`; las piezas en `components/guia/Guia.tsx`, que reciben SIEMPRE
+> la carpeta de capturas y la ruta del módulo (sin valor por defecto: con el de
+> Leads escrito dentro, una guía nueva que se olvidara de pasarlos enseñaría las
+> capturas de Leads sin ningún error); las herramientas de captura —entrar,
+> medir, marcar, fotografiar, el marco de la pantalla, el cursor del vídeo— en
+> `scripts/herramientas-de-la-guia.mjs`. Lo propio de cada guía son sus recetas
+> y su guion. Y la lista de guías (`MODULOS_CON_GUIA`, `NOMBRE_DEL_MODULO`)
+> alimenta el editor de introducciones y el «Contáctanos», que ya no escriben
+> «leads» a mano.
+
+Cinco cosas que hay que mantener:
+
+1. **El contenido se compara con el CÓDIGO** (`guia-reuniones.test.mjs`): las
+   pestañas con las `PastillaDeFiltro`, las acciones de la fila con `FilaViva`,
+   las caducidades con `DURACIONES`, los seis mandos de abajo con la barra, los
+   botones de la cabecera con cada `MandoDeCabecera` (y ninguno sobra), las
+   opciones de grabar y del fondo con sus menús, y los números (4 personas, 2
+   minutos la mano, 90 días de historial, 180 de grabación) con sus
+   constantes. Un mando nuevo sin su nombre en la guía la pone en rojo.
+2. **La reunión se captura con TRES personas de verdad** —la anfitriona, un
+   invitado que llama a la puerta y Sofía, del equipo— en tres navegadores,
+   con cámaras y micrófonos de mentira (`scripts/camaras-de-la-guia.mjs`):
+   personas ILUSTRADAS (la guía es pública: ninguna cara real) y solo quien
+   habla lleva voz, que es lo que decide quién sale en grande. Sin ficheros,
+   Chromium pone su patrón verde y un pitido que «habla».
+3. **La semilla corre en la zona de la cuenta** (`TZ=America/Bogota`): con la
+   del contenedor (UTC) las pasadas salían a las 5 de la mañana.
+4. **El vídeo NO enciende el desenfoque**: lo señala y cierra el menú. El
+   desenfoque corre un modelo de segmentación en el procesador y, con tres
+   cámaras en la misma máquina, lo que quedaba del minuto se estiraba a más de
+   cuatro (medido: 266 s). Y arranca **sin las preferencias de la sala**
+   (`reunion:*` de `localStorage`): las capturas la dejan en cuadrícula y con el
+   panel abierto, y el vídeo tiene que empezar como la ve quien entra.
+5. **Regenerar**: `npm run build && scripts/generar-guia-reuniones.sh`
+   (`SOLO_VIDEO=1` solo el vídeo) y volver a construir. El guion se cae con una
+   captura si Sofía no ve la reunión en su lista —con tres navegadores el
+   servidor va lento y se insiste unas veces—; un plazo agotado a secas no dice
+   por qué.
+
+#### Y las capturas destaparon tres fallos de la sala, que ya están arreglados
+
+| lo que se veía | la causa | el arreglo |
+| --- | --- | --- |
+| el «⋯» de moderar de un recuadro **no se abría** dentro de la plataforma | su menú iba en un portal al `<body>`, en `z-50`, y la reunión vive en una capa `z-[99]`: se abría DETRÁS | el menú se monta en la capa de la reunión (`container`), como ya hacían los del fondo y de grabar |
+| el «⋯» del recuadro grande tapaba el botón del chat | el «⋯» va `z-30` arriba a la derecha, y la cabecera flota encima de los recuadros de arriba | `laAlturaDelMenuDelRecuadro` lo baja lo que mide la cabecera, solo en los recuadros que tocan arriba |
+| «Esperando a que te dejen entrar» casi negro sobre casi negro | `Centrada` no llevaba fondo ni color: heredaba el texto de la plataforma sobre la pestaña oscura del invitado | la caja lleva el fondo y el texto de la sala (`bg-zinc-950`, `text-zinc-100`) |
+
+El primero lo prueba `banco-controles-de-la-reunion.sh` (con la reunión encima
+de una capa como la de la plataforma, el menú se VE; portado al `body`, el
+banco lo ve detrás), el segundo `sala-de-video.test.mjs` y el tercero
+`guia-reuniones.test.mjs`.
+
+Lo prueba `scripts/banco-guia-reuniones.sh`: el contenido contra el código, el
+vídeo (Cedar a ritmo de conversación, sin huecos, el rótulo cambiando cuando
+empieza cada frase y la imagen acabando con la voz), las miniaturas con la
+MISMA vara que las de Leads (`medir-miniatura.mjs`; el umbral de lo nítido es
+algo más bajo porque la sala es oscura) y la guía servida sin sesión con el
+probador de Leads (`GUIA=reuniones`). `MODO=roto` lee `24ba0b2` y afirma que no
+había guía, ni vídeo, ni miniaturas, y la espera ilegible.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

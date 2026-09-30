@@ -33,6 +33,29 @@ import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-m
 import { NARRACION, comoSeDice } from "./narracion-guia-leads.mjs";
 import { RITMO, guardarWav, mezclar, montarLaPista, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
 import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
+import {
+    caja,
+    cerrarLoAbierto,
+    dentro,
+    desmarcar,
+    despejar,
+    dondeAcabaElMenu,
+    elGuardado,
+    elMarcoDeLaPantalla,
+    elMenuLateral,
+    entrar,
+    espera,
+    holgura,
+    LA_BARRA_DE_ARRIBA,
+    lasPartesDeArriba,
+    loQuePintaElMenu,
+    marcar,
+    mover,
+    pulsar,
+    quitarAvisos,
+    rotulo,
+    unir,
+} from "./herramientas-de-la-guia.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -56,39 +79,8 @@ mkdirSync(SALIDA, { recursive: true });
 mkdirSync(TMP, { recursive: true });
 
 const tomadas = new Set();
-const espera = (p, ms) => p.waitForTimeout(ms);
-
-async function entrar(contexto) {
-    const p = await contexto.newPage();
-    await p.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
-    await espera(p, 2500);
-    await p.fill('input[name="email"]', "jefe@banco.test");
-    await p.fill('input[name="password"]', "banco1234");
-    await p.click('button[type="submit"]');
-    for (let i = 0; i < 120 && p.url().includes("/login"); i += 1) await espera(p, 500);
-    if (p.url().includes("/login")) throw new Error("no se pudo entrar: la página sigue en /login");
-    return p;
-}
-
-/** Lo que tapa la pantalla y no es parte de la guía: la «Guía rápida» y los avisos que queden. */
-async function despejar(p) {
-    for (let i = 0; i < 4; i += 1) {
-        const dialogo = await p.$('[role="dialog"]');
-        if (!dialogo) break;
-        await p.keyboard.press("Escape");
-        await espera(p, 350);
-    }
-}
-
-/**
- * Se ESPERA a que los avisos se vayan solos: quitarlos del DOM a mano rompe
- * el estado de sonner y el aviso siguiente ya no sale.
- */
-async function quitarAvisos(p) {
-    await p.mouse.move(10, 450);
-    await p.waitForFunction(() => document.querySelectorAll("[data-sonner-toast]").length === 0, null, { timeout: 20000 }).catch(() => {});
-    await espera(p, 300);
-}
+/** Las marcas, el guardado y el ratón son los de todas las guías (`herramientas-de-la-guia.mjs`). */
+const guardar = elGuardado({ salida: SALIDA, tomadas });
 
 async function abrirLeads(p) {
     await p.goto(`${BASE}/sessions`, { waitUntil: "domcontentloaded" });
@@ -106,36 +98,6 @@ async function abrirLeads(p) {
 /* ------------------------------------------------------------------ */
 /* Medir                                                               */
 /* ------------------------------------------------------------------ */
-
-async function caja(p, selector) {
-    const el = typeof selector === "string" ? p.locator(selector).first() : selector;
-    // Una fila que se vuelve a pintar (tras un interruptor) puede soltar el
-    // nodo entre «visible» y la medida: se vuelve a intentar antes de rendirse.
-    let b = null;
-    for (let i = 0; i < 6 && !b; i += 1) {
-        await el.waitFor({ state: "visible", timeout: 20000 });
-        b = await el.boundingBox();
-        if (!b) await espera(p, 400);
-    }
-    if (!b) throw new Error(`sin caja: ${selector}`);
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-}
-
-function unir(...cajas) {
-    const x = Math.min(...cajas.map((c) => c.x));
-    const y = Math.min(...cajas.map((c) => c.y));
-    const r = Math.max(...cajas.map((c) => c.x + c.w));
-    const b = Math.max(...cajas.map((c) => c.y + c.h));
-    return { x, y, w: r - x, h: b - y };
-}
-
-function holgura(c, px, vista) {
-    const x = Math.max(0, c.x - px);
-    const y = Math.max(0, c.y - px);
-    const r = Math.min(vista.width, c.x + c.w + px);
-    const b = Math.min(vista.height, c.y + c.h + px);
-    return { x, y, w: r - x, h: b - y };
-}
 
 /** La columna entera de la tabla: su encabezado y las `filas` primeras celdas. */
 async function laColumna(p, rotulo, filas = 6) {
@@ -182,25 +144,6 @@ async function celdaDe(p, nombre, rotulo) {
 /* Lo que rodea a la pantalla: el menú y la barra de arriba            */
 /* ------------------------------------------------------------------ */
 
-/** El menú de la izquierda que se VE (en un teléfono hay otro, dentro de una hoja). */
-const elMenuLateral = (p) => p.locator('[data-sidebar="sidebar"]').filter({ visible: true }).first();
-const LA_BARRA_DE_ARRIBA = "[data-barra-de-arriba]";
-/** El velo de `marcar` (rgba(15,23,42,0.55)) sobre el fondo blanco. */
-const VELO_SOBRE_BLANCO = "#7b7f8a";
-
-/**
- * Las partes de la barra de arriba, en el orden de `PARTES_DE_LA_BARRA_DE_ARRIBA`
- * (`lib/guia-leads.ts`): el banco exige que sean las mismas y en ese orden.
- */
-const lasPartesDeArriba = (p) => [
-    p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]'),
-    p.locator("[data-alternar-bandeja]"),
-    p.locator("[data-botones-de-la-barra] button", { hasText: "Ver tutoriales" }),
-    p.locator('button[title="Buscar clientes, chats, tareas, productos o flujos"]'),
-    p.locator('button[aria-label="Pedir soporte"]'),
-    p.locator('button[aria-label="Centro de notificaciones"]'),
-];
-
 /** El pie de la tabla: «Mostrando…» y las flechas de página. */
 async function elPie(p) {
     return p.evaluate(() => {
@@ -218,35 +161,6 @@ async function laTablaHastaElPie(p, pie) {
     }, pie);
 }
 
-/** El borde de abajo del último módulo del menú: debajo queda hueco para el número. */
-async function dondeAcabaElMenu(p) {
-    return p.evaluate(() => {
-        const menu = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((m) => m.getBoundingClientRect().width > 0);
-        const botones = [...menu.querySelectorAll('[data-sidebar="content"] [data-sidebar="menu-button"]')];
-        return Math.max(...botones.map((b) => b.getBoundingClientRect().bottom));
-    });
-}
-
-/**
- * Lo que pinta el menú RECOGIDO, módulo por módulo: su nombre y si lleva
- * icono. Se guarda en `scripts/menu-guia-leads.json` y lo lee el banco: un
- * módulo sin icono sale como letras recortadas («C…»), que es exactamente como
- * se veía la primera versión de la guía.
- */
-async function loQuePintaElMenu(p) {
-    return p.evaluate(() => {
-        const menu = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((m) => m.getBoundingClientRect().width > 0);
-        const botones = [...menu.querySelectorAll('[data-sidebar="content"] [data-sidebar="menu-button"]')];
-        return {
-            recogido: menu.getBoundingClientRect().width < 80,
-            modulos: botones.map((b) => ({
-                nombre: (b.textContent ?? "").trim(),
-                conIcono: b.firstElementChild?.tagName.toLowerCase() === "svg",
-            })),
-        };
-    });
-}
-
 /* ------------------------------------------------------------------ */
 /* Las acciones masivas: el menú «⋯» del final de la barra             */
 /* ------------------------------------------------------------------ */
@@ -261,16 +175,6 @@ async function abrirLasMasivas(p) {
     await menu.waitFor({ state: "visible", timeout: 10000 });
     await espera(p, 500); // la animación de entrada mueve y encoge el menú: se mide quieto
     return menu;
-}
-
-/** Cierra un menú o un diálogo que siga abierto, sin tocar nada de la página. */
-async function cerrarLoAbierto(p) {
-    for (let i = 0; i < 3; i += 1) {
-        const abierto = await p.$('[role="menu"], [role="alertdialog"]');
-        if (!abierto) break;
-        await p.keyboard.press("Escape");
-        await espera(p, 350);
-    }
 }
 
 /**
@@ -300,128 +204,6 @@ async function losGruposDelMenu(p) {
             };
         });
     });
-}
-
-/* ------------------------------------------------------------------ */
-/* Marcar                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Pinta las marcas encima de la pantalla real. Cada marca: `c` (la caja),
- * `n` (un número en su esquina), `texto` + `lado` (un rótulo con flecha).
- * `atenuar` apaga todo lo que no está marcado.
- */
-async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
-    await p.evaluate(
-        ({ marcas, atenuar, escala }) => {
-            document.getElementById("__guia")?.remove();
-            const NS = "http://www.w3.org/2000/svg";
-            const W = window.innerWidth;
-            const H = window.innerHeight;
-            const AZUL = "#2563EB";
-            const svg = document.createElementNS(NS, "svg");
-            svg.id = "__guia";
-            svg.setAttribute("width", W);
-            svg.setAttribute("height", H);
-            Object.assign(svg.style, { position: "fixed", inset: "0", zIndex: 2147483647, pointerEvents: "none" });
-            // Dentro del documento DESDE EL PRINCIPIO: fuera de él
-            // `getComputedTextLength` da 0 y el rótulo sale sin fondo.
-            document.body.appendChild(svg);
-            const el = (tag, attrs, padre = svg) => {
-                const n = document.createElementNS(NS, tag);
-                for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-                padre.appendChild(n);
-                return n;
-            };
-            // `escala` engorda el recuadro de una MINIATURA, que se ve a una
-            // cuarta parte: a escala 1 su trazo se quedaría en medio píxel.
-            const PAD = 5 * escala;
-            const RX = 10 * escala;
-            const defs = el("defs", {});
-            const flecha = el("marker", { id: "punta", markerWidth: 10, markerHeight: 10, refX: 7, refY: 5, orient: "auto" }, defs);
-            el("path", { d: "M0,0 L10,5 L0,10 z", fill: AZUL }, flecha);
-            if (atenuar) {
-                const m = el("mask", { id: "velo" }, defs);
-                el("rect", { x: 0, y: 0, width: W, height: H, fill: "white" }, m);
-                for (const { c } of marcas) el("rect", { x: c.x - PAD, y: c.y - PAD, width: c.w + 2 * PAD, height: c.h + 2 * PAD, rx: RX, fill: "black" }, m);
-                el("rect", { x: 0, y: 0, width: W, height: H, fill: "rgba(15,23,42,0.55)", mask: "url(#velo)" });
-            }
-            for (const { c, n, texto, lado = "arriba", esquina = "izquierda", borde = "arriba", numeroEn, soloLuz } of marcas) {
-                // `soloLuz`: se ve sin velo, pero sin recuadro (el menú entero
-                // alrededor de la parte que se señala).
-                if (soloLuz) continue;
-                const r = { x: c.x - PAD, y: c.y - PAD, w: c.w + 2 * PAD, h: c.h + 2 * PAD };
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 * escala });
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: AZUL, "stroke-width": 3 * escala });
-                if (n !== undefined) {
-                    // Dónde va el número: por defecto en la esquina de arriba.
-                    // `borde: "abajo"` para lo que está pegado al borde de la
-                    // pantalla (la barra de arriba no tiene «encima»), y
-                    // `numeroEn` para ponerlo donde no tape nada (el menú).
-                    const bx = numeroEn ? numeroEn.x : esquina === "derecha" ? r.x + r.w : esquina === "centro" ? r.x + r.w / 2 : r.x;
-                    const by = numeroEn ? numeroEn.y : borde === "abajo" ? r.y + r.h : r.y;
-                    const cx = Math.min(Math.max(bx, 15), W - 15);
-                    const cy = Math.min(Math.max(by, 15), H - 15);
-                    el("circle", { cx, cy, r: 13, fill: AZUL, stroke: "white", "stroke-width": 2.5 });
-                    const t = el("text", { x: cx, y: cy + 5, "text-anchor": "middle", fill: "white", "font-size": 14, "font-weight": 700, "font-family": "Poppins, Arial, sans-serif" });
-                    t.textContent = String(n);
-                }
-                if (texto) {
-                    const g = el("g", {});
-                    const t = el("text", { x: 0, y: 0, fill: "white", "font-size": 14, "font-weight": 600, "font-family": "Poppins, Arial, sans-serif" }, g);
-                    t.textContent = texto;
-                    const ancho = t.getComputedTextLength() + 24;
-                    const alto = 30;
-                    const SEP = 46;
-                    let px;
-                    let py;
-                    let ax;
-                    let ay;
-                    if (lado === "arriba" || lado === "abajo") {
-                        px = Math.min(Math.max(r.x + r.w / 2 - ancho / 2, 8), W - ancho - 8);
-                        py = lado === "arriba" ? r.y - SEP - alto : r.y + r.h + SEP;
-                        ax = r.x + r.w / 2;
-                        ay = lado === "arriba" ? r.y - 4 : r.y + r.h + 4;
-                        const desde = { x: Math.min(Math.max(ax, px + 14), px + ancho - 14), y: lado === "arriba" ? py + alto : py };
-                        el("line", { x1: desde.x, y1: desde.y, x2: ax, y2: ay, stroke: AZUL, "stroke-width": 2.5, "marker-end": "url(#punta)" });
-                    } else {
-                        py = Math.min(Math.max(r.y + r.h / 2 - alto / 2, 8), H - alto - 8);
-                        px = lado === "izquierda" ? r.x - SEP - ancho : r.x + r.w + SEP;
-                        ax = lado === "izquierda" ? r.x - 4 : r.x + r.w + 4;
-                        ay = r.y + r.h / 2;
-                        el("line", { x1: lado === "izquierda" ? px + ancho : px, y1: py + alto / 2, x2: ax, y2: ay, stroke: AZUL, "stroke-width": 2.5, "marker-end": "url(#punta)" });
-                    }
-                    const fondo = document.createElementNS(NS, "rect");
-                    for (const [k, v] of Object.entries({ x: px, y: py, width: ancho, height: alto, rx: 15, fill: AZUL })) fondo.setAttribute(k, v);
-                    g.insertBefore(fondo, t);
-                    t.setAttribute("x", px + 12);
-                    t.setAttribute("y", py + 20);
-                    svg.appendChild(g);
-                }
-            }
-        },
-        { marcas, atenuar, escala },
-    );
-}
-
-const desmarcar = (p) => p.evaluate(() => document.getElementById("__guia")?.remove());
-
-/** Foto → webp. Las de pantalla completa se bajan a 1600 de ancho; los zoom conservan su nitidez. */
-async function guardar(p, nombre, clip, { margenArriba = 0, fondo = "#ffffff" } = {}) {
-    let buf = await p.screenshot(clip ? { clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } } : {});
-    // Lo que va pegado al borde de arriba de la pantalla (la barra de arriba)
-    // no tiene «encima»: se le añade un margen para que su recuadro se vea entero.
-    if (margenArriba) {
-        const porPx = (await sharp(buf).metadata()).width / (clip ? clip.w : p.viewportSize().width);
-        buf = await sharp(buf).extend({ top: Math.round(margenArriba * porPx), background: fondo }).toBuffer();
-    }
-    const ancho = (await sharp(buf).metadata()).width;
-    await sharp(buf)
-        .resize({ width: Math.min(ancho, 1600), withoutEnlargement: true })
-        .webp({ quality: 82 })
-        .toFile(path.join(SALIDA, nombre));
-    tomadas.add(nombre);
-    console.log("  ✓", nombre);
 }
 
 /* ------------------------------------------------------------------ */
@@ -495,7 +277,6 @@ async function capturas(p) {
     // 1. Vista general: las cinco zonas, en el orden de `ZONAS_DE_LA_PANTALLA`.
     // El menú y la barra de arriba van metidos unos píxeles: pegados al borde
     // de la pantalla, su recuadro se saldría y se montaría sobre el del vecino.
-    const dentro = (c, px) => ({ x: c.x + px, y: c.y + px, w: c.w - 2 * px, h: c.h - 2 * px });
     const cMenuLateral = await caja(p, elMenuLateral(p));
     const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
     const cPie = await elPie(p);
@@ -750,73 +531,7 @@ async function capturas(p) {
     await alerta.waitFor({ state: "hidden", timeout: 10000 });
     await espera(p, 400);
 
-    await elMarcoDeLaPantalla(p);
-}
-
-/**
- * El marco que rodea a Leads —la barra de arriba y el menú de la izquierda—,
- * fotografiado en una ventana de PORTÁTIL. A 1440 la barra sale en una tira
- * tan larga que en la página sus iconos se leen de 6 px, y el menú abierto
- * de alto entero ocupa más de una pantalla de la guía. Se vuelve a la
- * ventana de antes al terminar.
- */
-async function elMarcoDeLaPantalla(p) {
-    const vista = p.viewportSize();
-    const cambiarA = async (tam) => {
-        await p.setViewportSize(tam);
-        await espera(p, 1200);
-    };
-
-    // La barra de arriba: pegada al borde, así que los números van DEBAJO.
-    await cambiarA({ width: 1024, height: 700 });
-    const cCabecera = await caja(p, LA_BARRA_DE_ARRIBA);
-    const cajasDeArriba = [];
-    for (const parte of lasPartesDeArriba(p)) cajasDeArriba.push(await caja(p, parte.first()));
-    await marcar(p, cajasDeArriba.map((c, i) => ({ c, n: i + 1, borde: "abajo" })), { atenuar: true });
-    // El margen de arriba lleva el color del velo sobre blanco: así continúa la pantalla.
-    await guardar(p, "barra-de-arriba.webp", { x: cCabecera.x - 12, y: 0, w: cCabecera.w + 12, h: cCabecera.h + 16 }, { margenArriba: 12, fondo: VELO_SOBRE_BLANCO });
-    await desmarcar(p);
-
-    // El menú, ABIERTO con las dos flechas, como lo abre un cliente: entero y
-    // a la vista, con Contactos señalado; lo de al lado, bajo el velo. Abrirlo
-    // corre la pantalla, así que se vuelve a recoger antes de seguir (y el
-    // vídeo, que sale del estado de esta sesión, lo encuentra recogido: el
-    // menú se guarda en una cookie).
-    await cambiarA({ width: 1280, height: 720 });
-    await elMenuAbierto(p, true);
-    const lateral = elMenuLateral(p);
-    const cLateral = await caja(p, lateral);
-    const contactos = lateral.locator('[data-sidebar="menu-item"]', {
-        has: p.locator('[data-sidebar="menu-button"]', { hasText: "Contactos" }),
-    });
-    await marcar(
-        p,
-        [{ c: cLateral, soloLuz: true }, { c: await caja(p, contactos.first()), texto: "Leads está en Contactos", lado: "derecha" }],
-        { atenuar: true },
-    );
-    await guardar(p, "menu-lateral.webp", { x: 0, y: 0, w: Math.min(1280, cLateral.w + 520), h: 720 });
-    await desmarcar(p);
-    await elMenuAbierto(p, false);
-    await cambiarA(vista);
-}
-
-/** Abre o recoge el menú con las dos flechas de la barra, y espera a que termine de moverse. */
-async function elMenuAbierto(p, abierto) {
-    const ancho = async () => (await caja(p, elMenuLateral(p))).w;
-    if ((await ancho()) > 80 === abierto) return;
-    await p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]').click();
-    await p.waitForFunction(
-        (abierto) => {
-            const m = [...document.querySelectorAll('[data-sidebar="sidebar"]')].find((x) => x.getBoundingClientRect().width > 0);
-            return m && m.getBoundingClientRect().width > 80 === abierto;
-        },
-        abierto,
-        { timeout: 10000 },
-    );
-    // La transición del ancho dura 200 ms; se deja que acabe y que el contenido se recoloque.
-    await espera(p, 700);
-    const { width, height } = p.viewportSize();
-    await p.mouse.move(width / 2, height - 20);
+    await elMarcoDeLaPantalla(p, guardar, { modulo: "Contactos", rotulo: "Leads está en Contactos" });
 }
 
 async function pintarElCsv(p, fichero, nombre) {
@@ -849,20 +564,6 @@ async function pintarElCsv(p, fichero, nombre) {
 /* ------------------------------------------------------------------ */
 /* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
-
-async function mover(p, locator) {
-    const b = await locator.boundingBox();
-    await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
-    await espera(p, 250);
-}
-async function pulsar(p, locator) {
-    await mover(p, locator);
-    await p.mouse.down();
-    await espera(p, 90);
-    // El clic lo hace el ratón (así el vídeo lo enseña): no se vuelve a pulsar.
-    await p.mouse.up();
-}
-const rotulo = (p, t) => p.evaluate((t) => window.__rotulo?.(t), t);
 
 /**
  * Entre una frase y la siguiente, lo que respira una persona hablando. Era
@@ -1091,7 +792,7 @@ try {
         timezoneId: "America/Bogota",
         acceptDownloads: true,
     });
-    const p = await entrar(ctx);
+    const p = await entrar(ctx, BASE);
     await abrirLeads(p);
     if (!SOLO_VIDEO) await miniaturas(p);
     if (!SOLO_MINIATURAS && !SOLO_VIDEO) await capturas(p);
