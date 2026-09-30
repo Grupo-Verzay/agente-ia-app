@@ -1,14 +1,18 @@
 'use client';
 
-import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { VentaSerializada } from '@/actions/finance-sales-actions';
 
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-import { Pencil, Trash2, Eye } from 'lucide-react';
+import { AccionesDeLaFila } from '../../_components/AccionesDeLaFila';
+import {
+  columnaDeCategoria,
+  columnaDeConcepto,
+  columnaDeCuentaDeFinanzas,
+  columnaDeFecha,
+  columnaDeSoportes,
+  columnaDeTotal,
+} from '../../_components/ColumnasDeMovimientos';
+import { elTotalDeLaVenta, type MonedaDeFinanzas } from '@/lib/tabla-de-finanzas';
 
 /**
  * Una fila de la tabla de ventas es, literalmente, lo que devuelve
@@ -20,8 +24,9 @@ import { Pencil, Trash2, Eye } from 'lucide-react';
 export type SaleTxRow = VentaSerializada;
 
 type BuildColsArgs = {
+  monedas: readonly MonedaDeFinanzas[];
   onEdit: (row: SaleTxRow) => void;
-  onDelete: (id: string) => void;
+  onDelete: (row: SaleTxRow) => Promise<boolean>;
   busy?: boolean;
   /**
    * Una fila de otra cuenta se ve y no se toca. Las acciones de escritura de
@@ -32,112 +37,30 @@ type BuildColsArgs = {
   esDeOtraCuenta?: (row: SaleTxRow) => boolean;
 };
 
-export function buildSalesColumns({ onEdit, onDelete, busy, esDeOtraCuenta }: BuildColsArgs): ColumnDef<SaleTxRow>[] {
+/** Las columnas de Ventas: las mismas que Gastos, en el mismo orden (`ColumnasDeMovimientos`). */
+export function buildSalesColumns({ monedas, onEdit, onDelete, busy, esDeOtraCuenta }: BuildColsArgs): ColumnDef<SaleTxRow>[] {
   return [
-    {
-      accessorKey: 'title',
-      header: 'Concepto',
-      cell: ({ row }) => {
-        const v = row.original?.title || 'Sin concepto';
-        return <p className="truncate text-sm font-medium">{v}</p>;
-      },
-    },
-    {
-      accessorKey: 'currencyCode',
-      header: 'Moneda',
-      cell: ({ row }) => (
-        <Badge variant="outline" className="h-6 text-[11px]">
-          {row.original?.currencyCode || '—'}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: 'occurredAt',
-      header: 'Fecha',
-      cell: ({ row }) => {
-        const d = row.original?.occurredAt ? new Date(row.original.occurredAt) : null;
-        const text = d ? d.toISOString().slice(0, 10) : '—';
-        return <span className="text-sm">{text}</span>;
-      },
-    },
+    columnaDeConcepto<SaleTxRow>((f) => f.title),
+    columnaDeCategoria<SaleTxRow>(),
+    columnaDeTotal<SaleTxRow>(monedas, (f) => elTotalDeLaVenta(f)),
+    columnaDeFecha<SaleTxRow>(),
+    columnaDeCuentaDeFinanzas<SaleTxRow>(),
+    columnaDeSoportes<SaleTxRow>(),
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => {
-        const original = row.original;
-        if (esDeOtraCuenta?.(original)) {
-          return <span className="block text-right text-xs text-muted-foreground">—</span>;
-        }
-
-        return (
-          <div className="flex justify-end gap-1">
-            {/* VER (si lo usas) */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Si tu "ver" es abrir detalle, aquí puedes dispararlo.
-                    // Pero normalmente el detalle se abre al click de la fila,
-                    // entonces este botón podría sobrar.
-                  }}
-                  disabled={busy}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver</TooltipContent>
-            </Tooltip>
-
-            {/* EDITAR */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation(); // evita abrir el detalle
-                    onEdit(original);
-                  }}
-                  disabled={busy}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Editar</TooltipContent>
-            </Tooltip>
-
-            {/* ELIMINAR */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="destructive"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation(); // evita abrir el detalle
-                    onDelete(original.id);
-                  }}
-                  disabled={busy}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Eliminar</TooltipContent>
-            </Tooltip>
-          </div>
-        );
-      },
+      enableHiding: false,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <AccionesDeLaFila
+          queEs="la venta"
+          nombre={row.original.title}
+          ajena={esDeOtraCuenta?.(row.original)}
+          ocupado={busy}
+          onEditar={() => onEdit(row.original)}
+          onEliminar={() => onDelete(row.original)}
+        />
+      ),
     },
   ];
 }

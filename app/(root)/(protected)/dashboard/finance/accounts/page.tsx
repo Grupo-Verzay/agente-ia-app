@@ -57,6 +57,7 @@ export default async function FinanceAccountsPage() {
       currencies={currencies}
       sales={sales}
       expenses={expenses}
+      primaryCurrencyCode={me.preferredCurrencyCode || "COP"}
     />
   );
 }

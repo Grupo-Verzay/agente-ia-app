@@ -287,6 +287,26 @@ export async function deleteExpense(id: string, userIdPedido: string): Promise<E
 }
 
 /**
+ * Elimina (soft-delete) TODOS los gastos de la cuenta. Es la hermana de
+ * `deleteAllSales`: Ventas tenía «Eliminar todas» y Gastos no, así que la misma
+ * limpieza se podía hacer en una pantalla y en la otra había que ir de a uno.
+ */
+export async function deleteAllExpenses(userIdPedido: string): Promise<ExpenseOperationResponse> {
+  const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
+  try {
+    if (!userId) return { success: false, message: 'No existe el userId.' };
+    const deleted = await db.financeTransaction.updateMany({
+      where: { userId, type: 'EXPENSE', status: { not: FinanceTxStatus.DELETED } },
+      data: { status: FinanceTxStatus.DELETED, deletedAt: new Date() },
+    });
+    return { success: true, message: `${deleted.count} gasto(s) eliminado(s).` };
+  } catch (error) {
+    console.error('deleteAllExpenses error:', error);
+    return { success: false, message: 'Error al eliminar los gastos.' };
+  }
+}
+
+/**
  *  Adjuntar soportes (recibos) a un gasto
  */
 export async function addExpenseAttachments(params: {

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import { DataTable } from './data-table';
+import { TablaDeFinanzas } from '../_components/TablaDeFinanzas';
+import { elNombreDelContacto, elNumeroDelContacto } from '@/lib/tabla-de-finanzas';
 import { buildContactsColumns, type FinanceContactRow } from './columns';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
@@ -31,7 +32,7 @@ import {
 } from '@/lib/finance-contact-fields';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,9 +48,9 @@ import { eliminarContactosDeFinanzasAction } from '@/actions/borrado-en-bloque-a
 
 type ContactOption = { id: number; pushName?: string | null; customName?: string | null; remoteJid: string };
 
-const LABELS: Record<FinanceContactKind, { singular: string; plural: string }> = {
-  SUPPLIER: { singular: 'Proveedor', plural: 'Proveedores' },
-  CLIENT: { singular: 'Cliente', plural: 'Clientes' },
+const LABELS: Record<FinanceContactKind, { singular: string; plural: string; articulo: string }> = {
+  SUPPLIER: { singular: 'Proveedor', plural: 'Proveedores', articulo: 'el proveedor' },
+  CLIENT: { singular: 'Cliente', plural: 'Clientes', articulo: 'el cliente' },
 };
 
 type Props = {
@@ -64,18 +65,10 @@ type Props = {
   cuentasElegidas?: string[];
 };
 
-// Auto-nombres que WhatsApp asigna a mensajes propios/salientes (no son el
-// nombre real del contacto): "Você"=tú (pt), "You", "Tú"...
-const SELF_PUSHNAMES = new Set(['você', 'voce', 'tú', 'tu', 'you', 'yo']);
-/** Solo el número, sin el sufijo @s.whatsapp.net ni el :device. */
-const cleanPhone = (jid?: string | null) => (jid ?? '').replace(/@.*/, '').split(':')[0];
-/** Nombre visible del contacto: su nombre real, o el número si no tiene nombre
- *  o es un auto-nombre de WhatsApp ("Você"...). Nunca muestra el @jid crudo. */
-const contactDisplayName = (name?: string | null, jid?: string | null) => {
-  const n = (name ?? '').trim();
-  if (n && !SELF_PUSHNAMES.has(n.toLowerCase())) return n;
-  return cleanPhone(jid);
-};
+// El nombre y el número de un contacto de WhatsApp los decide
+// `lib/tabla-de-finanzas.ts`: el selector de contacto de Ventas los usa igual.
+const cleanPhone = elNumeroDelContacto;
+const contactDisplayName = elNombreDelContacto;
 
 function FieldWrap({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -217,16 +210,18 @@ export default function MainFinanceContacts({
     });
   };
 
-  const onDelete = (id: string) => {
-    startTransition(() => {
-      void (async () => {
-        const res = await deleteFinanceContact(id, userId);
-        if (!res.success) return toast.error(res.message);
-        setRows((prev) => prev.filter((r) => r.id !== id));
-        toast.success(`${labels.singular} eliminado`);
-        router.refresh();
-      })();
-    });
+  // Devuelve si se borró: la confirmación se queda abierta si el servidor dice
+  // que no. Antes la papelera borraba sin preguntar.
+  const onDelete = async (row: FinanceContactRow): Promise<boolean> => {
+    const res = await deleteFinanceContact(row.id, userId);
+    if (!res.success) {
+      toast.error(res.message);
+      return false;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    toast.success(`${labels.singular} eliminado`);
+    router.refresh();
+    return true;
   };
 
   const consolidando = estaConsolidando(cuentasElegidas);
@@ -249,6 +244,7 @@ export default function MainFinanceContacts({
     () => {
       const propias = buildContactsColumns({
         fields: config,
+        queEs: labels.articulo,
         onEdit: openEdit,
         onDelete,
         busy: isPending,
@@ -393,33 +389,34 @@ export default function MainFinanceContacts({
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
       <Card className="border-border flex-1 min-h-0 flex flex-col">
         <CardHeader className="py-3 flex-1 min-h-0 flex flex-col">
-          {/* Sin título: los botones "Configurar campos" y "+ Nuevo…" van en la
-              barra de la tabla, junto a Columnas. */}
+          {/* «Campos» no acota la lista: es lo que se hace sobre la lista entera,
+              así que va en `secundarias`, al lado de «Columnas». Estaba metido
+              con el azul, en el hueco de crear. */}
           <div className="flex-1 min-h-0">
-            <DataTable
+            <TablaDeFinanzas
               columns={columns}
               data={rows}
               searchKey="name"
               searchPlaceholder={`Buscar ${labels.plural.toLowerCase()}...`}
               onRowClick={(fila) => { if (!filaAjena(fila)) openEdit(fila); }}
-              filtrosExtra={selectorDeCuentas}
+              queEs={labels.singular.toLowerCase()}
+              vacio={`Todavía no hay ${labels.plural.toLowerCase()}.`}
+              filtros={selectorDeCuentas}
               filaEditable={(fila) => !filaAjena(fila)}
-              toolbarRight={
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setBuilderOpen(true)}
-                    disabled={isPending}
-                    className="h-10 shrink-0"
-                    title="Configurar campos"
-                  >
-                    <SlidersHorizontal className="mr-1.5 h-4 w-4" />
-                    <span className="hidden sm:inline">Campos</span>
-                  </Button>
-                  <BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>
-                </>
+              secundarias={
+                <Button
+                  variant="outline"
+                  onClick={() => setBuilderOpen(true)}
+                  disabled={isPending}
+                  className="h-10 shrink-0 px-3 text-sm"
+                  title="Configurar los campos de la ficha"
+                  data-boton="campos"
+                >
+                  <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Campos</span>
+                </Button>
               }
+              crear={<BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>}
               acciones={(seleccionados, limpiar) => (
                 <AccionesMasivas
                   seleccionados={seleccionados}

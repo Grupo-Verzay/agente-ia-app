@@ -80,7 +80,7 @@ export default function FinanceCurrencySettings({
         variant="save"
         onClick={onSave}
         disabled={isPending || code === currentCode}
-        className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+        className="h-9"
       >
         Guardar
       </Button>

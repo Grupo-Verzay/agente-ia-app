@@ -19,6 +19,7 @@ import {
   FileText,
   GripVertical,
   Package,
+  Receipt,
   ReceiptText,
   Settings,
   ShoppingCart,
@@ -29,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { elOrdenDeLosAccesos } from '@/lib/tabla-de-finanzas';
 
 type ShortcutId =
   | 'clients'
@@ -36,6 +38,7 @@ type ShortcutId =
   | 'providers'
   | 'proposals'
   | 'sales'
+  | 'expenses'
   | 'purchases'
   | 'cash-receipts'
   | 'notes'
@@ -57,6 +60,7 @@ const DEFAULT_ORDER: ShortcutId[] = [
   'providers',
   'proposals',
   'sales',
+  'expenses',
   'purchases',
   'cash-receipts',
   'notes',
@@ -147,6 +151,16 @@ export function FinanceModuleShortcuts({
         href: `/dashboard/finance/sales?month=${monthValue}`,
         icon: <DollarSign className="h-4 w-4" />,
       },
+      // La lista de gastos, al lado de la de ventas. Solo estaba «Compras»,
+      // que abre el formulario de un gasto NUEVO: para mirar los gastos había
+      // que entrar a crear uno y cerrarlo. Ventas sí tenía su lista y su
+      // «Recibos de caja» aparte; Gastos queda igual.
+      expenses: {
+        id: 'expenses',
+        label: 'Gastos',
+        href: `/dashboard/finance/expenses?month=${monthValue}`,
+        icon: <Receipt className="h-4 w-4" />,
+      },
       purchases: {
         id: 'purchases',
         label: 'Compras',
@@ -173,7 +187,7 @@ export function FinanceModuleShortcuts({
       },
       settings: {
         id: 'settings',
-        label: 'Configuracion',
+        label: 'Configuración',
         href: '/dashboard/finance/settings',
         icon: <Settings className="h-4 w-4" />,
       },
@@ -190,8 +204,7 @@ export function FinanceModuleShortcuts({
       const saved = raw ? (JSON.parse(raw) as ShortcutId[]) : null;
       if (!Array.isArray(saved)) return;
 
-      const known = new Set(DEFAULT_ORDER);
-      const next = [...saved.filter((id) => known.has(id)), ...DEFAULT_ORDER.filter((id) => !saved.includes(id))];
+      const next = elOrdenDeLosAccesos(saved, DEFAULT_ORDER);
       setOrder(next);
     } catch {
       setOrder(DEFAULT_ORDER);

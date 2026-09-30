@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { getFinanceUser } from '@/lib/finance-user';
 import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
 import { consolidar } from '@/lib/finanzas-de-la-familia';
+import { nombreDeLaCuenta } from '@/lib/nombre-de-la-cuenta';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 import { BarraDeFinanzas } from './_components/BarraDeFinanzas';
@@ -109,7 +110,9 @@ export default async function FinanceHomePage({
     where: { id: me.id },
     select: { name: true, company: true, email: true },
   });
-  const accountLabel = account?.company || account?.name || account?.email || null;
+  // Con `nombreDeLaCuenta`, no `company` a secas: nace «Empresa Demo», y el
+  // diálogo de vaciar preguntaría por una empresa que no es la de nadie.
+  const accountLabel = account ? nombreDeLaCuenta(account) || null : null;
 
   const yearTx = await db.financeTransaction.findMany({
     where: {
@@ -269,7 +272,7 @@ export default async function FinanceHomePage({
           <Card className="border-border">
             <CardHeader className="px-3 pb-1 pt-2">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm">Ventas vs Gastos por dia {monthLabel}</CardTitle>
+                <CardTitle className="text-sm">Ventas vs Gastos por día {monthLabel}</CardTitle>
                 <Badge variant="outline" className="h-5 px-2 text-[10px]">
                   {daysInMonth} días
                 </Badge>

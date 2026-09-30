@@ -11,6 +11,7 @@ import {
     type ResumenDelBorrado,
 } from "@/lib/borrado-en-bloque";
 import { deleteFlowAction } from "@/actions/flow-actions";
+import { deleteFinanceAccount } from "@/actions/finance-accounts-actions";
 
 /**
  * El borrado en bloque de las pantallas cuyo dominio no tenía ninguno.
@@ -165,11 +166,17 @@ export async function eliminarCuentasDeFinanzasAction(
     const cuenta = await laCuenta(userId);
     if (!cuenta) return NO_AUTORIZADO;
 
-    const { count } = await db.financeAccount.deleteMany({
-        where: { id: { in: lista }, userId: cuenta },
+    // De una en una por `deleteFinanceAccount`, que es la que ya sabe borrar
+    // una cuenta: comprueba que sea de quien la borra, no deja borrar una con
+    // movimientos —la base lo impide y un `deleteMany` se caía entero por UNA—
+    // y vuelve a marcar una predeterminada si se borró la que lo era. Con un
+    // `deleteMany` aquí la cuenta quedaba sin predeterminada.
+    const { borrados, fallaron } = await borrarUnaAUna(lista, async (id) => {
+        const res = await deleteFinanceAccount(id, cuenta);
+        return !!res?.success;
     });
     revalidatePath("/dashboard/finance/accounts");
-    return comoResumen(count, lista.length - count, "cuentas");
+    return comoResumen(borrados, fallaron, "cuentas");
 }
 
 /**
@@ -192,6 +199,33 @@ export async function eliminarDiagramasAction(ids: string[]): Promise<ResumenDel
     });
     revalidatePath("/diagramas");
     return comoResumen(borrados, fallaron, "diagramas");
+}
+
+/**
+ * Borra en bloque ventas de Finanzas. Es la hermana de `eliminarGastosAction`
+ * y pasa por la misma puerta (`laCuenta`): Ventas borraba lo marcado con su
+ * propia acción, que preguntaba dos veces y no decía cuántas fallaron.
+ */
+export async function eliminarVentasAction(
+    ids: string[],
+    userId?: string,
+): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) return SIN_IDS;
+    const cuenta = await laCuenta(userId);
+    if (!cuenta) return NO_AUTORIZADO;
+
+    const { count } = await db.financeTransaction.updateMany({
+        where: {
+            id: { in: lista },
+            userId: cuenta,
+            type: "SALE",
+            status: { not: "DELETED" },
+        },
+        data: { status: "DELETED", deletedAt: new Date() },
+    });
+    revalidatePath("/dashboard/finance/sales");
+    return comoResumen(count, lista.length - count, "ventas");
 }
 
 /**
