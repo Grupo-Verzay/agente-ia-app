@@ -23413,6 +23413,68 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
+### La sexta guía, Finanzas: el resumen y sus seis pantallas, y lo que se arregló al documentarlas
+
+`/guia/finanzas` documenta Panel › Finanzas (`/dashboard/finance`) y sus seis
+pantallas —Ventas, Gastos, Clientes, Proveedores, Cuentas y Configuración— con
+el estándar de las otras cinco: diez secciones (vista general, el resumen del
+año, Ventas, Gastos, el filtro de fecha, Clientes, Proveedores, Cuentas,
+Configuración y las acciones de cada fila), una miniatura con enfoque por
+tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta
+sale sola en «Tutoriales del módulo» de `/dashboard/finance` y de sus
+subpantallas: «Guía de Finanzas», con «Aprende a registrar ventas y gastos y
+ver tu balance en la plataforma».
+
+No trae ninguna pieza propia: contenido en `lib/guia-finanzas.ts`
+(`laGuiaDe`), semilla en `sembrar-guia-finanzas.mjs` (sobre `sembrarElMarco`),
+receta en `capturar-guia-finanzas.mjs` (sobre el taller) y narración en
+`narracion-guia-finanzas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-finanzas.sh && npm run build`.
+
+> **Las seis listas son UNA pantalla escrita una vez.** Eran tres tablas
+> distintas, tres juegos de botones de fila y un filtro de fecha en unas sí y
+> en otras no. Ahora pintan `TablaDeFinanzas`, sus filas llevan
+> `AccionesDeLaFila` (Editar y Eliminar con confirmación), las columnas comunes
+> salen de `ColumnasDeMovimientos`, el filtro de fecha es `FiltroDePeriodo`
+> (Todo, Mes, Rango; `lib/periodo-de-finanzas.ts`) y la fila de accesos, de
+> `lib/accesos-de-finanzas.ts`. Y los dos DETALLES —el de una venta y el de un
+> gasto— salen de `lib/detalle-de-finanzas.ts`.
+
+Lo que se arregló al documentarlas, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| la fila de accesos no llevaba al Resumen | es la primera, y la pantalla que se tiene delante sale marcada (`elAccesoActivo`) |
+| el resumen anual solo cambiaba de mes | flechas de año, conservando el mes |
+| el eje de la gráfica escribía «850.0k» y salía cortado | sin el «.0» |
+| «Fijo» salía de la lista de una empresa de software: un «Arriendo» era variable | `CATEGORIAS_DE_GASTO_FIJO` (nómina, arriendo, servicios, internet…), sin tildes ni mayúsculas, y la guía nombra exactamente esas |
+| en los dos detalles la X de cerrar quedaba ENCIMA de Eliminar, y no se parecían (980 y 820 px) | la cabecera deja `SITIO_PARA_LA_X` (48 px, `pr-12`) y la X se baja al centro de los botones (`--cerrar-arriba`, `laAlturaDeLaX`) |
+| la columna «Concepto» de Gastos enseñaba el proveedor | `elConceptoDelGasto`; el proveedor va aparte, y el buscador encuentra los dos |
+| el código de un contacto era «cuántos hay + 1», y el borrado en bloque borraba DE VERDAD | `elSiguienteCodigo`: sigue al más alto (C-1, C-2… / P-1, P-2…), y en bloque marca `DELETED` como el de uno en uno |
+
+Cuatro cosas que hay que mantener:
+
+1. **Las capturas en español necesitan DOS cosas**: `args: ["--lang=es-CO"]`
+   y `env LANG=es_CO.UTF-8`. El `locale` del contexto no basta: los campos de
+   fecha y de mes los pinta el proceso de Chromium con su idioma.
+2. **Mientras un `Select` de Radix está abierto, lo de fuera es
+   `aria-hidden`**: `getByRole` no encuentra el botón de Guardar. Se mide
+   antes de abrir.
+3. **La receta comprueba que la X no tape nada** (`queLaXNoTapeNada`) al abrir
+   los dos detalles: si una cabecera vuelve a quedarse sin su sitio, la
+   generación se corta.
+4. **Si «IA CRM» no tiene crédito**, `sintetizar-voz-desde-la-app.mjs` prueba
+   las demás llaves de Panel › API keys, desde el contenedor de la App y sin
+   sacar la llave de allí.
+
+Lo prueban `scripts/banco-guia-finanzas.sh` —el contenido contra el código
+(accesos, columnas, campos, modos del filtro, acciones de fila, categorías
+fijas), el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
+(`GUIA=finanzas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren las seis
+guías— y la guía servida a 390 y 1440— y `scripts/banco-finanzas-simetrica.sh`,
+con las reglas y un barrido de las seis pantallas. Los dos con `MODO=roto`
+contra `ab6b110`, que afirma que no había guía y los fallos de la tabla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
