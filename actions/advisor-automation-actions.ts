@@ -96,7 +96,7 @@ export async function addAdvisorAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.advisorAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     const count = await db.advisorAutomationAction.count({ where: { automationId } });
     const action = await db.advisorAutomationAction.create({
       data: { automationId, type: data.type, config: data.config, delayMinutes: data.delayMinutes ?? 0, order: count },
@@ -115,7 +115,7 @@ export async function updateAdvisorAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.advisorAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.advisorAutomationAction.update({ where: { id: actionId }, data });
     return { success: true };
   } catch (e: any) {
@@ -130,7 +130,7 @@ export async function deleteAdvisorAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.advisorAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.advisorAutomationAction.delete({ where: { id: actionId } });
     return { success: true };
   } catch (e: any) {

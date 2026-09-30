@@ -23650,6 +23650,77 @@ servida a 390 y 1440—. `MODO=roto` lee `ab6b110` para afirmar los fallos de la
 pantalla y `24ba0b2` para afirmar que no había guía, ni vídeo, ni miniaturas,
 ni marcas en la pantalla.
 
+### La novena guía, Usuarios: y documentarla destapó puertas abiertas en `/equipo`
+
+`/guia/usuarios` documenta Usuarios (`/equipo`) con el estándar de las ocho
+guías anteriores: diez secciones —vista general, crear un usuario, rol y
+disponibilidad, auto-asignación, por porcentaje, medir al equipo, el Pipeline,
+qué ve cada usuario, editar y quitar, y asignar y más—, una miniatura con
+enfoque por tarjeta y el vídeo narrado con la voz Cedar y el MISMO ritmo. Su
+tarjeta sale sola en «Tutoriales del módulo» de `/equipo`
+(`GUIAS_PUBLICADAS`): «Aprende a crear tu equipo y repartir los chats en la
+plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-usuarios.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-usuarios.mjs`, sobre `sembrarElMarco`, con
+un equipo de ejemplo y conversaciones por repartir), receta de capturas y vídeo
+(`capturar-guia-usuarios.mjs`, sobre el taller) y narración. Se regenera con
+`npm run build && scripts/generar-guia-usuarios.sh && npm run build`. Las
+capturas CAMBIAN los datos (reparten, crean, editan), así que antes del vídeo
+se vuelve a sembrar lo pendiente.
+
+**La guía se compara con el CÓDIGO de `/equipo`**: la barra de trabajo, los
+tres modos de reparto, las columnas de la tabla, los roles, los campos de
+«Nuevo asesor», el «⋯» de cada fila, el «⋯» de la barra y las tres gráficas,
+leídos de `team-client.tsx` y `TeamCharts.tsx`. Un mando nuevo sin su nombre
+en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+| lo que pasaba | ahora |
+| --- | --- |
+| «Vincular existente» con el correo de CUALQUIER cuenta se la apropiaba | solo se vincula lo que ya se alcanza (`puertaParaVincular` → `assertCanAccessTargetUser`), y la opción solo sale a quien ya administra cuentas |
+| «Reiniciar vínculos» al alcance de cualquier administrador | solo el súper administrador de verdad, tecleando `LIMPIAR` |
+| la tabla y «Carga del equipo» contaban distinto a un asesor que atiende otra cuenta | las métricas van acotadas a la cuenta, igual que `getTeamAdvisors` |
+| «Asignar sin atender» rechazaba a la administradora del equipo | usa la puerta de la pantalla (`laCuentaQueConfigura`) |
+| guardar la auto-asignación repartía lo pendiente y solo decía «Configuración guardada» | devuelve cuántas repartió (`asignadas`), lo dice, y la tabla y las gráficas se ponen al día |
+| repartir desde el «⋯» dejaba la tabla con los números de antes | vuelve a leer el equipo y las métricas (`refrescarElEquipo`) |
+| «conversaciónes», «Automaciones», «Configuracion» | con su plural y sus tildes |
+| los cinco paneles de automatizaciones repetían su título debajo del de la hoja | el título lo pone la hoja, una vez |
+| «Mover a otra cuenta» sin destino, «Clientes asignados» en una cuenta sin clientes | se QUITAN, no se pintan en gris |
+| «Permisos» enseñaba la ruta interna y el rol como clave | cuántos apartados ve, y el rol en palabras |
+
+Tres cosas que hay que mantener:
+
+1. **Guardar con la auto-asignación encendida CAMBIA datos** (reparte lo que
+   estaba sin asesor), así que tiene que decirlo con el número y refrescar lo
+   que se ve. Un «guardado» a secas hace desaparecer la columna Sin asignar del
+   Pipeline sin que nadie sepa por qué.
+2. **Las capturas no llevan marcas encima de lo que se lee**: un desplegable de
+   Radix pone `aria-hidden` fuera de él, así que se mide ANTES de abrirlo; y se
+   suelta el foco (`soltarElFoco`) antes de cada foto.
+3. **La voz se sintetizó con la llave «Agente IA»**: la de «IA CRM» se quedó sin
+   créditos en OpenAI. Si vuelve a faltar una frase, se pide desde el
+   contenedor de la App con la llave que sí tenga saldo.
+4. **A 1280 px la barra de `/equipo` no cabe entera** (le sobran 18 px) y la
+   flecha «Ver más filtros» queda ENCIMA de la mitad de «Pipeline»: un clic en
+   su centro se lo lleva la flecha. Es el diseño de `BarraDeAcciones`, no un
+   fallo; el vídeo hace lo que haría una persona —pulsar la flecha antes—
+   con `alAlcance`, que mira qué hay de verdad en ese punto
+   (`elementFromPoint`). Se descubrió así: el botón estaba pintado, su
+   caja decía que estaba ahí, y el Pipeline no se abría nunca.
+5. **El color de las iniciales sale del id** (`colorFor`), así que la semilla
+   pone ids FIJOS —y quita a la Sofía que crea antes `sembrar-barra.mjs` con un
+   id al azar—. Si no, la misma persona sale de un color en las capturas y de
+   otro en el vídeo.
+
+Lo prueban `scripts/banco-guia-usuarios.sh` —el contenido contra el código, el
+vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=usuarios`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las nueve guías— y la guía
+servida a 390 y 1440— y `scripts/banco-equipo-usuarios.sh` —lo de la pantalla,
+con las acciones de verdad contra Postgres—. Los dos con `MODO=roto` contra
+`ab6b110`, que afirma que no había guía y los fallos de la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

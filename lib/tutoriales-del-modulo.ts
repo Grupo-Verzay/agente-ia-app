@@ -24,6 +24,7 @@ import { GUIA_NOTAS } from "@/lib/guia-notas";
 import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
 import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
+import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -146,6 +147,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/ia",
         contenido: GUIA_AGENTE_IA,
         tarjeta: "Aprende a entrenar tu agente de IA paso a paso en la plataforma",
+    },
+    {
+        modulo: "usuarios",
+        ruta: "/equipo",
+        contenido: GUIA_USUARIOS,
+        tarjeta: "Aprende a crear tu equipo y repartir los chats en la plataforma",
     },
 ];
 

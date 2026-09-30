@@ -4,6 +4,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     ArrowRight,
+    BarChart3,
     BookOpen,
     CalendarPlus,
     CircleDot,
@@ -30,11 +31,13 @@ import {
     MoreHorizontal,
     Palette,
     PenLine,
+    Percent,
     PlayCircle,
     PlusCircle,
     Search,
     Share2,
     Sheet,
+    ShieldCheck,
     SlidersHorizontal,
     StickyNote,
     Store,
@@ -103,6 +106,9 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Unlink,
     Trash2,
     FileText,
+    Percent,
+    BarChart3,
+    ShieldCheck,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

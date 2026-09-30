@@ -72,3 +72,15 @@ export function aplicarPermisos<T extends ModuloConItems>(
 
     return visibles;
 }
+
+/**
+ * Lo que dice cada módulo en «Permisos», debajo de su nombre: cuántos de sus
+ * apartados ve esa persona. Iba la RUTA del módulo, que es un dato interno
+ * («#container», «/client-panel») y no le dice nada a quien administra.
+ */
+export function elConteoDelModulo(visibles: number, total: number): string {
+    if (total === 1) return visibles === 1 ? "Ve su apartado" : "No lo ve";
+    if (visibles === 0) return `No ve ninguno de sus ${total} apartados`;
+    if (visibles === total) return `Ve sus ${total} apartados`;
+    return `Ve ${visibles} de ${total} apartados`;
+}
