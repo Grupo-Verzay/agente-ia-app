@@ -7,7 +7,7 @@
  * La barra es la misma en todas las pantallas, y cada guía la enseña numerada
  * parte por parte (`PARTES_DE_LA_BARRA_DE_ARRIBA`). Cuando la barra gana o
  * pierde un botón —«Ayuda», al llegar el centro de ayuda— esa foto se queda
- * vieja en las quince guías a la vez, y volver a generar quince guías enteras
+ * vieja en todas las guías a la vez, y volver a generarlas enteras
  * (capturas, miniaturas y vídeo) para cambiar una tira de 131 px es rehacer
  * mucho más de lo que cambió. Esto abre la pantalla de cada guía y toma esa
  * foto con la MISMA receta que al generarla (`laFotoDeLaBarra`, del taller).

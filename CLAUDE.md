@@ -23169,7 +23169,7 @@ Cinco cosas que hay que mantener:
 5. **La barra de las guías se numera con SIETE partes**
    (`PARTES_DE_LA_BARRA_DE_ARRIBA`, con «Centro de ayuda» entre el buscador y
    «Soporte», y `lasPartesDeArriba` del taller en el mismo orden). Cuando la
-   barra gana o pierde un botón, la foto de las quince guías se rehace SOLA,
+   barra gana o pierde un botón, la foto de TODAS las guías se rehace SOLA,
    sin regenerar ninguna guía entera:
    `npm run build && scripts/regenerar-barra-de-las-guias.sh && npm run build`
    (`SOLO=leads,catalogo` para unas). La foto se toma con `laFotoDeLaBarra`
