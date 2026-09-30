@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { BookOpen, CheckCircle2, Loader2, RotateCcw, Scissors, XCircle } from 'lucide-react';
+import { BookOpen, CheckCircle2, Loader2, RotateCcw, Scissors } from 'lucide-react';
 import { autoSplitAndImport } from '@/actions/knowledge-block-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { SEPARADORES_DE_LA_BASE, elSeparador } from '@/lib/pantalla-de-mis-datos';
 
 interface Props {
   userId: string;
@@ -35,7 +36,7 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
     toast.loading('Procesando bloques...', { id: toastId });
 
     try {
-      const sep = separator === 'auto' ? undefined : separator;
+      const sep = elSeparador(separator);
       const res = await autoSplitAndImport(userId, text, sep);
 
       if (res.created === 0) {
@@ -59,14 +60,14 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div data-importar="knowledge" className="space-y-4">
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Base de Conocimiento</CardTitle>
+            <CardTitle className="text-lg">Importar a la base de conocimiento</CardTitle>
           </div>
-          <CardDescription className="text-sm">
+          <CardDescription>
             El agente IA consulta estos bloques automáticamente según lo que pregunta el cliente, reduciendo el uso de tokens hasta 10×.
           </CardDescription>
         </CardHeader>
@@ -87,25 +88,18 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
             </p>
           </div>
 
-          <div className="space-y-1.5">
+          <div data-separador className="space-y-1.5">
             <Label className="text-xs">Separador de secciones</Label>
             <Select value={separator} onValueChange={setSeparator} disabled={isLoading}>
-              <SelectTrigger className="max-w-72 text-xs h-8">
+              <SelectTrigger className="w-auto max-w-full text-xs h-8 gap-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto" className="text-xs">
-                  Automático (detecta ### --- o líneas vacías)
-                </SelectItem>
-                <SelectItem value="###" className="text-xs">
-                  ### — Encabezados Markdown
-                </SelectItem>
-                <SelectItem value="---" className="text-xs">
-                  --- — Línea divisoria
-                </SelectItem>
-                <SelectItem value="\n\n" className="text-xs">
-                  Línea en blanco doble
-                </SelectItem>
+                {SEPARADORES_DE_LA_BASE.map((s) => (
+                  <SelectItem key={s.valor} value={s.valor} className="text-xs">
+                    {s.rotulo}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -146,15 +140,15 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
       </Card>
 
       {result && !isLoading && (
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card data-resultado-de-la-importacion="knowledge" className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3 pt-4">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              <CardTitle className="text-sm font-medium">Importación completada</CardTitle>
+              <CardTitle className="text-sm font-medium">Resumen de importación</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 w-fit">
+            <div data-bloques-creados className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 w-fit">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               <div>
                 <p className="text-xl font-bold text-emerald-500 leading-none">{result.created}</p>
@@ -167,7 +161,6 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
               <div className="space-y-1">
                 {result.blocks.map((b, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs">
-                    <XCircle className="h-3 w-3 mt-0.5 text-muted-foreground/40 shrink-0 hidden" />
                     <span className="text-muted-foreground shrink-0 w-5">{i + 1}.</span>
                     <span className="font-medium">{b.title}</span>
                     <div className="flex flex-wrap gap-1 ml-1">

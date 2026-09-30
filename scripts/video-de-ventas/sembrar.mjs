@@ -16,6 +16,7 @@ import { PrismaClient } from "@prisma/client";
 import { sembrarElMarco } from "../sembrar-marco-de-la-guia.mjs";
 import { laHoraDeLaPosicion } from "./backend.mjs";
 import {
+    ASESORA,
     CALIFICACION,
     CAMPOS_DE_LA_FICHA,
     SECCION_DE_LA_FICHA,
@@ -216,7 +217,71 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         });
     }
 
-    return { cuenta: dueno.id, embudoId, etapas, etiquetas: Object.fromEntries(Object.entries(etiquetas).map(([k, v]) => [k, v.id])), servicio: servicio.id, calendario: cal };
+    // La asesora que recibe a Laura cuando pide hablar con alguien: alguien del
+    // equipo de la cuenta, como la crea Usuarios.
+    const asesora = await db.user.upsert({
+        where: { email: ASESORA.correo },
+        update: { ownerId: dueno.id, advisorRole: "agente", name: `${ASESORA.nombre} ${ASESORA.apellido}` },
+        create: {
+            email: ASESORA.correo,
+            name: `${ASESORA.nombre} ${ASESORA.apellido}`,
+            role: "user",
+            status: true,
+            ownerId: dueno.id,
+            advisorRole: "agente",
+            company: NEGOCIO.nombre,
+        },
+    });
+
+    // El resumen de la semana anterior, como lo escribe el informe semanal
+    // (`weekly_reports` la crea el backend: no está en el esquema de Prisma).
+    await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS weekly_reports (
+            id TEXT PRIMARY KEY, "userId" TEXT NOT NULL,
+            period_start TIMESTAMP(3) NOT NULL, period_end TIMESTAMP(3) NOT NULL,
+            summary TEXT NOT NULL, metrics JSONB, sent_at TIMESTAMP(3),
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`);
+    await db.$executeRawUnsafe(`DELETE FROM weekly_reports WHERE "userId" = $1`, dueno.id);
+    const finDeSemana = cal.inicio - DIA;
+    const inicioDeSemana = finDeSemana - 7 * DIA;
+    const metricas = {
+        periodStart: new Date(inicioDeSemana).toISOString(),
+        periodEnd: new Date(finDeSemana).toISOString(),
+        totalLeads: 142,
+        newLeads: 38,
+        leadsByStatus: { CALIENTE: 21, TIBIO: 34, FRIO: 27, FINALIZADO: 12 },
+        leadsByScore: { sinScore: 18, bajo: 22, medio: 41, moderado: 29, alto: 20, listo: 12 },
+        avgScore: 64,
+        topLeads: [
+            { name: "Pedro Castaño", score: 92, status: "CALIENTE", phone: "573114554410" },
+            { name: "Daniela Mejía", score: 88, status: "CALIENTE", phone: "573207787781" },
+        ],
+        followUpsSent: 57,
+        followUpsPending: 9,
+        conversions: 14,
+        registrosByTipo: { RESERVA: 16, SOLICITUD: 9, PEDIDO: 4, RECLAMO: 1 },
+        calidad: {
+            conversaciones: 48,
+            puntajePromedio: 92,
+            soloElDueno: false,
+            mejor: { asesorId: asesora.id, nombre: ASESORA.nombre, puntaje: 95, conversaciones: 17 },
+        },
+    };
+    await db.$executeRawUnsafe(
+        `INSERT INTO weekly_reports (id, "userId", period_start, period_end, summary, metrics, "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+        `informe-${dueno.id}`,
+        dueno.id,
+        new Date(inicioDeSemana),
+        new Date(finDeSemana),
+        "Semana muy productiva: entraron 38 leads nuevos y la IA atendió todas las conversaciones al instante. " +
+            "14 pacientes agendaron su valoración y 21 quedaron calientes para cerrar esta semana. " +
+            "El blanqueamiento y la ortodoncia fueron lo más consultado.",
+        JSON.stringify(metricas),
+        new Date(finDeSemana + 8 * 3_600_000),
+    );
+
+    return { cuenta: dueno.id, asesor: asesora.id, embudoId, etapas, etiquetas: Object.fromEntries(Object.entries(etiquetas).map(([k, v]) => [k, v.id])), servicio: servicio.id, calendario: cal };
 }
 
 // Como script suelto: `node scripts/video-de-ventas/sembrar.mjs` con

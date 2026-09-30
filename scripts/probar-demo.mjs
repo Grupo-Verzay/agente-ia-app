@@ -60,7 +60,7 @@ try {
                 v.addEventListener("error", () => ok(-1), { once: true });
                 setTimeout(() => ok(-2), 8000);
             }));
-            exigir(duracion > 30 && duracion * 1000 < TOPE_DEL_VIDEO_DE_VENTAS_MS, `${tag}: el vídeo carga y dura menos de dos minutos (${duracion})`);
+            exigir(duracion > 30 && duracion * 1000 < TOPE_DEL_VIDEO_DE_VENTAS_MS, `${tag}: el vídeo carga y dura menos de tres minutos (${duracion})`);
         } else {
             console.log(`  -- ${tag}: este Chromium no trae H.264; la duración y el códec los mide ffprobe (sección 6 del banco)`);
         }

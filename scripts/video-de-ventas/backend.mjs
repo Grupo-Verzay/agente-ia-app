@@ -76,6 +76,12 @@ export function comoLoGuardaElWebhook(m, { base, segundos = {} }) {
                 mediaUrl: url,
                 raw: { key, message: { imageMessage: { mimetype: medio.mime, caption: m.texto ?? "" } }, ...marca },
             };
+        case "llamada": {
+            // Como la anota la plataforma al colgar una llamada con IA
+            // (`logOutgoingCallAction`): el panel la pinta como «Llamada realizada».
+            const call = { direction: "outgoing", isVideo: false, durationSecs: segundos.llamada ?? 0, isBot: true, provider: "astra" };
+            return { messageType: "call", content: "Llamada con IA realizada", mediaUrl: null, raw: { key, message: { call }, ...marca } };
+        }
         default:
             throw new Error(`[video] tipo de mensaje desconocido: ${m.tipo}`);
     }
@@ -303,6 +309,15 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
                 },
             });
             recordatorioId = r.id;
+        }
+        if (efecto.asesor) {
+            // La conversación pasa a la asesora: el panel la pinta con su círculo.
+            await db.session.update({ where: { id: sesionId }, data: { assignedAdvisorId: ctx.asesor } });
+        }
+        if (efecto.escalado) {
+            // El sello de espera, como lo pone el escalado de verdad
+            // (`escalated_at` es del backend y no está en el esquema de Prisma).
+            await db.$executeRaw`UPDATE "Session" SET escalated_at = ${new Date(m.en)} WHERE id = ${sesionId}`;
         }
         if (efecto.citaConfirmada && citaId) {
             await db.appointment.update({ where: { id: citaId }, data: { status: "CONFIRMADA" } });

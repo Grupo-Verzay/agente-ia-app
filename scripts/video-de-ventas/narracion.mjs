@@ -15,7 +15,7 @@
  * vídeo tal cual, como las oiría el negocio en su WhatsApp.
  */
 import { VOZ_CEDAR } from "../voz-cedar.mjs";
-import { NOTAS_DE_VOZ } from "./historia.mjs";
+import { LA_LLAMADA, NOTAS_DE_VOZ } from "./historia.mjs";
 import path from "node:path";
 
 export const CACHE_DE_VENTAS = path.resolve(import.meta.dirname, "voz");
@@ -49,30 +49,65 @@ export const VOZ_DE_SOFIA = Object.freeze({
 });
 
 /**
- * Las frases, en el orden en que suenan. Cortas a propósito: el vídeo es un
- * gancho de un minuto y medio, no una explicación paso a paso; cada frase dice
+ * Las dos voces de la LLAMADA con IA: las mismas de las notas, pero hablando
+ * por teléfono, en una llamada de verdad y no grabando un audio.
+ */
+export const VOZ_DE_SOFIA_EN_LLAMADA = Object.freeze({
+    ...VOZ_CEDAR,
+    voz: NOTAS_DE_VOZ.ia.voz,
+    instrucciones:
+        "Eres Sofía, la asistente de una clínica odontológica, llamando por teléfono a una clienta: " +
+        "cálida, sonriente y segura, a ritmo natural de conversación telefónica. Español latinoamericano neutro.",
+});
+
+export const VOZ_DE_LAURA_EN_LLAMADA = Object.freeze({
+    ...VOZ_CEDAR,
+    voz: NOTAS_DE_VOZ.clienta.voz,
+    instrucciones:
+        "Eres Laura, una clienta colombiana de unos treinta años, contestando una llamada en el celular: " +
+        "natural, amable y contenta, a ritmo normal de conversación. Nada de locutora.",
+});
+
+/** La voz de cada línea de la llamada. */
+export const LA_VOZ_EN_LA_LLAMADA = Object.freeze({ ia: VOZ_DE_SOFIA_EN_LLAMADA, clienta: VOZ_DE_LAURA_EN_LLAMADA });
+
+/**
+ * Las frases, en el orden en que suenan. Cortas a propósito: el vídeo dura menos
+ * de tres minutos y no es una explicación paso a paso; cada frase dice
  * lo que se está VIENDO pasar en ese momento.
  */
 export const NARRACION = Object.freeze({
-    gancho: { texto: "Tiendas en línea, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp. Tus clientes te escriben a cualquier hora." },
+    gancho: {
+        texto:
+            "Cada minuto sin respuesta es una venta que se enfría. Tiendas en línea, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp, responde al instante.",
+    },
     promesa: { texto: "Con Verzay, una inteligencia artificial les contesta al instante, entiende lo que piden y lo deja todo listo en tu CRM." },
     tresPantallas: { texto: "Mira la misma conversación en el celular del negocio, en WhatsApp Web y en el panel de Verzay, al mismo tiempo." },
     texto: { texto: "Laura pregunta por un blanqueamiento. La IA le da el precio, y su ficha se llena sola." },
     voz: { texto: "¿Te manda una nota de voz? La escucha, la entiende y le contesta con su propia voz." },
+    sheets: { texto: "Y los datos de Laura también quedan guardados en tu Google Sheets." },
     medios: { texto: "Le envía la lista de precios, un video de la clínica, y entiende la imagen que Laura le manda." },
     caliente: { texto: "Laura ya está interesada: queda calificada como caliente y etiquetada, sin que nadie toque nada." },
-    seguimiento: { texto: "¿Y si deja de responder? La IA le hace seguimiento sola, con los cupos de la semana." },
+    seguimiento: { texto: "Si Laura deja de responder, la IA insiste como tú decidas: con texto, nota de voz, un archivo o hasta una llamada." },
     cita: { texto: "Laura elige un horario, y la cita queda agendada en tu calendario." },
     recordatorio: { texto: "Un día antes le llega el recordatorio. Confirma, y tú lo ves al instante." },
+    asesor: { texto: "Si la IA no sabe responder o Laura pide hablar con alguien, la conversación pasa directo a un asesor." },
     embudo: { texto: "Cada cliente avanza solo por tu embudo, con toda su historia en su ficha." },
+    reportes: { texto: "Todo el historial queda resumido en reportes y analíticas, sin perseguir a nadie." },
+    resumen: { texto: "En resumen: todo esto trabaja por ti, en una sola plataforma." },
+    avanzadas: {
+        texto:
+            "Y hay más: con el modo dueño le preguntas a tu WhatsApp cómo van tus ventas, citas y embudos. El puente con operarios de campo consulta otro WhatsApp y le traslada la respuesta a tu cliente. Y con el multiagente trabajas con varias líneas y asesores.",
+    },
     cierre: { texto: "Verzay responde, vende, agenda y hace seguimiento las veinticuatro horas. Agenda una reunión y míralo funcionando en tu negocio." },
 });
 
-/** Todo lo que hay que sintetizar: la narración y las dos notas de voz, cada una con su voz. */
+/** Todo lo que hay que sintetizar: la narración, las dos notas de voz y la llamada, cada una con su voz. */
 export function loQueSeSintetiza() {
     return [
         ...Object.values(NARRACION).map((n) => ({ texto: n.texto, voz: VOZ_DE_VENTAS })),
         { texto: NOTAS_DE_VOZ.clienta.texto, voz: VOZ_DE_LA_CLIENTA },
         { texto: NOTAS_DE_VOZ.ia.texto, voz: VOZ_DE_SOFIA },
+        ...LA_LLAMADA.map((l) => ({ texto: l.texto, voz: LA_VOZ_EN_LA_LLAMADA[l.quien] })),
     ];
 }

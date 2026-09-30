@@ -22,6 +22,7 @@ import { ExternalClientDataTable } from './ExternalClientDataTable';
 import { ExternalClientDataFormDialog } from './ExternalClientDataFormDialog';
 import { ExternalClientDataDeleteDialog } from './ExternalClientDataDeleteDialog';
 import type { ExternalClientData } from '@/types/external-client-data';
+import { REGISTROS_POR_PAGINA, juntarLosRegistros } from '@/lib/pantalla-de-mis-datos';
 
 // ─── Types (ISP) ──────────────────────────────────────────────────────────────
 
@@ -52,13 +53,17 @@ export function ExternalClientDataManagement({
   const [deleteRecord, setDeleteRecord] = useState<ExternalClientData | null>(null);
 
   // ── Data loading (DIP — depends on the server action abstraction) ────────────
+  const [pagina, setPagina] = useState(1);
+  const [cargandoMas, setCargandoMas] = useState(false);
+
   const loadRecords = useCallback(async (userId: string) => {
     if (!userId) return;
     setIsLoading(true);
     try {
-      const result = await listExternalClientData(userId, 1, 200);
+      const result = await listExternalClientData(userId, 1, REGISTROS_POR_PAGINA);
       setRecords(result.items);
       setTotal(result.total);
+      setPagina(1);
     } catch {
       setRecords([]);
       setTotal(0);
@@ -66,6 +71,24 @@ export function ExternalClientDataManagement({
       setIsLoading(false);
     }
   }, []);
+
+  // La página siguiente, como en Mis datos: con más de 200 registros la tabla
+  // se quedaba en los primeros y el pie decía el total de todos.
+  const cargarMas = useCallback(async () => {
+    if (!selectedUserId) return;
+    setCargandoMas(true);
+    try {
+      const siguiente = pagina + 1;
+      const result = await listExternalClientData(selectedUserId, siguiente, REGISTROS_POR_PAGINA);
+      setRecords((previos) => juntarLosRegistros(previos, result.items));
+      setTotal(result.total);
+      setPagina(siguiente);
+    } catch (error) {
+      console.error('[datos-externos] no se pudo cargar la página siguiente', error);
+    } finally {
+      setCargandoMas(false);
+    }
+  }, [selectedUserId, pagina]);
 
   useEffect(() => {
     if (selectedUserId) {
@@ -232,6 +255,8 @@ export function ExternalClientDataManagement({
             onCreateNew={handleCreateNew}
             userId={selectedUserId}
             onBorrado={() => void loadRecords(selectedUserId)}
+            onCargarMas={cargarMas}
+            cargandoMas={cargandoMas}
           />
         )
       ) : (

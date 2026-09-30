@@ -10,16 +10,20 @@ import { ExternalClientDataTable } from '../../(protected)/admin/external-data/_
 import { ExternalClientDataFormDialog } from '../../(protected)/admin/external-data/_components/ExternalClientDataFormDialog';
 import { ExternalClientDataDeleteDialog } from '../../(protected)/admin/external-data/_components/ExternalClientDataDeleteDialog';
 import type { ExternalClientData } from '@/types/external-client-data';
+import { REGISTROS_POR_PAGINA, juntarLosRegistros } from '@/lib/pantalla-de-mis-datos';
 
 interface Props {
   userId: string;
-  onTotalChange?: (total: number) => void;
+  /** Se llama cuando se crea, se edita o se borra un registro. */
+  onDataChanged?: () => void;
 }
 
-export function MyDataManagement({ userId, onTotalChange }: Props) {
+export function MyDataManagement({ userId, onDataChanged }: Props) {
   const [records, setRecords] = useState<ExternalClientData[]>([]);
   const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<ExternalClientData | null>(null);
@@ -28,17 +32,35 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
   const loadRecords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await listExternalClientData(userId, 1, 200);
+      const result = await listExternalClientData(userId, 1, REGISTROS_POR_PAGINA);
       setRecords(result.items);
       setTotal(result.total);
-      onTotalChange?.(result.total);
-    } catch {
+      setPagina(1);
+    } catch (error) {
+      console.error('[mis-datos] no se pudieron leer los datos importados', error);
       setRecords([]);
       setTotal(0);
     } finally {
       setIsLoading(false);
     }
   }, [userId]);
+
+  // La página siguiente, junto a lo que ya se ve. Sin esto la lista se
+  // quedaba en los 200 más recientes con el total de todos en el pie.
+  const cargarMas = useCallback(async () => {
+    setCargandoMas(true);
+    try {
+      const siguiente = pagina + 1;
+      const result = await listExternalClientData(userId, siguiente, REGISTROS_POR_PAGINA);
+      setRecords((previos) => juntarLosRegistros(previos, result.items));
+      setTotal(result.total);
+      setPagina(siguiente);
+    } catch (error) {
+      console.error('[mis-datos] no se pudo cargar la página siguiente', error);
+    } finally {
+      setCargandoMas(false);
+    }
+  }, [userId, pagina]);
 
   useEffect(() => {
     loadRecords();
@@ -62,12 +84,14 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
     setFormOpen(false);
     setEditRecord(null);
     loadRecords();
-  }, [loadRecords]);
+    onDataChanged?.();
+  }, [loadRecords, onDataChanged]);
 
   const handleDeleteSuccess = useCallback(() => {
     setDeleteRecord(null);
     loadRecords();
-  }, [loadRecords]);
+    onDataChanged?.();
+  }, [loadRecords, onDataChanged]);
 
   const columns = useMemo(
     () => buildExternalClientDataColumns({ onEdit: handleEdit, onDelete: handleDelete }),
@@ -75,18 +99,17 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
   );
 
   return (
-    <div className="space-y-4">
+    <div data-gestionar="sheets" className="space-y-4">
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Database className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Mis datos externos</CardTitle>
+              <CardTitle className="text-lg">Datos importados</CardTitle>
             </div>
-            {/* «+ Nuevo registro» y «Actualizar» vivían aquí arriba, o sea
-                en una segunda fila encima de la barra de la tabla — que ya
-                tiene su hueco de crear. Se quedan en la barra, que es donde
-                manda la regla. */}
+            {/* «+ Nuevo registro» vivía aquí arriba, en una segunda fila
+                encima de la barra de la tabla — que ya tiene su hueco de
+                crear. Se queda en la barra, que es donde manda la regla. */}
             <Button
               variant="outline"
               size="icon"
@@ -102,33 +125,39 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
             </Button>
           </div>
           <CardDescription>
-            Visualiza y edita los datos que el agente IA usará en tus conversaciones.
+            Revisa y edita los datos que el agente IA usa en tus conversaciones.
             {total > 0 && (
-              <span className="ml-1 font-medium text-foreground">{total} registro(s) cargados.</span>
+              <span className="ml-1 font-medium text-foreground">{total} registro(s).</span>
             )}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
-          {isLoading ? (
+          {isLoading && records.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               Cargando registros...
             </div>
-          ) : records.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
-              <Database className="h-8 w-8 opacity-30" />
-              <p className="text-sm">No tienes datos externos cargados.</p>
-              <p className="text-xs">Usa la pestaña <strong>Importar</strong> para cargar datos desde Google Sheets.</p>
-            </div>
           ) : (
+            // La barra sale SIEMPRE, también sin datos: con la tabla escondida
+            // no había forma de crear el primer registro a mano, y en la base
+            // de conocimiento sí.
             <ExternalClientDataTable
               columns={columns}
               data={records}
               total={total}
               onCreateNew={handleCreateNew}
               userId={userId}
-              onBorrado={() => void loadRecords()}
+              onBorrado={() => { void loadRecords(); onDataChanged?.(); }}
+              onCargarMas={cargarMas}
+              cargandoMas={cargandoMas}
+              vacio={
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
+                  <Database className="h-8 w-8 opacity-30" />
+                  <p className="text-sm">No tienes datos importados.</p>
+                  <p className="text-xs">Usa la pestaña <strong>Importar</strong> para cargarlos desde Google Sheets, o crea uno con <strong>Nuevo</strong>.</p>
+                </div>
+              }
             />
           )}
         </CardContent>

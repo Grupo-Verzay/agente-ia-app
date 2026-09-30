@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import type { ExternalClientDataImportResult } from '@/types/external-client-data';
+import { laEtiquetaDeLaColumnaClave, lasFilasEncontradas } from '@/lib/pantalla-de-mis-datos';
 
 type LogType = 'info' | 'success' | 'error' | 'loading';
 
@@ -38,6 +39,8 @@ interface ImportResult extends ExternalClientDataImportResult {
 
 interface Props {
   userId: string;
+  /** Se llama al acabar una importación, para que la sección vuelva a contar. */
+  onImported?: () => void;
 }
 
 function nowTime() {
@@ -63,7 +66,7 @@ const LOG_TEXT_COLOR: Record<LogType, string> = {
   loading: 'text-amber-400',
 };
 
-export function MyDataImport({ userId }: Props) {
+export function MyDataImport({ userId, onImported }: Props) {
   const [url, setUrl] = useState('');
   const [columnName, setColumnName] = useState('WHATSAPP');
   const [catalogMode, setCatalogMode] = useState(false);
@@ -125,7 +128,10 @@ export function MyDataImport({ userId }: Props) {
         ['whatsapp', 'telefono', 'teléfono', 'celular', 'movil', 'móvil', 'phone'].includes(h.toLowerCase())
       );
       if (waCol) setColumnName(waCol);
-      toast.success(`${res.headers.length} columnas detectadas`);
+      // Sin aviso de «N columnas detectadas»: esa cifra ya se lee debajo del
+      // selector de la columna, y el aviso salía abajo a la derecha justo
+      // ENCIMA de «Iniciar importación» —el siguiente botón que se pulsa—, así
+      // que el clic se lo comía el aviso y no importaba nada.
     } catch (err: any) {
       toast.error(err?.message ?? 'Error al previsualizar');
     } finally {
@@ -166,12 +172,13 @@ export function MyDataImport({ userId }: Props) {
       }
 
       const total = res.created + res.updated + res.errors;
-      addLog(`${total} fila(s) con número de WhatsApp encontradas`, 'info');
+      addLog(lasFilasEncontradas(total, catalogMode), 'info');
       if (res.created > 0) addLog(`${res.created} registro(s) nuevo(s) creado(s)`, 'success');
       if (res.updated > 0) addLog(`${res.updated} registro(s) actualizado(s)`, 'success');
       if (res.errors > 0) addLog(`${res.errors} fila(s) con errores omitidas`, 'error');
       addLog('Importación completada', 'success');
       setResult({ ...res, total });
+      onImported?.();
 
       if (res.errors === 0) {
         toast.success(`Importación exitosa — ${total} registros procesados`, { id: toastId });
@@ -191,14 +198,14 @@ export function MyDataImport({ userId }: Props) {
   const canImport = !!url.trim() && !isLoading;
 
   return (
-    <div className="space-y-4">
+    <div data-importar="sheets" className="space-y-4">
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Importar desde Google Sheets</CardTitle>
+            <CardTitle className="text-lg">Importar desde Google Sheets</CardTitle>
           </div>
-          <CardDescription className="text-sm">
+          <CardDescription>
             Sincroniza información desde una URL de Google Sheets. El agente IA usará estos datos automáticamente en cada conversación.
           </CardDescription>
         </CardHeader>
@@ -230,9 +237,11 @@ export function MyDataImport({ userId }: Props) {
           </div>
 
           {/* Tipo de importación */}
-          <div className="space-y-1.5">
+          <div data-tipo-de-datos className="space-y-1.5">
             <Label className="text-xs">Tipo de datos</Label>
-            <div className="flex items-center gap-3">
+            {/* El desplegable mide su opción ENTERA —recortada no se sabía cuál
+                estaba elegida— y la explicación baja de línea si no cabe. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <Select
                 value={catalogMode ? 'catalog' : 'clients'}
                 onValueChange={(v) => {
@@ -243,7 +252,7 @@ export function MyDataImport({ userId }: Props) {
                 }}
                 disabled={isLoading}
               >
-                <SelectTrigger className="max-w-72 text-xs h-8">
+                <SelectTrigger className="w-auto max-w-full text-xs h-8 gap-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,16 +283,14 @@ export function MyDataImport({ userId }: Props) {
               {isPreviewing
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <Eye className="h-3.5 w-3.5" />}
-              {isPreviewing ? 'Leyendo...' : 'Ver columnas del sheet'}
+              {isPreviewing ? 'Leyendo...' : 'Ver columnas de la hoja'}
             </Button>
           </div>
 
           {previewHeaders.length > 0 && (
-            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <div data-vista-previa className="space-y-3 rounded-lg border bg-muted/30 p-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">
-                  {catalogMode ? 'Columna clave (identificador único)' : 'Columna con el número WhatsApp'}
-                </Label>
+                <Label className="text-xs">{laEtiquetaDeLaColumnaClave(catalogMode)}</Label>
                 <Select value={columnName} onValueChange={setColumnName} disabled={isLoading}>
                   <SelectTrigger className="max-w-64 text-xs h-8">
                     <SelectValue placeholder={catalogMode ? 'Selecciona la columna clave' : 'Selecciona la columna del teléfono'} />
@@ -303,16 +310,16 @@ export function MyDataImport({ userId }: Props) {
               </div>
 
               {previewRows.length > 0 && (
-                <div className="space-y-1.5">
+                <div data-vista-previa-tabla className="space-y-1.5">
                   <p className="text-xs text-muted-foreground font-medium">Vista previa ({previewRows.length} fila{previewRows.length !== 1 ? 's' : ''}):</p>
-                  <ScrollArea className="max-h-40">
+                  <ScrollArea>
                     <div className="overflow-x-auto">
                       <table className="text-xs w-full">
                         <thead>
                           <tr className="border-b">
                             {previewHeaders.map((h) => (
                               <th key={h} className={`px-2 py-1 text-left font-medium whitespace-nowrap ${h === columnName ? 'text-primary' : 'text-muted-foreground'}`}>
-                                {h === columnName ? `📱 ${h}` : h}
+                                {h === columnName ? `${catalogMode ? "🔑" : "📱"} ${h}` : h}
                               </th>
                             ))}
                           </tr>
@@ -338,7 +345,7 @@ export function MyDataImport({ userId }: Props) {
 
           {previewHeaders.length === 0 && (
             <div className="space-y-1.5">
-              <Label htmlFor="col-name" className="text-xs">Columna con el número WhatsApp</Label>
+              <Label htmlFor="col-name" className="text-xs">{laEtiquetaDeLaColumnaClave(catalogMode)}</Label>
               <div className="flex items-center gap-3">
                 <Input
                   id="col-name"
@@ -349,7 +356,7 @@ export function MyDataImport({ userId }: Props) {
                   className="max-w-52 text-xs"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
+                  Usa &ldquo;Ver columnas de la hoja&rdquo; para detectarlas automáticamente.
                 </p>
               </div>
             </div>
@@ -360,8 +367,8 @@ export function MyDataImport({ userId }: Props) {
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground">
               {catalogMode
-                ? 'Cada fila del sheet define un registro → disponible para consulta del agente.'
-                : 'Cada fila del sheet define un cliente → vinculado por su número de WhatsApp.'}
+                ? 'Cada fila de la hoja define un registro → disponible para consulta del agente.'
+                : 'Cada fila de la hoja define un cliente → vinculado por su número de WhatsApp.'}
             </p>
             <div className="flex items-center gap-2 shrink-0">
               {(hasLogs || url) && !isLoading && (
@@ -387,7 +394,7 @@ export function MyDataImport({ userId }: Props) {
       </Card>
 
       {hasLogs && (
-        <Card>
+        <Card data-registro-de-actividad>
           <CardHeader className="pb-2 pt-4">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Registro de actividad
@@ -410,7 +417,7 @@ export function MyDataImport({ userId }: Props) {
       )}
 
       {result && !isLoading && (
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card data-resultado-de-la-importacion="sheets" className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3 pt-4">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />

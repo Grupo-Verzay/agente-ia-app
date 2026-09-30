@@ -83,10 +83,11 @@ npx esbuild "lib/guia-$MODULO.ts" --bundle --platform=node --format=esm --outfil
 export CAPTURAS_ESPERADAS="$(node -e "import('./$OUT/guia-$MODULO.mjs').then(m=>console.log(JSON.stringify(m.lasCapturasQueSeEnsenan())))")"
 
 LOG=/tmp/guia-next.log
-# Lo que una pantalla le pide a un servicio de FUERA —Gemini, en AI Imágenes—
-# lo contesta un doble cargado DENTRO del proceso de `next start`
-# (`fingido-guia-<modulo>.mjs`): la guía no depende de la red ni de la clave
-# de nadie. Solo para `next start`: el guion de capturas no lo lleva.
+# Lo que una pantalla le pide a un servicio de FUERA —Gemini, en AI Imágenes;
+# las hojas de Google que importa Mis datos— lo contesta un doble cargado
+# DENTRO del proceso de `next start` (`fingido-guia-<modulo>.mjs`): la guía no
+# depende de la red, ni de la clave de nadie, ni de una hoja que alguien puede
+# borrar. Solo para `next start`: el guion de capturas no lo lleva.
 NODE_DEL_SERVIDOR="${NODE_OPTIONS:-}"
 if [ -f "scripts/fingido-guia-$MODULO.mjs" ]; then
   NODE_DEL_SERVIDOR="$NODE_DEL_SERVIDOR --import $PWD/scripts/fingido-guia-$MODULO.mjs"

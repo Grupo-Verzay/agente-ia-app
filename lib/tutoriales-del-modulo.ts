@@ -21,6 +21,7 @@ import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_MIS_DATOS } from "@/lib/guia-mis-datos";
 import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
 import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
@@ -135,6 +136,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/notas",
         contenido: GUIA_NOTAS,
         tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
+    },
+    {
+        modulo: "mis-datos",
+        ruta: "/my-data",
+        contenido: GUIA_MIS_DATOS,
+        tarjeta: "Aprende a darle a tu agente IA los datos de tu negocio en la plataforma",
     },
     {
         modulo: "google-sheets",

@@ -510,13 +510,55 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
 /* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function mover(p, locator) {
-    const b = await locator.boundingBox();
+/**
+ * Fuera de la ventana, el ratón iría a un punto que no existe y el clic no
+ * tocaría nada —sin ningún error: el vídeo se quedaba esperando un resultado
+ * que no llega—. Se trae a la vista con un desplazamiento suave (el vídeo lo
+ * enseña) y, si aun así no se ve, se cae. Devuelve la caja ya a la vista.
+ */
+async function traerALaVista(p, locator) {
+    let b = await locator.boundingBox();
     // Sin caja, `b.x` revienta con un TypeError que no dice qué faltaba.
     if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que señalar: ${locator}`);
+    const vista = p.viewportSize();
+    const fuera = (c) => c.y + c.height / 2 < 0 || c.y + c.height / 2 > vista.height || c.x + c.width / 2 < 0 || c.x + c.width / 2 > vista.width;
+    if (fuera(b)) {
+        await locator.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+        await espera(p, 700);
+        b = await locator.boundingBox();
+        if (!b || fuera(b)) throw new Error(`[guia] lo que el vídeo tenía que señalar se queda fuera de la ventana: ${locator}`);
+    }
+    return b;
+}
+
+export async function mover(p, locator) {
+    const b = await traerALaVista(p, locator);
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
     await espera(p, 250);
 }
+/**
+ * ¿Hay algo ENCIMA de lo que se va a pulsar, que no sea un aviso? Los avisos
+ * los resuelve `sinAvisoEncima`, antes de mover el ratón; esto es la red para
+ * todo lo demás —un menú que no se cerró, una capa que se quedó puesta—: el
+ * clic se lo comería y nada fallaría, el vídeo se quedaría esperando un
+ * resultado que no llega. Se espera a que se destape y, si no, se cae diciendo
+ * qué lo tapa.
+ */
+async function sinNadaEncima(p, locator) {
+    const libre = () =>
+        locator.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !e || el === e || el.contains(e) ? "" : `${e.tagName.toLowerCase()} ${(e.textContent ?? "").trim().slice(0, 40)}`;
+        });
+    let encima = await libre();
+    for (let i = 0; i < 40 && encima; i += 1) {
+        await espera(p, 200);
+        encima = await libre();
+    }
+    if (encima) throw new Error(`[guia] lo que el vídeo tenía que pulsar está tapado por «${encima}»: ${locator}`);
+}
+
 /**
  * Cuánto se espera, como mucho, a que se vaya un aviso que tapa lo que hay que
  * pulsar. Un aviso de sonner dura 4 s y tarda medio en irse: si a los 12 sigue
@@ -572,9 +614,16 @@ export async function sinAvisoEncima(p, locator) {
     console.log(`  · un aviso tapaba lo que había que pulsar: se esperó ${Date.now() - desde} ms a que se fuera`);
 }
 
+/**
+ * Primero a la vista: un aviso solo tapa lo que está en la ventana, y
+ * `sinAvisoEncima` espera con el cursor FUERA de él. Después se mueve encima y
+ * se mira que no quede nada tapándolo (`sinNadaEncima`).
+ */
 export async function pulsar(p, locator) {
+    await traerALaVista(p, locator);
     await sinAvisoEncima(p, locator);
     await mover(p, locator);
+    await sinNadaEncima(p, locator);
     await p.mouse.down();
     await espera(p, 90);
     // El clic lo hace el ratón (así el vídeo lo enseña): no se vuelve a pulsar.

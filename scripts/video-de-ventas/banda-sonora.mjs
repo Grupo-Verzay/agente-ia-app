@@ -35,7 +35,7 @@ export const FUNDIDO_DEL_CORTE_MS = 25;
  * un poco por debajo de la voz del narrador —son audio de un celular—, y el
  * aviso muy por debajo: se nota, no distrae.
  */
-export const GANANCIA = Object.freeze({ narracion: 1, nota: 0.85, aviso: 0.22 });
+export const GANANCIA = Object.freeze({ narracion: 1, nota: 0.85, aviso: 0.22, tono: 0.3, llamada: 0.95 });
 
 /** Un trozo de un audio, con un fundido corto en cada punta. */
 export function recortarAudio(audio, { desdeMs = 0, hastaMs = audio.ms, fundidoMs = FUNDIDO_DEL_CORTE_MS } = {}) {
@@ -82,11 +82,56 @@ export function elAvisoDeMensaje(frecuencia = 24000) {
 }
 
 /**
+ * El tono de llamada saliente: dos timbrazos (440 + 480 Hz, el de siempre), de
+ * `timbre` segundos con `pausa` entre ellos. Se sintetiza aquí, como el aviso.
+ */
+export function elTonoDeLlamada(frecuencia = 24000, { veces = 2, timbre = 1.0, pausa = 0.7 } = {}) {
+    const largo = Math.ceil(frecuencia * (veces * timbre + (veces - 1) * pausa));
+    const datos = Buffer.alloc(largo * 2);
+    for (let i = 0; i < largo; i += 1) {
+        const t = i / frecuencia;
+        const ciclo = t % (timbre + pausa);
+        let s = 0;
+        if (ciclo < timbre) {
+            const env = Math.min(1, ciclo / 0.02, (timbre - ciclo) / 0.02);
+            s = (Math.sin(2 * Math.PI * 440 * t) + Math.sin(2 * Math.PI * 480 * t)) * 0.5 * env;
+        }
+        datos.writeInt16LE(Math.round(Math.max(-1, Math.min(1, s * 0.6)) * 32767), i * 2);
+    }
+    return { frecuencia, canales: 1, bits: 16, datos, ms: Math.round((largo / frecuencia) * 1000) };
+}
+
+/**
+ * La voz «por teléfono»: un pasa-banda de 300 a 3.400 Hz (un paso alto y uno
+ * bajo de un polo, dos veces cada uno), que es lo que hace sonar una voz a
+ * llamada y no a nota de voz. Pura: devuelve otro audio del mismo largo.
+ */
+export function porTelefono(audio, { bajo = 300, alto = 3400 } = {}) {
+    const { frecuencia, datos } = audio;
+    const n = datos.length / 2;
+    const dt = 1 / frecuencia;
+    const aHp = 1 / (1 + 2 * Math.PI * bajo * dt);
+    const aLp = (2 * Math.PI * alto * dt) / (1 + 2 * Math.PI * alto * dt);
+    let x = new Float64Array(n);
+    for (let i = 0; i < n; i += 1) x[i] = datos.readInt16LE(i * 2) / 32768;
+    for (let pasada = 0; pasada < 2; pasada += 1) {
+        const hp = new Float64Array(n);
+        for (let i = 1; i < n; i += 1) hp[i] = aHp * (hp[i - 1] + x[i] - x[i - 1]);
+        const lp = new Float64Array(n);
+        for (let i = 1; i < n; i += 1) lp[i] = lp[i - 1] + aLp * (hp[i] - lp[i - 1]);
+        x = lp;
+    }
+    const salida = Buffer.alloc(n * 2);
+    for (let i = 0; i < n; i += 1) salida.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x[i] * 1.4)) * 32767), i * 2);
+    return { ...audio, datos: salida };
+}
+
+/**
  * ¿Se pisa alguna nota de voz con la narración? Devuelve los choques. Los
- * avisos no cuentan: son un «ding» por debajo de la voz, no una voz.
+ * avisos y el tono de llamada no cuentan: suenan por debajo, no son una voz.
  */
 export function sePisanLasVoces(tramos) {
-    const voces = tramos.filter((t) => t.clase !== "aviso").map((t) => ({ ...t, finMs: t.inicioMs + t.audio.ms }));
+    const voces = tramos.filter((t) => t.clase !== "aviso" && t.clase !== "tono").map((t) => ({ ...t, finMs: t.inicioMs + t.audio.ms }));
     const choques = [];
     for (let i = 0; i < voces.length; i += 1) {
         for (let j = i + 1; j < voces.length; j += 1) {

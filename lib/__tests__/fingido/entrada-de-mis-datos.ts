@@ -7,6 +7,7 @@ export { ponerAQuienMira } from "./auth-de-documentos";
 export {
     listExternalClientData,
     upsertExternalClientData,
+    importExternalClientDataBulk,
     deleteAllExternalClientData,
 } from "@/actions/external-client-data-actions";
 export {

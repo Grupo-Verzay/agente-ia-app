@@ -16,7 +16,7 @@ import {
  * La página del vídeo de ventas: el vídeo, lo que enseña y cómo seguir.
  *
  * Todo en una columna del mismo ancho (`max-w-5xl`, el de las guías) y todo
- * simétrico: las ocho capacidades son dos filas de cuatro —cuatro de dos en un
+ * simétrico: las doce capacidades son tres filas de cuatro —seis de dos en un
  * teléfono— y los dos llamados miden lo mismo. Sin nada que cargue de la base:
  * se sirve igual con dos réplicas y sin sesión.
  */

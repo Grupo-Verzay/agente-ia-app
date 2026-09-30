@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 import { eliminarDatosExternosAction } from '@/actions/borrado-en-bloque-actions';
+import { elPieDeLaTabla, laEtiquetaDeLaColumna, quedanPorCargar } from '@/lib/pantalla-de-mis-datos';
 
 // ─── Props (ISP — only what the table needs) ──────────────────────────────────
 
@@ -48,6 +49,15 @@ interface ExternalClientDataTableProps {
   userId?: string;
   /** Se llama al acabar un borrado, para recargar. */
   onBorrado?: () => void;
+  /**
+   * Trae la página siguiente del servidor. Con él, y con menos filas cargadas
+   * que el total, el pie ofrece «Cargar más»: sin él la lista se quedaba en
+   * las primeras 200 y el pie decía el total de todas.
+   */
+  onCargarMas?: () => void;
+  cargandoMas?: boolean;
+  /** Lo que se enseña cuando no hay NINGÚN registro (no cuando la búsqueda no casa). */
+  vacio?: ReactNode;
 }
 
 // ─── Component (SRP — only renders the table) ─────────────────────────────────
@@ -59,6 +69,9 @@ export function ExternalClientDataTable({
   onCreateNew,
   userId,
   onBorrado,
+  onCargarMas,
+  cargandoMas = false,
+  vacio,
 }: ExternalClientDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -113,10 +126,10 @@ export function ExternalClientDataTable({
         buscador={
           /* Estaba dentro del carril: la flecha que trae «Columnas» se lo
              llevaba fuera de la pantalla. Su sitio es el primero, y fijo. */
-          <div className="relative w-56 shrink-0 sm:w-64">
+          <div className="relative w-56 shrink-0 sm:w-72">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Buscar por remoteJid..."
+              placeholder="Buscar por número o clave..."
               value={(table.getColumn('remoteJid')?.getFilterValue() as string) ?? ''}
               onChange={(e) =>
                 table.getColumn('remoteJid')?.setFilterValue(e.target.value)
@@ -142,11 +155,14 @@ export function ExternalClientDataTable({
               .map((col) => (
                 <DropdownMenuCheckboxItem
                   key={col.id}
-                  className="capitalize"
                   checked={col.getIsVisible()}
                   onCheckedChange={(v) => col.toggleVisibility(!!v)}
+                  // Marcar una columna no cierra el menú: enseñar tres serían
+                  // tres viajes. Y cada una con su nombre en español, el mismo
+                  // de su cabecera, no el id interno («RemoteJid», «Source»).
+                  onSelect={(e) => e.preventDefault()}
                 >
-                  {col.id}
+                  {laEtiquetaDeLaColumna(col.id)}
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>
@@ -188,7 +204,11 @@ export function ExternalClientDataTable({
                   colSpan={columns.length}
                   className="h-24 text-center text-sm text-muted-foreground"
                 >
-                  No hay registros para este cliente.
+                  {/* Dos preguntas distintas: no hay NINGÚN registro, o la
+                      búsqueda no casa con ninguno de los que hay. */}
+                  {data.length > 0
+                    ? 'Ningún registro coincide con la búsqueda.'
+                    : (vacio ?? 'No hay registros para este cliente.')}
                 </TableCell>
               </TableRow>
             )}
@@ -197,10 +217,16 @@ export function ExternalClientDataTable({
 
         {/* ── Pagination ── */}
         <div className="flex items-center justify-between border-t px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            {total} registro(s) · página {pageIndex + 1} de {pageCount || 1}
+          <p data-pie-de-la-tabla className="text-xs text-muted-foreground">
+            {elPieDeLaTabla({ cargados: data.length, total, pagina: pageIndex + 1, paginas: pageCount })}
           </p>
           <div className="flex gap-2">
+            {onCargarMas && quedanPorCargar(data.length, total) > 0 && (
+              <Button variant="outline" size="sm" onClick={onCargarMas} disabled={cargandoMas} className="gap-1.5">
+                {cargandoMas && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Cargar más
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
