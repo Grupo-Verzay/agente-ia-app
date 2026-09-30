@@ -88,9 +88,10 @@ interface InlineFieldProps {
   onSave: () => void;
 }
 
-// Cuánto mide Notas al abrir la ficha, en líneas. Los demás campos de texto
-// largo abren con 3; Notas es donde se escribe de verdad.
-export const LINEAS_DE_LAS_NOTAS = 6;
+// Cuánto mide Notas al abrir la ficha, en líneas: 3, sin mínimo en píxeles
+// (un `min-h` pisaría a `rows`). Si el texto es más largo se desplaza dentro,
+// y la manija de la esquina la estira.
+export const LINEAS_DE_LAS_NOTAS = 3;
 
 function InlineField({ icon: Icon, label, field, value, multiline, grande, soloLectura, saved, onChange, onSave }: InlineFieldProps) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
@@ -111,7 +112,7 @@ function InlineField({ icon: Icon, label, field, value, multiline, grande, soloL
             ref={ref as React.RefObject<HTMLTextAreaElement>}
             rows={grande ? LINEAS_DE_LAS_NOTAS : 3}
             data-notas={grande ? '' : undefined}
-            className={cn(inputCls, 'leading-snug', grande ? 'resize-y min-h-[8rem]' : 'resize-none')}
+            className={cn(inputCls, 'leading-snug', grande ? 'resize-y overflow-y-auto' : 'resize-none')}
             value={value}
             placeholder={`Agregar ${label.toLowerCase()}…`}
             onChange={(e) => onChange(field, e.target.value)}
