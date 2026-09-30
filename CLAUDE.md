@@ -23413,6 +23413,86 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
+### La sexta guía, Mis formularios: la lista, su EDITOR y lo que ve el cliente
+
+`/guia/formularios` documenta Apps Externas › Mis formularios
+(`/mis-formularios`) con el estándar de las cinco anteriores, y **las tres
+pantallas del módulo**: la lista, el editor de un formulario (preguntas,
+redirección a WhatsApp y URL personalizada) y sus Registros, más el formulario
+público que llena el cliente (`/f/…`). Diez secciones —vista general, crear,
+el editor, las preguntas, WhatsApp, el enlace corto, compartir, Google Sheets,
+los registros y activar/eliminar—, una miniatura con enfoque por tarjeta y el
+vídeo de un minuto con la voz Cedar y el mismo ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/mis-formularios` (`GUIAS_PUBLICADAS`): «Aprende a
+crear formularios y recibir sus respuestas en la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-formularios.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-formularios.mjs`, sobre `sembrarElMarco`),
+receta de capturas y vídeo (`capturar-guia-formularios.mjs`, sobre el taller)
+y narración. Se regenera con
+`npm run build && scripts/generar-guia-formularios.sh && npm run build`.
+
+Cinco cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara cada lista
+   (`CIFRAS_DE_LA_LISTA`, `MENU_DE_LA_TARJETA`, `CAMPOS_DEL_FORMULARIO`,
+   `SECCIONES_DEL_EDITOR`, `MENU_DEL_EDITOR`, `CAMPOS_DEL_CAMPO`,
+   `TIPOS_DOCUMENTADOS` y las de Registros) con lo que pintan
+   `MisFormulariosClient`, `FormEditorClient`, `FormRegistrosClient` y
+   `TIPOS_DE_CAMPO`. Un tipo de campo nuevo sin su nombre en la guía la pone
+   en rojo.
+2. **El diálogo de Google Sheets enseña el correo de la cuenta de servicio**,
+   así que el lanzador exporta un `GOOGLE_SERVICE_ACCOUNT_JSON` con **solo el
+   `client_email`** de producción —que la pantalla enseña a cualquier
+   cliente—, nunca una llave: la guía no escribe en ninguna hoja.
+3. **Pulsar una variable de WhatsApp la AÑADE al final del mensaje**, así que
+   el guion escribe en orden (texto → variable → `Control+End` → texto). Con
+   el cursor donde quedó, el mensaje salía revuelto.
+4. **Las capturas cambian los datos** (crean «Solicitud de evento», le ponen
+   WhatsApp y enlace corto, desactivan una encuesta), así que antes del vídeo
+   se vuelve a sembrar. El vídeo no elimina nada: desactiva, que se deshace
+   con el mismo interruptor.
+5. **Ninguna marca tapa lo que se lee** (la regla de la guía de Mis notas): los
+   números van a la esquina libre o en el hueco entre filas (`numeroEn`), los
+   rótulos que repetían lo que ya dice la pantalla se quitaron, antes de una
+   foto se suelta el foco (`soltarElFoco`), y lo que crece al guardar (la
+   tarjeta de URL personalizada) se centra antes de fotografiarlo.
+
+La narración se sintetizó el 2026-09-30 con la llave **«Agente IA»** de Panel ›
+API keys: la de siempre, «IA CRM», contestaba `429` (sin créditos en OpenAI).
+La voz es la misma —Cedar, el mismo modelo y las mismas instrucciones—, así que
+la caché sirve igual; lo que hay que hacer es recargar «IA CRM».
+
+Lo prueba `scripts/banco-guia-formularios.sh`: el contenido contra el código,
+el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
+(`GUIA=formularios`), `fin-de-la-guia` y `menu-de-la-guia` —que barren las
+seis guías— y la guía servida a 390 y 1440. `MODO=roto` lee `ab6b110` y afirma
+que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
+
+## Mis formularios: el formulario público es PÚBLICO, y las reglas viven en un sitio
+
+Documentar la pantalla destapó fallos que no daban ningún error, y el primero
+es el que dejaba el módulo sin servir para lo que existe:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| **`/f/…` y la subida de archivos del formulario mandaban al LOGIN**: el dueño no lo notaba (él tiene sesión) y a sus clientes no les abría | los dos prefijos pasan sin sesión en el middleware, con su puerta propia (formulario activo, carpeta del bucket del formulario) |
+| el enlace se armaba con el id de QUIEN MIRA: el de alguien del equipo llevaba a un formulario inexistente | `elEnlaceDelFormulario`, con la cuenta dueña y su URL personalizada |
+| el slug quitaba la letra con tilde («satisfaccin») | la regla del enlace del catálogo: se quita la tilde, se queda la letra |
+| `{{¿Cuál es tu nombre?}}` no se sustituía, y un «(» sin cerrar tumbaba el envío | `elMensajeDeWhatsapp` sustituye el texto literal |
+| la pestaña de Google Sheets se buscaba por nombre exacto: «A sheet with the name … already exists» en cada registro (visto en producción) | `laPestanaDelFormulario`, sin mirar mayúsculas ni espacios |
+| el envío público guardaba cualquier clave que llegara, y se podía enviar a un formulario desactivado | solo los campos del formulario, topados, y nunca a uno inactivo |
+| las cifras de la lista y de Registros no filtraban; el editor pintaba cifras que no filtraban nada | las cifras SON el filtro (Registros filtra en el servidor); las del editor se fueron al «⋯» |
+| las acciones usaban el id de la persona | van por `laCuentaDeLaAccion`, y el equipo ve los formularios de su cuenta |
+
+Las reglas son puras y viven en `lib/formularios.ts`: las usan la lista, el
+editor, Registros, el formulario público, las acciones y la guía. **Si otra
+pantalla arma un enlace, un slug o un mensaje de un formulario, va por ahí.**
+
+Lo prueba `scripts/banco-formularios.sh` (las reglas, y las acciones y la ruta
+de subida contra Postgres con Google fingido); `MODO=roto` corre `ab6b110` y
+afirma cada fallo.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

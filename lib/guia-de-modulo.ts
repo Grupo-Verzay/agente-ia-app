@@ -55,6 +55,9 @@ export const ICONOS_DE_SECCION = [
     "History",
     "FileStack",
     "Archive",
+    "ListChecks",
+    "FileSpreadsheet",
+    "ClipboardList",
 ] as const;
 
 export type Seccion = {
