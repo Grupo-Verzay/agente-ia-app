@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # El banco de la GUÍA PÚBLICA de Agente IA (`/guia/agente-ia`) y de lo que se
 # arregló en la pantalla `/ia` al documentarla. Mismo estándar que la de Leads,
-# Catálogo, Diagramas, Reuniones y Mis notas, y las mismas piezas:
+# Catálogo, Diagramas, Reuniones, Mis notas, Google Sheets e Integrar URLs, y
+# las mismas piezas:
 #
 #   1. `lib/__tests__/pestanas-del-agente.test.mjs`: la PANTALLA —las ocho
 #      pestañas salen de `ai-section-labels.ts`, las cinco listas tienen los
