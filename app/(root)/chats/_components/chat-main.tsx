@@ -61,6 +61,7 @@ import { useAltoDeLaCaja } from '@/components/shared/BarraDeEscribir';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
+import { laUrlQueSeAbre } from '@/lib/integraciones';
 import dynamic from 'next/dynamic';
 import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-visible';
 import { elAvisoDeLaCajaDeEscribir } from '@/lib/traduccion-de-chats';
@@ -1319,11 +1320,23 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       {/* ── Vista iframe de integración ── */}
       {chatView !== 'messages' && chatView !== 'notes' && (() => {
         const intg = userIntegrations.find(i => i.id === chatView);
-        return intg ? (
+        if (!intg) return null;
+        // La dirección que se ABRE pasa por la misma regla que al guardar
+        // (`lib/integraciones.ts`): una app vieja sin «https://» se abre bien
+        // —antes cargaba la propia App dentro de la pestaña— y una que no es
+        // una web no se abre, y se dice dónde arreglarla.
+        const url = laUrlQueSeAbre(intg.url);
+        return (
           <div className="flex-1 min-h-0 overflow-hidden">
-            <IframeRenderer url={intg.url} />
+            {url ? (
+              <IframeRenderer url={url} />
+            ) : (
+              <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                La dirección de «{intg.name}» no se puede abrir. Corrígela en Apps Externas › Integrar urls.
+              </div>
+            )}
           </div>
-        ) : null;
+        );
       })()}
 
       {/* ── Vista de mensajes ── */}

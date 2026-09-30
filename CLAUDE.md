@@ -23471,6 +23471,78 @@ el código, el vídeo, las miniaturas (`GUIA=google-sheets`) y la guía servida�
 Los dos con `MODO=roto` contra `ab6b110`, que afirma que se guardaba cualquier
 texto, que no había guía y que la barra no tenía palabras.
 
+### La séptima guía, Integrar URLs: y documentarla destapó que la pantalla guardaba cualquier cosa
+
+`/guia/integraciones` documenta Apps Externas › Integrar urls (`/integraciones`)
+con el estándar de las otras seis: siete secciones —vista general, agregar,
+tu app dentro de los chats, abrir y editar, ordenar y buscar, eliminar, y
+cuando una app no se abre—, una miniatura con enfoque por tarjeta y el vídeo
+de un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/integraciones` (`GUIAS_PUBLICADAS`): «Guía de
+Integrar URLs» · «Aprende a abrir tus apps web dentro de tus chats en la
+plataforma». Siete secciones y no ocho a propósito: el cierre de la cuadrícula
+deja la página simétrica tenga las que tenga (con siete, «Contáctanos» y «Ver
+el vídeo de nuevo» en escritorio), y la entrada de las apps en el menú
+(`#user-integrations`) no la tiene el menú de un cliente, así que no se
+documenta.
+
+No trae ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Se regenera con
+`npm run build && scripts/generar-guia-integraciones.sh && npm run build`. La
+semilla siembra cuatro apps y cuatro conversaciones, porque media guía es ver
+las apps como pestañas de un chat; sus direcciones son de `mi-negocio.co` y
+las contesta la receta con una página de ejemplo (`ctx.route`), así que no
+dependen de ninguna web ajena. `CON_UNA_ROTA=1` añade la app con la dirección
+vieja que enseña el aviso amarillo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+La pantalla guardaba lo que se escribiera, tal cual, y ninguno de estos fallos
+daba un error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| una dirección `javascript:` se **ejecutaba** al abrir la pestaña de la app en Chats: se pinta en un `<iframe>` y en un enlace, y el React de Next 14 no la bloquea (solo avisa) | solo se guardan `http`/`https` con dominio (`comoUrlDeIntegracion`), y lo que se ABRE pasa por la misma regla (`laUrlQueSeAbre`) en la pestaña, en «Abrir en nueva pestaña» y en el menú; y el `<iframe>` común (`IframeRenderer`, que usan también Evo, Copiloto y Canva) descarta cualquier esquema que no sea web (`sePuedeIncrustar`) |
+| una dirección sin `https://` abría **la propia App** dentro de la pestaña (el navegador la lee como ruta relativa) | se le pone `https://` al guardar, y una fila vieja se abre bien |
+| el «máx. 10» de la pastilla no existía: la acción aceptaba la undécima | `TOPE_DE_INTEGRACIONES`, en la acción; «Nuevo» se apaga y el pie lo dice |
+| dos apps con el mismo nombre: dos pestañas iguales en Chats | se rechaza, sin mirar mayúsculas ni tildes (`yaExisteElNombre`) |
+| borrar era de un clic, sin confirmar | pide confirmación; la fila se quita al momento y vuelve si el servidor dice que no |
+| al borrar la ÚLTIMA volvía a salir (`store.length > 0 ? store : initial`) | el store se siembra con lo del servidor y manda él |
+| cuatro pastillas arriba que no filtraban nada —dos repetían el total— | se fueron; la cifra va en el pie, debajo, como dice la regla de las métricas |
+| crear y editar eran dos formularios en línea distintos, en dos columnas | UNA ventana con la forma de «Crear contacto» de Leads |
+| una posición nueva = número de filas: tras borrar una del medio, dos filas en el mismo sitio | la siguiente a la última |
+| editar o borrar una fila que ya no estaba **reventaba** (`update`/`delete` de Prisma) | `updateMany`/`deleteMany` con su cuenta; y reordenar va en una transacción |
+| con una búsqueda puesta se podía arrastrar una lista a la que le faltaban filas | el asa se apaga y el pie dice por qué |
+| en `/canva` se encendían TODAS las apps del menú a la vez | se enciende la que se abrió (`canvaUrl === sub.url`) |
+
+Cinco cosas que hay que mantener:
+
+1. **Las reglas son UNA, `lib/integraciones.ts` (pura)**, y pasan por ella los
+   cinco sitios: la acción que guarda, la pantalla, la pestaña de Chats, el
+   `<iframe>` común y el menú. Con la regla en uno solo, el quinto la olvida.
+2. **Lo que se guarda es lo que se escribió**, con `https://` delante si no lo
+   traía, y no el `href` normalizado: el `href` le pone una barra al final y la
+   fila diría otra cosa que lo tecleado.
+3. **El `<iframe>` común admite rutas de la casa** (`/copiloto`, `/canva?u=`):
+   ahí las direcciones las pone la plataforma. Lo único que cierra es un
+   esquema que no sea web, decidido con el mismo analizador del navegador
+   (`java\tscript:` o un espacio delante no se cuelan).
+4. **Las apps son de la PERSONA** (`userId = user.id`, como siempre); ninguna
+   acción toca las de otra cuenta, y lo prueba el banco.
+5. **Algunas webs no dejan abrirse dentro de otra** (`X-Frame-Options`): eso no
+   se puede arreglar desde aquí, y la guía lo dice —«Abrir en nueva pestaña»—.
+
+Lo prueban `scripts/banco-integraciones.sh` —las reglas, un barrido de los
+cinco sitios y las cinco acciones contra Postgres; `MODO=roto` corre las de
+`ab6b110` y afirma la `javascript:` guardada, la undécima aceptada y la
+edición que revienta— y `scripts/banco-guia-integraciones.sh`: el contenido
+contra el código (los mandos de la fila, los campos de la ventana, el orden de
+las pestañas en Chats), el vídeo, las miniaturas (`GUIA=integraciones`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las siete guías— y la guía
+servida a 390 y 1440; `MODO=roto` lee `ab6b110` y afirma que no había guía.
+El test de miniaturas dejó de exigir «al menos ocho secciones» (era la octava
+de Leads): ahora compara las secciones leídas con las de la guía compilada.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
