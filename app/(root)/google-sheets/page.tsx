@@ -1,6 +1,7 @@
 import { currentUser } from '@/lib/auth';
 import { GoogleSheetsClient } from './_components/GoogleSheetsClient';
 import { db } from '@/lib/db';
+import { getServiceAccountEmail } from '@/actions/google-calendar-actions';
 
 export default async function GoogleSheetsPage() {
   const user = await currentUser();
@@ -8,17 +9,18 @@ export default async function GoogleSheetsPage() {
 
   const userId: string = (user as any).effectiveId ?? user.id;
 
-  const dbUser = await db.user.findUnique({
-    where: { id: userId },
-    select: { sheetsUrl: true, sheetsFormName: true, sheetsRegistroName: true } as any,
-  });
+  // `sheetsFormName` y `sheetsRegistroName` se pedían y la pantalla no los
+  // usaba: viajaban a un componente que no los leía.
+  const [dbUser, serviceAccountEmail] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { sheetsUrl: true } as any }),
+    getServiceAccountEmail(),
+  ]);
 
   return (
     <GoogleSheetsClient
       userId={userId}
       initialSheetsUrl={(dbUser as any)?.sheetsUrl ?? null}
-      initialFormName={(dbUser as any)?.sheetsFormName ?? null}
-      initialRegistroName={(dbUser as any)?.sheetsRegistroName ?? null}
+      serviceAccountEmail={serviceAccountEmail}
     />
   );
 }
