@@ -740,6 +740,28 @@ const INICIO_ANTES_DE_HABLAR_MS = 300;
  * `narracion-guia-usuarios.mjs`. La voz se coloca con `empezarLaNarracion` del
  * taller y se graba con la grabadora de todas las guías.
  */
+/**
+ * Desplaza la pantalla con la rueda, suave (el vídeo lo enseña), hasta que
+ * `locator` quede a `arriba` px del borde de arriba. Hace falta en los dos
+ * sentidos: bajar a las gráficas, y VOLVER a subir antes de pulsar Pipeline
+ * —el ratón pulsa donde está el botón, y si quedó fuera de la pantalla el clic
+ * cae en otra cosa y la vista no cambia—. El ratón va primero a `sobre`, que
+ * es lo que se desplaza.
+ */
+async function desplazarHasta(p, locator, { arriba = 160, sobre = { x: 760, y: 520 } } = {}) {
+    const b = await locator.boundingBox();
+    if (!b) throw new Error(`[guia] no se ve hasta dónde desplazar: ${locator}`);
+    const delta = Math.round(b.y - arriba);
+    if (Math.abs(delta) < 24) return;
+    await p.mouse.move(sobre.x, sobre.y, { steps: 10 });
+    const pasos = Math.max(4, Math.round(Math.abs(delta) / 60));
+    for (let i = 0; i < pasos; i += 1) {
+        await p.mouse.wheel(0, delta / pasos);
+        await espera(p, 28);
+    }
+    await espera(p, 250);
+}
+
 async function video(navegador, estado) {
     const dir = path.join(TMP, "video");
     rmSync(dir, { recursive: true, force: true });
@@ -835,12 +857,13 @@ async function video(navegador, estado) {
     await alDecir("convirtió", 100);
     await mover(p, laFila(p, "Laura Gómez").locator("td").nth(6));
     await alDecir("en gráficas", 100);
-    await p.locator(GRAFICAS).scrollIntoViewIfNeeded();
+    await desplazarHasta(p, p.locator(GRAFICAS), { arriba: 260 });
     await mover(p, p.locator('[data-grafica="rendimiento"]'));
 
     // El Pipeline: una columna por persona, y un contacto arrastrado.
     await decir("pipeline");
     await alDecir("el Pipeline", 0);
+    await desplazarHasta(p, laVista(p, "pipeline"), { arriba: 90 });
     await pulsar(p, laVista(p, "pipeline"));
     await p.waitForSelector('[data-columna-del-asesor="sin-asignar"] [data-tarjeta-del-contacto]', { timeout: 30000 });
     await alDecir("su columna", 100);
