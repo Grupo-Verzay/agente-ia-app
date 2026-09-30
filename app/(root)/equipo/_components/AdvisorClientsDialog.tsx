@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { getAdvisorClients, setAdvisorClients, type ClienteAsignable } from "@/actions/team-actions";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 
 /** Sin tildes y en minúsculas, para buscar "Audífonos" escribiendo "audifonos". */
 function normalizar(texto: string) {
@@ -159,7 +160,9 @@ export function AdvisorClientsDialog({
               {visibles.map((c) => (
                 <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{c.company || c.name || c.email}</p>
+                    {/* `company` nace «Empresa Demo»: con la columna a
+                        secas la lista salía con el mismo nombre en cada fila. */}
+                    <p className="truncate text-sm font-medium">{nombreDeLaCuenta(c)}</p>
                     <p className="truncate text-[11px] text-muted-foreground">{c.email}</p>
                   </div>
                   <Switch

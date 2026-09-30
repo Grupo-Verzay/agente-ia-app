@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { registerSession } from "@/actions/session-action"
 import { CreateLeadSchema, registerSessionSchema } from "@/schema/session"
+import { jidDelTelefonoTecleado } from "@/lib/whatsapp-jid"
 
 export const LeadCreateForm = ({ userId, instanceId, onCreated, onCancel }: registerSessionSchema) => {
     const router = useRouter();
@@ -28,12 +29,12 @@ export const LeadCreateForm = ({ userId, instanceId, onCreated, onCancel }: regi
 
     const mutation = useMutation({
         mutationFn: async (values: CreateLeadSchema) => {
-            const wppFormat = '@s.whatsapp.net';
-
-            const payload = {
-                ...values,
-                remoteJid: `${values.remoteJid}${wppFormat}`,
-            };
+            // La MISMA regla que «Crear contacto»: solo los dígitos.
+            const remoteJid = jidDelTelefonoTecleado(values.remoteJid);
+            if (!remoteJid) {
+                return { success: false, message: "Escribe el número completo, con el indicativo del país" } as Awaited<ReturnType<typeof registerSession>>;
+            }
+            const payload = { ...values, remoteJid };
 
             return await registerSession(payload);
         },

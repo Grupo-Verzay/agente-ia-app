@@ -36,7 +36,7 @@ export function ChannelTabs({ lockedSlugs = [] }: { lockedSlugs?: string[] }) {
 
   return (
     <div className="shrink-0 border-b border-border/40 px-2 py-2 sm:px-3">
-      <div className="flex w-full gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+      <div className="flex w-full gap-1 rounded-lg border border-border/60 bg-muted/30 p-1" data-canales-del-agente>
         {TRAINING_CHANNELS.map((c) => {
           const Icon = ICONS[c.slug] ?? FaWhatsapp;
           const isActive = active === c.slug;
@@ -45,6 +45,7 @@ export function ChannelTabs({ lockedSlugs = [] }: { lockedSlugs?: string[] }) {
             <Link
               key={c.slug}
               href={`/ia/${c.slug}`}
+              data-canal={c.slug}
               title={isLocked ? 'Canal no habilitado' : undefined}
               className={cn(
                 'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors',

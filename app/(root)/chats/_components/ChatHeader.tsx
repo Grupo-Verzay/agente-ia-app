@@ -131,6 +131,8 @@ interface ChatHeaderProps {
   etapaDelEmbudo?: EtapaDeLaFila | null;
   /** Para pintar la pastilla de la FILA al momento cuando se cambia aquí. */
   onEtapaCambiada?: (sessionId: number, etapa: EtapaDeLaFila) => void;
+  /** Sube cuando entra un mensaje nuevo en la conversación abierta: la etapa se vuelve a leer. */
+  refrescarLaEtapa?: number;
   /**
    * Se resolvio (true) o se reabrio (false). La lista y el contador de «Todos»
    * lo pintan al momento; sin este aviso esperaban al reloj de sesiones (60 s)
@@ -181,6 +183,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   escalatedAt,
   etapaDelEmbudo,
   onEtapaCambiada,
+  refrescarLaEtapa,
   onResolucionCambiada,
   onUnescalated,
   onAssignAdvisor,
@@ -413,6 +416,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       sessionId={session.id}
       etapaInicial={etapaDelEmbudo}
       onEtapaCambiada={(etapa) => onEtapaCambiada?.(session.id, etapa)}
+      refrescar={refrescarLaEtapa}
     />
   );
 

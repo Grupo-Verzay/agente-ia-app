@@ -2,9 +2,9 @@
 "use client";
 
 import { FC, useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { ClipboardList, X } from "lucide-react";
 import { PedidoFieldsEditor } from "../";
 import { CapturaDatosCardProps, DataSubtype, ElementoDeDatos, SUBTYPE_OPTIONS } from "@/types/agentAi";
 
@@ -17,6 +17,7 @@ import {
     SelectItem,
 } from "@/components/ui/select";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
     el,
@@ -45,9 +46,12 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-2 flex-row items-center justify-between gap-2">
+            {/* `px-3` como el resto de tarjetas de elemento: sin él la cabecera
+                tomaba el `px-6` de fábrica y el título y la papelera quedaban
+                12 px más adentro que los de la tarjeta de al lado. */}
+            <CardHeader className="py-2 px-3 flex-row items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-md">Captura de datos</CardTitle>
+                    <TituloDelElemento icono={ClipboardList}>Captura de datos</TituloDelElemento>
 
                     {/* Selector de subtipo */}
                     <Select
@@ -71,7 +75,7 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
             </CardHeader>
 
             <CardContent className="p-0 m-0">
-                <div className="px-4 pb-3">
+                <div className="px-3 pb-3">
                     <PedidoFieldsEditor
                         stepId={(el as ElementoDeDatos & { stepId?: string }).stepId ?? ""}
                         elId={el.id}

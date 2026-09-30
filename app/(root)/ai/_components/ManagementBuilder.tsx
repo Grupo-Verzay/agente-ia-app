@@ -14,6 +14,7 @@ import { Workflow } from "@prisma/client";
 import { useManagementAutosave, AutosaveStatus } from "./hooks/useManagementAutosave";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { PromptFragment } from "./helpers/prompt-fragments";
 import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
 import { GripVertical, ChevronDown, Trash2, Copy, ArrowRight } from "lucide-react";
@@ -512,7 +513,7 @@ export const ManagementBuilder = ({
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base uppercase">Gestión</CardTitle>
+                    <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.management}</CardTitle>
                     {autosaveStatus !== "idle" && (
                         <span
                             className={
@@ -537,7 +538,7 @@ export const ManagementBuilder = ({
                     {steps.length > 1 && (
                         <button
                             type="button"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                            className={BOTON_EXPANDIR_TODO}
                             onClick={expandedSteps.size === 0 ? expandAll : collapseAll}
                         >
                             {expandedSteps.size === 0 ? "Expandir todo" : "Colapsar todo"}
@@ -558,7 +559,7 @@ export const ManagementBuilder = ({
             <CardContent className="space-y-3">
                 {steps.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-2">
-                        No has agregado bloques de gestión. Usa &quot;Agregar acción&quot; para comenzar.
+                        {PESTANA_VACIA.management}
                     </div>
                 ) : (
                     <DndContext
@@ -576,14 +577,14 @@ export const ManagementBuilder = ({
                                             const elementCount = (step.elements ?? []).length;
 
                                             return (
-                                                <Card className="bg-muted/20 border-muted/60 overflow-hidden">
+                                                <Card className="bg-muted/20 border-muted/60 overflow-hidden" data-bloque>
                                                     {/* Fila de cabecera siempre visible */}
                                                     <div className="flex items-center justify-between gap-1 px-3 py-3">
                                                         <div className="flex items-center gap-1 min-w-0 flex-1">
                                                             {/* Drag handle */}
                                                             <div
                                                                 className="h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50"
-                                                                title="Arrastrar"
+                                                                title="Arrastrar gestión"
                                                                 {...dragHandleProps}
                                                             >
                                                                 <GripVertical className="h-4 w-4" />
@@ -642,7 +643,7 @@ export const ManagementBuilder = ({
                                                                     <button
                                                                         type="button"
                                                                         className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                                                        title="Eliminar gestión"
+                                                                        title={ELIMINAR_EN_LA_PESTANA.management.titulo}
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                         <Trash2 className="h-4 w-4" />
@@ -650,9 +651,9 @@ export const ManagementBuilder = ({
                                                                 </AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader>
-                                                                        <AlertDialogTitle>Eliminar gestión</AlertDialogTitle>
+                                                                        <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.management.titulo}</AlertDialogTitle>
                                                                         <AlertDialogDescription>
-                                                                            ¿Seguro que quieres eliminar esta gestión? Esta acción no se puede deshacer.
+                                                                            {ELIMINAR_EN_LA_PESTANA.management.texto}
                                                                         </AlertDialogDescription>
                                                                     </AlertDialogHeader>
                                                                     <AlertDialogFooter>
@@ -678,7 +679,10 @@ export const ManagementBuilder = ({
                                                         }}
                                                     >
                                                         <div className="overflow-hidden">
-                                                            <CardContent className="space-y-3 pt-0 pb-3 px-3">
+                                                            {/* Los bordes de un paso de Inicio: la tarjeta del elemento arranca bajo
+                                                                el título y acaba bajo la papelera (`pr-3`), y su asa queda a la izquierda.
+                                                                Con `px-3` todo iba 12 px corrido a la derecha del resto de pestañas. */}
+                                                            <CardContent className="space-y-3 pt-0 pb-3 pl-0 pr-3">
                                                                 {!step.elements || step.elements.length === 0 ? (
                                                                     <div className="text-center text-sm text-muted-foreground py-2">
                                                                         No hay elementos en esta gestión. Agrega funciones o textos usando los botones de abajo.
@@ -746,10 +750,10 @@ export const ManagementBuilder = ({
                                                                         </div>
                                                                     </SortableContext>
                                                                 )}
-                                                                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                                                                <div className="pl-10 flex items-center justify-between flex-wrap gap-2 pt-1">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-sm font-semibold">Elementos de la gestión</span>
-                                                                        <Badge variant="secondary">{idx + 1}</Badge>
+                                                                        <Badge variant="secondary" data-cuantos-elementos title="Cuántos elementos lleva">{(step.elements ?? []).length}</Badge>
                                                                     </div>
                                                                 </div>
                                                             </CardContent>

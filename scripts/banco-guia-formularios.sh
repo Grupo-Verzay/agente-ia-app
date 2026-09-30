@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # El banco de la GUÍA PÚBLICA de Mis formularios (`/guia/formularios`). Mismo
-# estándar que las de Leads, Catálogo, Diagramas, Reuniones y Mis notas, y las
+# estándar que las otras nueve (Leads, Catálogo, Diagramas, Reuniones, Mis notas,
+# Google Sheets, Integrar URLs, Agente IA y Usuarios), y las
 # mismas piezas:
 #
 #   1. `lib/__tests__/guia-formularios.test.mjs`: la guía documenta EXACTAMENTE
@@ -47,7 +48,7 @@ if [ "$MODO" = "roto" ]; then
 fi
 
 # Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
-for G in leads catalogo diagramas reuniones notas formularios; do
+for G in leads catalogo diagramas reuniones notas google-sheets integraciones agente-ia usuarios formularios; do
   OUT="lib/__tests__/.compilado/guia-$G"
   mkdir -p "$OUT"
   npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning

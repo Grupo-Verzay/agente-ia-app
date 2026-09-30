@@ -189,7 +189,13 @@ export default auth((req) => {
     // sí tiene sesión al pulsar «Ver formulario». Ser pública no abre nada:
     // solo se pinta un formulario ACTIVO, sin su hoja de Google Sheets, y el
     // envío guarda solo lo que es un campo suyo.
-    currentPath.startsWith("/f/");
+    currentPath.startsWith("/f/") ||
+    // El vídeo de ventas (/demo): la pieza que un lead ve ANTES de agendar una
+    // reunión, así que no tiene cuenta. No lee nada de la base —todo sale de
+    // `lib/video-de-ventas.ts` y de `public/demo/`— y no se indexa (metadata y
+    // `X-Robots-Tag`).
+    currentPath === "/demo" ||
+    currentPath.startsWith("/demo/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

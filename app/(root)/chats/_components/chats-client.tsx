@@ -113,6 +113,16 @@ import { avatarSrcFor } from "@/lib/avatar";
 import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
+import { SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS } from "@/lib/bandeja";
+import { DEL_AVISO_EN_VIVO, traeLoQueFaltabaDeUnAviso } from "@/lib/aviso-en-vivo-del-chat";
+import {
+  ESPERA_PARA_PONER_AL_DIA_MS,
+  conLaSesionAlDia,
+  esUnMensajeNuevo,
+  hayQuePedirSuFicha,
+} from "@/lib/crm-de-la-conversacion-abierta";
+import { etapaDeLaConversacionAction } from "@/actions/embudos-actions";
+import { elColorDeLaEtapa } from "@/lib/embudos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type { UIBubble } from "./chat-message-types";
 import type {
@@ -152,7 +162,12 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
   if (a.length !== b.length) return true;
   const la = getLastIdTimestamp(a);
   const lb = getLastIdTimestamp(b);
-  return la.id !== lb.id || la.ts !== lb.ts;
+  if (la.id !== lb.id || la.ts !== lb.ts) return true;
+  // Mismo largo y mismo ultimo mensaje, pero lo que se ve puede ser el
+  // BORRADOR de un aviso en vivo y lo que trae el reloj su version real (la
+  // nota con su reproductor, el PDF con su archivo, la marca de «Agente IA»).
+  // Sin esto el borrador no se sustituia nunca: ver `lib/aviso-en-vivo-del-chat`.
+  return traeLoQueFaltabaDeUnAviso(a, b, (m) => idDeWhatsapp(m.key?.id) || undefined);
 }
 
 type ApiKeyData = { url: string; key: string };
@@ -998,6 +1013,10 @@ export function ChatsClient({
     instanceActionSets?.find((s) => s.instanceName === initialSelectedChat?.instanceName) ?? null,
   );
   const selectedJidRef = useRef(selectedJid);
+  // Lo llama el sondeo y el tiempo real cuando traen un mensaje NUEVO de la
+  // conversacion abierta (ver `ponerAlDiaLaConversacionAbierta`). Va por
+  // referencia para no cambiar las dependencias de esos dos caminos.
+  const avisarDeUnMensajeNuevoRef = useRef<() => void>(() => {});
   selectedJidRef.current = selectedJid;
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
@@ -1761,6 +1780,8 @@ export function ChatsClient({
       .map((candidate) => chatSessions[candidate])
       .find(Boolean);
   }, [chatSessions, currentContact, selectedJid]);
+  const sesionAbiertaRef = useRef(currentContactSession);
+  sesionAbiertaRef.current = currentContactSession;
 
   // Un AGENTE con una conversación delante que no es suya: si entró por una
   // mención, la ve como invitado; si ese acceso ya no está, no la ve. Cualquier
@@ -2493,7 +2514,9 @@ export function ChatsClient({
   }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult, sessionUserIds]);
 
   /**
-   * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar.
+   * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar, y
+   * desde una conversacion abierta que todavia no tiene ficha en la lista
+   * (`hayQuePedirSuFicha`, como mucho una vez cada 15 s por conversacion).
    *
    * Esto iba con `forzar: true` siempre, y lo llaman los cuatro caminos de
    * envio —texto, flujo, respuesta rapida y plantilla de Meta—, 350 ms despues
@@ -2564,7 +2587,13 @@ export function ChatsClient({
         // `getSesionesDeLaCuenta`). Sin conservarlo, abrir un chat escalado
         // borraba la marca de la memoria y la fila se salia sola de «En espera».
         mapped.escalatedAt = previous[remoteJid]?.escalatedAt ?? null;
-        return { ...previous, [remoteJid]: mapped };
+        // Y la FILA, que lee la llave de su linea (`linea::numero`) y no la
+        // global: sin esto la calificacion que acaba de cambiar la IA salia en
+        // la cabecera y no en la lista hasta el reloj de sesiones (60 s). Solo
+        // los campos que la fila ensena, y nunca las etiquetas (ver
+        // `CAMPOS_DE_LA_SESION_PARA_LA_FILA`).
+        const { siguiente } = conLaSesionAlDia(previous, session.id, mapped);
+        return { ...siguiente, [remoteJid]: mapped };
       });
     },
     [],
@@ -2633,6 +2662,75 @@ export function ChatsClient({
    * el reloj de sesiones (60s) traia la lista de nuevo, y de ahi el "tarda
    * mucho".
    */
+  /**
+   * Lo que la IA cambia en el CRM mientras se mira la conversacion, se VE.
+   *
+   * Entra un mensaje nuevo en la conversacion abierta (lo trae el sondeo o el
+   * tiempo real) y en ese momento la IA suele haber tocado tambien el CRM: la
+   * ficha, la etapa, la calificacion. Se vuelve a leer lo de ESA conversacion
+   * —su sesion, su etapa y su ficha—, agrupando la rafaga. La regla y el porque
+   * estan en `lib/crm-de-la-conversacion-abierta.ts`.
+   */
+  const temporizadorDelCrmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fichaPedidaRef = useRef<Record<string, number>>({});
+  const ponerAlDiaLaConversacionAbierta = useCallback(async () => {
+    const jid = selectedJidRef.current;
+    if (!jid) return;
+    // La sesion (cabecera y fila) y la ficha: las dos cuelgan de esta senal.
+    setSessionRefreshSignal((n) => n + 1);
+
+    const sesion = sesionAbiertaRef.current;
+    if (!sesion?.id) {
+      // Una conversacion que nacio con la pantalla abierta no tiene ficha en
+      // la lista: se piden las sesiones con la consulta de la lista, como
+      // mucho una vez cada pocos segundos (`hayQuePedirSuFicha`).
+      const ahora = Date.now();
+      if (hayQuePedirSuFicha(false, fichaPedidaRef.current[jid], ahora)) {
+        fichaPedidaRef.current[jid] = ahora;
+        void refreshSidebarData({ forzar: true });
+      }
+      return;
+    }
+    const r = await etapaDeLaConversacionAction(sesion.id);
+    if (!r.success || !r.data) {
+      console.warn("[chats] no se pudo volver a leer la etapa de la conversacion abierta", {
+        sessionId: sesion.id,
+        motivo: r.message,
+      });
+      return;
+    }
+    if (selectedJidRef.current !== jid || !r.data.etapaId) return;
+    const posicion = r.data.etapas.findIndex((e) => e.id === r.data?.etapaId);
+    const etapa = posicion >= 0 ? r.data.etapas[posicion] : null;
+    if (!etapa || sesion.etapa?.id === etapa.id) return;
+    aplicarEnLaSesion(
+      sesion.id,
+      jid,
+      { etapa: { id: etapa.id, nombre: etapa.nombre, color: elColorDeLaEtapa(etapa, posicion) } },
+      "la etapa al llegar un mensaje",
+    );
+  }, [aplicarEnLaSesion, refreshSidebarData]);
+
+  const avisarDeUnMensajeNuevo = useCallback(() => {
+    if (temporizadorDelCrmRef.current) clearTimeout(temporizadorDelCrmRef.current);
+    const jid = selectedJidRef.current;
+    temporizadorDelCrmRef.current = setTimeout(() => {
+      temporizadorDelCrmRef.current = null;
+      // Si en la espera se cambio de chat, no hay nada que poner al dia: abrir
+      // el otro ya lee todo lo suyo.
+      if (selectedJidRef.current !== jid) return;
+      void ponerAlDiaLaConversacionAbierta();
+    }, ESPERA_PARA_PONER_AL_DIA_MS);
+  }, [ponerAlDiaLaConversacionAbierta]);
+  avisarDeUnMensajeNuevoRef.current = avisarDeUnMensajeNuevo;
+
+  useEffect(
+    () => () => {
+      if (temporizadorDelCrmRef.current) clearTimeout(temporizadorDelCrmRef.current);
+    },
+    [],
+  );
+
   const handleSessionStatusChange = useCallback(
     (sessionId: number, remoteJid: string, status: boolean) => {
       aplicarEnLaSesion(sessionId, remoteJid, { status }, "el interruptor de la IA");
@@ -2894,6 +2992,9 @@ export function ChatsClient({
             mensajeSoloPorElReloj(m?.key?.id);
           }
           if (areListsDifferent(messagesRef.current, nextMessages)) {
+            if (esUnMensajeNuevo(getLastIdTimestamp(messagesRef.current), getLastIdTimestamp(nextMessages))) {
+              avisarDeUnMensajeNuevoRef.current();
+            }
             setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo((currentInfo) => {
               const loadedPage = currentInfo?.currentPage ?? 1;
@@ -5129,7 +5230,7 @@ export function ChatsClient({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // El unico `forzar`: lo pidio una persona pulsando el boton.
+    // Lo pidio una persona pulsando el boton: se le paga la consulta cara.
     try { await refreshSidebarData({ forzar: true }); } finally { setIsRefreshing(false); }
   };
 
@@ -5154,6 +5255,7 @@ export function ChatsClient({
   // Si el realtime no está configurado por entorno, el hook no hace nada y todo
   // sigue con el polling de fondo. Es puramente aditivo (acelerador).
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const segundaVueltaDeUnChatNuevoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sondeoTrasAvisoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Avisos pendientes de aplicar a la lista, y el reloj que los vacia.
   const avisosPendientesRef = useRef<
@@ -5206,7 +5308,13 @@ export function ChatsClient({
         messageType: "conversation",
         messageTimestamp: tsEnSegundos,
         pushName: m.pushName ?? undefined,
+        // Es un borrador: el reloj lo sustituye por el mensaje real en cuanto lo
+        // trae. Sin la marca no lo sustituia nunca (`lib/aviso-en-vivo-del-chat`).
+        [DEL_AVISO_EN_VIVO]: true,
       } as unknown as EvolutionMessage;
+      if (esUnMensajeNuevo(getLastIdTimestamp(messagesRef.current), { id: m.id, ts: epochToMs(tsEnSegundos) })) {
+        avisarDeUnMensajeNuevoRef.current();
+      }
       setMessages((prev) => mergeMessages(prev, [evoMsg]));
     },
     [mergeMessages],
@@ -5607,12 +5715,30 @@ export function ChatsClient({
       realtimeRefreshTimerRef.current = setTimeout(() => {
         void refreshSidebarData();
       }, 2000);
+      // Un chat que NO esta en la lista (un cliente que escribe por primera
+      // vez): la vuelta de arriba puede traer la foto que el servidor recuerda
+      // de antes del mensaje (`MEMORIA_DE_LA_BANDEJA_MS`), y entonces el chat
+      // esperaba al reloj de la lista, hasta 20 s. Una segunda vuelta pasada
+      // esa memoria ya no puede traerla. Solo en este caso: un chat que ya
+      // esta en la lista lo pone al dia el propio aviso.
+      if (!existsInList) {
+        if (segundaVueltaDeUnChatNuevoRef.current) {
+          clearTimeout(segundaVueltaDeUnChatNuevoRef.current);
+        }
+        segundaVueltaDeUnChatNuevoRef.current = setTimeout(() => {
+          segundaVueltaDeUnChatNuevoRef.current = null;
+          void refreshSidebarData();
+        }, SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS);
+      }
     },
   });
   useEffect(() => {
     return () => {
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      if (segundaVueltaDeUnChatNuevoRef.current) {
+        clearTimeout(segundaVueltaDeUnChatNuevoRef.current);
       }
       if (sondeoTrasAvisoRef.current) {
         clearTimeout(sondeoTrasAvisoRef.current);
