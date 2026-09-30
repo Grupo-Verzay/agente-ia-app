@@ -41,13 +41,15 @@ export const StepEngine = ({
   <ScrollArea className="h-full pr-2">
     <div className="flex min-h-full flex-col gap-3 pb-1">
       {/* Model selection */}
-      <div className="grid gap-3">
+      <div data-zona="modelos" className="grid gap-3">
         {GENERATION_MODELS.map((model) => {
           const selected = selectedModel === model.id
           return (
             <button
               key={model.id}
               type="button"
+              data-modelo={model.id}
+              aria-pressed={selected}
               onClick={() => onSelectModel(model.id)}
               className={`relative w-full rounded-2xl border p-4 text-left transition ${
                 selected
@@ -71,7 +73,7 @@ export const StepEngine = ({
       </div>
 
       {/* Quantity stepper */}
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div data-zona="variantes" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           Variantes por imagen
         </p>
@@ -81,6 +83,7 @@ export const StepEngine = ({
             variant="outline"
             size="icon"
             className="h-10 w-10 shrink-0 rounded-xl"
+            aria-label="Una variante menos"
             onClick={() => onImageCountChange(Math.max(MIN_COUNT, imageCount - 1))}
             disabled={imageCount <= MIN_COUNT}
           >
@@ -99,6 +102,7 @@ export const StepEngine = ({
             variant="outline"
             size="icon"
             className="h-10 w-10 shrink-0 rounded-xl"
+            aria-label="Una variante más"
             onClick={() => onImageCountChange(Math.min(MAX_COUNT, imageCount + 1))}
             disabled={imageCount >= MAX_COUNT}
           >
@@ -112,6 +116,7 @@ export const StepEngine = ({
               key={n}
               type="button"
               onClick={() => onImageCountChange(n)}
+              aria-label={n === 1 ? '1 variante' : `${n} variantes`}
               className={`h-1.5 flex-1 rounded-full transition-all ${
                 n <= imageCount ? 'bg-primary' : 'bg-border'
               }`}
@@ -126,7 +131,7 @@ export const StepEngine = ({
       </div>
 
       {/* Quality */}
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div data-zona="calidad" className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           Calidad de generación
         </p>
@@ -137,6 +142,8 @@ export const StepEngine = ({
               <button
                 key={option.id}
                 type="button"
+                data-calidad={option.id}
+                aria-pressed={selected}
                 onClick={() => onImageQualityChange(option.id)}
                 className={`relative rounded-2xl border p-3 text-left transition ${
                   selected
@@ -154,9 +161,9 @@ export const StepEngine = ({
       </div>
 
       {/* Summary */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div data-zona="resumen" className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Lo que se generara</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Lo que se generará</p>
           <div className="mt-3 space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Productos</span>
@@ -177,19 +184,19 @@ export const StepEngine = ({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Texto en imagen</span>
-              <span className="font-semibold">{includeText ? 'Si' : 'No'}</span>
+              <span className="font-semibold">{includeText ? 'Sí' : 'No'}</span>
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Direccion actual</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Dirección actual</p>
           <p className="mt-2 text-sm font-semibold">{selectedStyle?.name}</p>
           <p className="mt-1 text-xs text-muted-foreground">{selectedStyle?.description}</p>
           <Separator className="my-3" />
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Prompt base</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            {customPrompt.trim() || 'Sin instrucciones extra. Se usara la plantilla y estilo seleccionados.'}
+            {customPrompt.trim() || 'Sin instrucciones extra. Se usarán la plantilla y el estilo seleccionados.'}
           </p>
         </div>
       </div>

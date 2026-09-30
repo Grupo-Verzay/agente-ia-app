@@ -11,6 +11,16 @@ import {
   laRedDelFormato,
   porQueFalloGemini,
 } from "@/lib/copy-del-anuncio";
+import { comoDataUrl, partirLaImagen } from "@/lib/imagen-en-base64";
+
+/**
+ * La API key de Google se pone en ESTA pantalla —el botón «Configurar» de AI
+ * imágenes—, no en Mi Perfil: Perfil solo ofrece el proveedor de OpenAI
+ * (`keepOnlyOpenAIProvider`). El mensaje de antes mandaba a buscarla a un sitio
+ * donde no se puede poner. Empieza por «Falta la API key de Gemini», que es lo
+ * que reconoce `porQueFalloGemini`.
+ */
+const FALTA_LA_CLAVE = "Falta la API key de Gemini. Configúrala con el botón «Configurar» de AI imágenes.";
 
 /**
  * La clave de Gemini de la cuenta en la que se trabaja y ESA cuenta, que es la
@@ -19,7 +29,7 @@ import {
  */
 async function getGeminiApiKey(): Promise<{ apiKey: string; cuenta: string }> {
   const user = await currentUser();
-  if (!user) throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
+  if (!user) throw new Error(FALTA_LA_CLAVE);
 
   const googleProvider = await db.aiProvider.findFirst({
     where: { name: "google" },
@@ -34,12 +44,16 @@ async function getGeminiApiKey(): Promise<{ apiKey: string; cuenta: string }> {
     if (config?.apiKey) return { apiKey: config.apiKey, cuenta: user.effectiveId };
   }
 
-  throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
+  throw new Error(FALTA_LA_CLAVE);
 }
 
 export async function saveUserGoogleApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
   const user = await currentUser();
   if (!user) return { success: false, message: "No autenticado" };
+  // Vacía no es una clave: guardarla dejaría la pantalla diciendo «configurada»
+  // y cada imagen volvería rechazada por Google.
+  apiKey = (apiKey ?? "").trim();
+  if (!apiKey) return { success: false, message: "Escribe tu API key de Google." };
 
   const googleProvider = await db.aiProvider.findFirst({
     where: { name: "google" },
@@ -72,6 +86,9 @@ export async function saveUserVisualStyle(
 ): Promise<{ success: boolean; style?: { id: string; name: string; description: string }; message?: string }> {
   const user = await currentUser();
   if (!user) return { success: false, message: "No autenticado" };
+  if (!name?.trim() || !description?.trim()) {
+    return { success: false, message: "El estilo necesita un nombre y una descripción." };
+  }
   const style = await db.userVisualStyle.create({
     data: { userId: user.effectiveId, name: name.trim(), description: description.trim() },
     select: { id: true, name: true, description: true },
@@ -100,11 +117,7 @@ export async function generateAdImage(
 ) {
   const { apiKey, cuenta } = await getGeminiApiKey();
 
-  if (!apiKey) {
-    throw new Error(
-      "Falta la API key de Gemini en el servidor. Configura GEMINI_API_KEY (o GOOGLE_API_KEY / GOOGLE_GENAI_API_KEY)."
-    );
-  }
+  if (!apiKey) throw new Error(FALTA_LA_CLAVE);
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -212,16 +225,18 @@ export async function generateAdImage(
     if (!uso.ok) throw new Error(uso.aviso);
     const response = uso.valor;
 
-    const base64EncodeString = response.generatedImages?.[0]?.image?.imageBytes;
+    const generada = response.generatedImages?.[0]?.image;
+    const base64EncodeString = generada?.imageBytes;
 
     if (!base64EncodeString) {
       throw new Error("El modelo no devolvió ninguna imagen válida.");
     }
 
-    return `data:image/png;base64,${base64EncodeString}`;
+    return comoDataUrl(base64EncodeString, generada?.mimeType);
   }
 
-  const imageData = base64Image.split(",")[1];
+  // El producto se manda con SU tipo: la foto que se sube suele ser un JPEG.
+  const { tipo: tipoDelProducto, datos: imageData } = partirLaImagen(base64Image);
 
   if (!imageData) {
     throw new Error("La imagen base64 no es válida.");
@@ -235,7 +250,7 @@ export async function generateAdImage(
         {
           inlineData: {
             data: imageData,
-            mimeType: "image/png",
+            mimeType: tipoDelProducto,
           },
         },
         {
@@ -266,7 +281,7 @@ export async function generateAdImage(
 
   for (const part of candidate.content?.parts || []) {
     if (part.inlineData?.data) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      return comoDataUrl(part.inlineData.data, part.inlineData.mimeType);
     }
 
     if (part.text) {
@@ -332,10 +347,10 @@ export async function generarCopyDelAnuncio(
     // La imagen ya creada va DENTRO de la petición: el copy tiene que hablar de
     // lo que se ve, no de lo que se pidió. Sin ella, dos productos distintos con
     // la misma plantilla darían el mismo texto.
-    const datos = typeof imagenGenerada === "string" ? imagenGenerada.split(",")[1] : "";
+    const { tipo, datos } = partirLaImagen(imagenGenerada);
 
     const partes: { inlineData?: { data: string; mimeType: string }; text?: string }[] = [];
-    if (datos) partes.push({ inlineData: { data: datos, mimeType: "image/png" } });
+    if (datos) partes.push({ inlineData: { data: datos, mimeType: tipo } });
     partes.push({ text: prompt });
 
     // El copy lo PAGA la misma cuenta que la imagen. Sin créditos no se pide,

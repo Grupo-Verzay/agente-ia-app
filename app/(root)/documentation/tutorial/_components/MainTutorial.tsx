@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { CurrentUser } from '@/lib/auth';
-import { GuideUrl as Guide, User } from '@prisma/client';
+import { GuideUrl as Guide } from '@prisma/client';
 import { getAllGuides, createGuide, updateGuide, deleteGuide } from '@/actions/guide-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
     Select,
     SelectTrigger,
@@ -16,10 +15,16 @@ import {
     SelectItem,
 } from '@/components/ui/select'
 import { toast } from 'sonner';
-import { Pencil, Trash2, Plus, Search, Eye } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog';
-import Header from '@/components/shared/header';
+import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { RejillaOrdenable, TarjetaOrdenable } from '@/components/shared/OrdenDeTarjetas';
+import { useOrdenPropio } from '@/components/shared/OrdenPropio';
+import { CabeceraDeDocumentacion } from '@/components/documentacion/CabeceraDeDocumentacion';
+import { REJILLA_DE_DOCUMENTOS, TarjetaDeDocumento } from '@/components/documentacion/TarjetaDeDocumento';
+import type { OrdenGuardado } from '@/lib/orden-de-las-tarjetas';
+import { coincideConLaBusqueda } from '@/lib/buscar-en-documentacion';
 import {
     COMIENZO_DE_LA_DESCRIPCION,
     FINAL_DE_LA_DESCRIPCION,
@@ -28,8 +33,10 @@ import {
     porQueNoValeLaDescripcion,
 } from '@/lib/tutoriales-del-modulo';
 
-export const MainTutorial = ({ user }: { user: CurrentUser }) => {
+export const MainTutorial = ({ user, ordenInicial }: { user: CurrentUser; ordenInicial?: OrdenGuardado }) => {
     const { modules } = useModuleStore();
+    // Cada persona coloca las tarjetas arrastrándolas, como en Módulos.
+    const orden = useOrdenPropio('tutoriales', ordenInicial ?? {});
 
     const [guides, setGuides] = useState<Guide[]>([]);
     const [loading, setLoading] = useState(false);
@@ -55,7 +62,7 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
 
     const handleSubmit = async () => {
         if (!form.title?.trim() || !form.url?.trim() || !form.path?.trim()) {
-            return toast.error('All fields are required');
+            return toast.error('Completa el título, el enlace y la pantalla.');
         }
         // La misma regla que el servidor: se dice antes de mandar.
         const motivo = porQueNoValeLaDescripcion(form.description);
@@ -69,7 +76,7 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
         }
 
         if (res.success) {
-            toast.success(editingId ? 'Guide updated' : 'Guide created');
+            toast.success(editingId ? 'Tutorial actualizado' : 'Tutorial creado');
             setOpen(false);
             setForm({});
             setEditingId(null);
@@ -89,7 +96,7 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
         const res = await deleteGuide(id);
 
         if (res.success) {
-            toast.success('Guide deleted');
+            toast.success('Tutorial eliminado');
             fetchGuides();
         } else {
             toast.error(res.message);
@@ -138,10 +145,10 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
         );
     }, [modules]);
 
+    // Sin mirar mayúsculas ni tildes, por el título, la pantalla y la
+    // descripción.
     const filteredGuides = guides.filter(guide =>
-        guide.title.toLowerCase().includes(filter.toLowerCase()) ||
-        guide.path.toLowerCase().includes(filter.toLowerCase())
-        // guide.description.toLowerCase().includes(filter.toLowerCase())
+        coincideConLaBusqueda(filter, guide.title, guide.path, guide.description)
     );
 
     const onDeleteTutorial = (guide: Guide, state: boolean) => {
@@ -149,15 +156,21 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
         setItemDelete(guide);
     };
 
+    const esAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const colocados = orden.colocar(filteredGuides, (g) => g.id);
+    // La lista ENTERA ya colocada: con una búsqueda puesta se arrastran las que
+    // se ven y lo escondido conserva su sitio.
+    const idsCompletos = orden.colocar(guides, (g) => g.id).map((g) => g.id);
+
     return (
-        <div className="flex h-full min-h-0 flex-col p-4 gap-6 overflow-hidden">
-            <Header
-                title="Tutoriales"
-            />
-            {/* Header y Filtro */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between overflow-hidden">
-                <div className="flex flex-1 gap-2 items-center">
-                    <div className="relative w-64 shrink-0">
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-pantalla-de-tutoriales>
+            <CabeceraDeDocumentacion titulo="Tutoriales" />
+
+            {/* La barra de siempre: el buscador a la izquierda y el azul de
+                crear a la DERECHA (antes iba pegado al buscador). */}
+            <BarraDeAcciones
+                buscador={
+                    <div className="relative w-56 sm:w-72">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Buscar tutorial..."
@@ -166,160 +179,119 @@ export const MainTutorial = ({ user }: { user: CurrentUser }) => {
                             onChange={e => setFilter(e.target.value)}
                         />
                     </div>
-                    {(user?.role === 'admin' || user?.role === 'super_admin') &&
-                        <Dialog open={open} onOpenChange={setOpen}>
-                            <DialogTrigger asChild>
-                                <Button
-                                    onClick={() => {
-                                        setForm({});         // Limpia campos
-                                        setEditingId(null);  // Quita modo edición
-                                    }}
-                                >
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Crear Tutorial
-                                </Button>
-                            </DialogTrigger>
+                }
+                crear={
+                    esAdmin ? (
+                        <BotonDeCrear
+                            data-crear-tutorial
+                            onClick={() => {
+                                setForm({});         // Limpia campos
+                                setEditingId(null);  // Quita modo edición
+                                setOpen(true);
+                            }}
+                        >
+                            Nuevo
+                        </BotonDeCrear>
+                    ) : undefined
+                }
+            />
 
-                            <DialogContent className="space-y-4">
-                                <DialogTitle>{form.id ? 'Editar tutorial' : 'Crear tutorial'}</DialogTitle>
-                                <Input
-                                    placeholder="Título de la guía (e.j., Cómo crear una cuenta)"
-                                    value={form.title || ''}
-                                    onChange={e => setForm({ ...form, title: e.target.value })}
-                                />
-                                <Input
-                                    placeholder="URL (e.j., https://youtu.be/fP4DlWuwto0)"
-                                    value={form.url || ''}
-                                    onChange={e => setForm({ ...form, url: e.target.value })}
-                                />
-                                <Select
-                                    value={form.path || ''}
-                                    onValueChange={(value) => setForm({ ...form, path: value })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione un modulo/section" />
-                                    </SelectTrigger>
-                                    {/* Alto acotado y con scroll: la lista pasa de veinte
-                                        entradas y sin esto tapaba el botón de crear. */}
-                                    <SelectContent className="max-h-[50vh]">
-                                        {pantallas.map((p) => (
-                                            <SelectItem key={p.path} value={p.path}>
-                                                {p.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {/* La descripción de la tarjeta: «Aprende a … en la
-                                    plataforma», y cabe en una línea. La regla es
-                                    la de `lib/tutoriales-del-modulo.ts`. */}
-                                <div className="space-y-1">
-                                    <Input
-                                        data-descripcion-del-tutorial
-                                        placeholder={`${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}`}
-                                        value={form.description || ''}
-                                        maxLength={TOPE_DE_LA_DESCRIPCION}
-                                        onChange={e => setForm({ ...form, description: e.target.value })}
-                                    />
-                                    <div className="flex items-start justify-between gap-2 text-xs">
-                                        <span className={porQueNoValeLaDescripcion(form.description) ? 'text-destructive' : 'text-muted-foreground'}>
-                                            {porQueNoValeLaDescripcion(form.description)
-                                                ?? `Formato: «${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}».`}
-                                        </span>
-                                        <span className="shrink-0 tabular-nums text-muted-foreground">
-                                            {largoDeLaDescripcion(form.description)}/{TOPE_DE_LA_DESCRIPCION}
-                                        </span>
-                                    </div>
-                                </div>
-                                <Button onClick={handleSubmit} className="w-full">
-                                    {form.id ? 'Actualizar tutorial' : 'Crear tutorial'}
-                                </Button>
-                            </DialogContent>
-                        </Dialog>
-                    }
-                </div>
-            </div>
+            {esAdmin &&
+                <Dialog open={open} onOpenChange={setOpen}>
+                    <DialogContent className="space-y-4">
+                        <DialogTitle>{form.id ? 'Editar tutorial' : 'Crear tutorial'}</DialogTitle>
+                        <Input
+                            placeholder="Título de la guía (e.j., Cómo crear una cuenta)"
+                            value={form.title || ''}
+                            onChange={e => setForm({ ...form, title: e.target.value })}
+                        />
+                        <Input
+                            placeholder="URL (e.j., https://youtu.be/fP4DlWuwto0)"
+                            value={form.url || ''}
+                            onChange={e => setForm({ ...form, url: e.target.value })}
+                        />
+                        <Select
+                            value={form.path || ''}
+                            onValueChange={(value) => setForm({ ...form, path: value })}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione un modulo/section" />
+                            </SelectTrigger>
+                            {/* Alto acotado y con scroll: la lista pasa de veinte
+                                entradas y sin esto tapaba el botón de crear. */}
+                            <SelectContent className="max-h-[50vh]">
+                                {pantallas.map((p) => (
+                                    <SelectItem key={p.path} value={p.path}>
+                                        {p.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {/* La descripción de la tarjeta: «Aprende a … en la
+                            plataforma», y cabe en una línea. La regla es
+                            la de `lib/tutoriales-del-modulo.ts`. */}
+                        <div className="space-y-1">
+                            <Input
+                                data-descripcion-del-tutorial
+                                placeholder={`${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}`}
+                                value={form.description || ''}
+                                maxLength={TOPE_DE_LA_DESCRIPCION}
+                                onChange={e => setForm({ ...form, description: e.target.value })}
+                            />
+                            <div className="flex items-start justify-between gap-2 text-xs">
+                                <span className={porQueNoValeLaDescripcion(form.description) ? 'text-destructive' : 'text-muted-foreground'}>
+                                    {porQueNoValeLaDescripcion(form.description)
+                                        ?? `Formato: «${COMIENZO_DE_LA_DESCRIPCION}[qué aprende]${FINAL_DE_LA_DESCRIPCION}».`}
+                                </span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">
+                                    {largoDeLaDescripcion(form.description)}/{TOPE_DE_LA_DESCRIPCION}
+                                </span>
+                            </div>
+                        </div>
+                        <Button onClick={handleSubmit} className="w-full">
+                            {form.id ? 'Actualizar tutorial' : 'Crear tutorial'}
+                        </Button>
+                    </DialogContent>
+                </Dialog>
+            }
 
-            {/* Cards */}
             {loading ? (
                 <div className="flex justify-center items-center py-20">
-                    <p className="text-muted-foreground">Loading guides...</p>
+                    <p className="text-muted-foreground">Cargando tutoriales…</p>
                 </div>
             ) : (
                 // La lista se lleva el alto que sobra y hace su propio scroll.
-                // Antes tenía un tope de 80% de la pantalla dentro de una página
-                // sin altura: al pasar de cuatro tarjetas la última quedaba
-                // cortada y no había forma de bajar hasta ella.
-                <div className="flex-1 min-h-0">
-                    <div className="h-full overflow-auto py-2">
-                        {/* Rejilla que se acomoda sola al ancho disponible.
-                            Antes eran tarjetas de ancho fijo centradas: al 75% de
-                            zoom entraban cinco por fila, al 100% solo cuatro, y la
-                            quinta quedaba sola en el medio y cortada por abajo. Con
-                            columnas automáticas caben las que quepan, alineadas
-                            desde la izquierda, y las demás bajan a la fila
-                            siguiente sin huecos raros. */}
-                        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
-                            {filteredGuides.length > 0 ? (
-                                filteredGuides.map(guide => (
-                                    <Card key={guide.id}
-                                        className="
-                                        flex
-                                        flex-col
-                                        border-border
-                                        transition-all 
-                                        duration-300 
-                                        hover:shadow-lg 
-                                        hover:scale-[1.015] 
-                                        hover:border-primary
-                                        w-full
-                                        ">
-                                        <CardHeader>
-                                            <CardTitle>{guide.title}</CardTitle>
-                                            {/* En qué pantalla sale. Sin esto no había forma de
-                                                ver a qué módulo quedó pegado un tutorial, y con
-                                                dos módulos llamados igual es fácil errarle. */}
-                                            <p className="text-xs text-muted-foreground">{guide.path}</p>
-                                        </CardHeader>
-                                        <CardContent className="flex flex-1 justify-stretch items-center">
-                                            <p className="text-muted-foreground">{guide.description}</p>
-                                        </CardContent>
-                                        <CardFooter className="flex mt-auto gap-2 w-full">
-                                            <Button
-                                                className="w-full"
-                                                onClick={() => window.open(guide.url, "_blank")}
-                                                rel="noopener noreferrer"
-                                            >
-                                                {(user?.role === 'admin' || user?.role === 'super_admin') ? <Eye /> : 'Ver'}
-                                            </Button>
-                                            {(user?.role === 'admin' || user?.role === 'super_admin') &&
-                                                <>
-                                                    <Button
-                                                        variant="secondary"
-                                                        className="w-full"
-                                                        onClick={() => handleEdit(guide)}
-                                                    >
-                                                        <Pencil />
-                                                    </Button>
-
-                                                    <Button
-                                                        variant="destructive"
-                                                        className="w-full"
-                                                        onClick={() => onDeleteTutorial(guide, true)}
-                                                    >
-                                                        <Trash2 />
-                                                    </Button>
-                                                </>
-                                            }
-                                        </CardFooter>
-                                    </Card>
-                                ))
-                            ) : (
-                                <div className="flex justify-center items-center py-10 col-span-full">
-                                    <p className="text-muted-foreground">No guides found.</p>
-                                </div>
-                            )}
+                <div className="flex-1 min-h-0 overflow-auto py-1">
+                    {colocados.length > 0 ? (
+                        <RejillaOrdenable
+                            ids={idsCompletos}
+                            puedeOrdenar
+                            onMover={(todos, arrastrada, sobre) => void orden.mover(todos, arrastrada, sobre)}
+                            className={REJILLA_DE_DOCUMENTOS}
+                        >
+                            {colocados.map(guide => (
+                                <TarjetaOrdenable key={guide.id} id={guide.id} puedeOrdenar asa="derecha" className="h-full">
+                                    <TarjetaDeDocumento
+                                        conAsa
+                                        titulo={guide.title}
+                                        // En qué pantalla sale: sin esto no había forma de
+                                        // ver a qué módulo quedó pegado un tutorial.
+                                        detalle={guide.path}
+                                        descripcion={guide.description}
+                                        alVer={() => window.open(guide.url, "_blank", "noopener,noreferrer")}
+                                        alEditar={esAdmin ? () => handleEdit(guide) : undefined}
+                                        alEliminar={esAdmin ? () => onDeleteTutorial(guide, true) : undefined}
+                                    />
+                                </TarjetaOrdenable>
+                            ))}
+                        </RejillaOrdenable>
+                    ) : (
+                        <div className="flex justify-center items-center py-10">
+                            <p className="text-muted-foreground">
+                                {filter.trim() ? `Ningún tutorial coincide con «${filter.trim()}».` : 'Todavía no hay tutoriales.'}
+                            </p>
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 

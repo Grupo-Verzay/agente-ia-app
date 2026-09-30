@@ -26,7 +26,7 @@ export const StepImages = ({
   onSelectImage,
 }: StepImagesProps) => {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div data-zona="producto" className="flex h-full min-h-0 flex-col gap-3">
       <input
         type="file"
         ref={fileInputRef}
@@ -93,8 +93,11 @@ export const StepImages = ({
         <div className="flex flex-wrap justify-center gap-2.5">
           {sourceImages.map((img, idx) => (
             <div key={idx} className="relative shrink-0">
-              <div
+              <button
+                type="button"
                 onClick={() => onSelectImage(idx)}
+                aria-label={`Ver el producto ${idx + 1}`}
+                aria-pressed={activeImageIndex === idx}
                 className={[
                   'relative h-[72px] w-[72px] cursor-pointer overflow-hidden rounded-2xl border-2 transition',
                   activeImageIndex === idx
@@ -110,12 +113,14 @@ export const StepImages = ({
                   className="object-contain p-1"
                   referrerPolicy="no-referrer"
                 />
-              </div>
+              </button>
               <Button
                 type="button"
                 size="icon"
                 variant="secondary"
                 className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full shadow-sm"
+                title={`Quitar el producto ${idx + 1}`}
+                aria-label={`Quitar el producto ${idx + 1}`}
                 onClick={() => onRemove(idx)}
               >
                 <X className="h-2.5 w-2.5" />

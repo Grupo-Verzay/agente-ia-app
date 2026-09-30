@@ -22,9 +22,9 @@ const LEAD_LABELS: Record<string, string> = {
   FINALIZADO: "Finalizado", DESCARTADO: "Descartado",
 };
 
-type Props = { metrics: TeamMetrics; maxChats: number };
+type Props = { metrics: TeamMetrics };
 
-export function TeamCharts({ metrics, maxChats }: Props) {
+export function TeamCharts({ metrics }: Props) {
   const { global, advisors } = metrics;
 
   const shortName = (name: string | null, email: string) => {
@@ -55,10 +55,10 @@ export function TeamCharts({ metrics, maxChats }: Props) {
   const totalLeads = leadData.reduce((a, b) => a + b.value, 0);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
+    <div data-graficas-del-equipo className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
 
       {/* Carga del equipo */}
-      <Card className="lg:col-span-1">
+      <Card data-grafica="carga" className="lg:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Carga del equipo</CardTitle>
           <CardDescription className="text-xs">Conversaciones activas vs. total asignadas</CardDescription>
@@ -85,7 +85,7 @@ export function TeamCharts({ metrics, maxChats }: Props) {
       </Card>
 
       {/* Rendimiento por asesor */}
-      <Card className="lg:col-span-1">
+      <Card data-grafica="rendimiento" className="lg:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Rendimiento</CardTitle>
           <CardDescription className="text-xs">Cerradas, calientes y convertidas por asesor</CardDescription>
@@ -113,7 +113,7 @@ export function TeamCharts({ metrics, maxChats }: Props) {
       </Card>
 
       {/* Distribución de leads */}
-      <Card className="lg:col-span-1">
+      <Card data-grafica="estado-de-leads" className="lg:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Estado de leads</CardTitle>
           <CardDescription className="text-xs">{totalLeads} leads clasificados</CardDescription>

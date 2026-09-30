@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StepTemplatePicker } from "./StepTemplatePicker";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, BOTON_EXPANDIR_TODO, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
 import { elementosQueFaltan, StepTemplate, esInstruccionDelSistema } from "./helpers/stepTemplates";
 import { ordenarElementos, ordenarElementosDeLosPasos } from "@/lib/orden-de-elementos";
 
@@ -610,7 +611,7 @@ export function TrainingBuilder({
     <Card className="border-muted/60">
       <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-base uppercase">Entrenamiento</CardTitle>
+          <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.training}</CardTitle>
 
           {/* 🔹 Indicador de autosave */}
           {autosaveStatus !== "idle" && (
@@ -635,19 +636,18 @@ export function TrainingBuilder({
 
         <div className="flex items-center gap-2">
           {steps.length > 1 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs text-muted-foreground"
+            <button
+              type="button"
+              className={BOTON_EXPANDIR_TODO}
               onClick={expandedSteps.size === 0 ? expandAll : collapseAll}
             >
               {expandedSteps.size === 0 ? "Expandir todo" : "Colapsar todo"}
-            </Button>
+            </button>
           )}
           {steps.length < 1 && (
             <Button size="sm" onClick={addStep} className="gap-2">
               <Plus className="w-4 h-4" />
-              Agregar paso
+              {AGREGAR_EN_LA_PESTANA.training}
             </Button>
           )}
         </div>
@@ -656,7 +656,7 @@ export function TrainingBuilder({
       <CardContent className="space-y-4">
         {steps.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-2">
-            No has creado pasos. Crea tu primer paso con Agregar paso.
+            {PESTANA_VACIA.training}
           </div>
         ) : (
           <DndContext
@@ -679,7 +679,7 @@ export function TrainingBuilder({
                         const isExpanded = expandedSteps.has(step.id) && !isDragging;
 
                         return (
-                          <Card className="bg-muted/20 border-muted/60 overflow-hidden">
+                          <Card className="bg-muted/20 border-muted/60 overflow-hidden" data-bloque>
                             {/* ---- Header siempre visible ---- */}
                             <div className="flex items-center justify-between gap-1 px-3 py-3">
                               {/* Izquierda: drag + número + título */}
@@ -704,8 +704,12 @@ export function TrainingBuilder({
                                 </span>
 
                                 {/* Título */}
+                                {/* El título fijo de la bienvenida ocupa lo mismo que el
+                                    de los demás pasos (`flex-1`, mismo peso): sin eso su
+                                    «2 elementos» salía pegado al título mientras el de los
+                                    demás iba a la derecha, junto a la flecha. */}
                                 {lockWelcome ? (
-                                  <span className="text-sm font-semibold truncate uppercase">
+                                  <span className="flex-1 min-w-0 text-left text-sm font-medium truncate uppercase" data-titulo-del-paso>
                                     {step.title}
                                   </span>
                                 ) : isExpanded ? (
@@ -720,8 +724,9 @@ export function TrainingBuilder({
                                 ) : (
                                   <button
                                     type="button"
-                                    className="flex-1 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
+                                    className="flex-1 min-w-0 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
                                     onClick={() => toggleStep(step.id)}
+                                    data-titulo-del-paso
                                   >
                                     {step.title || (
                                       <span className="text-muted-foreground italic">Sin título</span>
@@ -769,7 +774,7 @@ export function TrainingBuilder({
                                 <button
                                   type="button"
                                   className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
-                                  title="Eliminar paso"
+                                  title={ELIMINAR_EN_LA_PESTANA.training.titulo}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPasoAEliminar(step.id);
@@ -852,8 +857,11 @@ export function TrainingBuilder({
                                     )}
                                   </div>
 
+                                  {/* Con el mismo sangrado que el resto del paso (`pl-10`):
+                                      con `px-3` arrancaba 26 px más a la izquierda que el
+                                      selector de modo de encima y el Motor de Flujo de debajo. */}
                                   {lockWelcome && (
-                                    <div className="px-3">
+                                    <div className="pl-10 pr-3">
                                       <InstruccionesDelSistema texto={step.mainMessage} />
                                     </div>
                                   )}
@@ -861,13 +869,22 @@ export function TrainingBuilder({
                                   {/* Motor de Flujo */}
                                   <div className="pl-10 pr-3">
                                     <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 px-3 py-2 space-y-2">
+                                      {/* La flecha gira como la del paso: plegada apunta
+                                          abajo y abierta arriba. Quieta, no decía si el
+                                          bloque estaba abierto, y la del paso de al lado
+                                          sí lo decía. */}
                                       <button
                                         type="button"
                                         onClick={() => toggleMotor(step.id)}
                                         className="flex items-center justify-between w-full"
+                                        aria-expanded={expandedMotor.has(step.id)}
+                                        data-motor-de-flujo
                                       >
                                         <p className="text-xs font-semibold text-foreground/60 uppercase tracking-widest">Motor de Flujo</p>
-                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <ChevronDown
+                                          className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200"
+                                          style={{ transform: expandedMotor.has(step.id) ? "rotate(180deg)" : "rotate(0deg)" }}
+                                        />
                                       </button>
                                       {expandedMotor.has(step.id) && (
                                         <div className="space-y-2">
@@ -882,7 +899,7 @@ export function TrainingBuilder({
                                               />
                                             </div>
                                             <div className="space-y-1.5">
-                                              <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
+                                              <label className="text-xs font-medium text-foreground/70">Condición para avanzar</label>
                                               <Input
                                                 value={step.condicionParaAvanzar ?? ""}
                                                 onChange={(e) => updateStepCondicion(step.id, e.target.value)}
@@ -911,7 +928,10 @@ export function TrainingBuilder({
 
                                   <Separator />
 
-                                  <div className="space-y-2">
+                                  {/* `pr-3`, el mismo de todo lo demás del paso: sin él las
+                                      tarjetas de los elementos llegaban 12 px más a la derecha
+                                      que el Motor de Flujo, «Agregar acción» y la papelera. */}
+                                  <div className="space-y-2 pr-3">
                                     {step.elements.length === 0 ? (
                                       <div className="text-center text-sm text-muted-foreground py-2">
                                         No hay elementos en este paso. Agrega funciones o textos
@@ -963,7 +983,7 @@ export function TrainingBuilder({
                                   <div className="pl-10 pr-3 flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-semibold">Elementos del paso</span>
-                                      <Badge variant="secondary">{idx + 1}</Badge>
+                                      <Badge variant="secondary" data-cuantos-elementos title="Cuántos elementos lleva">{(step.elements ?? []).length}</Badge>
                                     </div>
                                     <div className="flex gap-2">
                                       <FunctionSelector
@@ -999,7 +1019,7 @@ export function TrainingBuilder({
           </div>
           <Button size="sm" onClick={addStep} className="gap-2">
             <Plus className="w-4 h-4" />
-            Agregar paso
+            {AGREGAR_EN_LA_PESTANA.training}
           </Button>
         </CardFooter>
       )}
@@ -1009,9 +1029,9 @@ export function TrainingBuilder({
       <AlertDialog open={pasoAEliminar !== null} onOpenChange={(abierto) => !abierto && setPasoAEliminar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar entrenamiento</AlertDialogTitle>
+            <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.training.titulo}</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Seguro que quieres eliminar este entrenamiento? Esta acción no se puede deshacer.
+              {ELIMINAR_EN_LA_PESTANA.training.texto}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

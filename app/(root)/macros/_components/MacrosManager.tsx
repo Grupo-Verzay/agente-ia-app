@@ -4,7 +4,7 @@ import { GrabadorDeAudio } from '@/components/shared/GrabadorDeAudio';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
-  Search, CheckCircle2, List, Play, MoreVertical, Copy, Power, PowerOff, Paperclip,
+  Search, CheckCircle2, CircleOff, MoreVertical, Copy, Power, PowerOff, Paperclip,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,23 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  ETIQUETA_DE_ACCION,
+  GRUPOS_DE_ACCIONES,
+  TIPOS_DE_TAREA,
+  COLORES_DE_MACRO,
+  SEGUNDOS_MAXIMOS_DE_ESPERA,
+  SEGUNDOS_POR_DEFECTO,
+  porQueNoEstaLista,
+  losProblemasDeLaMacro,
+  lasMacrosQueSeVen,
+  losConteosDeMacros,
+  sePuedeReordenar,
+  elMensajeDeLaListaVacia,
+  elDetalleDeLaFila,
+  type FiltroDeMacros,
+} from '@/lib/macros';
+import { LEAD_STATUS_FILTER_OPTIONS } from '@/app/(root)/crm/dashboard/helpers/leadStatus';
+import {
   createMacroAction,
   updateMacroAction,
   deleteMacroAction,
@@ -55,7 +72,7 @@ import {
 } from '@/actions/macro-actions';
 import { listMetaTemplates, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { BarraDeAcciones, BotonDeCrear } from '@/components/shared/BarraDeAcciones';
-import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import { AccionesMasivas, CasillaDeFila, useSeleccionMultiple } from '@/components/shared/AccionesMasivas';
 
 type TagOpt = { id: number; name: string; color: string | null };
 type RROpt = { id: number; name: string | null; mensaje: string | null };
@@ -73,62 +90,9 @@ interface Props {
   userId: string;
 }
 
-const ACTION_LABEL: Record<MacroActionType, string> = {
-  SEND_TEXT: 'Enviar mensaje',
-  SEND_QUICK_REPLY: 'Enviar respuesta rápida',
-  SEND_TEXT_VIA: 'Enviar por otra línea',
-  SEND_FILE: 'Enviar archivo/adjunto',
-  EXECUTE_FLOW: 'Ejecutar flujo',
-  ADD_TAG: 'Agregar etiqueta',
-  REMOVE_TAG: 'Quitar etiqueta',
-  CHANGE_STAGE: 'Cambiar etapa',
-  ASSIGN_ADVISOR: 'Asignar asesor',
-  TRANSFER_ADVISOR: 'Transferir asesor',
-  CREATE_TASK: 'Crear tarea',
-  INTERNAL_NOTE: 'Agregar nota interna',
-  TOGGLE_AI: 'Agente IA',
-  WAIT: 'Esperar (pausa)',
-  RESOLVE: 'Resolver conversación',
-};
-
-const ACTION_ORDER: MacroActionType[] = [
-  // Responder
-  'SEND_TEXT',
-  'SEND_QUICK_REPLY',
-  'SEND_TEXT_VIA',
-  'SEND_FILE',
-  'EXECUTE_FLOW',
-  // Clasificar
-  'ADD_TAG',
-  'REMOVE_TAG',
-  'CHANGE_STAGE',
-  // Enrutar
-  'ASSIGN_ADVISOR',
-  'TRANSFER_ADVISOR',
-  // Interno
-  'CREATE_TASK',
-  'INTERNAL_NOTE',
-  'TOGGLE_AI',
-  // Control / cierre
-  'WAIT',
-  'RESOLVE',
-];
-
-const TASK_TYPES = ['Seguimiento', 'Llamada', 'Reunión', 'Email', 'Tarea'] as const;
-
-const STAGES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
-const STAGE_LABEL: Record<string, string> = {
-  FRIO: 'Frío',
-  TIBIO: 'Tibio',
-  CALIENTE: 'Caliente',
-  FINALIZADO: 'Finalizado',
-  DESCARTADO: 'Descartado',
-};
-
-const COLORS = [
-  '#6366f1', '#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#22c55e',
-  '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#8b5cf6',
-];
+// Las acciones, sus grupos y sus nombres viven en `lib/macros.ts`: los usan
+// también la acción que corre la macro y la guía pública.
+const COLORS: readonly string[] = COLORES_DE_MACRO;
 
 type Draft = {
   id?: string;
@@ -152,25 +116,18 @@ type RowHandlers = {
 function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
   return (
     <>
-      <input
-        type="checkbox"
-        checked={h.isSelected(macro.id)}
-        onChange={() => h.onToggleSelect(macro.id)}
-        onClick={(e) => e.stopPropagation()}
-        className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
-        title="Seleccionar"
+      <CasillaDeFila
+        marcada={h.isSelected(macro.id)}
+        onCambiar={() => h.onToggleSelect(macro.id)}
+        etiqueta={`Seleccionar ${macro.name}`}
       />
-      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: macro.color || '#6366f1' }} />
+      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: macro.color || '#6366f1' }} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className={cn('truncate font-semibold', !macro.enabled && 'text-muted-foreground line-through')}>
           {macro.name}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {macro.actions.length} acción{macro.actions.length === 1 ? '' : 'es'}
-          {macro.runCount > 0
-            ? ` · ${macro.runCount} ejecución${macro.runCount === 1 ? '' : 'es'}`
-            : ''}
-          {!macro.enabled ? ' · Inactiva' : ''}
+          {elDetalleDeLaFila({ acciones: macro.actions.length, ejecuciones: macro.runCount, activa: macro.enabled })}
         </p>
       </div>
       {/* Íconos directos (rápidos) */}
@@ -180,6 +137,7 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
         className="h-8 w-8 text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30"
         onClick={() => h.onEdit(macro)}
         title="Editar"
+        aria-label={`Editar ${macro.name}`}
       >
         <Pencil className="h-4 w-4" />
       </Button>
@@ -189,6 +147,7 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
         className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
         onClick={() => h.onDelete(macro)}
         title="Eliminar"
+        aria-label={`Eliminar ${macro.name}`}
       >
         <Trash2 className="h-4 w-4" />
       </Button>
@@ -200,6 +159,7 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted"
             title="Más acciones"
+            aria-label={`Más acciones de ${macro.name}`}
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -233,6 +193,7 @@ function SortableMacroRow({ macro, h }: { macro: MacroData; h: RowHandlers }) {
       ref={setNodeRef}
       style={style}
       className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-3"
+      data-macro-de-la-lista
     >
       <button
         type="button"
@@ -255,8 +216,11 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   const [saving, setSaving] = useState(false);
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirm, setConfirm] = useState<{ open: boolean; ids: string[]; all: boolean }>({
+  const [filtro, setFiltro] = useState<FiltroDeMacros>('todas');
+  // Se enseña qué le falta a cada acción solo después del primer intento de
+  // guardar: pintarlo en rojo mientras se está escribiendo sería regañar.
+  const [intentoGuardar, setIntentoGuardar] = useState(false);
+  const [confirm, setConfirm] = useState<{ open: boolean; ids: string[]; all: boolean; nombre?: string }>({
     open: false,
     ids: [],
     all: false,
@@ -295,13 +259,15 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     });
   }, [draft.actions, metaLineNames, templatesByLine, loadingTemplates]);
 
-  const filtered = useMemo(
-    () => macros.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase())),
-    [macros, search],
-  );
-  const activeCount = macros.filter((m) => m.enabled).length;
-  const totalActions = macros.reduce((n, m) => n + m.actions.length, 0);
-  const totalRuns = macros.reduce((n, m) => n + m.runCount, 0);
+  // Lo que se ve con el buscador y la pastilla puestos. Los números de las
+  // pastillas son de la lista ENTERA, para que no cambien al pulsarlas.
+  const filtered = useMemo(() => lasMacrosQueSeVen(macros, search, filtro), [macros, search, filtro]);
+  const conteos = useMemo(() => losConteosDeMacros(macros), [macros]);
+
+  // Marcar es de lo que se VE: con un filtro puesto, lo escondido no cuenta
+  // —si no, «eliminar 3» se llevaría macros que quien mira no tiene delante—.
+  const idsVisibles = useMemo(() => filtered.map((m) => m.id), [filtered]);
+  const seleccion = useSeleccionMultiple(idsVisibles);
 
   const sensors = useSensors(useSensor(PointerSensor));
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -310,14 +276,24 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     const oldIndex = macros.findIndex((m) => m.id === active.id);
     const newIndex = macros.findIndex((m) => m.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
+    const antes = macros;
     const reordered = arrayMove(macros, oldIndex, newIndex);
     setMacros(reordered);
-    await reorderMacrosAction(reordered.map((m) => m.id));
+    // Si el servidor dice que no, se devuelve tal cual estaba: un orden que se
+    // ve y no se guardó vuelve solo al recargar, y nadie sabe por qué.
+    const res = await reorderMacrosAction(reordered.map((m) => m.id));
+    if (!res.success) {
+      setMacros(antes);
+      toast.error('No se pudo guardar el nuevo orden.');
+    }
   };
-  const isSearching = search.trim().length > 0;
+  // Se arrastra solo con la lista ENTERA a la vista: el orden se guarda
+  // completo, y con un filtro puesto las escondidas perderían su sitio.
+  const reordenable = sePuedeReordenar(search, filtro);
 
   const openCreate = () => {
     setDraft(EMPTY_DRAFT);
+    setIntentoGuardar(false);
     setOpen(true);
   };
   const openEdit = (m: MacroData) => {
@@ -328,6 +304,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
       color: m.color ?? COLORS[0],
       actions: m.actions,
     });
+    setIntentoGuardar(false);
     setOpen(true);
   };
 
@@ -349,7 +326,9 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   const setActionType = (i: number, type: MacroActionType) => {
     setDraft((d) => {
       const next = [...d.actions];
-      next[i] = { type, config: {} };
+      // La pausa nace con los segundos que su campo enseña: con `{}` el campo
+      // decía «2» y la macro no esperaba nada.
+      next[i] = { type, config: type === 'WAIT' ? { seconds: SEGUNDOS_POR_DEFECTO } : {} };
       return { ...d, actions: next };
     });
   };
@@ -396,12 +375,12 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   };
 
   const save = async () => {
-    if (!draft.name.trim()) {
-      toast.error('Ponle un nombre a la macro.');
-      return;
-    }
-    if (draft.actions.length === 0) {
-      toast.error('Agrega al menos una acción.');
+    // La MISMA regla que la acción usa al correrla (`lib/macros.ts`): una
+    // acción a medias no se guarda, porque al correrla no haría nada.
+    const problemas = losProblemasDeLaMacro(draft);
+    if (problemas.length > 0) {
+      setIntentoGuardar(true);
+      toast.error(problemas[0]);
       return;
     }
     setSaving(true);
@@ -452,14 +431,6 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     setSaving(false);
   };
 
-  const toggleSelect = (id: string) =>
-    setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
   const duplicate = async (m: MacroData) => {
     const res = await duplicateMacroAction(m.id);
     if (res.success && res.id) {
@@ -500,18 +471,13 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
       const res = await deleteAllMacrosAction();
       if (res.success) {
         setMacros([]);
-        setSelected(new Set());
+        seleccion.limpiar();
       } else toast.error(res.message);
     } else {
       const ids = confirm.ids;
       const res = ids.length === 1 ? await deleteMacroAction(ids[0]) : await deleteMacrosAction(ids);
       if (res.success) {
         setMacros((prev) => prev.filter((m) => !ids.includes(m.id)));
-        setSelected((prev) => {
-          const n = new Set(prev);
-          ids.forEach((i) => n.delete(i));
-          return n;
-        });
       } else toast.error(res.message);
     }
     setDeleting(false);
@@ -519,12 +485,12 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   };
 
   const h: RowHandlers = {
-    isSelected: (id) => selected.has(id),
-    onToggleSelect: toggleSelect,
+    isSelected: (id) => seleccion.seleccionados.includes(id),
+    onToggleSelect: seleccion.alternar,
     onEdit: openEdit,
     onDuplicate: (m) => void duplicate(m),
     onToggleEnabled: (m) => void toggleEnabled(m),
-    onDelete: (m) => setConfirm({ open: true, ids: [m.id], all: false }),
+    onDelete: (m) => setConfirm({ open: true, ids: [m.id], all: false, nombre: m.name }),
   };
 
   return (
@@ -546,26 +512,28 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
         }
         className="mb-3"
         filtros={
-          <>
-        {/* Las cifras que abrían la pantalla en tarjetas. Esta lista no tiene
-            filtro equivalente, así que no se pintan como pulsables. */}
-        <PastillasDeMetricas
-          metricas={[
-            { clave: "total", icono: <Zap />, etiqueta: "Total", valor: macros.length, color: "#6366F1", ayuda: "Macros creadas" },
-            { clave: "activas", icono: <CheckCircle2 />, etiqueta: "Activas", valor: activeCount, color: "#10B981", ayuda: "Macros habilitadas" },
-            { clave: "acciones", icono: <List />, etiqueta: "Acciones", valor: totalActions, color: "#3B82F6", ayuda: "Acciones en total" },
-            { clave: "ejecuciones", icono: <Play />, etiqueta: "Ejecuciones", valor: totalRuns, color: "#F59E0B", ayuda: "Veces que se han aplicado las macros" },
-          ]}
-        />
-          </>
+          // Las pastillas FILTRAN la lista: Todas, Activas e Inactivas, con el
+          // número de cada una. Antes eran cuatro cifras sin filtro detrás
+          // —total, activas, acciones y ejecuciones—, y una cifra que no filtra
+          // no va en la barra. Las acciones y ejecuciones de cada macro siguen
+          // en su fila. En el teléfono también: son la única forma de llegar a
+          // las inactivas.
+          <PastillasDeMetricas
+            enElTelefono
+            metricas={[
+              { clave: 'todas', icono: <Zap />, etiqueta: 'Todas', valor: conteos.todas, color: '#6366F1', ayuda: 'Todas tus macros', alPulsar: () => setFiltro('todas'), activa: filtro === 'todas' },
+              { clave: 'activas', icono: <CheckCircle2 />, etiqueta: 'Activas', valor: conteos.activas, color: '#10B981', ayuda: 'Las que salen en el botón «Macros» de Chats', alPulsar: () => setFiltro('activas'), activa: filtro === 'activas' },
+              { clave: 'inactivas', icono: <CircleOff />, etiqueta: 'Inactivas', valor: conteos.inactivas, color: '#94A3B8', ayuda: 'Desactivadas: no salen en Chats', alPulsar: () => setFiltro('inactivas'), activa: filtro === 'inactivas' },
+            ]}
+          />
         }
         crear={<BotonDeCrear onClick={openCreate}>Nuevo</BotonDeCrear>}
         acciones={
           <AccionesMasivas
-            seleccionados={Array.from(selected)}
+            seleccionados={seleccion.seleccionados}
             queSon="macros"
             onEliminar={borrarLasMarcadas}
-            onTerminar={() => setSelected(new Set())}
+            onTerminar={seleccion.limpiar}
             extras={
               macros.length > 0
                 ? [{
@@ -587,17 +555,25 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
         {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
             <Zap className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            <p className="text-sm">
-              {macros.length === 0 ? 'Aún no tienes macros. Crea la primera.' : 'Sin resultados para tu búsqueda.'}
-            </p>
+            <p className="text-sm">{elMensajeDeLaListaVacia(macros.length, search, filtro)}</p>
           </div>
-        ) : isSearching ? (
-          <div className="flex flex-col gap-2">
+        ) : !reordenable ? (
+          <div className="flex flex-col gap-2" data-lista-de-macros>
             {filtered.map((m) => (
               <div
                 key={m.id}
                 className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-3"
+                data-macro-de-la-lista
               >
+                {/* El asa se queda, apagada: sin ella la fila entera se corría
+                    a la izquierda al filtrar, y no se leía como la misma lista. */}
+                <span
+                  className="cursor-not-allowed p-1 text-muted-foreground/25"
+                  title="Para ordenar, vuelve a «Todas» y borra el buscador"
+                  aria-hidden
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
                 <MacroRowInner macro={m} h={h} />
               </div>
             ))}
@@ -605,7 +581,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={macros.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2" data-lista-de-macros>
                 {macros.map((m) => (
                   <SortableMacroRow key={m.id} macro={m} h={h} />
                 ))}
@@ -617,12 +593,16 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
 
       {/* Editor */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[min(96vw,640px)] overflow-hidden p-0">
+        {/* Sin `overflow-hidden` ni un cuerpo con su propio `max-h`: desplaza el
+            propio diálogo, con la cabecera y el pie pegajosos, como en toda la
+            plataforma. Con los dos puestos, una macro larga tenía una barra de
+            desplazamiento dentro de otra caja de alto fijo. */}
+        <DialogContent className="w-[min(96vw,640px)] gap-0 p-0" data-editor-de-macro>
           <DialogHeader className="border-b px-5 py-3">
             <DialogTitle>{draft.id ? 'Editar macro' : 'Nueva macro'}</DialogTitle>
           </DialogHeader>
 
-          <div className="max-h-[62vh] overflow-y-auto px-5 py-4">
+          <div className="px-5 py-4">
             {/* Nombre + color */}
             <div className="mb-4">
               <label className="mb-1 block text-xs font-semibold text-muted-foreground">Nombre</label>
@@ -678,18 +658,34 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             ) : (
               <ol className="flex flex-col gap-2">
                 {draft.actions.map((a, i) => (
-                  <li key={i} className="rounded-lg border border-border bg-muted/20 p-2.5">
+                  <li
+                    key={i}
+                    className={cn(
+                      'rounded-lg border bg-muted/20 p-2.5',
+                      intentoGuardar && porQueNoEstaLista(a) ? 'border-red-300 dark:border-red-800' : 'border-border',
+                    )}
+                    data-accion-de-macro={i + 1}
+                  >
                     <div className="mb-2 flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                      {/* El número de la acción: se corren en este orden. Antes
+                          había un asa de arrastrar que no arrastraba nada. */}
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                        {i + 1}
+                      </span>
                       <select
                         value={a.type}
                         onChange={(e) => setActionType(i, e.target.value as MacroActionType)}
                         className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm"
+                        aria-label={`Tipo de la acción ${i + 1}`}
                       >
-                        {ACTION_ORDER.map((t) => (
-                          <option key={t} value={t}>
-                            {ACTION_LABEL[t]}
-                          </option>
+                        {GRUPOS_DE_ACCIONES.map((g) => (
+                          <optgroup key={g.grupo} label={g.grupo}>
+                            {g.tipos.map((t) => (
+                              <option key={t} value={t}>
+                                {ETIQUETA_DE_ACCION[t]}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                       <button
@@ -721,7 +717,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                     </div>
 
                     {/* Config por tipo */}
-                    <div className="pl-6">
+                    <div className="pl-7">
                       {a.type === 'SEND_TEXT' && (
                         <Textarea
                           value={a.config?.text ?? ''}
@@ -919,7 +915,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                               onChange={(e) => setActionConfig(i, { taskType: e.target.value })}
                               className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm"
                             >
-                              {TASK_TYPES.map((t) => (
+                              {TIPOS_DE_TAREA.map((t) => (
                                 <option key={t} value={t}>{t}</option>
                               ))}
                             </select>
@@ -952,13 +948,13 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           <span className="text-muted-foreground">Esperar</span>
                           <input
                             type="number"
-                            min={0}
-                            max={20}
-                            value={a.config?.seconds ?? 2}
+                            min={1}
+                            max={SEGUNDOS_MAXIMOS_DE_ESPERA}
+                            value={a.config?.seconds ?? SEGUNDOS_POR_DEFECTO}
                             onChange={(e) => setActionConfig(i, { seconds: Number(e.target.value) })}
                             className="h-8 w-16 rounded-md border border-border bg-background px-2 text-center outline-none"
                           />
-                          <span className="text-muted-foreground">segundos (máx. 20)</span>
+                          <span className="text-muted-foreground">segundos (máx. {SEGUNDOS_MAXIMOS_DE_ESPERA})</span>
                         </div>
                       )}
                       {a.type === 'INTERNAL_NOTE' && (
@@ -1018,10 +1014,11 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           onChange={(e) => setActionConfig(i, { stage: e.target.value })}
                           className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
                         >
-                          <option value="">Elige una etapa…</option>
-                          {STAGES.map((s) => (
-                            <option key={s} value={s}>
-                              {STAGE_LABEL[s]}
+                          <option value="">Elige una calificación…</option>
+                          {/* Las cinco de las pastillas de Chats, con sus mismos nombres. */}
+                          {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
                             </option>
                           ))}
                         </select>
@@ -1053,6 +1050,11 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                       {a.type === 'RESOLVE' && (
                         <p className="text-xs text-muted-foreground">Marca la conversación como resuelta.</p>
                       )}
+                      {intentoGuardar && porQueNoEstaLista(a) && (
+                        <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400" data-falta-en-la-accion>
+                          {porQueNoEstaLista(a)}
+                        </p>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -1063,6 +1065,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             <button
               type="button"
               onClick={addAction}
+              data-agregar-accion
               className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary transition hover:border-primary/60 hover:bg-primary/10"
             >
               <Plus className="h-4 w-4" /> Agregar acción
@@ -1087,12 +1090,16 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
       >
         <DialogContent className="w-[min(94vw,420px)]">
           <DialogHeader>
-            <DialogTitle>{confirm.all ? 'Eliminar todas las macros' : 'Eliminar macros'}</DialogTitle>
+            <DialogTitle>
+              {confirm.all ? 'Eliminar todas las macros' : confirm.ids.length === 1 ? 'Eliminar macro' : 'Eliminar macros'}
+            </DialogTitle>
           </DialogHeader>
           <p className="px-1 text-sm text-muted-foreground">
             {confirm.all
               ? 'Se eliminarán TODAS tus macros. Esta acción no se puede deshacer.'
-              : `Se eliminará${confirm.ids.length === 1 ? '' : 'n'} ${confirm.ids.length} macro${confirm.ids.length === 1 ? '' : 's'}. Esta acción no se puede deshacer.`}
+              : confirm.ids.length === 1 && confirm.nombre
+                ? `Se eliminará la macro «${confirm.nombre}». Esta acción no se puede deshacer.`
+                : `Se eliminará${confirm.ids.length === 1 ? '' : 'n'} ${confirm.ids.length} macro${confirm.ids.length === 1 ? '' : 's'}. Esta acción no se puede deshacer.`}
           </p>
           <DialogFooter className="flex-row justify-between">
             <Button

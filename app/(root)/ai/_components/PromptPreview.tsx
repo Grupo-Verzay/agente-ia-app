@@ -40,6 +40,9 @@ export const PromptPreview = ({ prompt }: PromptPreviewInterface) => {
                         size="sm"
                         onClick={handleCopy}
                         aria-label="Copiar texto"
+                        // Un botón que es solo un icono dice qué hace al posar
+                        // el cursor, como «Más opciones del agente» en la barra.
+                        title="Copiar texto"
                         className="absolute right-6 top-3 opacity-70 hover:opacity-100 transition-opacity z-10"
                     >
                         <Copy className="h-4 w-4" />

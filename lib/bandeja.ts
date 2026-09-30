@@ -38,3 +38,25 @@ export const TOPE_DE_LA_BANDEJA = 300;
  * margen se queda corto y hay que subirlo o pasar al umbral por fecha.
  */
 export const VENTANA_DE_CANDIDATOS = 4;
+
+/**
+ * Cuanto recuerda el servidor una bandeja ya leida (`getPersistedInboxChats`).
+ *
+ * Vive aqui por lo mismo que el tamaño de pagina: lo necesitan los dos lados.
+ * La App NO recibe los webhooks —los guarda el backend, que es otro proceso—,
+ * asi que un mensaje que entra no borra esta memoria: la lista que se pide
+ * dentro de la ventana devuelve la foto de antes. Para una conversacion que ya
+ * esta en la lista da igual (el aviso en vivo la pone al dia), pero una que
+ * NACE —un cliente que escribe por primera vez— no sale hasta que se pide la
+ * lista con la ventana caducada (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
+ */
+export const MEMORIA_DE_LA_BANDEJA_MS = 10_000;
+
+/**
+ * Cuando volver a pedir la lista si el aviso en vivo trajo un chat que no esta
+ * en ella: pasada la memoria del servidor, con un margen. La primera vuelta
+ * (a los 2 s) puede caer dentro de la ventana y traer la foto de antes; esta
+ * ya no puede. Sin ella, el chat nuevo esperaba al reloj de la lista: hasta
+ * 20 s con el cliente ya escribiendo.
+ */
+export const SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS = MEMORIA_DE_LA_BANDEJA_MS + 1_000;

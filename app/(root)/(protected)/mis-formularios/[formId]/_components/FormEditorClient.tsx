@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PastillasDeMetricas } from '@/components/shared/PastillasDeMetricas';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
@@ -39,25 +38,19 @@ import {
 } from '@/actions/forms-actions';
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  NOMBRE_DEL_TIPO, TIPOS_CON_OPCIONES, TIPOS_DE_CAMPO, comoSeEscribeElSlug,
+  elEnlaceDeWhatsapp, elEnlaceDelFormulario, laVariable,
+} from '@/lib/formularios';
+import { AyudaDeLaHoja } from '../../_components/AyudaDeLaHoja';
 
-export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
-  text: 'Texto corto',
-  textarea: 'Área de texto',
-  select: 'Desplegable',
-  radio: 'Selección simple',
-  multiselect: 'Selección múltiple',
-  checkbox: 'Aceptación (casilla)',
-  file: 'Archivo / Documento',
-  number: 'Número',
-  money: 'Monto / Moneda',
-  date: 'Fecha',
-  time: 'Hora',
-  email: 'Correo electrónico',
-  phone: 'Teléfono',
-  url: 'URL / Enlace',
-};
-
-const TYPES_WITH_OPTIONS: FormFieldType[] = ['select', 'radio', 'multiselect'];
+// Los tipos y sus nombres viven en `lib/formularios.ts`: la guía los compara
+// con los que ofrece este desplegable.
+const TYPES_WITH_OPTIONS: ReadonlyArray<FormFieldType> = TIPOS_CON_OPCIONES;
 
 const DEFAULT_PLACEHOLDERS: Partial<Record<FormFieldType, string>> = {
   text:     'ej. Juan Pérez',
@@ -71,15 +64,17 @@ const DEFAULT_PLACEHOLDERS: Partial<Record<FormFieldType, string>> = {
 
 interface Props {
   form: FormData;
-  userId: string;
+  /** Con qué correo escribe la plataforma en Google Sheets: hay que compartirle la hoja. */
+  correoDeLaHoja: string | null;
 }
 
-export function FormEditorClient({ form: initialForm, userId }: Props) {
+export function FormEditorClient({ form: initialForm, correoDeLaHoja }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<FormData>(initialForm);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
   const [editingField, setEditingField] = useState<FormFieldData | null>(null);
+  const [fieldToDelete, setFieldToDelete] = useState<FormFieldData | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingField, setSavingField] = useState(false);
   const [savingActive, setSavingActive] = useState(false);
@@ -137,6 +132,8 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
   };
 
   const handleSaveWhatsapp = async () => {
+    if (wpEnabled && !wpNumber.replace(/\D/g, '')) return toast.error('Escribe el número de WhatsApp al que se redirige');
+    if (wpEnabled && !wpMessage.trim()) return toast.error('Escribe la plantilla del mensaje');
     setSavingWp(true);
     const res = await updateForm(form.id, { whatsappEnabled: wpEnabled, whatsappNumber: wpNumber, whatsappMessage: wpMessage });
     setSavingWp(false);
@@ -161,7 +158,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
   const resetFieldForm = () => { setNewLabel(''); setNewType('text'); setNewPlaceholder(''); setNewRequired(false); setNewOptionsRaw(''); };
 
   const handleAddField = async () => {
-    if (!newLabel.trim()) return toast.error('El label es requerido');
+    if (!newLabel.trim()) return toast.error('Escribe la pregunta');
     setSavingField(true);
     const options = TYPES_WITH_OPTIONS.includes(newType) ? parseOptions(newOptionsRaw) : undefined;
     const res = await addFormField(form.id, { label: newLabel, type: newType, placeholder: newPlaceholder, required: newRequired, options });
@@ -194,8 +191,13 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
     setNewOptionsRaw(field.options?.map((o) => o.label).join('\n') ?? '');
   };
 
-  const handleDeleteField = async (fieldId: string) => {
-    const res = await deleteFormField(fieldId);
+  // Borrar un campo pide confirmación, como borrar el formulario o un
+  // registro: se iba al primer clic, y con él la columna de sus respuestas en
+  // los registros que ya había.
+  const handleDeleteField = async () => {
+    if (!fieldToDelete) return;
+    const res = await deleteFormField(fieldToDelete.id);
+    setFieldToDelete(null);
     if (!res.success) return toast.error(res.error ?? 'Error');
     toast.success('Campo eliminado');
     await refresh();
@@ -208,19 +210,33 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
     if (!over || active.id === over.id) return;
     const oldIndex = form.fields.findIndex((f) => f.id === active.id);
     const newIndex = form.fields.findIndex((f) => f.id === over.id);
+    const before = form.fields;
     const newFields = arrayMove(form.fields, oldIndex, newIndex);
     setForm((f) => ({ ...f, fields: newFields }));
-    await reorderFormFields(form.id, newFields.map((f) => f.id));
+    const res = await reorderFormFields(form.id, newFields.map((f) => f.id));
+    if (!res.success) {
+      // Si el servidor dice que no, el orden vuelve a como estaba: una lista
+      // que se queda movida sin estar guardada vuelve sola al recargar.
+      setForm((f) => ({ ...f, fields: before }));
+      toast.error(res.error ?? 'No se pudo guardar el orden');
+    }
   };
 
-  const publicUrl = publicSlug ? `${origin}/f/${publicSlug}` : `${origin}/f/${userId}/${form.slug}`;
+  // El enlace de la cuenta DUEÑA del formulario, no el de quien mira.
+  const publicUrl = `${origin}${elEnlaceDelFormulario({ ...form, publicSlug })}`;
 
-  const wpPreview = (() => {
-    if (!wpEnabled || !wpNumber || !wpMessage) return null;
-    const num = wpNumber.replace(/\D/g, '');
-    const msg = form.fields.reduce((acc, f) => acc.replace(new RegExp(`\\{\\{${f.label}\\}\\}`, 'g'), `[${f.label}]`), wpMessage);
-    return `https://api.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(msg)}`;
-  })();
+  // La vista previa sustituye cada `{{Pregunta}}` por `[Pregunta]` con la
+  // MISMA función que usa el formulario público: una pregunta con «?» o «(»
+  // rompía la expresión regular de antes y la variable no se sustituía.
+  const wpPreview = wpEnabled ? elEnlaceDeWhatsapp(wpNumber, wpMessage, form.fields) : null;
+
+  // Lo de WhatsApp se guarda con su botón, y el botón sale en cuanto hay algo
+  // que guardar —apagarlo también—. Antes solo salía con la redirección
+  // encendida, así que apagarla no se podía guardar y volvía sola al recargar.
+  const wpCambiado =
+    wpEnabled !== form.whatsappEnabled ||
+    wpNumber.trim() !== (form.whatsappNumber ?? '') ||
+    wpMessage.trim() !== (form.whatsappMessage ?? '');
 
   return (
     <div className="flex flex-col h-full">
@@ -241,7 +257,11 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                 seleccionados={[]}
                 queSon="campos"
                 extras={[
-                  { clave: 'registros', etiqueta: 'Ver registros', icono: <ClipboardList className="h-4 w-4" />, sinSeleccion: true, onSelect: () => router.push(`/mis-formularios/${form.id}/registros`) },
+                  // Las dos cifras que iban como pastillas no filtraban nada (la
+                  // regla de la barra dice que entonces se borran): los campos ya
+                  // los cuenta su tarjeta, y los registros van aquí, en el mando
+                  // que lleva a ellos.
+                  { clave: 'registros', etiqueta: `Ver registros (${form._count?.submissions ?? 0})`, icono: <ClipboardList className="h-4 w-4" />, sinSeleccion: true, onSelect: () => router.push(`/mis-formularios/${form.id}/registros`) },
                   { clave: 'ajustes', etiqueta: 'Configuración', icono: <Settings className="h-4 w-4" />, sinSeleccion: true, onSelect: () => setSettingsOpen(true) },
                   { clave: 'ver', etiqueta: 'Ver formulario', icono: <ExternalLink className="h-4 w-4" />, sinSeleccion: true, onSelect: () => window.open(publicUrl, '_blank', 'noopener,noreferrer') },
                 ]}
@@ -257,19 +277,8 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               </Button>
               <p className="text-sm font-semibold truncate min-w-0">{form.title}</p>
             </div>
-            {/* Las cifras que abrían la pantalla en tarjetas. «Estado» y
-                «WhatsApp» ya tienen su mando en esta misma barra —el toggle de
-                activo y el de WhatsApp—, así que aquí quedan solo las dos que
-                son cifras: campos y registros. */}
-            <PastillasDeMetricas
-              metricas={[
-                { clave: 'campos', icono: <FileText />, etiqueta: 'Campos', valor: form.fields.length, color: '#3B82F6' },
-                { clave: 'registros', icono: <ClipboardList />, etiqueta: 'Registros', valor: form._count?.submissions ?? 0, color: '#8B5CF6' },
-              ]}
-            />
-            {/* El interruptor de activo FILTRA lo que hace el formulario, y
-                es un mando de la pantalla: se queda a la izquierda con las
-                cifras. A la derecha solo lo que crea o actúa. */}
+            {/* El interruptor de activo es un mando de la pantalla: se queda a
+                la izquierda. A la derecha solo lo que crea o actúa. */}
             <div className="flex shrink-0 items-center gap-2">
               <Switch
                 id="toolbar-active"
@@ -291,7 +300,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
         <div className="p-3 flex flex-col gap-3">
 
           {/* Lista de campos */}
-          <Card>
+          <Card data-campos-del-formulario>
             <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4 px-4">
               <CardTitle className="text-sm font-semibold">Campos del formulario</CardTitle>
               <Badge variant="secondary">{form.fields.length} campos</Badge>
@@ -306,7 +315,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                     <p className="font-medium text-sm">Sin campos</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Agrega campos para construir tu formulario.</p>
                   </div>
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setAddFieldOpen(true)}>
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { resetFieldForm(); setAddFieldOpen(true); }}>
                     + Agregar primer campo
                   </Button>
                 </div>
@@ -320,7 +329,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                           field={field}
                           index={index}
                           onEdit={() => openEditField(field)}
-                          onDelete={() => handleDeleteField(field.id)}
+                          onDelete={() => setFieldToDelete(field)}
                         />
                       ))}
                     </div>
@@ -331,7 +340,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
           </Card>
 
           {/* Sección WhatsApp */}
-          <Card>
+          <Card data-seccion-whatsapp>
             <CardHeader className="pb-3 pt-4 px-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-green-500" />
@@ -363,10 +372,10 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                             <button
                               key={f.id}
                               type="button"
-                              onClick={() => setWpMessage((prev) => prev + `{{${f.label}}}`)}
+                              onClick={() => setWpMessage((prev) => prev + laVariable(f.label))}
                               className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 rounded px-2 py-0.5 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-mono"
                             >
-                              {`{{${f.label}}}`}
+                              {laVariable(f.label)}
                             </button>
                           ))}
                         </div>
@@ -380,22 +389,25 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                       <p className="text-xs text-amber-600 dark:text-amber-500 break-all font-mono">{wpPreview}</p>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Button size="sm" variant="ghost" onClick={() => { setWpEnabled(form.whatsappEnabled); setWpNumber(form.whatsappNumber ?? ''); setWpMessage(form.whatsappMessage ?? ''); }}>
-                      Cancelar
-                    </Button>
-                    <Button size="sm" onClick={handleSaveWhatsapp} disabled={savingWp}>
-                      <Save className="w-3.5 h-3.5 mr-1.5" />
-                      {savingWp ? 'Guardando...' : 'Guardar WhatsApp'}
-                    </Button>
-                  </div>
                 </>
+              )}
+
+              {(wpEnabled || wpCambiado) && (
+                <div className="flex items-center justify-between">
+                  <Button size="sm" variant="ghost" disabled={!wpCambiado} onClick={() => { setWpEnabled(form.whatsappEnabled); setWpNumber(form.whatsappNumber ?? ''); setWpMessage(form.whatsappMessage ?? ''); }}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleSaveWhatsapp} disabled={savingWp || !wpCambiado}>
+                    <Save className="w-3.5 h-3.5 mr-1.5" />
+                    {savingWp ? 'Guardando...' : wpCambiado ? 'Guardar WhatsApp' : 'Guardado'}
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
 
           {/* Sección URL Pública */}
-          <Card>
+          <Card data-seccion-url>
             <CardHeader className="pb-3 pt-4 px-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-blue-500" />
@@ -410,7 +422,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                     className="flex-1 min-w-0 px-3 py-2 text-sm bg-transparent outline-none"
                     placeholder="nombre-formulario"
                     value={publicSlugInput}
-                    onChange={(e) => setPublicSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    onChange={(e) => setPublicSlugInput(comoSeEscribeElSlug(e.target.value))}
                   />
                 </div>
                 <Button size="sm" onClick={handleSavePublicSlug} disabled={slugSaving || !publicSlugInput.trim()}>
@@ -426,32 +438,36 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="shrink-0 text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                    title="Abrir el formulario"
+                    aria-label="Abrir el formulario"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">Solo letras minúsculas, números y guiones. Ej: <span className="font-mono">mi-formulario</span></p>
+              <p className="text-xs text-muted-foreground">Un nombre corto para el enlace. Las tildes se quitan y los espacios pasan a guiones. Ej: <span className="font-mono">mi-formulario</span></p>
             </CardContent>
           </Card>
 
         </div>
       </div>
 
-      {/* Dialog: Configuración — mejora 4: h-[585px] estándar */}
+      {/* Dialog: Configuración. Mide lo que su contenido, como «Nuevo
+          formulario», que tiene los mismos cuatro campos: con un alto fijo de
+          585 px salía con media ventana en blanco. */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="flex h-[585px] flex-col sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Configuración del formulario</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto py-2 pr-1">
+          <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label>Título</Label>
               <Input value={titleInput} onChange={(e) => setTitleInput(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Slug (URL)</Label>
-              <Input value={slugInput} onChange={(e) => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} className="font-mono text-sm" />
+              <Input value={slugInput} onChange={(e) => setSlugInput(comoSeEscribeElSlug(e.target.value))} className="font-mono text-sm" />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Descripción</Label>
@@ -460,7 +476,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
             <div className="flex flex-col gap-1.5">
               <Label>Google Sheets URL</Label>
               <Input value={sheetsInput} onChange={(e) => setSheetsInput(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
-              <p className="text-xs text-muted-foreground">Los registros se sincronizarán automáticamente.</p>
+              <AyudaDeLaHoja correo={correoDeLaHoja} />
             </div>
           </div>
           <DialogFooter>
@@ -499,6 +515,24 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Alert: eliminar un campo */}
+      <AlertDialog open={!!fieldToDelete} onOpenChange={(o) => !o && setFieldToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar el campo «{fieldToDelete?.label}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deja de salir en el formulario. Las respuestas que ya llegaron se conservan en los registros.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteField} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -518,9 +552,10 @@ function SortableFieldRow({
     <div
       ref={setNodeRef}
       style={style}
+      data-campo={index + 1}
       className={`flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors ${isDragging ? 'opacity-50 shadow-lg z-50' : ''}`}
     >
-      <div className="cursor-grab active:cursor-grabbing text-muted-foreground shrink-0" {...attributes} {...listeners}>
+      <div className="cursor-grab active:cursor-grabbing text-muted-foreground shrink-0" title="Arrastra para ordenar" {...attributes} {...listeners}>
         <GripVertical className="w-4 h-4" />
       </div>
       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
@@ -530,7 +565,7 @@ function SortableFieldRow({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{field.label}</span>
           {field.required && <Badge variant="destructive" className="text-xs py-0 h-4">Requerido</Badge>}
-          <Badge variant="outline" className="text-xs py-0 h-4 text-muted-foreground">{FIELD_TYPE_LABELS[field.type]}</Badge>
+          <Badge variant="outline" className="text-xs py-0 h-4 text-muted-foreground">{NOMBRE_DEL_TIPO[field.type] ?? field.type}</Badge>
         </div>
         {field.options && field.options.length > 0 && (
           <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -539,10 +574,10 @@ function SortableFieldRow({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit} title="Editar campo" aria-label="Editar campo">
           <Pencil className="w-3.5 h-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onDelete}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onDelete} title="Eliminar campo" aria-label="Eliminar campo">
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -584,8 +619,8 @@ function FieldForm({
           <Select value={type} onValueChange={(v) => handleTypeChange(v as FormFieldType)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(Object.entries(FIELD_TYPE_LABELS) as [FormFieldType, string][]).map(([val, lbl]) => (
-                <SelectItem key={val} value={val}>{lbl}</SelectItem>
+              {TIPOS_DE_CAMPO.map(({ tipo, nombre }) => (
+                <SelectItem key={tipo} value={tipo}>{nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -601,7 +636,7 @@ function FieldForm({
 
       {showPlaceholder && (
         <div className="flex flex-col gap-1.5">
-          <Label className="font-semibold text-foreground">Placeholder</Label>
+          <Label className="font-semibold text-foreground">Texto de ayuda</Label>
           <Input value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} placeholder="Texto de ayuda dentro del campo..." />
         </div>
       )}

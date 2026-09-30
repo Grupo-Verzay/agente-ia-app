@@ -1,0 +1,44 @@
+{
+  "_": "Los TEXTOS DEL POST que devuelve el Gemini fingido de la guía de AI Imágenes (`scripts/fingido-guia-ai-imagenes.mjs`), escritos a mano. Uno por etapa y por red; una lista son las versiones que salen al pulsar «Volver a generar», una detrás de otra. Siguen las reglas de `lib/copy-del-anuncio.ts` —Instagram hasta 6 hashtags, WhatsApp ninguno, Facebook hasta 2, y dentro del largo de cada red— y no se inventan precios ni descuentos: el banco lo comprueba.",
+  "hero": {
+    "instagram": [
+      "Tu agua fría todo el día, vayas donde vayas. 🌿\nTermo de acero inoxidable de 750 ml con tapa de bambú.\nDoble pared: frío por 24 horas y caliente por 12.\nEscríbenos por el chat y te contamos cómo pedir el tuyo.\n#termo #botellatermica #vidasana #ecofriendly #hidratacion #regalo",
+      "Frío por 24 horas, estilo todo el día. ✨\nEl termo verde salvia de 750 ml, con su tapa de bambú.\nLlévalo al trabajo, al gimnasio o de viaje.\nEscríbenos por el chat y pide el tuyo.\n#termo #vidasana #hidratacion #ecofriendly #botellatermica"
+    ],
+    "whatsapp": [
+      "¡Llegó el termo verde salvia! 🌿\n750 ml, tapa de bambú y frío por 24 horas.\nEscríbeme y te cuento cómo pedirlo.",
+      "Tu agua fresca todo el día 🌿\nTermo de 750 ml con tapa de bambú.\n¿Te aparto uno?"
+    ],
+    "facebook": [
+      "¿Tu agua se calienta antes del mediodía?\nNuestro termo de 750 ml en acero inoxidable, con doble pared y tapa de bambú, la mantiene fría durante 24 horas y tus bebidas calientes durante 12. Es liviano y cabe en cualquier maleta.\nEscríbenos por Messenger o por WhatsApp y te ayudamos con tu pedido.\n#termo #vidasana",
+      "Un termo para todo el día.\nAcero inoxidable de doble pared, 750 ml y una tapa de bambú que enrosca firme: frío durante 24 horas y caliente durante 12, en la oficina, en el carro o de paseo.\nEscríbenos y te contamos cómo pedir el tuyo.\n#termo #hidratacion"
+    ]
+  },
+  "pain": {
+    "instagram": "¿Otra vez el agua tibia a mitad del día? 😩\nLas botellas plásticas se calientan, se arrugan y terminan en la basura.\nNuestro termo de 750 ml la mantiene fría 24 horas.\nEscríbenos y cambia la tibia por la fresca.\n#hidratacion #termo #adiosplastico #vidasana"
+  },
+  "solution": {
+    "instagram": "Así de simple es hidratarte bien. ✨\nTapa de bambú que enrosca firme.\nAcero inoxidable de doble pared: frío 24 horas, caliente 12.\nEscríbenos por el chat y te contamos más.\n#termo #botellatermica #ecofriendly"
+  },
+  "benefits": {
+    "instagram": "Tu agua fresca en la cima, en la oficina o en la playa. ⛰️\nMenos plástico, más aire libre.\n750 ml que te acompañan todo el día.\nPregúntanos por el chat cómo tener el tuyo.\n#aventura #vidasana #termo #naturaleza"
+  },
+  "social": {
+    "instagram": "Cuando lo prueban, lo recomiendan. 🙌\nSale al parque, a la oficina y de viaje con quien lo lleva.\nMismo diseño y el mismo frío todo el día.\nEscríbenos y pide el tuyo.\n#termo #vidasana #hidratacion"
+  },
+  "demo": {
+    "instagram": "Listo en tres pasos. 🧊\n1. Destapa el termo.\n2. Agrega hielo y agua.\n3. Enrosca la tapa de bambú y llévatelo.\nEscríbenos por el chat y te contamos cómo pedirlo.\n#termo #tips #hidratacion"
+  },
+  "objections": {
+    "instagram": "Hecho para durar, no para una temporada. 🔒\nAcero inoxidable de doble pared y una tapa de bambú que enrosca firme.\n¿Tienes dudas? Escríbenos y te las resolvemos.\n#calidad #termo #aceroinoxidable"
+  },
+  "offer": {
+    "instagram": "El regalo que sí se usa todos los días. 🎁\nDos termos verde salvia en su caja de regalo.\nPregúntanos por el chat cómo pedir el tuyo.\n#regalo #termo #detalles"
+  },
+  "cta": {
+    "instagram": "Pídelo hoy y empieza a hidratarte mejor. ⚡\nTu termo de 750 ml, listo para salir contigo.\nEscríbenos por el chat y te ayudamos con tu pedido.\n#pidelohoy #termo #vidasana"
+  },
+  "trust": {
+    "instagram": "Compra con tranquilidad. 🌱\nTe acompañamos antes y después de tu pedido, y lo enviamos en empaque reciclado.\nEscríbenos por el chat: respondemos todas tus preguntas.\n#compraconfianza #ecofriendly #termo"
+  }
+}

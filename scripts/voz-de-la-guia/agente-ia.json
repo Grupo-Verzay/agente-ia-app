@@ -1,0 +1,41 @@
+{
+  "voz": "cedar",
+  "modelo": "gpt-4o-mini-tts",
+  "ritmo": {
+    "pausaMaximaMs": 280,
+    "bordeInicialMs": 30,
+    "bordeFinalMs": 60,
+    "umbral": 0.01,
+    "ventanaMs": 10,
+    "fundidoMs": 6,
+    "respiroEntreFrasesMs": 250
+  },
+  "frases": [
+    "778986621e2282876e2df0e4",
+    "3707e6205749e7a48a9347cf",
+    "4e6003ffa3bfc87a1ab2602e",
+    "0394e9fa247b922df005514b",
+    "d9e0dda6bf4c7f40403dccf5",
+    "2b41fce8da8c67bcac61fb51",
+    "8ee0e46f7bef9bb8445fc08b",
+    "702d7146be1c454183e33ab6",
+    "7d7d379ce01e24e307a15164",
+    "7c441af596babb67ff57a243",
+    "99e5563ff6bd7ec005b4f89e",
+    "597584e6528f433147bebebe"
+  ],
+  "empiezanEnMs": [
+    304,
+    8578,
+    15462,
+    23407,
+    29641,
+    37025,
+    44359,
+    53263,
+    61707,
+    69112,
+    75274,
+    80698
+  ]
+}

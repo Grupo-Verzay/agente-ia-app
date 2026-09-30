@@ -20,6 +20,7 @@ import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { telefonoParaMostrar } from '@/lib/telefono-visible';
 import { atajosDeLaConversacion } from '@/lib/atajos-de-la-linea';
+import { elNombreQueSeVe, elTipoDeLaRespuesta, loQueDiceLaRespuesta } from '@/lib/respuestas-rapidas';
 import { SelectorDeVia } from '@/components/shared/SelectorDeVia';
 
 type Instancia = {
@@ -463,7 +464,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                       {quickReplies.map((reply) => (
                         <CommandItem
                           key={reply.id}
-                          value={`${reply.name ?? ''} ${reply.message}`}
+                          value={`${reply.id} ${reply.name ?? ''} ${loQueDiceLaRespuesta(reply)}`}
                           className="items-start gap-2 py-2"
                           disabled={sendingQuickReplyId !== null}
                           onSelect={() => void handleSendQuickReply(reply.id)}
@@ -474,8 +475,12 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                             <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           )}
                           <div className="min-w-0">
-                            {reply.name && <p className="text-xs font-mono text-primary">/{reply.name}</p>}
-                            <p className="line-clamp-2 text-sm">{reply.message}</p>
+                            {elNombreQueSeVe(reply.name, elTipoDeLaRespuesta(reply)) && (
+                              <p className={`text-xs text-primary ${elTipoDeLaRespuesta(reply) === 'texto' ? 'font-mono' : ''}`}>
+                                {elNombreQueSeVe(reply.name, elTipoDeLaRespuesta(reply))}
+                              </p>
+                            )}
+                            <p className="line-clamp-2 text-sm">{loQueDiceLaRespuesta(reply)}</p>
                           </div>
                         </CommandItem>
                       ))}

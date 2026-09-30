@@ -3,9 +3,9 @@ import type { AdFormatOption, CustomStyle, GenerationModel, ImageQualityOption, 
 
 export const DEFAULT_STYLES: CustomStyle[] = [
   { id: 'minimalist', name: 'Minimalista', description: 'Fondos limpios y enfoque total en el producto.' },
-  { id: 'premium', name: 'Premium', description: 'Iluminacion de lujo y texturas de alta gama.' },
+  { id: 'premium', name: 'Premium', description: 'Iluminación de lujo y texturas de alta gama.' },
   { id: 'lifestyle', name: 'Estilo de Vida', description: 'Entornos naturales y realistas.' },
-  { id: 'creative', name: 'Creativo', description: 'Composiciones artisticas y llamativas.' },
+  { id: 'creative', name: 'Creativo', description: 'Composiciones artísticas y llamativas.' },
 ]
 
 export const AD_FORMATS: AdFormatOption[] = [
@@ -15,28 +15,28 @@ export const AD_FORMATS: AdFormatOption[] = [
 ]
 
 export const MARKETING_TEMPLATES: MarketingTemplate[] = [
-  { id: 'hero', name: '1. Hero Section', description: 'Impacto, problema y solucion.' },
-  { id: 'pain', name: '2. Identificacion Dolor', description: 'Bullets emocionales.' },
-  { id: 'solution', name: '3. Presentacion Solucion', description: 'Intro producto y beneficios.' },
-  { id: 'benefits', name: '4. Beneficios Profundos', description: 'Transformacion real.' },
+  { id: 'hero', name: '1. Hero Section', description: 'Impacto, problema y solución.' },
+  { id: 'pain', name: '2. Identificación Dolor', description: 'Bullets emocionales.' },
+  { id: 'solution', name: '3. Presentación Solución', description: 'Intro producto y beneficios.' },
+  { id: 'benefits', name: '4. Beneficios Profundos', description: 'Transformación real.' },
   { id: 'social', name: '5. Prueba Social', description: 'Testimonios y calificaciones.' },
-  { id: 'demo', name: '6. Demostracion', description: 'Como se usa en pasos.' },
-  { id: 'objections', name: '7. Manejo Objeciones', description: 'Confianza y garantias.' },
+  { id: 'demo', name: '6. Demostración', description: 'Cómo se usa en pasos.' },
+  { id: 'objections', name: '7. Manejo Objeciones', description: 'Confianza y garantías.' },
   { id: 'offer', name: '8. Oferta Irresistible', description: 'Descuentos y combos.' },
-  { id: 'cta', name: '9. Llamado a la Accion', description: 'Urgencia y CTA fuerte.' },
-  { id: 'trust', name: '10. Seccion Confianza', description: 'Sellos y politicas.' },
+  { id: 'cta', name: '9. Llamado a la Acción', description: 'Urgencia y CTA fuerte.' },
+  { id: 'trust', name: '10. Sección Confianza', description: 'Sellos y políticas.' },
 ]
 
 export const GENERATION_MODELS: GenerationModel[] = [
   {
     id: 'gemini-2.5-flash-image',
     name: 'Gemini Flash (Equilibrado)',
-    desc: 'Rapido y versatil. Ideal para la mayoria de anuncios.',
+    desc: 'Rápido y versátil. Ideal para la mayoría de anuncios.',
   },
   {
     id: 'gemini-3.1-flash-image-preview',
     name: 'Gemini 3.1 Pro (Alta Calidad)',
-    desc: 'Maximo detalle y mejor manejo de texto. Requiere API Key propia.',
+    desc: 'Máximo detalle y mejor manejo del texto dentro de la imagen.',
   },
   {
     id: 'imagen-4.0-generate-001',
@@ -68,7 +68,7 @@ export const IMAGE_QUALITY_OPTIONS: ImageQualityOption[] = [
 
 export const STUDIO_STEPS: StudioStep[] = [
   { id: 'images', label: 'Producto', helper: 'Sube las referencias base.', icon: Upload },
-  { id: 'campaign', label: 'imagen', helper: 'Define estructura y mensaje.', icon: LayoutTemplate },
-  { id: 'style', label: 'Estilo', helper: 'Elige la direccion visual.', icon: Palette },
-  { id: 'engine', label: 'Motor', helper: 'Selecciona el modelo IA.', icon: Cpu },
+  { id: 'campaign', label: 'Campaña', helper: 'Define estructura y mensaje.', icon: LayoutTemplate },
+  { id: 'style', label: 'Estilo', helper: 'Elige la dirección visual.', icon: Palette },
+  { id: 'engine', label: 'Motor', helper: 'Selecciona el modelo de IA.', icon: Cpu },
 ]

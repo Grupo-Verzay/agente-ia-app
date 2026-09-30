@@ -28,13 +28,14 @@ import clsx from 'clsx';
 import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
+import { laUrlQueSeAbre } from '@/lib/integraciones';
 import { Settings2 } from 'lucide-react';
 import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE, ADMIN_PANEL_ROUTE, esVarianteDePanel } from '@/lib/sidebar-modules';
 import { aplicaBloqueoPorPlan } from '@/lib/panel-tabs';
 import { isAdminLike } from '@/lib/rbac';
 
 export function NavMain({ user }: { user: CurrentUser }) {
-    const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, userIntegrations } = useModuleStore();
+    const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, canvaUrl, userIntegrations } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
     const { isMobile, openMobile, setOpenMobile, state: sidebarState } = useSidebar();
@@ -198,13 +199,19 @@ export function NavMain({ user }: { user: CurrentUser }) {
                     // Módulo especial: integraciones dinámicas del usuario
                     if (route === '#user-integrations') {
                         const subItems = [
-                            ...userIntegrations.map(intg => ({ id: intg.id, title: intg.name, dest: '/canva', url: intg.url })),
+                            // La dirección que se abre pasa por la misma regla que al
+                            // guardar: una app vieja sin «https://» se abre bien.
+                            ...userIntegrations.map(intg => ({ id: intg.id, title: intg.name, dest: '/canva', url: laUrlQueSeAbre(intg.url) ?? intg.url })),
                             { id: '__manage__', title: 'Gestionar integraciones', dest: '/integraciones', url: null },
                         ];
-                        const isAnyIntgActive = pathname === '/integraciones' || userIntegrations.some(() => labelModule === label && pathname === '/canva');
+                        const isAnyIntgActive = pathname === '/integraciones' || (labelModule === label && pathname === '/canva' && userIntegrations.length > 0);
 
+                        // En `/canva` hay UNA app abierta: la que se pulsó. Comparar
+                        // solo la ruta encendía todas las apps del menú a la vez.
                         const renderSubItems = () => subItems.map((sub) => {
-                            const isSubActive = pathname === sub.dest && (sub.dest !== '/canva' || (labelModule === label));
+                            const isSubActive = sub.dest === '/canva'
+                                ? pathname === '/canva' && labelModule === label && canvaUrl === sub.url
+                                : pathname === sub.dest;
                             return (
                                 <SidebarMenuSubItem key={sub.id}>
                                     <button

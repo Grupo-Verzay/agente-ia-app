@@ -12,17 +12,30 @@ import {
     createUserIntegration,
     deleteUserIntegration,
 } from "@/actions/user-integration-actions";
+import {
+    BOTONES_DE_LA_PLATAFORMA,
+    BOTON_FIJAR,
+    BOTON_PANTALLA_COMPLETA,
+    CAJA_DEL_COPILOTO,
+    MANDOS_DEL_COPILOTO,
+    MARCO_DEL_COPILOTO,
+    NOMBRE_DE_LA_PESTANA,
+    PARAMETRO_DEL_COPILOTO,
+    ROTULO_DE_FIJAR,
+    TITULO_DEL_MARCO,
+    hayPantallaCompleta,
+    laUrlDelCopiloto,
+} from "@/lib/copiloto";
+import { laLlaveDelNombre, laUrlQueSeAbre } from "@/lib/integraciones";
 
 // Copiloto de IA embebido (LibreChat). Por defecto apunta al copiloto de la
-// plataforma; se puede sobreescribir la URL por módulo con el query param `u`
-// (ej. copiloto propio de un reseller), igual que el patrón de /canva.
-const DEFAULT_COPILOT_URL = "https://copiloto.ia-app.com";
-const COPILOT_URL_PARAM = "u";
-// Nombre de la "integración" que representa el Copiloto fijado como pestaña en
-// Chats. Reusa el sistema de integraciones (una integración = una pestaña en el
-// chat), así el cliente puede fijar/quitar el Copiloto de sus Chats sin tocar
-// nada del módulo de Chats.
-const PIN_NAME = "Copiloto";
+// plataforma; un módulo puede cambiarlo con `?u=` (el copiloto propio de un
+// reseller), igual que /canva. Qué dirección se abre, dónde van los dos
+// botones según el ancho y cuándo se ofrece la pantalla completa lo decide
+// `lib/copiloto.ts`.
+// La pestaña que «Fijar en Chats» pone en cada conversación es una
+// INTEGRACIÓN del cliente (una integración = una pestaña en el chat): así se
+// fija y se quita sin tocar nada del módulo de Chats.
 
 const Loading = () => (
     <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -32,7 +45,16 @@ const Loading = () => (
 
 const CopilotoInner = () => {
     const searchParams = useSearchParams();
-    const url = searchParams.get(COPILOT_URL_PARAM)?.trim() || DEFAULT_COPILOT_URL;
+    // `?u=` llega de un enlace que cualquiera puede mandar: solo se embebe si es
+    // una dirección web, con la MISMA regla que las apps de Integrar URLs. Con
+    // `javascript:` ahí, el marco ejecutaba ese código en la plataforma.
+    const pedida = searchParams.get(PARAMETRO_DEL_COPILOTO);
+    const url = laUrlDelCopiloto(pedida);
+    useEffect(() => {
+        if (pedida?.trim() && !laUrlQueSeAbre(pedida)) {
+            console.warn("[copiloto] la dirección pedida no se puede abrir; se abre el copiloto de la plataforma", { pedida: pedida.slice(0, 80) });
+        }
+    }, [pedida, url]);
 
     const { userIntegrations, setUserIntegrations } = useModuleStore();
     const [busy, setBusy] = useState(false);
@@ -41,14 +63,22 @@ const CopilotoInner = () => {
     // sale con Esc o el mismo botón.
     const containerRef = useRef<HTMLDivElement>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    // Solo se ofrece si el navegador la deja: en un iPhone un `<div>` no tiene
+    // `requestFullscreen`, y el botón no hacía nada al pulsarlo.
+    const [conPantallaCompleta, setConPantallaCompleta] = useState(false);
     useEffect(() => {
+        setConPantallaCompleta(hayPantallaCompleta(document, containerRef.current));
         const onChange = () => setIsFullscreen(!!document.fullscreenElement);
         document.addEventListener("fullscreenchange", onChange);
         return () => document.removeEventListener("fullscreenchange", onChange);
     }, []);
     const toggleFullscreen = () => {
-        if (document.fullscreenElement) void document.exitFullscreen();
-        else void containerRef.current?.requestFullscreen?.();
+        const cambio = document.fullscreenElement ? document.exitFullscreen() : containerRef.current?.requestFullscreen();
+        // Un «no» del navegador no puede quedarse en una promesa rechazada muda.
+        cambio?.catch((error: unknown) => {
+            console.warn("[copiloto] el navegador no dejó cambiar la pantalla completa", error);
+            toast.error("El navegador no dejó abrir la pantalla completa.");
+        });
     };
 
     // Sincroniza la lista real de integraciones al entrar, para saber con certeza
@@ -62,8 +92,13 @@ const CopilotoInner = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // El nombre se compara como lo compara Integrar URLs al guardar (sin
+    // mayúsculas ni tildes): con «copiloto» ya puesto a mano, fijar chocaría
+    // con «ya tienes una app llamada Copiloto» en vez de ofrecer quitarla.
     const pinned = useMemo(
-        () => userIntegrations.find((i) => i.name === PIN_NAME || i.url === url),
+        () => userIntegrations.find(
+            (i) => laLlaveDelNombre(i.name) === laLlaveDelNombre(NOMBRE_DE_LA_PESTANA) || i.url === url,
+        ),
         [userIntegrations, url],
     );
 
@@ -80,7 +115,7 @@ const CopilotoInner = () => {
                     toast.error("No se pudo quitar");
                 }
             } else {
-                const res = await createUserIntegration({ name: PIN_NAME, url });
+                const res = await createUserIntegration({ name: NOMBRE_DE_LA_PESTANA, url });
                 if (res.success && res.item) {
                     setUserIntegrations([...userIntegrations, res.item]);
                     toast.success("Copiloto fijado en tus Chats");
@@ -93,41 +128,49 @@ const CopilotoInner = () => {
         }
     };
 
+    const fijar = pinned ? BOTONES_DE_LA_PLATAFORMA.quitar : BOTONES_DE_LA_PLATAFORMA.fijar;
+    const pantalla = isFullscreen ? BOTONES_DE_LA_PLATAFORMA.salirDePantallaCompleta : BOTONES_DE_LA_PLATAFORMA.pantallaCompleta;
+
     return (
-        <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-background">
-            <IframeRenderer url={url} />
-            {/* Controles flotantes, a la izquierda del ícono nativo de LibreChat
-                (misma altura, sin encimarse). Estilo nativo tipo selector de modelos. */}
-            <div className="absolute right-[52px] top-2 z-20 flex items-center gap-2">
-                {/* Fijar / Quitar de Chats (grande, primero — como el selector a la izquierda) */}
+        <div ref={containerRef} className={CAJA_DEL_COPILOTO} data-pantalla-del-copiloto>
+            {/* Los dos botones de la plataforma. Flotan a la izquierda del botón
+                de más a la derecha del copiloto, a la altura de su cabecera,
+                mientras el copiloto tenga sitio; en un teléfono van en su fila,
+                encima (ver `lib/copiloto.ts`). */}
+            <div className={MANDOS_DEL_COPILOTO} data-mandos-del-copiloto>
                 <button
                     type="button"
                     onClick={togglePin}
                     disabled={busy}
-                    title={pinned ? "Quitar el Copiloto de tus Chats" : "Mostrar el Copiloto como pestaña en tus Chats"}
-                    className={cn(
-                        "inline-flex h-9 items-center gap-1.5 rounded-xl border bg-background px-3.5 text-xs font-semibold transition-colors hover:bg-accent disabled:opacity-60",
-                        pinned ? "text-muted-foreground" : "text-foreground",
-                    )}
+                    title={fijar.titulo}
+                    aria-label={fijar.titulo}
+                    data-mando="fijar"
+                    className={cn(BOTON_FIJAR, pinned ? "text-muted-foreground" : "text-foreground")}
                 >
                     {busy
-                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                         : pinned
-                            ? <PinOff className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                            : <Pin className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
-                    {pinned ? "Quitar de Chats" : "Fijar en Chats"}
+                            ? <PinOff className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            : <Pin className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />}
+                    <span className={ROTULO_DE_FIJAR}>{fijar.rotulo}</span>
                 </button>
-                {/* Pantalla completa (chico, junto al ícono nativo) */}
-                <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? "Salir de pantalla completa (Esc)" : "Pantalla completa"}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-background text-foreground transition-colors hover:bg-accent"
-                >
-                    {isFullscreen
-                        ? <Minimize2 className="h-4 w-4" />
-                        : <Maximize2 className="h-4 w-4" />}
-                </button>
+                {conPantallaCompleta && (
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        title={pantalla.titulo}
+                        aria-label={pantalla.titulo}
+                        data-mando="pantalla-completa"
+                        className={BOTON_PANTALLA_COMPLETA}
+                    >
+                        {isFullscreen
+                            ? <Minimize2 className="h-4 w-4" />
+                            : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                )}
+            </div>
+            <div className={MARCO_DEL_COPILOTO} data-marco-del-copiloto>
+                <IframeRenderer url={url} title={TITULO_DEL_MARCO} />
             </div>
         </div>
     );

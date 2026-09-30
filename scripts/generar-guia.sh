@@ -66,6 +66,9 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
        S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=localhost \
        S3_PUBLIC_URL=http://localhost:9000 GEMINI_API_KEY=banco \
        NEXT_TELEMETRY_DISABLED=1
+# El correo de la cuenta de servicio que enseña Google Sheets (paso 1 de
+# vincular). Uno de EJEMPLO: la guía es pública y el de verdad no se publica.
+export GOOGLE_SERVICE_ACCOUNT_JSON='{"client_email":"hojas@plataforma-ejemplo.iam.gserviceaccount.com"}'
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 psql "$DATABASE_URL" -c \
@@ -80,7 +83,15 @@ npx esbuild "lib/guia-$MODULO.ts" --bundle --platform=node --format=esm --outfil
 export CAPTURAS_ESPERADAS="$(node -e "import('./$OUT/guia-$MODULO.mjs').then(m=>console.log(JSON.stringify(m.lasCapturasQueSeEnsenan())))")"
 
 LOG=/tmp/guia-next.log
-setsid npx next start -p "$APP" >"$LOG" 2>&1 </dev/null &
+# Lo que una pantalla le pide a un servicio de FUERA —Gemini, en AI Imágenes—
+# lo contesta un doble cargado DENTRO del proceso de `next start`
+# (`fingido-guia-<modulo>.mjs`): la guía no depende de la red ni de la clave
+# de nadie. Solo para `next start`: el guion de capturas no lo lleva.
+NODE_DEL_SERVIDOR="${NODE_OPTIONS:-}"
+if [ -f "scripts/fingido-guia-$MODULO.mjs" ]; then
+  NODE_DEL_SERVIDOR="$NODE_DEL_SERVIDOR --import $PWD/scripts/fingido-guia-$MODULO.mjs"
+fi
+NODE_OPTIONS="$NODE_DEL_SERVIDOR" setsid npx next start -p "$APP" >"$LOG" 2>&1 </dev/null &
 NEXT_PID=$!
 trap 'kill -- -$NEXT_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do
