@@ -566,9 +566,12 @@ export async function sinAvisoEncima(p, locator) {
     console.log(`  · un aviso tapaba lo que había que pulsar: se esperó ${Date.now() - desde} ms a que se fuera`);
 }
 
+/**
+ * Primero a la vista: un aviso solo tapa lo que está en la ventana, y
+ * `sinAvisoEncima` espera con el cursor FUERA de él. Después se mueve encima y
+ * se mira que no quede nada tapándolo (`sinNadaEncima`).
+ */
 export async function pulsar(p, locator) {
-    // Primero a la vista: un aviso solo se puede ver tapando algo que está en
-    // la ventana, y `sinAvisoEncima` deja el cursor fuera de él.
     await traerALaVista(p, locator);
     await sinAvisoEncima(p, locator);
     await mover(p, locator);

@@ -69,4 +69,3 @@ globalThis.fetch = async function fetchDeLaGuia(entrada, init) {
     if (!csv) return new Response("Not Found", { status: 404 });
     return new Response(csv, { status: 200, headers: { "content-type": "text/csv; charset=utf-8" } });
 };
-
