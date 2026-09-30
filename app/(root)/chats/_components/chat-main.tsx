@@ -1338,7 +1338,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         return (
           <div className="flex-1 min-h-0 overflow-hidden">
             {url ? (
-              <IframeRenderer url={url} />
+              <IframeRenderer url={url} title={intg.name} />
             ) : (
               <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
                 La dirección de «{intg.name}» no se puede abrir. Corrígela en Apps Externas › Integrar urls.
