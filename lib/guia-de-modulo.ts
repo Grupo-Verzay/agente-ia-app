@@ -77,6 +77,11 @@ export const ICONOS_DE_SECCION = [
     "Paperclip",
     "Pin",
     "Settings",
+    "KeyRound",
+    "Upload",
+    "LayoutTemplate",
+    "Cpu",
+    "Sparkles",
 ] as const;
 
 export type Seccion = {

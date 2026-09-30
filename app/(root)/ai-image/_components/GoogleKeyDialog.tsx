@@ -72,7 +72,7 @@ export function GoogleKeyDialog({ open, onOpenChange, onSaved }: GoogleKeyDialog
 
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label>API Key</Label>
+            <Label>API key</Label>
             <Input
               type="password"
               placeholder="AIza••••••••••••••••••••••••••••••••••••"

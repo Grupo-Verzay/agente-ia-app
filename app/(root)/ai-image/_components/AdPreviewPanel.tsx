@@ -45,7 +45,7 @@ export const AdPreviewPanel = ({
   selectedTemplate,
   onDownload,
 }: AdPreviewPanelProps) => (
-  <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
+  <Card data-panel="vista-previa" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
     <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-background/95 px-4 py-3">
       <div className="space-y-0.5">
       <CardTitle className="text-lg font-semibold">Vista previa de imágenes</CardTitle>
@@ -62,6 +62,9 @@ export const AdPreviewPanel = ({
           variant="outline"
           size="icon"
           className="rounded-xl"
+          title="Descargar la imagen"
+          aria-label="Descargar la imagen"
+          data-boton="descargar-imagen"
           onClick={() =>
             onDownload(
               activeImageIndex,
@@ -100,11 +103,13 @@ export const AdPreviewPanel = ({
       {/* Template / Format selector */}
       {isLandingKitMode ? (
         <ScrollArea className="w-full whitespace-nowrap">
-          <div className="flex gap-2 pb-2">
+          <div data-zona="etapas-de-la-vista" className="flex gap-2 pb-2">
             {MARKETING_TEMPLATES.map((template) => (
               <Button
                 key={template.id}
                 type="button"
+                data-etapa={template.id}
+                aria-pressed={activeTemplate === template.id}
                 variant={activeTemplate === template.id ? 'default' : 'outline'}
                 size="sm"
                 className="shrink-0 rounded-full"
@@ -117,12 +122,13 @@ export const AdPreviewPanel = ({
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       ) : (
-        <div className="grid h-18 w-full gap-2" style={{ gridTemplateColumns: `repeat(${selectedFormats.length}, minmax(0, 1fr))` }}>
+        <div data-zona="formatos-de-la-vista" className="grid w-full gap-2" style={{ gridTemplateColumns: `repeat(${selectedFormats.length}, minmax(0, 1fr))` }}>
           {AD_FORMATS.filter((f) => selectedFormats.includes(f.id)).map((format) => (
             <button
               key={format.id}
               type="button"
               data-formato={format.id}
+              aria-pressed={activeFormat === format.id}
               onClick={() => onSelectFormat(format.id)}
               className={`rounded-2xl border px-3 py-2 text-center transition ${
                 activeFormat === format.id
@@ -141,7 +147,7 @@ export const AdPreviewPanel = ({
 
       {/* Variant selector */}
       {currentVariants.length > 1 && (
-        <div className="flex items-center gap-2">
+        <div data-zona="variantes-de-la-vista" className="flex items-center gap-2">
           <p className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Variante</p>
           <div className="flex gap-1.5">
             {currentVariants.map((_, idx) => (
@@ -149,6 +155,8 @@ export const AdPreviewPanel = ({
                 key={idx}
                 type="button"
                 onClick={() => onSelectVariant(idx)}
+                aria-label={`Variante ${idx + 1}`}
+                aria-pressed={activeVariant === idx}
                 className={`h-7 w-7 rounded-full border text-xs font-semibold transition ${
                   activeVariant === idx
                     ? 'border-primary bg-primary text-primary-foreground'
@@ -164,6 +172,7 @@ export const AdPreviewPanel = ({
 
       {/* Preview image */}
       <div
+        data-zona="imagen-generada"
         className={`relative flex min-h-[180px] flex-1 items-center justify-center overflow-hidden rounded-[28px] border border-border/70 bg-muted/20 transition-all sm:min-h-[220px] ${
           previewFormat === '9:16'
             ? 'mx-auto aspect-[9/16] max-h-[620px]'
@@ -181,7 +190,11 @@ export const AdPreviewPanel = ({
               exit={{ opacity: 0, scale: 0.98 }}
               src={currentPreview}
               alt="Resultado generado"
-              className="h-full w-full object-cover"
+              // `contain`, no `cover`: la caja de la vista previa se estira con
+              // el panel y no guarda la proporción del formato, así que `cover`
+              // enseñaba una franja del anuncio —sin la tapa del producto,
+              // sin el titular— y no lo que se descarga.
+              className="h-full w-full object-contain"
               referrerPolicy="no-referrer"
             />
           ) : isGenerating ? (
@@ -193,7 +206,7 @@ export const AdPreviewPanel = ({
             >
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <div>
-                <p className="text-sm font-medium">Generando anuncio...</p>
+                <p className="text-sm font-medium">Generando anuncio…</p>
                 <p className="text-xs text-muted-foreground">Espera mientras la IA construye la vista actual.</p>
               </div>
             </motion.div>
@@ -209,12 +222,12 @@ export const AdPreviewPanel = ({
               </div>
               <div>
                 <p className="text-sm font-medium">
-                  {sourceImagesCount === 0 ? 'Carga una imagen base para iniciar' : 'Aun no hay vista generada'}
+                  {sourceImagesCount === 0 ? 'Carga una imagen base para iniciar' : 'Aún no hay vista generada'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {sourceImagesCount === 0
                     ? 'Sube el producto en el paso 1 y luego ajusta la imagen.'
-                    : 'Configura el flujo y genera para ver el resultado aqui.'}
+                    : 'Configura los pasos y genera para ver el resultado aquí.'}
                 </p>
               </div>
             </motion.div>

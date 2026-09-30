@@ -9,7 +9,7 @@ interface StepNavProps {
 }
 
 export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProps) => (
-  <div className="border-b px-4 py-2">
+  <div data-zona="pasos" className="border-b px-4 py-2">
     <div className="grid w-full grid-cols-4 gap-1.5">
       {STUDIO_STEPS.map((step, index) => {
         const StepIcon = step.icon
@@ -20,6 +20,9 @@ export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProp
           <button
             key={step.id}
             type="button"
+            data-paso={step.id}
+            aria-label={`Paso ${index + 1}: ${step.label}`}
+            aria-current={isActive ? 'step' : undefined}
             onClick={() => onStepClick(step.id)}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 sm:justify-start sm:px-2.5 transition ${
               isActive

@@ -237,7 +237,7 @@ export function porQueFalloGemini(error: unknown): { causa: CausaDeGemini; mensa
     if (texto.includes("falta la api key de gemini")) {
         return {
             causa: "sin_clave",
-            mensaje: "No tienes una API key de Google configurada. Ve a Mi Perfil para agregarla.",
+            mensaje: "No tienes una API key de Google configurada. Agrégala con el botón «Configurar» de arriba.",
             detiene: true,
         };
     }
@@ -249,7 +249,7 @@ export function porQueFalloGemini(error: unknown): { causa: CausaDeGemini; mensa
     ) {
         return {
             causa: "clave_rechazada",
-            mensaje: "Google rechazó la API key. Verifica que sea válida en Mi Perfil → Configurar proveedor.",
+            mensaje: "Google rechazó la API key. Cámbiala con el botón «Cambiar» de arriba.",
             detiene: true,
         };
     }

@@ -58,8 +58,10 @@ function displayName(a: { name: string | null; email: string; company: string })
   return a.company?.trim() || a.name?.trim() || a.email;
 }
 
+// El adjetivo concuerda con el número: con «1 cuenta asociadas» delante, el
+// menú se lee mal en todas las pantallas.
 function getAccountCountLabel(count: number) {
-  return count === 1 ? "1 cuenta" : `${count} cuentas`;
+  return count === 1 ? "1 cuenta asociada" : `${count} cuentas asociadas`;
 }
 
 function getSwitcherRoleLabel(user: CurrentUser, currentRole: "agente" | "administrador" | null) {
@@ -211,7 +213,7 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
         </span>
         <span className={cn("mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs", variant === "card" ? "text-muted-foreground" : "text-sidebar-foreground/70")}>
           <Users className="h-3 w-3 shrink-0" />
-          <span className="truncate">{getAccountCountLabel(accessibleCount)} asociadas</span>
+          <span className="truncate">{getAccountCountLabel(accessibleCount)}</span>
         </span>
       </div>
       {isPending
