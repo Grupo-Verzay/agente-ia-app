@@ -12,9 +12,18 @@ import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-
 import { logOutgoingCallAction } from '@/actions/astracalls-actions';
 import { esperarYProcesarLaGrabacion } from '@/lib/grabacion-de-llamada.server';
 import { laCuentaDeLaLlamada, SIN_NUMERO_EN_LA_LINEA } from '@/lib/cuenta-de-la-llamada.server';
+import { laLlaveDelCandado, YA_HAY_UNA_LLAMADA_EN_CURSO } from '@/lib/llamada-en-curso';
+import { yaHayUnaLlamadaEnCurso } from '@/lib/llamada-en-curso.server';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const ASTRA_KEY = process.env.ASTRACALLS_API_KEY || '';
+
+/**
+ * Llamadas con IA que se están lanzando AHORA, por sesión y número. Tapa el
+ * doble clic: entre pedir la llamada y escribir su fila hay unos segundos en
+ * los que la consulta de `yaHayUnaLlamadaEnCurso` todavía no la ve.
+ */
+const lanzandose = new Set<string>();
 
 export interface VoicebotConfig {
   enabled: boolean;
@@ -171,6 +180,16 @@ export async function startBotCallAction(
     return { success: false, message: 'No tienes un número de llamadas vinculado (Conexión → Llamadas).' };
   }
 
+  // **Una llamada con IA a la vez por número.** Se lanzaba otra mientras la
+  // primera seguía sonando o hablando, y en la conversación quedaban dos
+  // «Llamada realizada». Si no se puede saber, se deja llamar (y se dice).
+  const candado = laLlaveDelCandado(sid, digits);
+  if (lanzandose.has(candado) || (await yaHayUnaLlamadaEnCurso(ASTRA_BASE, ASTRA_KEY, sid, digits))) {
+    console.info('[llamadas] ya hay una llamada con IA en curso con ese numero; no se lanza otra', { sid });
+    return { success: false, message: YA_HAY_UNA_LLAMADA_EN_CURSO };
+  }
+  lanzandose.add(candado);
+
   try {
     const r = await fetch(`${ASTRA_BASE}/api/sessions/${sid}/calls/bot`, {
       method: 'POST',
@@ -248,5 +267,7 @@ export async function startBotCallAction(
     return { success: true };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Error iniciando la llamada del bot.' };
+  } finally {
+    lanzandose.delete(candado);
   }
 }

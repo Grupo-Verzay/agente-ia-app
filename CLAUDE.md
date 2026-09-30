@@ -22024,6 +22024,38 @@ arreglo al modo bueno se pone en rojo** —la pastilla incondicional tumba dos
 casos, el submenú quitado uno, y el `h-7` de vuelta tres—.
 
 
+## La llamada con IA: el enlace no se manda dos veces, y no se llama dos veces
+
+«Después de una llamada con IA, "Llamada realizada" y el mensaje con el enlace
+de la reunión salen duplicados.» Eran dos fallos distintos con la misma cara:
+
+| lo que se veía | la causa |
+| --- | --- |
+| el enlace de la reunión llegaba 2-3 veces | el backend contestaba **201** a `POST /voicebot/tool` (lo normal de un `@Post` en NestJS) y wacalls solo da por buena una herramienta con **200 exacto**: el asistente oía «No pude completarlo», volvía a llamar a `enviar_whatsapp` y el enlace salía otra vez. Arreglado en `api-webhook` con `@HttpCode(200)` en las cuatro rutas (`banco-voicebot-contesta-200.sh`) |
+| dos «Llamada realizada» | eran **dos llamadas de verdad** al mismo número, la segunda lanzada 29 s después, con la primera todavía en curso |
+
+> **Una llamada con IA a la vez por número** (`startBotCallAction`). Antes de
+> pedirla se cruzan las llamadas que ya le hicimos a ese número por esa sesión
+> (las filas `callout_<ts>_<digitos>` con su `astraCallId`, últimos 30 min)
+> con las que el servidor de llamadas tiene VIVAS (`GET /calls`). Si alguna
+> sigue, no se llama: «Ya hay una llamada en curso con este número».
+
+Cuatro cosas que hay que mantener:
+
+1. **El cruce es por el `callId`**: la lista del servidor de llamadas no dice a
+   qué número va cada llamada. Una colgada (`stale`) no cuenta.
+2. **Un candado en memoria tapa el doble clic** (`lanzandose`): entre pedir la
+   llamada y escribir su fila la consulta todavía no la ve.
+3. **Si no se puede saber, se deja llamar, y se dice**: bloquear una llamada
+   legítima porque el servidor no contestó es peor que el duplicado.
+4. **La regla es `lib/llamada-en-curso.ts` (pura)**; la consulta y la red,
+   `lib/llamada-en-curso.server.ts`.
+
+Lo prueba `scripts/banco-llamada-en-curso.sh`, contra Postgres con la acción de
+verdad y el servidor de llamadas fingido (con la primera viva, el doble clic,
+la llamada terminada, el servidor caído y otro número). `MODO=roto` empaqueta
+la acción de `675dcee` y afirma dos llamadas y dos filas.
+
 ## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 
 «Límite de llamadas simultáneas alcanzado» al llamar desde un chat, **sin
