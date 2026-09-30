@@ -15,6 +15,7 @@ import {
     DoorOpen,
     Download,
     ExternalLink,
+    FileSpreadsheet,
     FileStack,
     FileText,
     Filter,
@@ -119,6 +120,7 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Send,
     Tags,
     ListChecks,
+    FileSpreadsheet,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
