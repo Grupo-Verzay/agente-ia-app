@@ -15,6 +15,7 @@ import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
+import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -50,6 +51,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     usuarios: { titulo: GUIA_USUARIOS.titulo, subtitulo: GUIA_USUARIOS.subtitulo, descripcion: GUIA_USUARIOS.descripcion },
     macros: { titulo: GUIA_MACROS.titulo, subtitulo: GUIA_MACROS.subtitulo, descripcion: GUIA_MACROS.descripcion },
     formularios: { titulo: GUIA_FORMULARIOS.titulo, subtitulo: GUIA_FORMULARIOS.subtitulo, descripcion: GUIA_FORMULARIOS.descripcion },
+    copiloto: { titulo: GUIA_COPILOTO.titulo, subtitulo: GUIA_COPILOTO.subtitulo, descripcion: GUIA_COPILOTO.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

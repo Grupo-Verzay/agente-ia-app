@@ -79,7 +79,12 @@ export function comoUrlDeIntegracion(texto: unknown): Veredicto<string> {
     if (url.protocol !== "https:" && url.protocol !== "http:") {
         return { ok: false, motivo: "Solo se aceptan direcciones web, que empiecen por https:// o http://." };
     }
-    if (!url.hostname.includes(".")) {
+    // `localhost` es la única dirección de verdad sin punto, y dejarla fuera no
+    // protegía nada: `http://127.0.0.1:3080` —la misma máquina— ya pasaba.
+    // Con ella fuera, el copiloto local de las capturas de la guía de Copiloto
+    // (`?u=http://localhost:3080`) caía en el de la plataforma y no se podía
+    // volver a generar la guía.
+    if (!url.hostname.includes(".") && url.hostname !== "localhost") {
         return { ok: false, motivo: "A esa dirección le falta el dominio (por ejemplo, typebot.co)." };
     }
     return { ok: true, valor: conEsquema };
