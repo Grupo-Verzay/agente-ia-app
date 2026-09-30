@@ -19570,6 +19570,55 @@ Lo prueba `scripts/banco-ancho-de-la-campana.sh`: la campana real y la franja
 real de `PanelLateral` en la misma página, a 1440/1280/1024/800/700/390, con
 «99+» en todas. `MODO=roto` monta la de `a62250d` y afirma los 420 px.
 
+## Documentación: flecha de regreso, orden propio arrastrando, y una barra
+
+Las cuatro pantallas internas de Documentación (Actualizaciones, Tutoriales,
+Guías y Conexión API de Meta) abren con **la misma cabecera**
+(`components/documentacion/CabeceraDeDocumentacion.tsx`): la flecha de regreso a
+`/documentation` y el título, en el mismo píxel en las cuatro. Encima **no va la
+barra de pestañas del panel** (`escondeLasPestanas`, `lib/pantallas-sin-pestanas.ts`,
+por segmento): enseñaba pestañas de otros módulos y el título ya dice dónde se
+está.
+
+> **Regla de la plataforma: donde haya una lista o unas tarjetas reordenables,
+> se reordenan arrastrando y soltando**, como en Módulos. En Documentación son
+> tres: las cuatro tarjetas de la portada (`doc-portada`), las guías publicadas
+> (`guias-publicadas`, solo la casa) y los tutoriales (`tutoriales`).
+
+Cinco cosas que hay que mantener:
+
+1. **El orden es de la PERSONA**, no de la cuenta: `orden_en_tablero` con
+   `tableroId` = `laPersonaQueActua(user).id`. Lo leen y guardan
+   `leerMiOrdenAction`/`guardarMiOrdenAction` (`actions/orden-propio-actions.ts`),
+   que ponen la persona ellas —ninguna recibe un id de persona— y filtran los ids
+   contra la lista de esa pantalla (`losIdsQueValen`). La acción genérica de
+   columnas **rechaza** estos tres tipos.
+2. **La colocación y el arrastre son los de Proyectos**: `RejillaOrdenable`,
+   `TarjetaOrdenable` (con `asa` izquierda, derecha o centro para no pisar lo de
+   la esquina) y `moverEnLaListaCompleta`. `useOrdenPropio` es
+   `useOrdenDeTarjetas` con otra llave. Con una búsqueda puesta se guarda la
+   lista ENTERA y lo escondido conserva su sitio.
+3. **La página trae el orden del servidor** (`ordenInicial`), para no pintar la
+   lista en un orden y moverla al instante. `comoOrdenGuardado` convierte lo que
+   no sea un objeto en «nada colocado».
+4. **Guías y Tutoriales van por `BarraDeAcciones`**: el buscador a la izquierda
+   y «Nuevo» (`BotonDeCrear`) a la derecha. `BotonDeCrear` no reenvía la ref,
+   así que su diálogo se abre con `onClick`, **nunca con `DialogTrigger`**.
+5. **Una tarjeta de recurso mide lo mismo que la de al lado**
+   (`TarjetaDeDocumento`: título en dos líneas reservadas, detalle en una,
+   descripción en dos, botones abajo) en `REJILLA_DE_DOCUMENTOS`: sin eso la
+   rejilla de tutoriales salía escalonada. Meta va en bloques con título
+   (Elige cómo conectar, Antes de empezar, Credenciales paso a paso, Preguntas
+   frecuentes), con los dos caminos del mismo alto.
+
+Lo prueba `scripts/banco-documentacion-simetrica.sh`: las reglas y un barrido,
+las acciones contra Postgres (el orden de una persona no mueve el de otra, un id
+inventado no entra, un cliente no ordena las guías publicadas) y las pantallas
+reales en Chromium a 1440/1280/1024/390 (la flecha en el mismo píxel, «Nuevo» a
+la derecha, tarjetas iguales, y arrastrar que reordena y guarda). `MODO=roto`
+lee las pantallas de `e3f2e7a` y afirma que no había flecha, ni arrastre, ni
+barra, y que las pestañas salían encima.
+
 ## Documentación › Actualizaciones: publicar y que salte UNA vez a cada persona
 
 La tarjeta «Plantillas IA» se quitó de Documentación (su pantalla `/templates`
