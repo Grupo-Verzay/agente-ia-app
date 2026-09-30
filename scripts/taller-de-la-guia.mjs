@@ -19,7 +19,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
-import { RITMO, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { RITMO, quitarLosCortes, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
 import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
@@ -586,7 +586,25 @@ export function empezarLaNarracion(p, voz, t0, { respiro: respiroEntreFrases }) 
         const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
         if (falta > 0) await espera(p, falta);
     };
-    return { decir, alDecir, callar, tramos };
+    /**
+     * Lo que tarda en cargar una pantalla NO sale en el vídeo. Se espera a que
+     * la frase que suena acabe, se hace `hacer` —navegar, esperar a que la
+     * pantalla esté entera— y ese rato se apunta como un CORTE: al montar el
+     * vídeo se quita de la imagen y la voz que viene después se adelanta lo
+     * mismo (`quitarLosCortes`). Así la frase siguiente empieza con la pantalla
+     * ya cargada, y no narra un «Cargando…» que el cliente no ve en su día a día.
+     *
+     * Nunca corta una frase a medias: por eso calla antes. Opcional: la guía que
+     * no lo llama se monta exactamente igual que antes.
+     */
+    const cortes = [];
+    const sinGrabarLaEspera = async (hacer) => {
+        await callar();
+        const desdeMs = Date.now() - t0;
+        await hacer();
+        cortes.push({ desdeMs, hastaMs: Date.now() - t0 });
+    };
+    return { decir, alDecir, callar, sinGrabarLaEspera, tramos, cortes };
 }
 
 /**
@@ -594,7 +612,7 @@ export function empezarLaNarracion(p, voz, t0, { respiro: respiroEntreFrases }) 
  * `scripts/voz-de-la-guia/<guia>.json`: el banco lo compara con el guion de
  * hoy y busca en la imagen el cambio del rótulo en cada `empiezanEnMs`.
  */
-export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, respiro }) {
+export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, respiro, cortes = [] }) {
     writeFileSync(
         path.join(import.meta.dirname, "voz-de-la-guia", `${guia}.json`),
         JSON.stringify(
@@ -608,6 +626,17 @@ export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, res
                       // instante cambia el rótulo de abajo: el banco lo busca en la
                       // imagen y así comprueba que la imagen no se despega de la voz.
                       empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
+                      // Dónde se empalma cada CORTE en el vídeo publicado (ms), y
+                      // cuánto se quitó: lo que tardaba en cargar una pantalla.
+                      // Solo lo llevan las guías que cortan.
+                      ...(cortes.length
+                          ? {
+                                cortes: cortes.map((c) => ({
+                                    enMs: quitarLosCortes(c.desdeMs, cortes) - desdeMs,
+                                    quitadoMs: c.hastaMs - c.desdeMs,
+                                })),
+                            }
+                          : {}),
                   }
                 : { voz: process.env.VOZ_GUIA, frases: [] },
             null,

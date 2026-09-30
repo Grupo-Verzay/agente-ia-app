@@ -23827,10 +23827,115 @@ las diez guías— y la guía servida a 390 y 1440— y
 de verdad contra Postgres—. Los dos con `MODO=roto` contra `ab6b110`, que
 afirma que no había guía y los fallos de la pantalla.
 
-### La undécima guía, Mis formularios: la lista, su EDITOR y lo que ve el cliente
+### La undécima guía, Mis macros: lo que se arregló al documentarla
+
+`/guia/macros` documenta Automatizaciones › Mis macros (`/macros`) con el
+estándar de las nueve anteriores: diez secciones —vista general, crear una
+macro, responder, otra línea, clasificar y enrutar, tareas y cierre, usar en un
+chat, buscar y ordenar, activar/duplicar/eliminar y acciones masivas—, una
+miniatura con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/macros`
+(`GUIAS_PUBLICADAS`): «Aprende a automatizar tus chats con acciones de un clic
+en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-macros.sh && npm run build`.
+
+No trae ninguna pieza propia. Lo que sí trajo es la pantalla arreglada, porque
+documentarla destapó que **una macro podía decir «Macro aplicada» sin haber
+hecho nada**:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que ENVÍA (mensaje, respuesta rápida, flujo, archivo) salía siempre por Evolution, y el chat solo le pasaba la línea si tenía clave de Evolution: en una de WhatsApp Mensajería **no salía nada** y el aviso decía «aplicada» | sale por el proveedor de la línea de la conversación (`enviarPorLaLinea`, con `elProveedorDeLaLinea`): Waha, canales o Evolution con la clave puesta en el servidor |
+| una acción que contestaba `success: false` contaba como hecha | cada una se MIRA (`exigir`) y el aviso lo arma `elResumenDeLaEjecucion`, que nombra lo que no salió y por qué; «parcial» sale en ámbar |
+| una acción a medias (mensaje vacío, flujo sin elegir) se saltaba y contaba como hecha | `porQueNoEstaLista` es la misma pregunta al guardar y al correr: el editor —y ahora también el servidor— no guarda una a medias, y al correr una vieja se cuenta como fallida |
+| «Enviar por otra línea» no ofrecía las de WhatsApp Mensajería y ponía «Empresa Demo» delante | `seOfreceParaEnviarPorOtraLinea` y `nombreDeLaCuenta`, con el nombre visible de la línea |
+| el Agente IA se apagaba con la cuenta de quien pulsa | con la cuenta DUEÑA de la conversación |
+| la lista decía «acciónes» y «ejecuciónes» | `elDetalleDeLaFila` |
+| el menú de Macros de Chats se quedaba abierto tras lanzar una, comiéndose el primer clic | se cierra al terminar (controlado, `setAbierto(false)` en el `finally`); el nombre largo se lee entero en su `title` |
+
+Las reglas viven en `lib/macros.ts` (puro) y las usan la pantalla, el menú del
+chat, la acción y la guía. Tres cosas que hay que mantener:
+
+1. **Activar o desactivar una macro vieja no pasa por la validación**: solo se
+   comprueba lo que llega (`updateMacroAction` valida `actions` si vienen).
+2. **Nada sale recortado con «…» en una captura**: `queNadaSalgaRecortado` corta
+   la generación, en la lista y en el menú del chat. Se acorta en la semilla
+   («Dar la bienvenida», «Pedir valoración»), no en la guía.
+3. **El vídeo lanza la macro que no envía nada** («Marcar como caliente»:
+   etiqueta, calificación y nota) y no elimina, ni duplica ni desactiva.
+4. **Dos opciones pegadas de un menú no llevan un recuadro cada una**: con el
+   relleno de la marca se montan. Va UNO alrededor del grupo y cada número a la
+   izquierda de su opción (`sinRecuadro` + `numeroEn`), en el orden en que se
+   ven —«Más acciones» y el «⋯» de las masivas—.
+
+Lo prueban `scripts/banco-macros.sh` —las reglas y un barrido, y las acciones
+contra Postgres con las ocho acciones internas apuntadas para afirmar por cuál
+proveedor salió cada cosa; `MODO=roto` corre las de `ab6b110` y afirma que en
+una línea de WhatsApp Mensajería no salía nada y decía «Macro aplicada.»— y
+`scripts/banco-guia-macros.sh` (el contenido contra el código, el vídeo, las
+miniaturas y la guía servida; `MODO=roto` contra `ab6b110`).
+
+#### La voz iba por delante de Chats: la carga es un CORTE que no se graba
+
+El vídeo publicado decía «Luego, en cualquier conversación de Chats, pulsas
+Macros…» encima de la lista de macros y de «Cargando mensajes…»: la frase
+empezaba y DESPUÉS se abría Chats, que tarda unos segundos. Medido en la
+imagen, la conversación se veía **2,5 s después** de que la voz la nombrara, y
+sin rótulo, porque la navegación se lo llevaba.
+
+> **Lo que tarda en cargar una pantalla no sale en el vídeo.**
+> `sinGrabarLaEspera(hacer)` (del taller, junto a `decir`) calla la frase que
+> suena, hace `hacer` —abrir Chats y esperar a que la conversación tenga sus
+> burbujas (`laConversacionCargada`)— y apunta ese rato como un CORTE. Al
+> montar, la imagen lo pierde (`filtroSinLosCortes`) y la voz de después se
+> adelanta lo mismo (`tramosSinLosCortes`); la frase empieza con la pantalla ya
+> entera, y con su rótulo.
+
+Cuatro cosas que hay que mantener:
+
+1. **Un corte nunca parte una frase**: por eso calla antes, y
+   `tramosSinLosCortes` se cae si alguna sonara dentro de uno.
+2. **Es opcional**: las guías que no lo llaman se montan exactamente igual. Y
+   `macros.json` dice dónde se empalmó (`cortes`) solo cuando lo hay.
+3. **La grabadora escribe a 25 fps fijos**, y eso es lo que deja numerar los
+   fotogramas seguidos al quitar el corte (`setpts=N/25/TB`): la imagen queda en
+   el mismo reloj que la pista.
+4. **Volver a Mis macros con «Gestionar macros» no necesita corte**: es una
+   navegación dentro de la App y se pinta en menos de medio segundo (medido).
+
+Lo prueba `lib/__tests__/video-guia-macros.test.mjs`: el corte con un vídeo de
+colores hecho con ffmpeg, el guion, y en el vídeo publicado que la zona de la
+conversación ya se ve como cargada cuando empieza la frase. `MODO=roto` lee el
+vídeo de `7c6869f` y afirma que la conversación aparecía segundos después.
+
+#### La ruedita del menú «Macros» de Chats va en el hueco del punto
+
+Al lanzar una macro, la ruedita iba al FINAL de su fila y le quitaba su ancho
+(14 px más 8 de hueco) al nombre: «Marcar como caliente» se leía «Marcar como
+cali…» justo mientras corría. Ahora gira **en el hueco del punto de color**, con
+el color de la macro, así que el nombre no cambia de ancho ni de sitio.
+
+Dos cosas que hay que mantener:
+
+1. **El hueco mide lo que el punto (10 px, `HUECO_DE_LA_MARCA`)**, no lo que la
+   ruedita. Con un hueco de 14 px el nombre perdía 4 px también EN REPOSO, y
+   con el panel más estrecho (a 1024) «Marcar como caliente» salía cortado sin
+   que corriera nada. La ruedita (14 px) gira encima, centrada con `inset`
+   negativo, y sobresale 2 px por lado sobre el relleno y el hueco.
+2. **`inset` y no `translate`, y con `!`**: `animate-spin` es un `transform` y
+   se comería el desplazamiento; y la fila de un menú fuerza todo `svg` a 16 px
+   (`[&_svg]:size-4`), así que sin `!h-3.5 !w-3.5` la ruedita sale de 16.
+
+Lo prueba `scripts/banco-ruedita-de-macros.sh`, en Chromium con el `MacrosMenu`
+real, Poppins y el ancho de panel de la cabecera, a 1440/1280/1024: el nombre
+mide lo mismo antes y mientras gira, la ruedita cae centrada donde estaba el
+punto, y ninguna macro de la guía sale con «…».
+`MODO=roto` monta el de `7c6869f` y afirma el recorte.
+
+### La duodécima guía, Mis formularios: la lista, su EDITOR y lo que ve el cliente
 
 `/guia/formularios` documenta Apps Externas › Mis formularios
-(`/mis-formularios`) con el estándar de las diez anteriores, y **las tres
+(`/mis-formularios`) con el estándar de las once anteriores, y **las tres
 pantallas del módulo**: la lista, el editor de un formulario (preguntas,
 redirección a WhatsApp y URL personalizada) y sus Registros, más el formulario
 público que llena el cliente (`/f/…`). Diez secciones —vista general, crear,
@@ -23882,7 +23987,7 @@ la caché sirve igual; lo que hay que hacer es recargar «IA CRM».
 Lo prueba `scripts/banco-guia-formularios.sh`: el contenido contra el código,
 el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
 (`GUIA=formularios`), `fin-de-la-guia` y `menu-de-la-guia` —que barren las
-once guías—, el `pulsar` con un aviso encima (abajo) y la guía servida a 390 y
+doce guías—, el `pulsar` con un aviso encima (abajo) y la guía servida a 390 y
 1440. `MODO=roto` lee `ab6b110` y afirma que no había guía, ni vídeo, ni
 miniaturas, ni marcas en la pantalla, y que el clic se lo llevaba el aviso.
 

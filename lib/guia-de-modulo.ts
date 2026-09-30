@@ -68,6 +68,8 @@ export const ICONOS_DE_SECCION = [
     "Percent",
     "BarChart3",
     "ShieldCheck",
+    "Send",
+    "Tags",
     "ListChecks",
     "FileSpreadsheet",
 ] as const;
