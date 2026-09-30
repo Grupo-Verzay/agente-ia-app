@@ -174,15 +174,30 @@ export function RejillaOrdenable({
  * recorta el nombre; lo que reserva su sitio es el `pl-*` que pone cada
  * pantalla, igual que el `pl-8` de la cabecera de un módulo.
  */
+/**
+ * Dónde va el asa. La esquina de arriba a la izquierda es la de siempre
+ * (Módulos, Proyectos, Diagramas). Las otras dos existen para no montarse sobre
+ * lo que la tarjeta ya tiene en esa esquina: `derecha` en una tarjeta con el
+ * título arriba a la izquierda, y `centro` en una FILA, donde el asa en la
+ * esquina de arriba quedaría descolgada del icono de al lado.
+ */
+const SITIO_DEL_ASA = {
+  izquierda: 'left-1.5 top-1.5',
+  derecha: 'right-1.5 top-1.5',
+  centro: 'left-1.5 top-1/2 -translate-y-1/2',
+} as const;
+
 export function TarjetaOrdenable({
   id,
   puedeOrdenar,
   className,
+  asa = 'izquierda',
   children,
 }: {
   id: string;
   puedeOrdenar: boolean;
   className?: string;
+  asa?: keyof typeof SITIO_DEL_ASA;
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -204,7 +219,11 @@ export function TarjetaOrdenable({
         title="Arrastra para reordenar"
         // Fondo propio: aparece encima de la esquina de la tarjeta y sin él se
         // leerían las dos cosas superpuestas.
-        className="absolute left-1.5 top-1.5 z-20 cursor-grab touch-none rounded-md border bg-background/90 p-1 text-muted-foreground shadow-sm active:cursor-grabbing"
+        data-asa-de-orden
+        className={cn(
+          'absolute z-20 cursor-grab touch-none rounded-md border bg-background/90 p-1 text-muted-foreground shadow-sm active:cursor-grabbing',
+          SITIO_DEL_ASA[asa],
+        )}
         {...attributes}
         {...listeners}
       >

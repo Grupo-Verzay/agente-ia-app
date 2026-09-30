@@ -2,7 +2,7 @@
 
 import { currentUser } from "@/lib/auth";
 import { MainTutorial } from "./_components";
-import AccessDenied from "@/app/AccessDenied";
+import { leerMiOrdenAction } from "@/actions/orden-propio-actions";
 
 interface Props {
     searchParams: { [key: string]: string | undefined }
@@ -11,15 +11,14 @@ interface Props {
 const TutorialPage = async ({ searchParams }: Props) => {
     const user = await currentUser();
 
-    // if (!user || user?.role !== "admin") {
-    //     return <AccessDenied />;
-    // };
-
     // Sin sesion no hay nada que enseñar aqui.
     if (!user) return null;
 
+    // El orden en que ESTA persona dejó las tarjetas (se arrastran).
+    const orden = await leerMiOrdenAction("tutoriales");
+
     return (
-        <MainTutorial user={user} />
+        <MainTutorial user={user} ordenInicial={orden.success ? orden.data : {}} />
     );
 };
 

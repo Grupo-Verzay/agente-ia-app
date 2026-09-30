@@ -19,7 +19,16 @@ import { TOPES, type Introduccion } from "@/lib/introduccion-de-la-guia";
  * Un campo vacío vuelve al texto original de la guía, así que el marcador de
  * cada campo ES ese texto: se ve qué saldría sin escribir nada.
  */
-export function EditarIntroduccionDeLaGuia({ modulo, nombre }: { modulo: string; nombre: string }) {
+export function EditarIntroduccionDeLaGuia({
+    modulo,
+    nombre,
+    conAsa = false,
+}: {
+    modulo: string;
+    nombre: string;
+    /** Va dentro de una lista que se reordena: le deja sitio al asa a la izquierda. */
+    conAsa?: boolean;
+}) {
     const [abierto, setAbierto] = useState(false);
     const [cargando, setCargando] = useState(false);
     const [guardando, setGuardando] = useState(false);
@@ -73,7 +82,10 @@ export function EditarIntroduccionDeLaGuia({ modulo, nombre }: { modulo: string;
 
     return (
         <>
-            <div data-guia-publica={modulo} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3">
+            <div
+                data-guia-publica={modulo}
+                className={`flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3${conAsa ? " pl-11" : ""}`}
+            >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
                     <BookOpen className="h-4 w-4" aria-hidden />
                 </span>

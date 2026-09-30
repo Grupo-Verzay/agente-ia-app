@@ -89,6 +89,13 @@ export const TIPOS_DE_TABLERO = [
     "arbol",
     "carpetas",
     "directos",
+    // El orden PROPIO de tres listas de Documentación, con `tableroId` = la
+    // persona. No pasan por `guardarElOrdenDeLaColumnaAction`: tienen su
+    // propia acción, que resuelve la persona sin que la mande nadie. Ver
+    // `lib/orden-propio.ts`.
+    "doc-portada",
+    "guias-publicadas",
+    "tutoriales",
 ] as const;
 export type TipoDeTablero = (typeof TIPOS_DE_TABLERO)[number];
 
