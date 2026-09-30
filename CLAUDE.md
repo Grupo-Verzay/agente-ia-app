@@ -22884,7 +22884,30 @@ Documentación › Administrador tutoriales.
 
 `getGuidesForPath` junta esas filas con las de `GuidesUrl` (las guardadas a
 mano, p. ej. vídeos de YouTube); si alguien ya guardó la misma guía a mano,
-sale una sola vez y manda la de la base. El banco
+sale una sola vez y manda la de la base.
+
+**La descripción de la tarjeta es suya, no el subtítulo de la guía**, y sigue
+una regla con dos mitades:
+
+1. **Formato «Aprende a [acción concreta] en la plataforma»**, con un
+   beneficio claro para el cliente. Referencia: Diagramas → «Aprende a crear y
+   gestionar tus diagramas de flujo en la plataforma». Nada de textos
+   genéricos repetidos («Recorrido completo del módulo de X con video
+   explicativo y guías»): dicen lo mismo en todas las tarjetas.
+2. **75 caracteres como mucho** (`TOPE_DE_LA_DESCRIPCION`), para que quepa en
+   UNA línea de la tarjeta. Una tilde o una eñe cuentan uno.
+
+El hilo que publica una guía escribe la suya en el campo `tarjeta` de su fila
+de `GUIAS_PUBLICADAS`, y la semilla de la guía (`scripts/sembrar-guia-*.mjs`)
+usa ese mismo texto. La regla es UNA función, `porQueNoValeLaDescripcion`, y
+la preguntan las guías publicadas (el banco), crear y editar un tutorial a mano
+(`createGuide`/`updateGuide`, que rechazan lo que no la cumpla) y el formulario
+de Documentación › Administrador tutoriales, que la enseña con su contador
+mientras se escribe. Las filas de producción que no la cumplían se corrigieron
+el 2026-09-30 (`scripts/descripciones-de-los-tutoriales.mjs`, aplicado con
+`scripts/corregir-descripciones-de-tutoriales.mjs`, que solo toca una fila si
+su texto sigue siendo el de antes). El banco mide en Chromium, con Poppins, que
+cada una cabe en una línea a 1440 y 1024; en un teléfono puede partirse. El banco
 (`scripts/banco-tutoriales-del-modulo.sh`) falla si una carpeta de
 `app/guia/` no tiene su fila, o si su ruta no está en el menú.
 
@@ -22892,7 +22915,9 @@ Y todas las tarjetas de esa ventana son iguales: título, descripción y, al
 final, «Ver tutorial» (`BOTON_VER_TUTORIAL`): el azul del botón de crear
 (`bg-blue-600`) en estilo secundario —fondo blanco, borde y letra azules—,
 abriendo en otra pestaña con `noopener`. Nada de «Ver en YouTube» en rojo.
-`MODO=roto` monta la barra de `7bdc404` y afirma el botón rojo.
+`MODO=roto` monta la barra de `7bdc404` y afirma el botón rojo, y lee
+`6d4430c` para afirmar que la tarjeta decía el subtítulo y las semillas el
+texto genérico.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 

@@ -31,7 +31,7 @@ const db = new PrismaClient();
 const dueno = await sembrarElMarco(db, {
     path: "/diagramas",
     title: "Guía de Diagramas",
-    description: "Cómo crear, dibujar y compartir tus diagramas de procesos",
+    description: "Aprende a crear y gestionar tus diagramas de flujo en la plataforma",
     url: "/guia/diagramas",
 });
 

@@ -30,7 +30,7 @@ const db = new PrismaClient();
 const marco = await sembrarElMarco(db, {
     path: "/mis-catalogo",
     title: "Guía de Catálogo",
-    description: "Recorrido completo de la pantalla de Catálogo con video explicativo y guias",
+    description: "Aprende a crear y compartir tu catálogo de productos en la plataforma",
     url: "/guia/catalogo",
 });
 
