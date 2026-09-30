@@ -868,23 +868,29 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, []);
 
   const handleRunMacro = useCallback(async (macroId: string) => {
-    if (!session?.id) return;
+    // Sin ficha de CRM no hay conversación sobre la que correrla: se dice, en
+    // vez de volver sin hacer nada.
+    if (!session?.id) {
+      toast.error('Esta conversación todavía no tiene ficha: escríbele o espera su primer mensaje.');
+      return;
+    }
     const toastId = toast.loading('Aplicando macro…');
+    // La LÍNEA de la conversación va siempre, sea del proveedor que sea: el
+    // servidor la busca y habla con ella por el suyo. Antes solo se mandaba
+    // cuando había clave de Evolution, así que en una línea de WhatsApp
+    // Mensajería lo que la macro enviaba no salía.
     const res = await executeMacroAction({
       macroId,
       sessionId: session.id,
       remoteJid: info?.remoteJid,
-      context:
-        info?.apiKeyData && info?.instanceName
-          ? { apiKeyData: info.apiKeyData, instanceName: info.instanceName }
-          : null,
+      instanceName: info?.instanceName ?? null,
     });
-    if (res.success) {
-      toast.success(res.message, { id: toastId });
+    if (res.tono === 'ok') toast.success(res.message, { id: toastId });
+    else if (res.tono === 'parcial') toast.warning(res.message, { id: toastId, duration: 10000 });
+    else toast.error(res.message, { id: toastId, duration: 10000 });
+    if (res.applied > 0) {
       mutateSessionStatus();
       void onRefresh?.();
-    } else {
-      toast.error(res.message, { id: toastId });
     }
   }, [session?.id, info, mutateSessionStatus, onRefresh]);
 

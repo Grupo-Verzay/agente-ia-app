@@ -9,63 +9,36 @@ import {
   sendManualQuickReplyAction,
   sendManualWorkflowAction,
 } from "@/actions/chat-manual-actions";
-import { sendChannelTextAction, sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
+import {
+  sendChannelTextAction,
+  sendChannelQuickReplyAction,
+  sendChannelWorkflowAction,
+  sendMetaTemplate,
+  type MetaTemplateOption,
+} from "@/actions/channel-chat-actions";
+import { sendWahaTextAction, sendWahaQuickReplyAction, sendWahaWorkflowAction } from "@/actions/waha-chat-actions";
+import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
+import {
+  ACCIONES_QUE_ENVIAN,
+  elProveedorDeLaLinea,
+  elResumenDeLaEjecucion,
+  losProblemasDeLaMacro,
+  losSegundosDeLaEspera,
+  porQueNoEstaLista,
+  seOfreceParaEnviarPorOtraLinea,
+  SEGUNDOS_MAXIMOS_DE_ESPERA,
+  type MacroActionItem,
+  type ResultadoDeAccion,
+} from "@/lib/macros";
 import { assignTagToSessionAction, removeTagFromSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
 import { assignSessionToAdvisor, resolveSession } from "@/actions/advisor-assign-actions";
 import { createInternalNoteAction } from "@/actions/internal-notes-actions";
 import { createTaskAction } from "@/actions/task-actions";
 
-export type MacroActionType =
-  | "SEND_TEXT"
-  | "SEND_QUICK_REPLY"
-  | "SEND_TEXT_VIA"
-  | "SEND_FILE"
-  | "EXECUTE_FLOW"
-  | "ADD_TAG"
-  | "REMOVE_TAG"
-  | "CHANGE_STAGE"
-  | "ASSIGN_ADVISOR"
-  | "TRANSFER_ADVISOR"
-  | "CREATE_TASK"
-  | "INTERNAL_NOTE"
-  | "TOGGLE_AI"
-  | "WAIT"
-  | "RESOLVE";
-
-export type MacroActionItem = {
-  type: MacroActionType;
-  config?: {
-    text?: string;
-    instanceName?: string; // línea/instancia por la que se envía (SEND_TEXT_VIA)
-    // SEND_TEXT_VIA por línea Meta (WhatsApp Cloud): plantilla aprobada en vez de
-    // texto libre. Fuera de la ventana de 24 h Meta solo acepta plantillas.
-    viaMode?: "text" | "template"; // default "text"
-    templateName?: string;
-    templateLanguage?: string;
-    templateBody?: string; // cuerpo con {{n}} (para renderizar el saliente en el panel)
-    templateParams?: string[]; // valores de {{1}}, {{2}}…
-    quickReplyId?: number;
-    tagId?: number;
-    stage?: string | null; // LeadStatus (FRIO | TIBIO | CALIENTE | FINALIZADO | DESCARTADO)
-    advisorId?: string;
-    content?: string;
-    disabled?: boolean;
-    workflowId?: string;
-    // SEND_FILE (adjunto fijo, subido a S3)
-    mediaUrl?: string;
-    mediatype?: string; // image | video | audio | document
-    mimetype?: string;
-    fileName?: string;
-    caption?: string;
-    // CREATE_TASK
-    taskTitle?: string;
-    taskType?: string;
-    taskDays?: number; // vencimiento relativo: hoy + N días
-    // WAIT
-    seconds?: number;
-  };
-};
+// Los tipos viven en `lib/macros.ts`, que es puro y lo usan también la
+// pantalla, el botón de Chats y la guía.
+export type { MacroActionItem, MacroActionType } from "@/lib/macros";
 
 /** Línea/instancia disponible para enviar mensajes (para el selector "por otra línea"). */
 export type MacroLine = { instanceName: string; label: string; type: string };
@@ -82,7 +55,7 @@ export type MacroData = {
   lastRunAt: string | null;
 };
 
-type ChatCtx = { apiKeyData: { url: string; key: string }; instanceName: string };
+type ChatCtx = { apiKeyData: { url: string; key: string } | null; instanceName: string };
 
 async function requireUser() {
   const user = await currentUser();
@@ -112,9 +85,15 @@ async function authorizedAccountIds(
 }
 
 /**
- * Lista las líneas (instancias de WhatsApp) de TODAS las cuentas asociadas que el
- * usuario administra, para el selector "Enviar por otra línea". Las líneas de
- * otras cuentas se etiquetan con el nombre de la cuenta para distinguirlas.
+ * Las líneas que se ofrecen en «Enviar por otra línea»: las de WhatsApp de las
+ * cuentas que alcanza quien mira (las mismas que la bandeja de Chats). Las de
+ * otra cuenta llevan delante el nombre de la cuenta.
+ *
+ * Dejaba fuera las líneas de WhatsApp Mensajería (`waha`), que es como nacen
+ * hoy las nuevas: en una cuenta que ya se pasó, el selector salía vacío con la
+ * línea conectada. Qué línea se ofrece lo decide `seOfreceParaEnviarPorOtraLinea`.
+ * Y el nombre de la cuenta es `nombreDeLaCuenta`, no `company` a secas, que
+ * nace «Empresa Demo».
  */
 export async function getAccountLinesAction(): Promise<{ success: boolean; data: MacroLine[] }> {
   try {
@@ -124,18 +103,15 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
       where: { userId: { in: accountIds } },
       orderBy: { id: "desc" },
     });
-    const whatsappRows = rows.filter(
-      (i) =>
-        i.instanceType === "Whatsapp" ||
-        i.instanceType === "meta" ||
-        i.instanceType == null,
-    );
-    // Nombre de la cuenta dueña de cada línea (para distinguir cuando administras varias).
+    const whatsappRows = rows.filter((i) => seOfreceParaEnviarPorOtraLinea(i.instanceType));
     const ownerIds = Array.from(new Set(whatsappRows.map((i) => i.userId)));
     const owners = ownerIds.length
-      ? await db.user.findMany({ where: { id: { in: ownerIds } }, select: { id: true, company: true } })
+      ? await db.user.findMany({
+          where: { id: { in: ownerIds } },
+          select: { id: true, company: true, name: true, email: true },
+        })
       : [];
-    const companyById = new Map(owners.map((u) => [u.id, u.company]));
+    const nombreById = new Map(owners.map((u) => [u.id, nombreDeLaCuenta(u)]));
     const activeId = user.effectiveId;
 
     const seen = new Set<string>();
@@ -143,11 +119,12 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
     for (const i of whatsappRows) {
       if (seen.has(i.instanceName)) continue;
       seen.add(i.instanceName);
-      // Solo prefijamos el nombre de la cuenta cuando la línea es de OTRA cuenta.
-      const company = i.userId !== activeId ? companyById.get(i.userId) : null;
+      const nombreDeLinea = i.displayName?.trim() || i.instanceName;
+      // Solo se antepone la cuenta cuando la línea es de OTRA.
+      const cuenta = i.userId !== activeId ? nombreById.get(i.userId) : null;
       data.push({
         instanceName: i.instanceName,
-        label: company ? `${company} · ${i.instanceName}` : i.instanceName,
+        label: cuenta ? `${cuenta} · ${nombreDeLinea}` : nombreDeLinea,
         type: i.instanceType ?? "Whatsapp",
       });
     }
@@ -159,10 +136,72 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
 }
 
 /**
- * Envía un texto al contacto de la conversación pero por una línea/instancia
- * distinta a la actual (puede ser de otra cuenta asociada). Resuelve el adaptador
- * correcto (canal Meta / Evolution) y, para Evolution, la API key de la
- * CUENTA dueña de esa línea (no la actual).
+ * Lo que devuelven las acciones de envío y de la conversación. Todas contestan
+ * `{ success, message }` y ninguna lanza cuando algo no sale: por eso el
+ * resultado se MIRA, o un envío rechazado se contaba como hecho.
+ */
+type Respuesta = { success?: boolean; message?: string } | null | undefined;
+
+function exigir(res: Respuesta, porDefecto: string): void {
+  if (res && res.success === false) throw new Error(res.message || porDefecto);
+}
+
+/**
+ * Envía algo al contacto por UNA línea, hablando con ella por su proveedor.
+ *
+ * Es la misma partición con la que la página de Chats arma el juego de
+ * acciones de cada línea (`elProveedorDeLaLinea`): WhatsApp Mensajería por sus
+ * acciones de Waha, Meta y Telegram por las de canales, y el resto por las de
+ * Evolution, con la clave de la cuenta dueña de la línea puesta en el servidor.
+ * Antes todo salía por Evolution, y en una línea de Waha eso contestaba «no hay
+ * instancia o API key» sin lanzar: la macro decía «aplicada» y al cliente no le
+ * llegaba nada. Cada acción de abajo comprueba además que quien corre la macro
+ * alcanza esa línea.
+ */
+type Envio =
+  | { kind: "text"; text: string }
+  | {
+      kind: "media";
+      mediatype: "image" | "video" | "audio" | "document";
+      mediaUrl: string;
+      mimetype?: string;
+      fileName?: string;
+      caption?: string;
+    };
+
+async function enviarPorLaLinea(
+  instanceName: string,
+  instanceType: string | null | undefined,
+  remoteJid: string,
+  envio: Envio,
+): Promise<void> {
+  const proveedor = elProveedorDeLaLinea(instanceType);
+  if (proveedor === "waha") {
+    exigir(await sendWahaTextAction(instanceName, remoteJid, envio as any), "No se pudo enviar por WhatsApp Mensajería.");
+    return;
+  }
+  if (proveedor === "canal") {
+    exigir(await sendChannelTextAction(instanceName, remoteJid, envio as any), "No se pudo enviar por el canal.");
+    return;
+  }
+  exigir(
+    await sendManualChatPayloadAction({ apiKeyData: null, instanceName }, remoteJid, envio as any),
+    "No se pudo enviar.",
+  );
+}
+
+async function laLineaAlcanzable(accountIds: string[], instanceName: string) {
+  const inst = await db.instancia.findFirst({
+    where: { instanceName, userId: { in: accountIds } },
+    select: { instanceName: true, instanceType: true, userId: true },
+  });
+  if (!inst) throw new Error(`La línea «${instanceName}» no es de tu cuenta o ya no existe.`);
+  return inst;
+}
+
+/**
+ * Envía un texto al contacto por una línea distinta a la de la conversación
+ * (puede ser de otra cuenta que se administra).
  */
 async function sendTextViaLine(
   accountIds: string[],
@@ -170,24 +209,8 @@ async function sendTextViaLine(
   remoteJid: string,
   text: string,
 ): Promise<void> {
-  const inst = await db.instancia.findFirst({
-    where: { instanceName, userId: { in: accountIds } },
-  });
-  if (!inst) throw new Error(`Línea "${instanceName}" no encontrada o no autorizada.`);
-
-  if (inst.instanceType === "meta" || inst.instanceType === "telegram") {
-    await sendChannelTextAction(instanceName, remoteJid, { kind: "text", text });
-    return;
-  }
-
-  // Evolution API: la clave de la cuenta dueña de ESA línea la pone el
-  // servidor (`resolverContexto`), comprobando antes que quien corre la macro
-  // alcanza esa cuenta. Aquí solo se nombra la línea.
-  await sendManualChatPayloadAction(
-    { apiKeyData: null, instanceName },
-    remoteJid,
-    { kind: "text", text },
-  );
+  const inst = await laLineaAlcanzable(accountIds, instanceName);
+  await enviarPorLaLinea(inst.instanceName, inst.instanceType, remoteJid, { kind: "text", text });
 }
 
 /**
@@ -257,6 +280,10 @@ export async function createMacroAction(input: {
   try {
     const user = await requireUser();
     if (!input.name?.trim()) return { success: false, message: "El nombre es obligatorio." };
+    // La MISMA regla que el editor: una acción a medias no se guarda. Esconder
+    // el botón de guardar no cierra la petición directa.
+    const problemas = losProblemasDeLaMacro({ name: input.name, actions: input.actions ?? [] });
+    if (problemas.length) return { success: false, message: problemas[0] };
     const count = await (db as any).macro.count({ where: { userId: ownerOf(user) } });
     const macro = await (db as any).macro.create({
       data: {
@@ -287,6 +314,14 @@ export async function updateMacroAction(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const user = await requireUser();
+    // Solo se comprueba lo que llega: activar o desactivar una macro vieja que
+    // tenga una acción a medias no puede fallar por eso (al correrla se cuenta
+    // como fallida y se dice por qué).
+    if (input.name !== undefined && !input.name.trim()) return { success: false, message: "El nombre es obligatorio." };
+    if (input.actions !== undefined) {
+      const problemas = losProblemasDeLaMacro({ name: input.name ?? "·", actions: input.actions });
+      if (problemas.length) return { success: false, message: problemas[0] };
+    }
     const data: any = {};
     if (input.name !== undefined) data.name = input.name.trim();
     if (input.description !== undefined) data.description = input.description?.trim() || null;
@@ -385,15 +420,43 @@ export async function deleteAllMacrosAction(): Promise<{ success: boolean; messa
 /* ─────────────── EJECUCIÓN ─────────────── */
 
 /**
- * Corre una macro sobre una conversación, encadenando las acciones existentes.
- * `context` y `remoteJid` solo se necesitan para las acciones que envían mensaje.
+ * Corre una macro sobre una conversación, encadenando las acciones de siempre.
+ *
+ * Tres cosas que no se pueden aflojar:
+ *
+ * 1. **Lo que envía sale por la línea de la conversación y por SU proveedor**
+ *    (`enviarPorLaLinea`). La línea la da el chat (`instanceName`); el
+ *    `context` viejo se sigue aceptando y de él solo se lee el nombre.
+ * 2. **Cada acción cuenta lo que devolvió.** Una acción que contesta
+ *    `success: false`, o que está a medias (`porQueNoEstaLista`), es un fallo
+ *    con su motivo, no una acción hecha. El aviso lo arma
+ *    `elResumenDeLaEjecucion`, que nombra lo que no salió.
+ * 3. **Lo que toca la conversación va con la cuenta DUEÑA de la conversación**
+ *    (el Agente IA), no con la de quien pulsa: desde la madre, una
+ *    conversación de una línea de la hija es de la hija.
  */
 export async function executeMacroAction(input: {
   macroId: string;
   sessionId: number;
   remoteJid?: string;
+  instanceName?: string | null;
   context?: ChatCtx | null;
-}): Promise<{ success: boolean; message: string; applied: number; failed: number }> {
+}): Promise<{
+  success: boolean;
+  message: string;
+  tono: "ok" | "parcial" | "error";
+  applied: number;
+  failed: number;
+  resultados: ResultadoDeAccion[];
+}> {
+  const vacio = (message: string) => ({
+    success: false,
+    message,
+    tono: "error" as const,
+    applied: 0,
+    failed: 0,
+    resultados: [] as ResultadoDeAccion[],
+  });
   try {
     const user = await requireUser();
     const ownerId = ownerOf(user);
@@ -401,136 +464,192 @@ export async function executeMacroAction(input: {
     const macro = await (db as any).macro.findFirst({
       where: { id: input.macroId, userId: ownerId, enabled: true },
     });
-    if (!macro) return { success: false, message: "Macro no encontrada.", applied: 0, failed: 0 };
+    if (!macro) return vacio("Macro no encontrada o desactivada.");
 
     const actions: MacroActionItem[] = Array.isArray(macro.actions) ? macro.actions : [];
-    const { sessionId, remoteJid, context } = input;
+    const { sessionId, remoteJid } = input;
+    const lineaDelChat = input.instanceName ?? input.context?.instanceName ?? null;
 
-    // Cuentas autorizadas (equipo/multi-cuenta) solo si hay envío por otra línea.
-    const lineAccountIds = actions.some((a) => a.type === "SEND_TEXT_VIA")
-      ? await authorizedAccountIds(user)
-      : [];
+    // «Enviar por otra línea» elige su propia línea; las demás que envían van
+    // por la de la conversación, que se resuelve UNA vez: de ella sale el
+    // proveedor.
+    const porLaDelChat = actions.some((a) => a.type !== "SEND_TEXT_VIA" && ACCIONES_QUE_ENVIAN.includes(a.type));
+    const accountIds = actions.some((a) => ACCIONES_QUE_ENVIAN.includes(a.type)) ? await authorizedAccountIds(user) : [];
+    let linea: { instanceName: string; instanceType: string | null } | null = null;
+    let porQueNoHayLinea: string | null = null;
+    if (porLaDelChat) {
+      if (!lineaDelChat) porQueNoHayLinea = "Esta conversación no dice por qué línea responder.";
+      else if (!remoteJid) porQueNoHayLinea = "Falta el contacto de la conversación.";
+      else {
+        try {
+          linea = await laLineaAlcanzable(accountIds, lineaDelChat);
+        } catch (e) {
+          porQueNoHayLinea = e instanceof Error ? e.message : "La línea de la conversación no está disponible.";
+        }
+      }
+    }
 
-    let applied = 0;
-    let failed = 0;
+    // La cuenta dueña de la conversación: es con la que se toca el Agente IA.
+    const duenaDeLaConversacion = actions.some((a) => a.type === "TOGGLE_AI")
+      ? (await db.session.findUnique({ where: { id: sessionId }, select: { userId: true } }))?.userId ?? null
+      : null;
+
+    const resultados: ResultadoDeAccion[] = [];
 
     for (const a of actions) {
+      const falta = porQueNoEstaLista(a);
+      if (falta) {
+        resultados.push({ tipo: a.type, ok: false, motivo: `está a medias (${falta})` });
+        continue;
+      }
       try {
         const cfg = a.config ?? {};
+        const necesitaLinea = () => {
+          if (!linea || !remoteJid) throw new Error(porQueNoHayLinea ?? "No hay línea para responder.");
+          return linea;
+        };
         switch (a.type) {
-          case "SEND_TEXT":
-            if (context && remoteJid && cfg.text) {
-              await sendManualChatPayloadAction(context, remoteJid, { kind: "text", text: cfg.text });
-            }
+          case "SEND_TEXT": {
+            const l = necesitaLinea();
+            await enviarPorLaLinea(l.instanceName, l.instanceType, remoteJid!, { kind: "text", text: cfg.text! });
             break;
+          }
+          case "SEND_FILE": {
+            const l = necesitaLinea();
+            await enviarPorLaLinea(l.instanceName, l.instanceType, remoteJid!, {
+              kind: "media",
+              mediatype: (cfg.mediatype ?? "document") as any,
+              mediaUrl: cfg.mediaUrl!,
+              mimetype: cfg.mimetype,
+              fileName: cfg.fileName,
+              caption: cfg.caption || undefined,
+            });
+            break;
+          }
+          case "SEND_QUICK_REPLY": {
+            const l = necesitaLinea();
+            const id = Number(cfg.quickReplyId);
+            const p = elProveedorDeLaLinea(l.instanceType);
+            const res =
+              p === "waha"
+                ? await sendWahaQuickReplyAction(l.instanceName, remoteJid!, id)
+                : p === "canal"
+                  ? await sendChannelQuickReplyAction(l.instanceName, remoteJid!, id)
+                  : await sendManualQuickReplyAction({ apiKeyData: null, instanceName: l.instanceName }, remoteJid!, id);
+            exigir(res, "No se pudo enviar la respuesta rápida.");
+            break;
+          }
+          case "EXECUTE_FLOW": {
+            const l = necesitaLinea();
+            const p = elProveedorDeLaLinea(l.instanceType);
+            const res =
+              p === "waha"
+                ? await sendWahaWorkflowAction(l.instanceName, remoteJid!, cfg.workflowId!)
+                : p === "canal"
+                  ? await sendChannelWorkflowAction(l.instanceName, remoteJid!, cfg.workflowId!)
+                  : await sendManualWorkflowAction({ apiKeyData: null, instanceName: l.instanceName }, remoteJid!, cfg.workflowId!);
+            exigir(res, "No se pudo ejecutar el flujo.");
+            break;
+          }
           case "SEND_TEXT_VIA":
-            if (remoteJid && cfg.instanceName) {
-              if (cfg.viaMode === "template" && cfg.templateName) {
-                await sendTemplateViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg);
-              } else if (cfg.text) {
-                await sendTextViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg.text);
-              }
-            }
-            break;
-          case "SEND_FILE":
-            if (context && remoteJid && cfg.mediaUrl) {
-              await sendManualChatPayloadAction(context, remoteJid, {
-                kind: "media",
-                mediatype: (cfg.mediatype ?? "document") as any,
-                mediaUrl: cfg.mediaUrl,
-                mimetype: cfg.mimetype,
-                fileName: cfg.fileName,
-                caption: cfg.caption || undefined,
-              });
-            }
-            break;
-          case "SEND_QUICK_REPLY":
-            if (context && remoteJid && cfg.quickReplyId) {
-              await sendManualQuickReplyAction(context, remoteJid, cfg.quickReplyId);
-            }
-            break;
-          case "EXECUTE_FLOW":
-            if (context && remoteJid && cfg.workflowId) {
-              await sendManualWorkflowAction(context, remoteJid, cfg.workflowId);
+            if (!remoteJid) throw new Error("Falta el contacto de la conversación.");
+            if (cfg.viaMode === "template") {
+              await sendTemplateViaLine(accountIds, cfg.instanceName!, remoteJid, cfg);
+            } else {
+              await sendTextViaLine(accountIds, cfg.instanceName!, remoteJid, cfg.text!);
             }
             break;
           case "ADD_TAG":
-            if (cfg.tagId) {
-              await assignTagToSessionAction({ userId: ownerId, sessionId, tagId: cfg.tagId });
-            }
+            exigir(
+              await assignTagToSessionAction({ userId: ownerId, sessionId, tagId: Number(cfg.tagId) }),
+              "No se pudo agregar la etiqueta.",
+            );
             break;
           case "REMOVE_TAG":
-            if (cfg.tagId) {
-              await removeTagFromSessionAction({ userId: ownerId, sessionId, tagId: cfg.tagId });
-            }
+            exigir(
+              await removeTagFromSessionAction({ userId: ownerId, sessionId, tagId: Number(cfg.tagId) }),
+              "No se pudo quitar la etiqueta.",
+            );
             break;
           case "CHANGE_STAGE":
-            await updateSessionLeadStatus(sessionId, (cfg.stage ?? null) as any);
+            exigir(await updateSessionLeadStatus(sessionId, cfg.stage as any), "No se pudo cambiar la calificación.");
             break;
           case "ASSIGN_ADVISOR":
           case "TRANSFER_ADVISOR":
-            // Ambas reasignan la conversación al asesor elegido. Se usa
-            // assignSessionToAdvisor (valida dueño/admin, registra y dispara
-            // automatizaciones); transferSession exige ser el asesor actual y
-            // rompería en una macro corrida por el dueño.
-            if (cfg.advisorId) await assignSessionToAdvisor(sessionId, cfg.advisorId);
+            // Las dos reasignan la conversación al asesor elegido.
+            // `assignSessionToAdvisor` valida dueño o administrador, registra y
+            // dispara las automatizaciones; `transferSession` exige ser el
+            // asesor actual y rompería en una macro corrida por el dueño.
+            exigir(await assignSessionToAdvisor(sessionId, cfg.advisorId!), "No se pudo asignar el asesor.");
             break;
-          case "CREATE_TASK":
-            if (cfg.advisorId && cfg.taskTitle) {
-              const days = Number.isFinite(cfg.taskDays) ? Number(cfg.taskDays) : 0;
-              const due = new Date(Date.now() + Math.max(0, days) * 86400000);
+          case "CREATE_TASK": {
+            const days = Number.isFinite(cfg.taskDays) ? Number(cfg.taskDays) : 0;
+            const due = new Date(Date.now() + Math.max(0, days) * 86400000);
+            exigir(
               await createTaskAction({
-                assignedToId: cfg.advisorId,
+                assignedToId: cfg.advisorId!,
                 sessionId,
-                title: cfg.taskTitle,
+                title: cfg.taskTitle!,
                 type: cfg.taskType || "Seguimiento",
                 dueDate: due.toISOString(),
-              });
-            }
+              }),
+              "No se pudo crear la tarea.",
+            );
             break;
+          }
           case "INTERNAL_NOTE":
-            if (cfg.content) await createInternalNoteAction({ sessionId, content: cfg.content });
+            exigir(await createInternalNoteAction({ sessionId, content: cfg.content! }), "No se pudo agregar la nota.");
             break;
           case "TOGGLE_AI":
-            await toggleAgentDisabled(user.id, sessionId, Boolean(cfg.disabled));
+            if (!duenaDeLaConversacion) throw new Error("La conversación no tiene ficha.");
+            exigir(
+              await toggleAgentDisabled(duenaDeLaConversacion, sessionId, Boolean(cfg.disabled)),
+              "No se pudo cambiar el Agente IA.",
+            );
             break;
           case "WAIT": {
-            // Pausa entre acciones (cap 20s para no colgar la request).
-            const secs = Math.min(20, Math.max(0, Number(cfg.seconds) || 0));
+            // Pausa entre acciones, con tope: la macro corre dentro de una
+            // petición y no puede colgarla.
+            const secs = Math.min(SEGUNDOS_MAXIMOS_DE_ESPERA, Math.max(0, losSegundosDeLaEspera(cfg)));
             if (secs > 0) await new Promise((r) => setTimeout(r, secs * 1000));
             break;
           }
           case "RESOLVE":
-            await resolveSession(sessionId);
+            exigir(await resolveSession(sessionId), "No se pudo resolver la conversación.");
             break;
           default:
-            break;
+            throw new Error("Esta acción no existe.");
         }
-        applied++;
+        resultados.push({ tipo: a.type, ok: true });
       } catch (err) {
-        failed++;
-        console.error(`[executeMacroAction] acción ${a.type} falló`, err);
+        const motivo = err instanceof Error ? err.message : "error desconocido";
+        resultados.push({ tipo: a.type, ok: false, motivo });
+        console.warn(`[macros] la acción ${a.type} no salió`, { macro: input.macroId, sessionId, motivo });
       }
     }
 
-    // Contador de ejecuciones (barato: un UPDATE por corrida).
+    // Contador de ejecuciones (un UPDATE por corrida).
     try {
       await (db as any).macro.update({
         where: { id: input.macroId },
         data: { runCount: { increment: 1 }, lastRunAt: new Date() },
       });
-    } catch {
-      /* no bloquear por el contador */
+    } catch (e) {
+      console.warn("[macros] no se pudo contar la ejecución", e);
     }
 
+    const { tono, mensaje } = elResumenDeLaEjecucion(resultados);
+    const failed = resultados.filter((r) => !r.ok).length;
     return {
-      success: true,
-      message: failed === 0 ? "Macro aplicada." : `Macro aplicada (${failed} acción(es) con error).`,
-      applied,
+      success: tono !== "error",
+      message: mensaje,
+      tono,
+      applied: resultados.length - failed,
       failed,
+      resultados,
     };
   } catch (e) {
     console.error("[executeMacroAction]", e);
-    return { success: false, message: "Error al ejecutar la macro.", applied: 0, failed: 0 };
+    return vacio("Error al ejecutar la macro.");
   }
 }

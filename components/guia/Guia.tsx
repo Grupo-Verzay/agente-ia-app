@@ -17,6 +17,7 @@ import {
     LayoutDashboard,
     LayoutGrid,
     Lightbulb,
+    ListChecks,
     Link2,
     Maximize2,
     MessageCircle,
@@ -28,15 +29,18 @@ import {
     PlayCircle,
     PlusCircle,
     Search,
+    Send,
     Share2,
     SlidersHorizontal,
     StickyNote,
     Store,
+    Tags,
     ToggleRight,
     Type,
     UserPlus,
     Users,
     Video,
+    Zap,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -87,6 +91,10 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    Send,
+    Tags,
+    ListChecks,
+    Zap,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
