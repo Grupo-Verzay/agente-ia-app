@@ -51,6 +51,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { VoiceSettings } from "./VoiceSettings";
 import { CotizacionesBuilder } from "./CotizacionesBuilder";
 import { AJUSTES_POR_DEFECTO } from "@/lib/cotizacion-ia";
+import { laSeccionEnOrden } from "@/lib/orden-de-elementos";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     business:   "Base transversal · Datos del negocio y contexto del agente",
@@ -74,20 +75,23 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
     const [showPromptChat, setShowPromptChat] = useState(false);
     const [showVoice, setShowVoice] = useState(false);
 
+    // Con los pasos ENDEREZADOS, igual que los pinta cada builder al abrirse
+    // (`laSeccionEnOrden`): de este texto sale la foto de «lo guardado», y sin
+    // enderezar, abrir una pestaña ponía Guardar en verde sin haber cambiado nada.
     const trainingMd = sections?.training
-        ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
+        ? buildTrainingMarkdown(laSeccionEnOrden(TrainingDraftSchema.parse(sections.training)))
         : "";
     const faqMd = sections?.faq
-        ? buildFaqMarkdown(FaqDraftSchema.parse(sections.faq))
+        ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(sections.faq)))
         : "";
     const productsMd = sections?.products
-        ? buildProductsMarkdown(ProductsDraftSchema.parse(sections.products))
+        ? buildProductsMarkdown(laSeccionEnOrden(ProductsDraftSchema.parse(sections.products)))
         : "";
     const extrasMd = sections?.extras
-        ? buildExtrasMarkdown(ExtrasDraftSchema.parse(sections.extras))
+        ? buildExtrasMarkdown(laSeccionEnOrden(ExtrasDraftSchema.parse(sections.extras)))
         : "";
     const managementMd = sections?.management
-        ? buildManagementMarkdown(ManagementDraftSchema.parse(sections.management))
+        ? buildManagementMarkdown(laSeccionEnOrden(ManagementDraftSchema.parse(sections.management)))
         : "";
 
     const hydrated: BusinessValues = {
@@ -430,25 +434,25 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
 
                                         const nextTrainingMd = serverSections.training
                                             ? buildTrainingMarkdown(
-                                                TrainingDraftSchema.parse(serverSections.training)
+                                                laSeccionEnOrden(TrainingDraftSchema.parse(serverSections.training))
                                             )
                                             : "";
                                         const nextFaqMd = serverSections.faq
-                                            ? buildFaqMarkdown(FaqDraftSchema.parse(serverSections.faq))
+                                            ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(serverSections.faq)))
                                             : "";
                                         const nextProductsMd = serverSections.products
                                             ? buildProductsMarkdown(
-                                                ProductsDraftSchema.parse(serverSections.products)
+                                                laSeccionEnOrden(ProductsDraftSchema.parse(serverSections.products))
                                             )
                                             : "";
                                         const nextExtrasMd = serverSections.extras
                                             ? buildExtrasMarkdown(
-                                                ExtrasDraftSchema.parse(serverSections.extras)
+                                                laSeccionEnOrden(ExtrasDraftSchema.parse(serverSections.extras))
                                             )
                                             : "";
                                         const nextManagementMd = serverSections.management
                                             ? buildManagementMarkdown(
-                                                ManagementDraftSchema.parse(serverSections.management)
+                                                laSeccionEnOrden(ManagementDraftSchema.parse(serverSections.management))
                                             )
                                             : "";
 

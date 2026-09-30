@@ -704,8 +704,12 @@ export function TrainingBuilder({
                                 </span>
 
                                 {/* Título */}
+                                {/* El título fijo de la bienvenida ocupa lo mismo que el
+                                    de los demás pasos (`flex-1`, mismo peso): sin eso su
+                                    «2 elementos» salía pegado al título mientras el de los
+                                    demás iba a la derecha, junto a la flecha. */}
                                 {lockWelcome ? (
-                                  <span className="text-sm font-semibold truncate uppercase">
+                                  <span className="flex-1 min-w-0 text-left text-sm font-medium truncate uppercase" data-titulo-del-paso>
                                     {step.title}
                                   </span>
                                 ) : isExpanded ? (
@@ -720,8 +724,9 @@ export function TrainingBuilder({
                                 ) : (
                                   <button
                                     type="button"
-                                    className="flex-1 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
+                                    className="flex-1 min-w-0 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
                                     onClick={() => toggleStep(step.id)}
+                                    data-titulo-del-paso
                                   >
                                     {step.title || (
                                       <span className="text-muted-foreground italic">Sin título</span>
@@ -852,8 +857,11 @@ export function TrainingBuilder({
                                     )}
                                   </div>
 
+                                  {/* Con el mismo sangrado que el resto del paso (`pl-10`):
+                                      con `px-3` arrancaba 26 px más a la izquierda que el
+                                      selector de modo de encima y el Motor de Flujo de debajo. */}
                                   {lockWelcome && (
-                                    <div className="px-3">
+                                    <div className="pl-10 pr-3">
                                       <InstruccionesDelSistema texto={step.mainMessage} />
                                     </div>
                                   )}
@@ -861,13 +869,22 @@ export function TrainingBuilder({
                                   {/* Motor de Flujo */}
                                   <div className="pl-10 pr-3">
                                     <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 px-3 py-2 space-y-2">
+                                      {/* La flecha gira como la del paso: plegada apunta
+                                          abajo y abierta arriba. Quieta, no decía si el
+                                          bloque estaba abierto, y la del paso de al lado
+                                          sí lo decía. */}
                                       <button
                                         type="button"
                                         onClick={() => toggleMotor(step.id)}
                                         className="flex items-center justify-between w-full"
+                                        aria-expanded={expandedMotor.has(step.id)}
+                                        data-motor-de-flujo
                                       >
                                         <p className="text-xs font-semibold text-foreground/60 uppercase tracking-widest">Motor de Flujo</p>
-                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <ChevronDown
+                                          className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200"
+                                          style={{ transform: expandedMotor.has(step.id) ? "rotate(180deg)" : "rotate(0deg)" }}
+                                        />
                                       </button>
                                       {expandedMotor.has(step.id) && (
                                         <div className="space-y-2">
@@ -911,7 +928,10 @@ export function TrainingBuilder({
 
                                   <Separator />
 
-                                  <div className="space-y-2">
+                                  {/* `pr-3`, el mismo de todo lo demás del paso: sin él las
+                                      tarjetas de los elementos llegaban 12 px más a la derecha
+                                      que el Motor de Flujo, «Agregar acción» y la papelera. */}
+                                  <div className="space-y-2 pr-3">
                                     {step.elements.length === 0 ? (
                                       <div className="text-center text-sm text-muted-foreground py-2">
                                         No hay elementos en este paso. Agrega funciones o textos
@@ -963,7 +983,7 @@ export function TrainingBuilder({
                                   <div className="pl-10 pr-3 flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-semibold">Elementos del paso</span>
-                                      <Badge variant="secondary">{idx + 1}</Badge>
+                                      <Badge variant="secondary" data-cuantos-elementos title="Cuántos elementos lleva">{(step.elements ?? []).length}</Badge>
                                     </div>
                                     <div className="flex gap-2">
                                       <FunctionSelector

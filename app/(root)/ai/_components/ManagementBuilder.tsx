@@ -584,7 +584,7 @@ export const ManagementBuilder = ({
                                                             {/* Drag handle */}
                                                             <div
                                                                 className="h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50"
-                                                                title="Arrastrar"
+                                                                title="Arrastrar gestión"
                                                                 {...dragHandleProps}
                                                             >
                                                                 <GripVertical className="h-4 w-4" />
@@ -679,7 +679,10 @@ export const ManagementBuilder = ({
                                                         }}
                                                     >
                                                         <div className="overflow-hidden">
-                                                            <CardContent className="space-y-3 pt-0 pb-3 px-3">
+                                                            {/* Los bordes de un paso de Inicio: la tarjeta del elemento arranca bajo
+                                                                el título y acaba bajo la papelera (`pr-3`), y su asa queda a la izquierda.
+                                                                Con `px-3` todo iba 12 px corrido a la derecha del resto de pestañas. */}
+                                                            <CardContent className="space-y-3 pt-0 pb-3 pl-0 pr-3">
                                                                 {!step.elements || step.elements.length === 0 ? (
                                                                     <div className="text-center text-sm text-muted-foreground py-2">
                                                                         No hay elementos en esta gestión. Agrega funciones o textos usando los botones de abajo.
@@ -747,10 +750,10 @@ export const ManagementBuilder = ({
                                                                         </div>
                                                                     </SortableContext>
                                                                 )}
-                                                                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                                                                <div className="pl-10 flex items-center justify-between flex-wrap gap-2 pt-1">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-sm font-semibold">Elementos de la gestión</span>
-                                                                        <Badge variant="secondary">{idx + 1}</Badge>
+                                                                        <Badge variant="secondary" data-cuantos-elementos title="Cuántos elementos lleva">{(step.elements ?? []).length}</Badge>
                                                                     </div>
                                                                 </div>
                                                             </CardContent>
