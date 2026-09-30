@@ -109,7 +109,6 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     TriangleAlert,
     ClipboardList,
     Unlink,
-    Trash2,
     FileText,
     Percent,
     BarChart3,

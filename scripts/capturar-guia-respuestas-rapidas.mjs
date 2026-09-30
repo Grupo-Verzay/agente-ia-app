@@ -115,6 +115,17 @@ const laFila = (p, texto) => p.locator(`${LA_LISTA} > div`, { hasText: texto }).
 const laTarjeta = (p, texto) => laFila(p, texto).locator("[data-respuesta-rapida]");
 const laParte = (p, texto, zona) => laFila(p, texto).locator(`[data-zona="${zona}"]`).first();
 const lasFilas = (p) => p.locator(`${LA_LISTA} > div`);
+/**
+ * La fila por su POSICIÓN, sacada una vez por lo que dice. Hace falta cuando
+ * lo que la identifica deja de ser texto: al editar el atajo, la pastilla
+ * «/horario» pasa a ser un campo, su valor no cuenta como texto y `hasText`
+ * dejaría de encontrarla.
+ */
+async function fijarLaFila(p, texto) {
+    const i = await lasFilas(p).evaluateAll((filas, t) => filas.findIndex((f) => (f.textContent ?? "").includes(t)), texto);
+    if (i < 0) throw new Error(`[guia] no está la respuesta «${texto}»`);
+    return lasFilas(p).nth(i);
+}
 
 const laPastilla = (p, nombre) => p.locator(`button[aria-pressed][aria-label="${nombre}"]`).first();
 const LAS_PASTILLAS = ["Todas", "Texto simple", "Ejecutan flujo"];
@@ -377,7 +388,8 @@ async function capturas(p) {
 
     // 4. Editar, sin abrir ninguna ventana.
     const aEditar = "horario";
-    const zonaDeEditar = async () => holgura(unir(await caja(p, laFila(p, aEditar)), { ...(await caja(p, laFila(p, aEditar))), h: 200 }), 30, vista);
+    const filaFija = await fijarLaFila(p, aEditar);
+    const zonaDeEditar = async () => holgura(unir(await caja(p, filaFija), { ...(await caja(p, filaFija)), h: 200 }), 30, vista);
     await laParte(p, aEditar, "mensaje").click();
     const cuadro = laFila(p, aEditar).locator('textarea[aria-label="Mensaje"]');
     await cuadro.waitFor({ state: "visible", timeout: 10000 });
@@ -388,7 +400,7 @@ async function capturas(p) {
     await p.keyboard.press("Escape");
     await espera(p, 500);
     await laParte(p, aEditar, "atajo").click();
-    const atajo = laFila(p, aEditar).locator('input[aria-label="Atajo"]');
+    const atajo = filaFija.locator('input[aria-label="Atajo"]');
     await atajo.waitFor({ state: "visible", timeout: 10000 });
     await espera(p, 400);
     await marcar(p, [{ c: await caja(p, atajo), texto: "El atajo, listo para cambiarlo", lado: "abajo" }]);
@@ -616,6 +628,26 @@ async function arrastrar(p, asa, destino, { enVideo = false } = {}) {
     await p.mouse.up();
 }
 
+/**
+ * Trae una fila a la vista con la RUEDA, como una persona. `mover` y `pulsar`
+ * del vídeo no desplazan nada —el ratón se lleva a la caja de la fila—, así que
+ * una fila por debajo del borde de la ventana no se puede pulsar: el ratón se
+ * mueve fuera de la pantalla y el clic no cae en ninguna parte. A 1280×800,
+ * con la respuesta recién creada arriba, «comprobante» queda debajo del borde.
+ */
+async function aLaVista(p, fila, margen = 60) {
+    const alto = p.viewportSize()?.height ?? 800;
+    for (let i = 0; i < 12; i += 1) {
+        const b = await fila.boundingBox();
+        if (!b) throw new Error(`[guia] no está la fila que el vídeo tenía que traer: ${fila}`);
+        const sobra = b.y + b.height + margen - alto;
+        if (sobra <= 0) return;
+        await p.mouse.wheel(0, Math.min(sobra, 160));
+        await espera(p, 120);
+    }
+    throw new Error(`[guia] la fila no llega a la vista con la rueda: ${fila}`);
+}
+
 /* ------------------------------------------------------------------ */
 /* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
@@ -755,6 +787,7 @@ async function video(navegador, estado) {
     const menu = p.locator('[role="menu"]').last();
     const alerta = p.locator(LA_ALERTA);
     await decir("eliminar");
+    await aLaVista(p, laFila(p, "comprobante"));
     await alDecir("desde sus tres puntos");
     await pulsar(p, puntos);
     await menu.waitFor({ state: "visible", timeout: 10000 });

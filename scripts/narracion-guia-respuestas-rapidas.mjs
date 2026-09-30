@@ -44,7 +44,7 @@ export const NARRACION = {
     },
     filtrar: {
         rotulo: "Las pastillas filtran por tipo",
-        texto: "Las pastillas filtran por tipo: con Ejecutan flujo ves solo esas, y con Todas vuelves a verlas todas.",
+        texto: "Las pastillas filtran la lista por tipo: con Ejecutan flujo te quedas solo con las de flujo, y con Todas vuelves a ver la lista entera.",
     },
     buscar: {
         rotulo: "Búscala por su atajo o por lo que dice",

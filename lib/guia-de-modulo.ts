@@ -64,7 +64,6 @@ export const ICONOS_DE_SECCION = [
     "TriangleAlert",
     "ClipboardList",
     "Unlink",
-    "Trash2",
     "FileText",
     "Percent",
     "BarChart3",

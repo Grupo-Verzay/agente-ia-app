@@ -23721,6 +23721,78 @@ servida a 390 y 1440— y `scripts/banco-equipo-usuarios.sh` —lo de la pantall
 con las acciones de verdad contra Postgres—. Los dos con `MODO=roto` contra
 `ab6b110`, que afirma que no había guía y los fallos de la pantalla.
 
+### La décima guía, Respuestas Rápidas: y documentarla destapó respuestas que no veía nadie
+
+`/guia/respuestas-rapidas` documenta Automatizaciones › Respuestas Rápidas
+(`/auto-replies`) con el estándar de las nueve guías anteriores: ocho
+secciones —vista general, crear una de texto, una que ejecuta un flujo,
+editar, filtrar y buscar, ordenar, eliminar y usarlas en un chat—, una
+miniatura con enfoque por tarjeta y el vídeo narrado con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/auto-replies` (`GUIAS_PUBLICADAS`): «Aprende a crear y usar tus respuestas
+rápidas en la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-respuestas-rapidas.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-respuestas-rapidas.mjs`, sobre
+`sembrarElMarco`, con respuestas de las dos clases, un flujo y una
+conversación), receta de capturas y vídeo
+(`capturar-guia-respuestas-rapidas.mjs`, sobre el taller) y narración. Se
+regenera con `npm run build && scripts/generar-guia-respuestas-rapidas.sh &&
+npm run build`.
+
+**La guía se compara con el CÓDIGO**: las pastillas y el «⋯» de la barra con
+`MainAutoReplies.tsx`, las categorías con `lib/quick-reply-categories.ts`, los
+dos tipos con `ReplyTypeSelector.tsx` y las partes de una respuesta con sus
+`data-zona` (`SortableAutoRepliesList.tsx`, `AutoRepliesCard.tsx`). Un mando
+nuevo sin su nombre en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+Las reglas viven en `lib/respuestas-rapidas.ts` (pura) y las usan la
+pantalla, las acciones y los TRES sitios de Chats que ofrecen una respuesta
+—la barra «/», el panel de Atajos (⚡) y «Nueva conversación»—.
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que creaba alguien del equipo nacía a nombre de SU fila, y la pantalla lee por la cuenta: **no lo veía nadie, ni quien lo creó**. En producción había 14, con repetidas («referido», «referido_1»…) de volver a crearlas | `createRR` sube a la cuenta de la fila (`laCuentaDeLaFila`). Las ya creadas las devuelve `scripts/mover-respuestas-a-su-cuenta.mjs` (sin `--aplicar` solo dice qué haría), al FINAL de la lista de su cuenta y personales si las creó un agente |
+| una respuesta de FLUJO no salía en ningún sitio de Chats: se le exigía el mensaje | `seOfreceEnChats`: a una de texto su mensaje, a una de flujo su flujo |
+| en una línea de Waha una de flujo contestaba «no encontrada» | `sendWahaQuickReplyAction` lanza el flujo (con su `intention`, del flujo de la MISMA cuenta) |
+| el panel de Atajos escondía las que no tienen atajo | salen todas; la barra «/» sigue ofreciendo solo las de texto con atajo (`seSugiereConLaBarra`): elegir una ahí PONE su mensaje, y una de flujo no tiene |
+| el atajo se guardaba de dos formas —la tarjeta lo subía a MAYÚSCULAS y crear lo bajaba— y había uno guardado como «//bienvenida» | `comoAtajo`: sin la barra, en minúsculas y sin espacios, se toque por donde se toque; vacío es `null`, o borrar el atajo no borraba nada |
+| una nueva nacía con el 0 de la columna, empatada o perdida en medio | sale la PRIMERA (`elOrdenDeUnaNueva`), sin mover a las demás |
+| el orden eran N llamadas en fila india, y un asesor reordenando movía las personales de sus compañeros | una acción y una sentencia (`guardarElOrdenDeLasRespuestasAction`); lo que no se ve se queda en su sitio (`elOrdenConLasDemasEnSuSitio`) |
+| con un filtro o una búsqueda puestos se reordenaba el trozo y las escondidas saltaban | no se reordena, y se dice (`porQueNoSePuedeOrdenar`) |
+| la búsqueda no encontraba «Envío» tecleando «envio» | `pasaLaBusqueda`, la misma `sinTildes` de Mis notas, que mira también el flujo y la categoría |
+| un asesor veía «Editar» en las de la cuenta y el servidor le contestaba «No autorizado» | cada respuesta trae `editable`, y lo que no puede tocar no ofrece mandos |
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que decide si algo sale en Chats es `lib/respuestas-rapidas.ts`.** Con
+   la regla escrita en cada uno de los tres sitios, una respuesta sale en uno y
+   en otro no, y eso no se ve como un error.
+2. **Una respuesta nueva es de la CUENTA; la de un agente, además suya**
+   (`respuestas_personales`, la regla de *lo que crea un asesor es SUYO*). La
+   persona no es nunca la dueña de la fila.
+3. **El borrado en bloque pasa por `deleteRR`**, con las puertas de cada fila,
+   y cuenta lo que no pudo.
+4. **La receta localiza la fila que se edita por su POSICIÓN, sacada una vez
+   por lo que dice** (`fijarLaFila`): al editar el atajo, la pastilla
+   «/horario» pasa a ser un campo, su valor no cuenta como texto y `hasText`
+   deja de encontrarla.
+5. **`mover` y `pulsar` del vídeo NO desplazan nada**: llevan el ratón a la
+   caja del elemento, y una fila por debajo del borde de la ventana (a
+   1280×800, con la respuesta recién creada arriba) deja el clic fuera de la
+   pantalla. El menú no se abre y el guion se cae con un plazo agotado que no
+   dice por qué. Antes se trae con la rueda (`aLaVista`), como una persona.
+
+Lo prueban `scripts/banco-guia-respuestas-rapidas.sh` —el contenido contra el
+código, el vídeo medido como los demás, las miniaturas en sus píxeles
+(`GUIA=respuestas-rapidas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
+las diez guías— y la guía servida a 390 y 1440— y
+`scripts/banco-respuestas-rapidas.sh` —las reglas y un barrido, y las acciones
+de verdad contra Postgres—. Los dos con `MODO=roto` contra `ab6b110`, que
+afirma que no había guía y los fallos de la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
