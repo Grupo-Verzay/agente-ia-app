@@ -23721,6 +23721,54 @@ servida a 390 y 1440— y `scripts/banco-equipo-usuarios.sh` —lo de la pantall
 con las acciones de verdad contra Postgres—. Los dos con `MODO=roto` contra
 `ab6b110`, que afirma que no había guía y los fallos de la pantalla.
 
+### La décima guía, Mis macros: lo que se arregló al documentarla
+
+`/guia/macros` documenta Automatizaciones › Mis macros (`/macros`) con el
+estándar de las nueve anteriores: diez secciones —vista general, crear una
+macro, responder, otra línea, clasificar y enrutar, tareas y cierre, usar en un
+chat, buscar y ordenar, activar/duplicar/eliminar y acciones masivas—, una
+miniatura con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/macros`
+(`GUIAS_PUBLICADAS`): «Aprende a automatizar tus chats con acciones de un clic
+en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-macros.sh && npm run build`.
+
+No trae ninguna pieza propia. Lo que sí trajo es la pantalla arreglada, porque
+documentarla destapó que **una macro podía decir «Macro aplicada» sin haber
+hecho nada**:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que ENVÍA (mensaje, respuesta rápida, flujo, archivo) salía siempre por Evolution, y el chat solo le pasaba la línea si tenía clave de Evolution: en una de WhatsApp Mensajería **no salía nada** y el aviso decía «aplicada» | sale por el proveedor de la línea de la conversación (`enviarPorLaLinea`, con `elProveedorDeLaLinea`): Waha, canales o Evolution con la clave puesta en el servidor |
+| una acción que contestaba `success: false` contaba como hecha | cada una se MIRA (`exigir`) y el aviso lo arma `elResumenDeLaEjecucion`, que nombra lo que no salió y por qué; «parcial» sale en ámbar |
+| una acción a medias (mensaje vacío, flujo sin elegir) se saltaba y contaba como hecha | `porQueNoEstaLista` es la misma pregunta al guardar y al correr: el editor —y ahora también el servidor— no guarda una a medias, y al correr una vieja se cuenta como fallida |
+| «Enviar por otra línea» no ofrecía las de WhatsApp Mensajería y ponía «Empresa Demo» delante | `seOfreceParaEnviarPorOtraLinea` y `nombreDeLaCuenta`, con el nombre visible de la línea |
+| el Agente IA se apagaba con la cuenta de quien pulsa | con la cuenta DUEÑA de la conversación |
+| la lista decía «acciónes» y «ejecuciónes» | `elDetalleDeLaFila` |
+| el menú de Macros de Chats se quedaba abierto tras lanzar una, comiéndose el primer clic | se cierra al terminar (controlado, `setAbierto(false)` en el `finally`); el nombre largo se lee entero en su `title` |
+
+Las reglas viven en `lib/macros.ts` (puro) y las usan la pantalla, el menú del
+chat, la acción y la guía. Tres cosas que hay que mantener:
+
+1. **Activar o desactivar una macro vieja no pasa por la validación**: solo se
+   comprueba lo que llega (`updateMacroAction` valida `actions` si vienen).
+2. **Nada sale recortado con «…» en una captura**: `queNadaSalgaRecortado` corta
+   la generación, en la lista y en el menú del chat. Se acorta en la semilla
+   («Dar la bienvenida», «Pedir valoración»), no en la guía.
+3. **El vídeo lanza la macro que no envía nada** («Marcar como caliente»:
+   etiqueta, calificación y nota) y no elimina, ni duplica ni desactiva.
+4. **Dos opciones pegadas de un menú no llevan un recuadro cada una**: con el
+   relleno de la marca se montan. Va UNO alrededor del grupo y cada número a la
+   izquierda de su opción (`sinRecuadro` + `numeroEn`), en el orden en que se
+   ven —«Más acciones» y el «⋯» de las masivas—.
+
+Lo prueban `scripts/banco-macros.sh` —las reglas y un barrido, y las acciones
+contra Postgres con las ocho acciones internas apuntadas para afirmar por cuál
+proveedor salió cada cosa; `MODO=roto` corre las de `ab6b110` y afirma que en
+una línea de WhatsApp Mensajería no salía nada y decía «Macro aplicada.»— y
+`scripts/banco-guia-macros.sh` (el contenido contra el código, el vídeo, las
+miniaturas y la guía servida; `MODO=roto` contra `ab6b110`).
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

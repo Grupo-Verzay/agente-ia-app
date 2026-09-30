@@ -12,6 +12,7 @@ import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
 import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
+import { GUIA_MACROS } from "@/lib/guia-macros";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -40,6 +41,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     },
     "agente-ia": { titulo: GUIA_AGENTE_IA.titulo, subtitulo: GUIA_AGENTE_IA.subtitulo, descripcion: GUIA_AGENTE_IA.descripcion },
     usuarios: { titulo: GUIA_USUARIOS.titulo, subtitulo: GUIA_USUARIOS.subtitulo, descripcion: GUIA_USUARIOS.descripcion },
+    macros: { titulo: GUIA_MACROS.titulo, subtitulo: GUIA_MACROS.subtitulo, descripcion: GUIA_MACROS.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

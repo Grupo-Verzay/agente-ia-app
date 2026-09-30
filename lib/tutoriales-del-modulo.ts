@@ -25,6 +25,7 @@ import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
 import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
+import { GUIA_MACROS } from "@/lib/guia-macros";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -153,6 +154,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/equipo",
         contenido: GUIA_USUARIOS,
         tarjeta: "Aprende a crear tu equipo y repartir los chats en la plataforma",
+    },
+    {
+        modulo: "macros",
+        ruta: "/macros",
+        contenido: GUIA_MACROS,
+        tarjeta: "Aprende a automatizar tus chats con acciones de un clic en la plataforma",
     },
 ];
 
