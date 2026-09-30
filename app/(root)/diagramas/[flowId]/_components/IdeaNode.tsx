@@ -12,6 +12,7 @@ import {
     IDEA_POR_DEFECTO,
 } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
+import { useSoloLectura } from './FlowReadOnlyContext';
 import type { FlowNodeData } from './FlowNode';
 
 /**
@@ -49,6 +50,11 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
     const connection = useConnection();
     const isTarget = connection.inProgress && connection.fromNode?.id !== id;
     const isSourceActive = connection.inProgress && connection.fromNode?.id === id;
+
+    // En un diagrama de lectura la nota se lee y nada mas: sin barra, sin
+    // escribir y sin estirarla. Se dejaba cambiar y borrar, no se guardaba, y
+    // al recargar volvia como estaba -trabajo perdido sin un solo aviso-.
+    const soloLectura = useSoloLectura();
 
     const areaRef = useRef<HTMLTextAreaElement | null>(null);
     // Mientras se escribe se ve el texto crudo, con sus `**`; al soltar el foco
@@ -108,6 +114,7 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
     return (
         <div className="group relative" style={{ width: ajustes.ancho, height: ajustes.alto }}>
             {/* Barra de herramientas, flotando encima de la nota */}
+            {!soloLectura && (
             <div className="nodrag absolute -top-2 left-1/2 z-30 flex -translate-x-1/2 -translate-y-full flex-col gap-1.5 rounded-xl border border-border/70 bg-background px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 <div className="flex items-center gap-0.5">
                     {IDEA_EMOJIS.map((emoji) => (
@@ -172,6 +179,7 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
                     ))}
                 </div>
             </div>
+            )}
 
             <Handle
                 id="in"
@@ -198,13 +206,13 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
                 style={{ background: ajustes.color, boxShadow: '0 3px 12px rgba(20,24,29,0.14)' }}
             >
                 <div
-                    title="Arrastrar la nota"
-                    className="flex h-3 shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+                    title={soloLectura ? undefined : 'Arrastrar la nota'}
+                    className={`flex h-3 shrink-0 items-center justify-center text-muted-foreground/40 ${soloLectura ? '' : 'cursor-grab transition-colors hover:text-muted-foreground active:cursor-grabbing'}`}
                 >
-                    <GripHorizontal className="h-2.5 w-2.5" />
+                    {!soloLectura && <GripHorizontal className="h-2.5 w-2.5" />}
                 </div>
 
-                {escribiendo ? (
+                {escribiendo && !soloLectura ? (
                     <textarea
                         ref={areaRef}
                         value={data.content}
@@ -216,16 +224,16 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
                     />
                 ) : (
                     <div
-                        onClick={() => setEscribiendo(true)}
-                        title="Clic para escribir"
-                        className="nodrag nowheel min-h-0 w-full flex-1 cursor-text overflow-auto whitespace-pre-wrap break-words px-2 pb-1.5 text-[13px] leading-snug text-foreground"
+                        onClick={soloLectura ? undefined : () => setEscribiendo(true)}
+                        title={soloLectura ? undefined : 'Clic para escribir'}
+                        className={`nodrag nowheel min-h-0 w-full flex-1 ${soloLectura ? 'cursor-default' : 'cursor-text'} overflow-auto whitespace-pre-wrap break-words px-2 pb-1.5 text-[13px] leading-snug text-foreground`}
                         style={{ fontWeight: ajustes.negrita ? 700 : 400 }}
                     >
                         {data.content
                             ? trozos(data.content).map((trozo, i) =>
                                 trozo.negrita ? <strong key={i}>{trozo.texto}</strong> : <span key={i}>{trozo.texto}</span>
                             )
-                            : <span className="text-muted-foreground/60">Escribe acá…</span>}
+                            : <span className="text-muted-foreground/60">{soloLectura ? '' : 'Escribe acá…'}</span>}
                     </div>
                 )}
             </div>
@@ -240,6 +248,7 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
 
             {/* Tirador de la esquina de abajo a la derecha. El tamano se guarda
                 en el nodo, asi que la nota vuelve a abrirse como se dejo. */}
+            {!soloLectura && (
             <NodeResizeControl
                 position="bottom-right"
                 minWidth={IDEA_ANCHO_MIN}
@@ -249,6 +258,7 @@ export function IdeaNode({ id, data }: { id: string; data: FlowNodeData }) {
             >
                 <span className="absolute -bottom-1 -right-1 block h-3 w-3 cursor-nwse-resize rounded-full border-2 border-background bg-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100" />
             </NodeResizeControl>
+            )}
         </div>
     );
 }

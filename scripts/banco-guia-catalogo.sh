@@ -38,8 +38,8 @@ if [ "$MODO" = "roto" ]; then
   exit 0
 fi
 
-# Las dos guías se compilan: `menu-de-la-guia` las compara entre sí.
-for G in leads catalogo; do
+# Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
+for G in leads catalogo diagramas; do
   OUT="lib/__tests__/.compilado/guia-$G"
   mkdir -p "$OUT"
   npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning

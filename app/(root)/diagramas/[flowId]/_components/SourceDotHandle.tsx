@@ -9,8 +9,10 @@ export const SourceDotHandle = (props: {
     label: string;
     active: boolean;
     connectableStart: boolean;
+    /** Px que se aparta el «+» de su punto, arriba (negativo) o abajo: ver `elAbanicoDeLosMas`. */
+    desplazarElMas?: number;
 }) => {
-    const { id, topPct, label, active, connectableStart } = props;
+    const { id, topPct, label, active, connectableStart, desplazarElMas = 0 } = props;
 
     const nodeId = useNodeId();
     // Un punto de salida no se "gasta": de el pueden colgar varios nodos, asi
@@ -62,6 +64,7 @@ export const SourceDotHandle = (props: {
                         ? "opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
                         : ""
                         }`}
+                    style={desplazarElMas ? { top: `calc(50% + ${desplazarElMas}px)` } : undefined}
                 >
                     <InlineAddNode sourceId={nodeId} sourceHandle={id} />
                 </div>

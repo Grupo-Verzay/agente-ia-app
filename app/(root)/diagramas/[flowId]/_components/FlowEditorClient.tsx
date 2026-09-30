@@ -121,7 +121,7 @@ export function FlowEditorClient({ flowId, flowName, initialNodes, initialEdges,
         <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => router.push('/diagramas')} title="Volver a Diagramas">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <span className="max-w-[180px] truncate text-sm font-semibold">{flowName}</span>
+        <span className="max-w-[180px] truncate text-sm font-semibold" title={flowName}>{flowName}</span>
         {!puedeEditar && (
           <span
             className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"

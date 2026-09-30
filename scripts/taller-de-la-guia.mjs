@@ -237,7 +237,8 @@ export async function elMenuAbierto(p, abierto) {
 
 /**
  * Pinta las marcas encima de la pantalla real. Cada marca: `c` (la caja),
- * `n` (un número en su esquina), `texto` + `lado` (un rótulo con flecha).
+ * `n` (un número en su esquina), `texto` + `lado` (un rótulo con flecha),
+ * `sinRecuadro` (el número o el rótulo sin su recuadro).
  * `atenuar` apaga todo lo que no está marcado.
  */
 export async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
@@ -275,13 +276,18 @@ export async function marcar(p, marcas, { atenuar = false, escala = 1 } = {}) {
                 for (const { c } of marcas) el("rect", { x: c.x - PAD, y: c.y - PAD, width: c.w + 2 * PAD, height: c.h + 2 * PAD, rx: RX, fill: "black" }, m);
                 el("rect", { x: 0, y: 0, width: W, height: H, fill: "rgba(15,23,42,0.55)", mask: "url(#velo)" });
             }
-            for (const { c, n, texto, lado = "arriba", esquina = "izquierda", borde = "arriba", numeroEn, soloLuz } of marcas) {
+            for (const { c, n, texto, lado = "arriba", esquina = "izquierda", borde = "arriba", numeroEn, soloLuz, sinRecuadro } of marcas) {
                 // `soloLuz`: se ve sin velo, pero sin recuadro (el menú entero
                 // alrededor de la parte que se señala).
                 if (soloLuz) continue;
                 const r = { x: c.x - PAD, y: c.y - PAD, w: c.w + 2 * PAD, h: c.h + 2 * PAD };
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 * escala });
-                el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: AZUL, "stroke-width": 3 * escala });
+                // `sinRecuadro`: solo el número o el rótulo. Para piezas pegadas
+                // unas a otras (los controles del lienzo de Diagramas), cuyos
+                // recuadros se montarían: va uno solo alrededor del grupo.
+                if (!sinRecuadro) {
+                    el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: "rgba(37,99,235,0.28)", "stroke-width": 9 * escala });
+                    el("rect", { x: r.x, y: r.y, width: r.w, height: r.h, rx: RX, fill: "none", stroke: AZUL, "stroke-width": 3 * escala });
+                }
                 if (n !== undefined) {
                     // Dónde va el número: por defecto en la esquina de arriba.
                     // `borde: "abajo"` para lo que está pegado al borde de la
@@ -445,6 +451,8 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
 
 export async function mover(p, locator) {
     const b = await locator.boundingBox();
+    // Sin caja, `b.x` revienta con un TypeError que no dice qué faltaba.
+    if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que señalar: ${locator}`);
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
     await espera(p, 250);
 }

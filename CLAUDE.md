@@ -23149,6 +23149,70 @@ Leads con `GUIA=catalogo`) y la guía servida sin sesión. `MODO=roto` lee
 enlace se escribía mal. Regenerar: `npm run build && scripts/generar-guia-catalogo.sh`
 y volver a construir.
 
+### La tercera guía, Diagramas: la lista Y su editor, con las mismas piezas
+
+`/guia/diagramas` documenta Panel › Diagramas (`/diagramas`) y **su editor**
+con el estándar de Leads y Catálogo: nueve secciones —vista general, crear, el
+editor, agregar pasos, editar un paso, la nota Idea y el paso Libre, compartir,
+carpetas y orden, y las acciones masivas—, una miniatura con enfoque por
+tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO ritmo que Leads.
+
+No trae ninguna pieza propia: su contenido (`lib/guia-diagramas.ts`, con
+`laGuiaDe`), su semilla (`sembrar-guia-diagramas.mjs`, sobre
+`sembrarElMarco`), su receta de capturas y vídeo (`capturar-guia-diagramas.mjs`,
+sobre el taller) y su narración. Se regenera con
+`npm run build && scripts/generar-guia-diagramas.sh && npm run build`, y
+`SIN_VIDEO=1`, `SOLO_VIDEO=1` o `SOLO_MINIATURAS=1` rehacen una parte.
+
+Cinco cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene.** El banco compara cada lista de
+   la guía con su pareja en el código: los niveles de «Con el equipo», el «⋯»
+   de la tarjeta, los tipos de paso de «Selecciona una acción» en sus dos
+   grupos, las salidas de la Decisión, los controles del lienzo y las barras
+   de un paso y de una nota Idea. Un tipo de paso nuevo sin su nombre en la
+   guía lo pone en rojo.
+2. **Nada sale recortado con «…» en una captura.** `queNadaSalgaRecortado`
+   corta la generación si un nombre de paso o de tarjeta no cabe (dentro de
+   `[data-caja-del-contenido]`: el menú y la barra de arriba recortan a
+   propósito). Se acorta en la semilla, no en la guía.
+3. **El vídeo recorre lo que la guía explica** —la lista, el menú, la barra de
+   arriba, crear, agregar un paso por el «+», escribir en su caja, Ordenar y el
+   guardado, compartir y el «⋯»— y del «⋯» solo NOMBRA las opciones: pulsar
+   Duplicar o Eliminar cambiaría los datos delante de la cámara.
+4. **Las miniaturas del editor se toman con el diagrama abierto**, dentro de
+   su zona (`tomarLasMiniaturas`), y lo que quede abierto —un diálogo, un
+   menú— se cierra con Escape antes de la siguiente (`despues`).
+5. **`marcar` admite `sinRecuadro`** (una captura que solo atenúa), y `mover`
+   se cae si lo que el vídeo tenía que señalar no se ve: un cursor que va a
+   ninguna parte no es un error que se vea en el vídeo, es un vídeo que miente.
+
+Las medidas de un vídeo (silencios, fin de cada pista, cambios del rótulo)
+viven en `lib/__tests__/medidas-del-video.mjs` y las usan los bancos de Leads y
+de Diagramas.
+
+### Lo que se arregló en el editor al documentarlo
+
+Documentar pantalla por pantalla destapó fallos que no se veían desde dentro:
+
+| | qué pasaba | ahora |
+| --- | --- | --- |
+| **diagrama de solo lectura** | el lienzo estaba bloqueado, pero el nombre de un paso se podía escribir, su caja prometía «Clic para escribir», la nota Idea se podía reescribir, estirar y cambiar de color, y el candado del lienzo lo **desbloqueaba** —React Flow cambia su propio estado—. Nada se guardaba y al recargar volvía como estaba: trabajo perdido sin un aviso | el nombre es `readOnly`, la caja no es un botón, la nota no tiene barra ni tirador, y el candado no se pinta (`showInteractive={!soloLectura}`) |
+| **los tres «+» de la Decisión** | con Sí/Variante/No al 16/50/84 % de una caja pequeña, los tres «+» se montaban unos sobre otros | se abren en abanico (`elAbanicoDeLosMas`, `lib/abanico-de-los-mas.ts`, puro): el de Sí sube y el de No baja lo justo para que entre ellos quede `HUECO_ENTRE_MAS_PX` en los tres tamaños |
+| **la barra de un paso** (tamaño, duplicar, eliminar) | pegada a la esquina de la caja, se montaba sobre la mitad derecha del nombre | va encima del nombre y centrada, con `pb-1` en vez de margen para que el cursor no pierda el `group-hover` al subir |
+| **los controles del lienzo** | en inglés («Zoom In», «Fit View») | en español (`ETIQUETAS_DEL_LIENZO`) |
+| **la tarjeta de la lista** | un nombre largo se pintaba debajo de la casilla, que va fuera del flujo | `pr-9` en todas las tarjetas, también las recibidas, para que todas corten el nombre en el mismo sitio |
+| **la pastilla de una carpeta** | un `<span>` sin `data-ui="badge"`: dentro de `.app-module-content` su letra salía a 14 px y 4 px más alta que «Todas» | con la marca, y el «⋯» con `-my-0.5`. Es `components/shared/Carpetas.tsx`, así que vale también para Proyectos |
+| **los mensajes** | «flujo» en una pantalla que se llama Diagramas, y «Recuerda darle a Guardar» después de Ordenar, que se guarda solo | «diagrama», y sin el recordatorio |
+
+Lo prueba `scripts/banco-guia-diagramas.sh`: el contenido contra el código, el
+vídeo (voz Cedar, ritmo, huecos, sincronía del rótulo), las miniaturas en sus
+píxeles (el test de Leads con `GUIA=diagramas`), `fin-de-la-guia` y
+`menu-de-la-guia` —que barren las tres guías— y la guía servida a 390 y 1440
+(`probar-guia.mjs`). `MODO=roto` lee `6d8cd4b` y afirma que no había guía, que
+el editor de lectura dejaba escribir y desbloquear, y que los tres «+» se
+montaban.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

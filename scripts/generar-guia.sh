@@ -18,6 +18,7 @@
 # Uso:  npm run build && scripts/generar-guia.sh <modulo>
 #       SIN_VIDEO=1 scripts/generar-guia.sh <modulo>   (solo capturas)
 #       SOLO_VIDEO=1 scripts/generar-guia.sh <modulo>  (solo el vídeo: p. ej. al cambiar la narración)
+#       SOLO_SERVIR=1 scripts/generar-guia.sh <modulo> (la App sembrada, sin capturar)
 #
 # Después hay que volver a construir: `next start` solo sirve lo que había en
 # `public/` al construir.
@@ -86,5 +87,13 @@ for _ in $(seq 1 60); do
   curl -sf -o /dev/null "http://localhost:$APP/login" && break
   sleep 1
 done
+
+# SOLO_SERVIR=1 deja la App servida sobre la semilla, sin capturar: sirve para
+# mirar la pantalla al escribir una receta nueva.
+if [ "${SOLO_SERVIR:-}" = "1" ]; then
+  echo "App en http://localhost:$APP (Ctrl+C para parar)"
+  wait "$NEXT_PID"
+  exit 0
+fi
 
 BASE="http://localhost:$APP" node "scripts/capturar-guia-$MODULO.mjs"

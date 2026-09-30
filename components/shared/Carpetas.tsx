@@ -227,7 +227,12 @@ export function BarraDeCarpetas({
         {carpetas.map((c) => {
           const activo = seleccionada === c.id;
           return (
-            <span key={c.id} className={cn(chip(activo), 'pr-1.5')}>
+            // `data-ui="badge"`: dentro de `.app-module-content` un `.text-xs`
+            // vale 14 px y solo lo bajan a 12 los controles y lo que lleva esa
+            // marca. Esta pastilla es un `<span>` (dentro van DOS botones: la
+            // carpeta y sus opciones), así que sin la marca salía con la letra
+            // más grande y 4 px más alta que «Todas» y «Sin carpeta».
+            <span key={c.id} data-ui="badge" className={cn(chip(activo), 'pr-1.5')}>
               <button
                 type="button"
                 onClick={() => onSeleccionar(activo ? null : c.id)}
@@ -246,7 +251,9 @@ export function BarraDeCarpetas({
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="rounded-full p-0.5 opacity-60 hover:bg-background/60 hover:opacity-100"
+                      // `-my-0.5`: con su relleno mide 18 px, dos más que la
+                      // línea de la pastilla, y sin esto la estiraba.
+                      className="-my-0.5 rounded-full p-0.5 opacity-60 hover:bg-background/60 hover:opacity-100"
                       title={`Opciones de ${c.nombre}`}
                     >
                       <MoreHorizontal className="h-3.5 w-3.5" />
