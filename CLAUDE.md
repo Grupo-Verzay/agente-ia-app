@@ -24354,7 +24354,7 @@ Lo que se arregló al documentarlas, que no daba ningún error:
 | el «Nuevo» del resumen (venta o gasto) abría su menú FUERA de la pantalla: se pulsaba y no pasaba nada | `BotonDeCrear` pasa su `ref` (`forwardRef`). Radix ancla el menú de un `Trigger asChild` con la ref del hijo; sin ella se queda en `translate(0,-200%)`. Vale para cualquier botón de la casa que se meta en un `asChild` |
 | en los detalles, 16 px de más entre la cabecera y la primera tarjeta | `gap-0` en `DIALOGO_DEL_DETALLE`: `DialogContent` es una rejilla con `gap-4` |
 
-Cuatro cosas que hay que mantener:
+Cinco cosas que hay que mantener:
 
 1. **Las capturas en español necesitan DOS cosas**: `args: ["--lang=es-CO"]`
    y `env LANG=es_CO.UTF-8`. El `locale` del contexto no basta: los campos de
@@ -24368,6 +24368,12 @@ Cuatro cosas que hay que mantener:
 4. **Si «IA CRM» no tiene crédito**, `sintetizar-voz-desde-la-app.mjs` prueba
    las demás llaves de Panel › API keys, desde el contenedor de la App y sin
    sacar la llave de allí.
+5. **La zona de una miniatura es lo que SE VE** (`cajaVisible`): el
+   rectángulo recortado por cada antepasado que desplaza y por la ventana.
+   Con `boundingBox` a secas, la fila de accesos, una tabla ancha y una lista
+   larga daban una zona más grande que la pantalla y el recuadro se salía de
+   la tarjeta. Una lista larga (Ventas, Gastos) enseña su cabecera y sus
+   primeras filas (`FILAS_EN_LA_MINIATURA`).
 
 Lo prueban `scripts/banco-guia-finanzas.sh` —el contenido contra el código
 (accesos, columnas, campos, modos del filtro, acciones de fila, categorías
