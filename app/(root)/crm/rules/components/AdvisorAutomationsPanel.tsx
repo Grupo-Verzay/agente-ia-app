@@ -405,7 +405,7 @@ export function AdvisorAutomationsPanel({
       setAutomations((prev) => [...prev, res.data!]);
       setNewName("");
     } else {
-      toast.error(res.message ?? "Error al crear automación");
+      toast.error(res.message ?? "Error al crear automatización");
     }
   };
 
@@ -456,7 +456,7 @@ export function AdvisorAutomationsPanel({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold mb-1">Automaciones — {advisorLabel}</h3>
+        <h3 className="text-sm font-semibold mb-1">Automatizaciones — {advisorLabel}</h3>
         <p className="text-xs text-muted-foreground">
           Acciones que se ejecutan automáticamente cuando se asigna este asesor a un contacto (auto o manual).
         </p>
@@ -470,7 +470,7 @@ export function AdvisorAutomationsPanel({
         <div className="space-y-3">
           {automations.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Sin automaciones para este asesor.
+              Sin automatizaciones para este asesor.
             </p>
           )}
           {automations.map((automation) => (
@@ -490,7 +490,7 @@ export function AdvisorAutomationsPanel({
           <div className="flex gap-2 pt-1">
             <Input
               className="h-8 text-sm"
-              placeholder="Nombre de la automación..."
+              placeholder="Nombre de la automatización..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void handleCreate()}

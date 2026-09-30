@@ -14,6 +14,7 @@ import { parseItemIds, serializeItemIds } from "@/lib/permisos";
 import { ADMIN_PANEL_ROUTE, elPanelQueLeToca, rutasDePanelPara } from "@/lib/sidebar-modules";
 import { isAdminLike } from "@/lib/rbac";
 import { clientesDeLaCuenta } from "@/lib/cuentas-cliente";
+import { puertaParaVincular } from "@/lib/vincular-cuentas.server";
 import { validarEdicionDeAsesor, esCorreoValido } from "@/lib/editar-asesor";
 import {
   apagarElReparto,
@@ -711,6 +712,12 @@ export async function linkExistingAdvisor(
   if (!target) return { success: false, message: "No existe un usuario con ese email." };
   if (target.id === owner.id) return { success: false, message: "No puedes vincularte a ti mismo." };
 
+  // Vincular bajo la cuenta es LLEGAR a la otra (desde #898 el vínculo solo
+  // baja), así que solo se vincula lo que ya se alcanza. Sin esto, cualquier
+  // cuenta se apropiaba de otra escribiendo su correo.
+  const puerta = await puertaParaVincular(target.id);
+  if (!puerta.puede) return { success: false, message: puerta.motivo };
+
   const existing = await db.$queryRaw<{ id: string }[]>`
     SELECT id
     FROM "linked_accounts"
@@ -825,7 +832,14 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
         COUNT(s.id) FILTER (WHERE s."leadStatus" = 'CALIENTE')::int         AS hot_count,
         COUNT(s.id) FILTER (WHERE s."leadStatus" = 'FINALIZADO')::int       AS converted_count
       FROM dedup d
-      LEFT JOIN "Session" s ON s.assigned_advisor_id = d.id
+      -- Acotado a ESTA cuenta, igual que getTeamAdvisors: la tabla y las
+      -- gráficas de la misma pantalla cuentan las mismas conversaciones. Sin
+      -- el filtro, un asesor que también atiende otra cuenta salía con
+      -- «Activas» distinta en la tabla y en «Carga del equipo», y sus
+      -- cerradas, calientes y convertidas de allí contaban aquí.
+      LEFT JOIN "Session" s
+        ON s.assigned_advisor_id = d.id
+       AND s."userId" = ${owner.id}
       GROUP BY d.id, d.name, d.email
       ORDER BY total_assigned DESC
     `,
@@ -1046,6 +1060,28 @@ export async function getAdvisorClients(
     success: true,
     data: clientes.map((c) => ({ ...c, asignado: yaTiene.has(c.id) })),
   };
+}
+
+/**
+ * Si la cuenta tiene clientes que repartir entre su equipo.
+ *
+ * «Clientes asignados» solo tiene sentido con al menos uno: en una cuenta
+ * cliente —sin cartera, que es casi toda la plataforma— la ventana se abría
+ * vacía («No hay clientes en la cuenta»), o sea un mando que no hace nada. La
+ * opción se QUITA, como «Mover a otra cuenta» a quien no se puede mudar.
+ *
+ * Un fallo al preguntarlo deja la opción puesta: se ve de más, nunca se le
+ * esconde a quien sí tiene clientes. Y no es mudo.
+ */
+export async function tieneClientesQueAsignar(): Promise<boolean> {
+  const owner = await requireOwner();
+  if (!owner) return false;
+  try {
+    return (await clientesDeLaCuenta(owner)).length > 0;
+  } catch (error) {
+    console.warn("[equipo] no se pudo saber si la cuenta tiene clientes", error);
+    return true;
+  }
 }
 
 export async function setAdvisorClients(

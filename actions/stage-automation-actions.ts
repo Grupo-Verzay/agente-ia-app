@@ -100,7 +100,7 @@ export async function addStageAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.stageAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
 
     const count = await db.stageAutomationAction.count({ where: { automationId } });
     const action = await db.stageAutomationAction.create({
@@ -126,7 +126,7 @@ export async function updateStageAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.stageAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.stageAutomationAction.update({ where: { id: actionId }, data });
     return { success: true };
   } catch (e: any) {
@@ -141,7 +141,7 @@ export async function deleteStageAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.stageAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.stageAutomationAction.delete({ where: { id: actionId } });
     return { success: true };
   } catch (e: any) {

@@ -346,7 +346,7 @@ function TagKanbanColumn({
                     <button
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
-                        title="Automaciones"
+                        title="Automatizaciones"
                     >
                         <Settings2 className="h-3.5 w-3.5 text-white/80" />
                     </button>
@@ -358,7 +358,7 @@ function TagKanbanColumn({
                     <SheetHeader className="mb-4">
                         <SheetTitle className="flex items-center gap-2">
                             <Tag className="h-4 w-4" style={{ color: headerColor }} />
-                            Automaciones — {col.label}
+                            Automatizaciones — {col.label}
                         </SheetTitle>
                     </SheetHeader>
                     <TagAutomationsPanel userId={userId} tagId={col.id} tagLabel={col.label} />
