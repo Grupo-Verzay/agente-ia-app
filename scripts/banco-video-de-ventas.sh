@@ -8,7 +8,12 @@
 #      se pone al día, la historia y el estudio pintan cada mensaje como la
 #      App, ninguna voz se pisa, la voz Cedar está entera, el guion dice cada
 #      frase y cada mensaje una vez, la página promete lo que el vídeo enseña,
-#      y el vídeo publicado es un MP4 de menos de dos minutos sin huecos mudos.
+#      las escenas nuevas (la apertura, Google Sheets, la llamada, el asesor,
+#      los reportes, el resumen y las tres avanzadas) están en su orden, el
+#      botón de WhatsApp del cierre lleva el +57 323 361 2620, las pantallas
+#      escondidas del portátil van con `visibility: hidden` (con cuatro capas y
+#      solo transparentes no se pintaba ninguna), y el vídeo publicado es un MP4
+#      de entre dos minutos y medio y tres, sin huecos mudos.
 #   2. `lib/__tests__/montaje-del-video.test.mjs`: los primeros segundos
 #      PINTADOS en Chromium con el estudio de verdad —cinco negocios en su
 #      orden, el encabezado de WhatsApp compacto y sin franja de color, los
@@ -27,7 +32,11 @@
 # el de ANTES_DEL_CIERRE: cuatro tarjetas, el PDF mandado por el cliente, el
 # cierre como una columna al lado y la duración del video ilegible; y las
 # tarjetas de hoy con el marco del celular de ANTES_MONTAJE, cuyas clases
-# chocaban con las de una burbuja de video: la portada sale negra.
+# chocaban con las de una burbuja de video: la portada sale negra. Y lee la
+# historia de ANTES_DE_LAS_ESCENAS (pinchado) para afirmar que allí la apertura
+# decía otra cosa y no había ni Sheets, ni llamada, ni asesor, ni reportes, ni
+# resumen, ni el botón de WhatsApp en el cierre; y que sus capas escondidas
+# solo eran transparentes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -35,7 +44,8 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
-export MODO ANTES_REF="${ANTES_REF:-316b70c}" ANTES_MONTAJE="${ANTES_MONTAJE:-1807a22}" ANTES_DEL_CIERRE="${ANTES_DEL_CIERRE:-a7e2b45}"
+export MODO ANTES_REF="${ANTES_REF:-316b70c}" ANTES_MONTAJE="${ANTES_MONTAJE:-1807a22}" ANTES_DEL_CIERRE="${ANTES_DEL_CIERRE:-a7e2b45}" \
+       ANTES_DE_LAS_ESCENAS="${ANTES_DE_LAS_ESCENAS:-e2e0005}"
 OUT="lib/__tests__/.compilado/video-de-ventas"
 mkdir -p "$OUT"
 

@@ -24622,10 +24622,11 @@ con el contenedor ancho se leerían a 140. Lo prueba
 
 ## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
 
-`/demo` es una página pública (noindex, sin sesión) con un vídeo de menos de dos
-minutos para que un lead lo vea antes de agendar: la historia de una clínica
-contada en **tres pantallas a la vez** —el celular del negocio, WhatsApp Web y
-el **panel de Verzay de verdad**—, con la voz Cedar y el ritmo de las guías.
+`/demo` es una página pública (noindex, sin sesión) con un vídeo de **entre
+dos minutos y medio y tres** para que un lead lo vea antes de agendar: la
+historia de una clínica contada en **tres pantallas a la vez** —el celular del
+negocio, WhatsApp Web y el **panel de Verzay de verdad**—, con la voz Cedar y el
+ritmo de las guías.
 
 Se genera con `npm run build && scripts/generar-video-de-ventas.sh` y **después
 se vuelve a construir** (`next start` solo sirve lo que había en `public/`).
@@ -24664,6 +24665,13 @@ se vuelve a construir** (`next start` solo sirve lo que había en `public/`).
 - **El vídeo se graba con `grabadora-de-la-guia.mjs`, nunca con `recordVideo`**
   (estira las animaciones y la imagen se despega de la voz; ver la sección de
   las guías).
+- **Las pantallas del portátil que no se ven van con `visibility: hidden`**, no
+  solo transparentes. El portátil lleva cuatro capas de la App (Chats, Agenda,
+  Embudos y Reportes) a 1440×900, y con `opacity: 0` Chromium las sigue
+  rasterizando: al entrar la cuarta, el compositor sin cabeza se quedó sin
+  memoria de raster y **ninguna se pintaba** —el portátil salía en blanco o con
+  teselas viejas, sin un solo error—. La visibilidad espera a que acabe el
+  fundido, así la que sale se sigue viendo mientras se va.
 
 ### Lo que hubo que arreglar en la App para poder grabarlo
 
@@ -24732,10 +24740,34 @@ el de `a7e2b45` (cuatro tarjetas, el PDF del cliente, el cierre al lado y la
 duración ilegible) y las tarjetas de hoy con el marco del celular de `1807a22`
 —el choque de clases de la regla 4—, y afirma sus fallos.
 
+### La historia de Laura, escena por escena
+
+Después del arranque (título en pantalla «Cada minuto sin respuesta es una venta
+que se enfría», con su voz) y la promesa, el orden es el de `NARRACION`
+(`scripts/video-de-ventas/narracion.mjs`) y el banco lo compara con el guion:
+texto, nota de voz, **Google Sheets** (sus datos en una hoja recreada, justo
+después de la financiación), archivos, caliente, **seguimiento** («la IA insiste
+como tú decidas: con texto, nota de voz, un archivo o hasta una llamada»)
+seguido de **una llamada de WhatsApp de verdad escrita en el panel** —Laura
+contesta y se oyen hablando, con dos voces del mismo modelo (`LA_LLAMADA`)—, la
+cita, el recordatorio, **el paso a un asesor**, el embudo y **los reportes**.
+Antes del cierre, un **resumen** con todas las píldoras mostradas (más «sincroniza
+con Google Sheets» y «hace llamadas con IA») y una **ráfaga de tres avanzadas**:
+modo dueño, puente con operarios de campo y multiagente (`AVANZADAS`). El botón
+«Escribir por WhatsApp» del cierre y de la página lleva el **+57 323 361 2620**
+(`LLAMADO.whatsapp`).
+
+La hoja de Sheets, la llamada vista en el celular, el resumen y las avanzadas
+son recreaciones, y la página lo dice (`LO_QUE_ES_EL_VIDEO`); la llamada queda
+escrita en el panel como una llamada de verdad (`messageType: 'call'`). El
+`MODO=roto` del banco lee la historia de `e2e0005` (pinchado) y afirma que allí
+la apertura decía otra cosa y no había ni Sheets, ni llamada, ni asesor, ni
+reportes, ni resumen, ni el WhatsApp en el cierre.
+
 ### La página
 
-`app/demo/`: el vídeo con su portada, qué es real y qué no, las ocho capacidades
-en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, dos filas de cuatro o cuatro de
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las doce capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, tres filas de cuatro o seis de
 dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
 `noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
 (`/demo/:path*`, también el vídeo).

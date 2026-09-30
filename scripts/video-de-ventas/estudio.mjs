@@ -28,7 +28,7 @@
  */
 import { SVG_FLECHA, SVG_MANO, PUNTA } from "../cursor-de-la-guia.mjs";
 import { comoDuracion } from "./banda-sonora.mjs";
-import { CIERRE_DEL_MONTAJE, LEMA_DE_LA_MARCA, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
+import { AVANZADAS, CAPACIDADES, CIERRE_DEL_MONTAJE, LA_HOJA, LEMA_DE_LA_MARCA, LLAMADO, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
 
 /** El cuadro del vídeo. */
 export const VISTA = Object.freeze({ ancho: 1920, alto: 1080 });
@@ -38,6 +38,14 @@ export const TEL = Object.freeze({ ancho: 418, alto: 872, borde: 14, pantalla: {
 
 /** La ventana de WhatsApp Web: la barra del navegador y la App de 1280×800. */
 export const WEB = Object.freeze({ ancho: 1280, alto: 838, barra: 38 });
+/** La ventana de Google Sheets (una recreación: la hoja de la clínica). */
+export const SHEETS = Object.freeze({ ancho: 1080, alto: 640 });
+
+/** «+57 323 361 2620»: un número de WhatsApp como se lee en el cierre. */
+export function comoTelefono(numero) {
+    const d = String(numero).replace(/\D/g, "");
+    return d.length === 12 ? `+${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : `+${d}`;
+}
 
 /**
  * El portátil: el bisel, la barra del navegador y la pantalla de la App. La
@@ -54,7 +62,7 @@ export const PORTATIL = Object.freeze({
 });
 
 /**
- * Las pestañas del portátil: tres `<iframe>` de la App, uno encima de otro, y
+ * Las pestañas del portátil: cuatro `<iframe>` de la App, uno encima de otro, y
  * se ve uno. Cada pantalla se abre UNA vez y sigue viva debajo —la de Chats
  * con su tiempo real conectado—: cambiar de una a otra es un fundido, no una
  * carga, que en un vídeo se leería como un corte.
@@ -63,6 +71,7 @@ export const CAPAS_DEL_PORTATIL = Object.freeze([
     { id: "app", ruta: "/chats" },
     { id: "agenda", ruta: "/schedule" },
     { id: "embudo", ruta: "/embudos" },
+    { id: "reportes", ruta: "/crm/reportes" },
 ]);
 
 /** El dominio que enseña la barra del portátil: el de la plataforma. */
@@ -97,12 +106,19 @@ export const PLANOS = Object.freeze({
         etiquetas: "arriba",
     },
     panel: { portatil: { x: 322, y: 118, s: 0.86 } },
+    sheets: {
+        portatil: { x: 70, y: 240, s: 0.52 },
+        sheets: { x: 920, y: 250, s: 0.88 },
+        etiquetas: "arriba",
+    },
+    resumen: { resumen: true },
+    avanzadas: { avanzadas: true },
     cierre: { cierre: true },
 });
 
 /** El tamaño que ocupa una pantalla en el cuadro, a su escala. */
 export function laCajaDe(pantalla, { x, y, s }) {
-    const base = { tel: TEL, web: WEB, portatil: PORTATIL }[pantalla];
+    const base = { tel: TEL, web: WEB, portatil: PORTATIL, sheets: SHEETS }[pantalla];
     const extra = pantalla === "portatil" ? PORTATIL.base.alto : 0;
     return {
         x: pantalla === "portatil" ? x - PORTATIL.base.sobra * s : x,
@@ -151,6 +167,8 @@ export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
             return { ...base, url: url(medio.archivo), portada: url(medio.portada), duracion: comoDuracion(segundos[m.medio] ?? 9) };
         case "imagen":
             return { ...base, url: url(medio.archivo) };
+        case "llamada":
+            return { ...base, duracion: comoDuracion(segundos.llamada ?? 0) };
         default:
             return base;
     }
@@ -431,8 +449,15 @@ body::before {
 #portatil .pantallaApp { position: absolute; left: ${PORTATIL.lado}px; top: ${PORTATIL.arriba}px; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.barra + PORTATIL.pantalla.alto}px; background: #fff; overflow: hidden; border-radius: 4px; }
 #portatil .barraNav { height: ${PORTATIL.barra}px; background: #e8ebf0; }
 #portatil .capas { position: relative; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; }
-#portatil iframe { position: absolute; left: 0; top: 0; display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff; opacity: 0; transition: opacity .6s ease; }
-#portatil iframe.on { opacity: 1; }
+/* Las capas que no se ven van con visibility:hidden, no solo transparentes: con
+   opacity 0 Chromium las sigue rasterizando, y cuatro pantallas de la App a
+   1440×900 agotan la memoria de raster del compositor sin cabeza —ninguna se
+   pinta y el portátil sale con teselas viejas o en blanco—. La visibilidad
+   espera a que acabe el fundido, así la que sale se sigue viendo mientras se
+   va. */
+#portatil iframe { position: absolute; left: 0; top: 0; display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff;
+  opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s linear .6s; }
+#portatil iframe.on { opacity: 1; visibility: visible; transition: opacity .6s ease, visibility 0s; }
 #portatil .base { position: absolute; left: -${PORTATIL.base.sobra}px; right: -${PORTATIL.base.sobra}px; top: ${PORTATIL.alto}px; height: ${PORTATIL.base.alto}px;
   border-radius: 0 0 22px 22px; background: linear-gradient(180deg,#c9ced6 0%,#9aa1ac 55%,#6c727d 100%); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
 #portatil .base::before { content: ""; position: absolute; top: 0; left: 50%; width: 200px; margin-left: -100px; height: 8px; border-radius: 0 0 10px 10px; background: #868d98; }
@@ -508,6 +533,71 @@ body::before {
 .cta .web { font-size: 22px; color: #9fb0cf; font-weight: 500; }
 /* En el flujo, debajo del llamado: abajo del todo lo tapaba el subtítulo del cierre. */
 .aviso { margin-top: 30px; font-size: 16px; color: #6d7d9c; }
+
+/* ---------- la llamada con IA, en el celular ---------- */
+#tel .enLlamada { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; align-items: center; padding-top: 150px;
+  background: linear-gradient(180deg,#0b3d33,#07241f 60%,#041512); color: #fff; opacity: 0; transition: opacity .45s; pointer-events: none; }
+#tel .enLlamada.sale { opacity: 1; }
+#tel .enLlamada .cifrado { font-size: 13px; color: #9fd8c8; display: flex; gap: 6px; align-items: center; }
+#tel .enLlamada .foto { width: 118px; height: 118px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; font-weight: 600; margin-top: 40px; }
+#tel .enLlamada b { font-size: 28px; font-weight: 600; margin-top: 22px; }
+#tel .enLlamada .estadoLlamada { font-size: 17px; color: #bfe6da; margin-top: 8px; font-variant-numeric: tabular-nums; }
+#tel .enLlamada .botones { position: absolute; bottom: 70px; left: 0; right: 0; display: flex; justify-content: center; gap: 30px; }
+#tel .enLlamada .botones span { color: #fff; width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.14); }
+#tel .enLlamada .botones span.colgar { background: #e8454e; }
+#tel .enLlamada .botones svg { width: 26px; height: 26px; fill: #fff; }
+.bur.llam { display: flex; align-items: center; gap: 10px; min-width: 210px; }
+.bur.llam .ico { width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,.06); display: grid; place-items: center; }
+.bur.llam .ico svg { width: 18px; height: 18px; fill: #1daa61; }
+.bur.llam b { display: block; font-size: 14.5px; font-weight: 500; }
+.bur.llam small { font-size: 12.5px; color: #667781; }
+
+/* ---------- Google Sheets (recreación) ---------- */
+#sheets { width: ${SHEETS.ancho}px; height: ${SHEETS.alto}px; border-radius: 14px; overflow: hidden; background: #fff; color: #202124;
+  box-shadow: 0 40px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.08); font-family: Arial, sans-serif; }
+#sheets .barra { height: 34px; background: #dee1e6; display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+#sheets .barra i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; display: inline-block; }
+#sheets .barra i + i { background: #febc2e; } #sheets .barra i + i + i { background: #28c840; }
+#sheets .barra .dir { margin-left: 14px; flex: 1; height: 22px; border-radius: 11px; background: #fff; font-size: 12px; color: #5f6368; display: flex; align-items: center; padding: 0 12px; }
+#sheets .cabHoja { display: flex; align-items: center; gap: 12px; padding: 10px 16px 4px; }
+#sheets .cabHoja .logoHoja { width: 30px; height: 38px; border-radius: 3px; background: #0f9d58; position: relative; }
+#sheets .cabHoja .logoHoja::after { content: ""; position: absolute; left: 7px; right: 7px; top: 12px; bottom: 9px; border: 2px solid #fff; border-radius: 1px; }
+#sheets .cabHoja b { font-size: 18px; font-weight: 400; }
+#sheets .cabHoja small { display: block; font-size: 12px; color: #5f6368; margin-top: 2px; }
+#sheets .menus { display: flex; gap: 16px; padding: 0 58px 8px; font-size: 13px; color: #3c4043; }
+#sheets .herr { height: 34px; margin: 0 12px; border-radius: 17px; background: #edf2fa; }
+#sheets table { border-collapse: collapse; margin-top: 8px; width: 100%; font-size: 14px; table-layout: fixed; }
+#sheets th, #sheets td { border: 1px solid #e2e3e3; height: 34px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+#sheets th { background: #f8f9fa; color: #5f6368; font-weight: 400; font-size: 12px; text-align: center; height: 24px; }
+#sheets td.n { background: #f8f9fa; color: #5f6368; font-size: 12px; text-align: center; width: 42px; padding: 0; }
+#sheets tr.titulos td:not(.n) { font-weight: 700; background: #e6f4ea; }
+#sheets tr.laura { opacity: 0; }
+#sheets tr.laura.sale { opacity: 1; animation: filaNueva 2.6s ease-out; }
+#sheets tr.laura.sale td:not(.n) { background: #fef7e0; }
+@keyframes filaNueva { from { opacity: 0; transform: translateY(8px); } 30% { opacity: 1; transform: none; } }
+#sheets .pestanas { position: absolute; left: 0; right: 0; bottom: 0; height: 38px; background: #f8f9fa; border-top: 1px solid #e2e3e3; display: flex; align-items: flex-end; padding-left: 58px; }
+#sheets .pestanas span { background: #e6f4ea; color: #188038; font-size: 13px; font-weight: 600; padding: 8px 18px; border-radius: 0 0 6px 6px; }
+
+/* ---------- el resumen y la ráfaga del final ---------- */
+#resumen .titulo, #avanzadas .titulo { font-size: 56px; font-weight: 800; letter-spacing: -1.5px; color: #fff; }
+#resumen .titulo span, #avanzadas .titulo span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#resumen .pildoras { margin-top: 56px; display: grid; grid-template-columns: repeat(4, 360px); gap: 20px 22px; }
+#resumen .pildora { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-radius: 22px; text-align: left;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); opacity: 0; transform: translateY(16px) scale(.96); transition: opacity .45s, transform .6s cubic-bezier(.2,.8,.2,1); }
+#resumen .pildora.sale { opacity: 1; transform: none; }
+#resumen .pildora .num { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; color: #04121f; background: linear-gradient(135deg,#4da3ff,#39e08b); }
+#resumen .pildora b { font-size: 20px; font-weight: 700; color: #fff; }
+#avanzadas .fichas { margin-top: 60px; display: flex; gap: 34px; }
+#avanzadas .ficha { width: 460px; padding: 34px 32px 30px; border-radius: 28px; text-align: left; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  opacity: 0; transform: translateY(24px); transition: opacity .5s, transform .7s cubic-bezier(.2,.8,.2,1); }
+#avanzadas .ficha.sale { opacity: 1; transform: none; }
+#avanzadas .ficha .icono { font-size: 44px; }
+#avanzadas .ficha b { display: block; margin-top: 14px; font-size: 32px; font-weight: 800; color: #fff; }
+#avanzadas .ficha p { margin-top: 10px; font-size: 21px; line-height: 1.4; color: #c9d5ea; }
+#avanzadas .ficha .ejemplo { margin-top: 20px; display: inline-block; padding: 10px 16px; border-radius: 12px 12px 12px 3px; background: #d9fdd3; color: #111b21; font-size: 17px; }
+.cta .fila { display: flex; gap: 22px; align-items: center; }
+.cta .boton.wa { background: #25d366; color: #fff; box-shadow: 0 20px 50px rgba(37,211,102,.3); }
+#subtitulo .quien { color: #7cc4ff; font-weight: 700; margin-right: 6px; }
 
 /* ---------- lo que va encima ---------- */
 #capacidad { position: absolute; left: 64px; top: 34px; display: flex; align-items: center; gap: 14px; opacity: 0; transform: translateX(-20px); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
@@ -607,6 +697,9 @@ function programa(DATOS) {
             case "texto":
                 b = el("div", `bur ${lado}`, `${esc(m.texto)}${meta}`);
                 break;
+            case "llamada":
+                b = el("div", `bur ${lado} llam`, `<span class="ico">${I.tel}</span><div><b>Llamada de voz</b><small>${esc(m.duracion)}</small></div>${meta}`);
+                break;
             case "nota": {
                 b = el("div", `bur ${lado} nota`);
                 const quien = yo
@@ -660,6 +753,7 @@ function programa(DATOS) {
         if (m.tipo === "imagen") return `📷 ${m.texto || "Foto"}`;
         if (m.tipo === "video") return `🎥 ${m.texto || "Video"}`;
         if (m.tipo === "ubicacion") return "📍 Ubicación";
+        if (m.tipo === "llamada") return "📞 Llamada de voz";
         return "";
     }
 
@@ -790,8 +884,8 @@ function programa(DATOS) {
     }
 
     /* ---------- los planos ---------- */
-    const pantallas = { tel: $("#tel"), web: $("#web"), portatil: $("#portatil") };
-    const etiquetas = { tel: $("#etTel"), web: $("#etWeb"), portatil: $("#etPortatil") };
+    const pantallas = { tel: $("#tel"), web: $("#web"), portatil: $("#portatil"), sheets: $("#sheets") };
+    const etiquetas = { tel: $("#etTel"), web: $("#etWeb"), portatil: $("#etPortatil"), sheets: $("#etSheets") };
     const TAM = DATOS.tamanos;
     function plano(p, { ms } = {}) {
         for (const k of Object.keys(pantallas)) {
@@ -817,6 +911,45 @@ function programa(DATOS) {
         $("#montaje").classList.toggle("sale", !!p.montaje);
         $("#marca").classList.toggle("sale", !!p.marca);
         $("#cierre").classList.toggle("sale", !!p.cierre);
+        $("#resumen").classList.toggle("sale", !!p.resumen);
+        $("#avanzadas").classList.toggle("sale", !!p.avanzadas);
+    }
+
+    /* ---------- Google Sheets, la llamada, el resumen y la ráfaga ---------- */
+    /** La fila de Laura aparece en la hoja, con lo que dijo en el chat. */
+    function hoja() {
+        $("#sheets tr.laura").classList.add("sale");
+    }
+    let relojDeLlamada = null;
+    /** La pantalla de llamada del celular: `sonando`, `hablando` (con su reloj) o nada. */
+    function llamada(estado) {
+        const c = $("#tel .enLlamada");
+        const e = c.querySelector(".estadoLlamada");
+        clearInterval(relojDeLlamada);
+        if (!estado) {
+            c.classList.remove("sale");
+            return;
+        }
+        c.classList.add("sale");
+        if (estado === "sonando") {
+            e.textContent = "Llamando…";
+            return;
+        }
+        const desde = Date.now();
+        const pinta = () => {
+            const seg = Math.floor((Date.now() - desde) / 1000);
+            e.textContent = `${String(Math.floor(seg / 60)).padStart(2, "0")}:${String(seg % 60).padStart(2, "0")}`;
+        };
+        pinta();
+        relojDeLlamada = setInterval(pinta, 250);
+    }
+    /** El resumen: las píldoras de todo lo que se vio, en cascada. */
+    function resumen() {
+        document.querySelectorAll("#resumen .pildora").forEach((p, i) => setTimeout(() => p.classList.add("sale"), 120 + i * 110));
+    }
+    /** Una de las tres funciones avanzadas, cuando la voz la nombra. */
+    function avanzada(id) {
+        $(`#avanzadas .ficha[data-id="${id}"]`).classList.add("sale");
     }
 
     /* ---------- el montaje ---------- */
@@ -858,13 +991,15 @@ function programa(DATOS) {
     }
 
     /* ---------- lo de encima ---------- */
-    function subtitulo(t) {
+    function subtitulo(t, quien) {
         const s = $("#subtitulo");
         if (!t) {
             s.classList.remove("sale");
             return;
         }
         s.textContent = t;
+        // En la llamada, quién habla: «Sofía (IA):» o «Laura:», delante.
+        if (quien) s.prepend(el("span", "quien", esc(quien)));
         s.classList.add("sale");
     }
     function capacidad(num, titulo, sub) {
@@ -956,6 +1091,10 @@ function programa(DATOS) {
         anillos,
         url,
         mostrarApp,
+        hoja,
+        llamada,
+        resumen,
+        avanzada,
         cursor: { mover: moverCursor, forma, clic, esconder: () => cursor.classList.remove("sale") },
         listo: true,
     };
@@ -972,7 +1111,7 @@ function programa(DATOS) {
  * con sus horas y sus direcciones (`losDatosDelEstudio`).
  */
 export function laPaginaDelEstudio(datos) {
-    const D = { ...datos, capas: CAPAS_DEL_PORTATIL, dominio: DOMINIO_DEL_PANEL, iconos: I, cursor: { flecha: SVG_FLECHA, mano: SVG_MANO, punta: PUNTA }, tamanos: { tel: TEL, web: WEB, portatil: { ...PORTATIL, baseAlto: PORTATIL.base.alto } } };
+    const D = { ...datos, capas: CAPAS_DEL_PORTATIL, dominio: DOMINIO_DEL_PANEL, iconos: I, cursor: { flecha: SVG_FLECHA, mano: SVG_MANO, punta: PUNTA }, tamanos: { tel: TEL, web: WEB, portatil: { ...PORTATIL, baseAlto: PORTATIL.base.alto }, sheets: { ...SHEETS, baseAlto: 0 } } };
     const e = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     const miniaturas = datos.montaje
         .map(
@@ -984,12 +1123,25 @@ export function laPaginaDelEstudio(datos) {
                 `</div></div><div class="pie2">${e(n.tipo)}<small>${e(n.detalle)}</small></div></div>`,
         )
         .join("");
+    const celda = (v) => `<td>${e(v)}</td>`;
+    const letras = ["", "A", "B", "C", "D", "E"].slice(0, LA_HOJA.columnas.length + 1);
+    const hojaHtml =
+        `<table><tr>${letras.map((l) => `<th>${l}</th>`).join("")}</tr>` +
+        `<tr class="titulos"><td class="n">1</td>${LA_HOJA.columnas.map(celda).join("")}</tr>` +
+        LA_HOJA.filas.map((f, i) => `<tr><td class="n">${i + 2}</td>${f.map(celda).join("")}</tr>`).join("") +
+        `<tr class="laura"><td class="n">${LA_HOJA.filas.length + 2}</td>${LA_HOJA.laura.map(celda).join("")}</tr>` +
+        Array.from({ length: 6 }, (_, i) => `<tr><td class="n">${LA_HOJA.filas.length + 3 + i}</td>${LA_HOJA.columnas.map(() => "<td></td>").join("")}</tr>`).join("") +
+        `</table>`;
+    const pildoras = CAPACIDADES.map((c, i) => `<div class="pildora"><span class="num">${i + 1}</span><b>${e(c.titulo)}</b></div>`).join("");
+    const fichas = AVANZADAS.map(
+        (a) => `<div class="ficha" data-id="${e(a.id)}"><div class="icono">${a.icono}</div><b>${e(a.titulo)}</b><p>${e(a.detalle)}</p><div class="ejemplo">${e(a.ejemplo)}</div></div>`,
+    ).join("");
     // «WhatsApp», al final del cierre, con el degradado de la marca.
     const cierre = e(CIERRE_DEL_MONTAJE).replace(/WhatsApp$/, "<span>WhatsApp</span>");
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Verzay · video de ventas</title>
 <style>${CSS}</style></head><body>
 <div class="escena">
-  <div id="montaje"><div class="titulo">Tus clientes escriben. <span>La IA responde.</span></div><div class="tarjetas">${miniaturas}</div><div class="cierreMontaje">${cierre}</div></div>
+  <div id="montaje"><div class="titulo">Cada minuto sin respuesta es <span>una venta que se enfría</span></div><div class="tarjetas">${miniaturas}</div><div class="cierreMontaje">${cierre}</div></div>
 
   <div id="marca" class="tarjeta">
     <img class="logo" src="${datos.logo}">
@@ -998,6 +1150,8 @@ export function laPaginaDelEstudio(datos) {
   </div>
 
   <div id="tel" class="pantalla"><div class="vidrio">
+    <div class="enLlamada"><div class="cifrado">🔒 Cifrado de extremo a extremo</div><div class="foto" style="background:${datos.clienta?.color ?? "#7c8cff"}">${e(datos.clienta?.iniciales ?? "")}</div><b>${e(datos.clienta?.nombre ?? datos.clienta?.nombreCorto ?? "")}</b><div class="estadoLlamada">Llamando…</div>
+      <div class="botones"><span>${I.mic}</span><span>${I.video}</span><span class="colgar">${I.tel}</span></div></div>
     <div class="isla"></div>
     <div class="estado"><span class="hora">9:41</span><span class="iconos">${I.senal}${I.wifi}${I.bateria}</span></div>
     <div class="banner"><div class="app">${I.chats}</div><div style="flex:1;min-width:0"><b>Laura<small>ahora</small></b><p></p></div></div>
@@ -1044,15 +1198,24 @@ export function laPaginaDelEstudio(datos) {
     <div class="base"></div>
   </div>
 
+  <div id="sheets" class="pantalla"><div class="barra"><i></i><i></i><i></i><div class="dir">docs.google.com/spreadsheets</div></div>
+    <div class="cabHoja"><div class="logoHoja"></div><div><b>${e(LA_HOJA.titulo)}</b><small>Sincronizada con Verzay</small></div></div>
+    <div class="menus"><span>Archivo</span><span>Editar</span><span>Ver</span><span>Insertar</span><span>Formato</span><span>Datos</span></div>
+    <div class="herr"></div>${hojaHtml}<div class="pestanas"><span>Pacientes</span></div></div>
+
+  <div id="resumen" class="tarjeta"><div class="titulo">Todo esto, <span>en una sola plataforma</span></div><div class="pildoras">${pildoras}</div></div>
+  <div id="avanzadas" class="tarjeta"><div class="titulo">Y hay <span>más</span></div><div class="fichas">${fichas}</div></div>
+
   <div id="etTel" class="etiqueta"><i></i>Celular del negocio</div>
   <div id="etWeb" class="etiqueta"><i></i>WhatsApp Web</div>
   <div id="etPortatil" class="etiqueta"><i></i>Panel de Verzay</div>
+  <div id="etSheets" class="etiqueta"><i></i>Google Sheets</div>
 
   <div id="cierre" class="tarjeta">
     <img class="logo" src="${datos.logo}">
     <div class="nombre">Verzay</div>
     <div class="lema">Responde, vende, agenda y hace seguimiento. <span>24/7.</span></div>
-    <div class="cta"><div class="boton">Agenda una reunión</div><div class="web">${e(datos.web)}</div></div>
+    <div class="cta"><div class="fila"><div class="boton">Agenda una reunión</div><div class="boton wa">Escribir por WhatsApp · ${e(comoTelefono(datos.whatsapp ?? LLAMADO.whatsapp))}</div></div><div class="web">${e(datos.web)}</div></div>
     <div class="aviso">Demostración con datos de ejemplo.</div>
   </div>
 
