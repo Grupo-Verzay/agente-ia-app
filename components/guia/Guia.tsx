@@ -33,6 +33,8 @@ import {
     StickyNote,
     Store,
     ToggleRight,
+    Trash2,
+    TriangleAlert,
     Type,
     UserPlus,
     Users,
@@ -87,6 +89,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    Trash2,
+    TriangleAlert,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
