@@ -472,8 +472,8 @@ export const GUIA_FINANZAS: Contenido = {
                 {
                     titulo: "Vaciar la contabilidad",
                     texto:
-                        "En el ⋯ del resumen, Vaciar contabilidad borra todas las ventas y los gastos de tu cuenta. Pide " +
-                        "escribir VACIAR para confirmarlo.",
+                        "En el ⋯ del resumen, Vaciar contabilidad borra todas las ventas y los gastos de tu cuenta: " +
+                        "1 escribe VACIAR y 2 confirma con el botón rojo.",
                     imagen: "vaciar.webp",
                     alt: "La ventana para vaciar la contabilidad",
                 },

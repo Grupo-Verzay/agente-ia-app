@@ -118,6 +118,16 @@ const TABLA = "[data-tabla-de-finanzas]";
 const LA_TABLA = (p) => p.locator(`${TABLA} table`).first();
 const FILAS = (p) => p.locator(`${TABLA} tbody tr`);
 const laFila = (p, texto) => p.locator(`${TABLA} tbody tr`, { hasText: texto }).first();
+/** Lo que ocupa un texto de verdad: el botón de una cabecera mide la celda entera. */
+async function elTexto(locator) {
+    await locator.waitFor({ state: "visible", timeout: 20000 });
+    return locator.evaluate((el) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        const b = r.getBoundingClientRect();
+        return { x: b.left, y: b.top, w: b.width, h: b.height };
+    });
+}
 const laCabecera = (p, texto) => p.locator(`${TABLA} thead th`, { hasText: texto }).first();
 const FILTRO = "[data-filtro-de-periodo]";
 /** La ventana abierta, por su título. */
@@ -224,22 +234,61 @@ async function unDiaDeLaGrafica(p, dia = 0.55) {
 /* Las miniaturas del índice                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * La caja de lo que SE VE de un elemento: su rectángulo recortado por cada
+ * antepasado que desplaza y por la ventana. `boundingBox` da el elemento
+ * entero, y en Finanzas lo que más importa se desplaza: la fila de accesos por
+ * los lados, una tabla ancha (Proveedores) también, y una lista larga por
+ * debajo de la ventana. Con la caja entera el recuadro de la miniatura se
+ * salía de la imagen, y su borde no se veía.
+ */
+async function cajaVisible(p, selector) {
+    const el = typeof selector === "string" ? p.locator(selector).first() : selector;
+    await el.waitFor({ state: "visible", timeout: 20000 });
+    return el.evaluate((nodo) => {
+        const r = nodo.getBoundingClientRect();
+        let x0 = r.left, y0 = r.top, x1 = r.right, y1 = r.bottom;
+        for (let a = nodo.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            if (/(auto|scroll|hidden|clip)/.test(s.overflowX + s.overflowY)) {
+                const b = a.getBoundingClientRect();
+                x0 = Math.max(x0, b.left); y0 = Math.max(y0, b.top);
+                x1 = Math.min(x1, b.right); y1 = Math.min(y1, b.bottom);
+            }
+        }
+        x0 = Math.max(x0, 0); y0 = Math.max(y0, 0);
+        x1 = Math.min(x1, innerWidth); y1 = Math.min(y1, innerHeight);
+        return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+    });
+}
+
+/** Cuántas filas de una lista enseña su miniatura: las de arriba, que es lo que se lee primero. */
+const FILAS_EN_LA_MINIATURA = 8;
+
 async function miniaturas(p) {
     const laTabla = (cual) => async () => {
         await abrir(p, cual);
-        return caja(p, LA_TABLA(p));
+        return cajaVisible(p, LA_TABLA(p));
+    };
+    // Una lista larga (Ventas, Gastos) no cabe en una tarjeta 16:9: su zona es
+    // la cabecera y las primeras filas.
+    const lasPrimerasFilas = (cual) => async () => {
+        await abrir(p, cual);
+        const filas = FILAS(p);
+        const ultima = Math.min(FILAS_EN_LA_MINIATURA, await filas.count()) - 1;
+        return unir(await cajaVisible(p, p.locator(`${TABLA} thead`).first()), await cajaVisible(p, filas.nth(ultima)));
     };
     const zonas = [
         ["vista-general", async () => {
             await abrir(p, "resumen");
-            return unir(await caja(p, ACCESOS), await caja(p, BARRA), await caja(p, "[data-resumen-anual]"), await caja(p, "[data-grafica-del-mes]"));
+            return unir(await cajaVisible(p, ACCESOS), await cajaVisible(p, BARRA), await cajaVisible(p, "[data-resumen-anual]"), await cajaVisible(p, "[data-grafica-del-mes]"));
         }],
         ["resumen", async () => {
             await abrir(p, "resumen");
             return caja(p, "[data-resumen-anual]");
         }],
-        ["ventas", laTabla("ventas")],
-        ["gastos", laTabla("gastos")],
+        ["ventas", lasPrimerasFilas("ventas")],
+        ["gastos", lasPrimerasFilas("gastos")],
         ["periodo", async () => {
             await abrir(p, "ventas");
             await p.locator(FILTRO).click();
@@ -359,11 +408,13 @@ async function capturas(p) {
         throw new Error(`el menú de «Nuevo» se abrió fuera de su sitio: ${JSON.stringify(cMenuNuevo)}`);
     }
     const cBuscador = await caja(p, zona(p, "buscador"));
+    // En el orden en que lo cuenta el texto: primero Nuevo, luego el buscador.
     await marcar(p, [
-        { c: cBuscador, n: 1 },
-        { c: afuera(cMenuNuevo, 2, 2), n: 2, esquina: "derecha" },
+        { c: afuera(cMenuNuevo, 2, 2), n: 1, esquina: "derecha" },
+        { c: cBuscador, n: 2 },
     ]);
-    await guardar(p, "resumen-nuevo.webp", holgura(unir(cBarra, cMenuNuevo, { ...cBarra, h: cBarra.h + 150 }), 16, vista));
+    // 16 px más arriba: el número del buscador se cortaba contra el borde.
+    await guardar(p, "resumen-nuevo.webp", holgura(unir({ ...cBarra, y: cBarra.y - 16, h: cBarra.h + 16 }, cMenuNuevo, { ...cBarra, h: cBarra.h + 150 }), 16, vista));
     await desmarcar(p);
     await cerrarTodo(p);
 
@@ -400,10 +451,11 @@ async function capturas(p) {
     await elCampo(venta, "Descuento").locator("input").fill("5000");
     await espera(p, 300);
     const total = unir(await caja(p, vistaPrevia.locator("div.shrink-0.text-right")), await caja(p, vistaPrevia.locator("[data-desglose-de-la-venta]")));
-    // Solo la CAJA de cada importe, con su número en el centro de arriba: con
-    // el campo entero los recuadros de dos filas se tocaban y sus números
-    // caían uno encima de otro, y el de la derecha tapaba la «E» de «Extra».
-    const laCajaDelImporte = async (rotulo) => afuera(await caja(p, elCampo(venta, rotulo).locator("input")), 3, 3);
+    // El campo entero (rótulo y caja) METIDO 3 px hacia dentro, con su número
+    // en el centro de arriba: abierto hacia fuera, los recuadros de dos filas
+    // se tocaban (las filas van a 20 px) y los números caían uno encima de
+    // otro; solo con la caja, la raya de arriba tachaba el rótulo.
+    const laCajaDelImporte = async (rotulo) => afuera(await caja(p, elCampo(venta, rotulo)), -3, -3);
     await marcar(p, [
         { c: await laCajaDelImporte("Monto (base)"), n: 1, esquina: "centro" },
         { c: await laCajaDelImporte("Extra"), n: 2, esquina: "centro" },
@@ -458,8 +510,9 @@ async function capturas(p) {
     const marcasGasto = [];
     // Número en el CENTRO del borde de arriba: en la esquina izquierda tapaba
     // la primera letra de su rótulo, y en la derecha —con dos columnas— caía en
-    // el hueco entre ellas, encima del rótulo del campo de al lado.
-    for (const [i, r] of camposDelGasto.entries()) marcasGasto.push({ c: afuera(await caja(p, elCampo(gasto, r)), 2, 1), n: i + 1, esquina: "centro" });
+    // el hueco entre ellas, encima del rótulo del campo de al lado. Y el
+    // recuadro METIDO 3 px, como en Ventas: abierto, los de dos filas se tocaban.
+    for (const [i, r] of camposDelGasto.entries()) marcasGasto.push({ c: afuera(await caja(p, elCampo(gasto, r)), -3, -3), n: i + 1, esquina: "centro" });
     await marcar(p, marcasGasto);
     await guardar(p, "gastos-nuevo.webp", holgura(cGasto, 12, vista));
     await desmarcar(p);
@@ -495,9 +548,9 @@ async function capturas(p) {
     // Los números donde no hay texto: el 1 encima de «Mes» y el 2 debajo de la
     // caja del mes. En la esquina tapaban «Todo» y «Rango».
     await marcar(p, [
-        // Recuadro subido 8 px: con el borde pegado al botón el número tapaba
-        // la parte de arriba de «Mes», que es justo lo que se señala.
-        { c: afuera(await caja(p, p.locator('[data-grupo="periodo"] button', { hasText: "Mes" })), 3, 8), n: 1, esquina: "centro" },
+        // Subido 1 px y no más: el número cabe entre «Filtrar por fecha» y la
+        // palabra «Mes»; más alto tapaba el rótulo, más bajo la palabra.
+        { c: afuera(await caja(p, p.locator('[data-grupo="periodo"] button', { hasText: "Mes" })), 3, 1), n: 1, esquina: "centro" },
         { c: await caja(p, popover.locator('input[type="month"]')), n: 2, borde: "abajo" },
         { c: afuera(await caja(p, FILTRO), 2, 2), texto: "Solo ese mes", lado: "derecha" },
     ]);
@@ -544,12 +597,14 @@ async function capturas(p) {
         // campo de al lado. El 1 va abajo, donde no hay texto.
         // En el centro de abajo: en la esquina tapaba la «T» de «Teléfono».
         const marcasFicha = [
-            { c: await caja(p, codigoInput), n: 1, borde: "abajo", esquina: "centro" },
-            { c: await caja(p, nombre), n: 2, esquina: "derecha" },
+            // Metidos 3 px: abiertos, su raya de arriba rozaba las letras con
+            // cola del rótulo («Opcional», «apellido») y se tocaban en medio.
+            { c: afuera(await caja(p, codigoInput), -3, -3), n: 1, borde: "abajo", esquina: "centro" },
+            { c: afuera(await caja(p, nombre), -3, -3), n: 2, esquina: "derecha" },
         ];
         if (cual === "clientes") {
             const whatsapp = ficha.locator('button[role="combobox"]').first();
-            if (await whatsapp.count()) marcasFicha.push({ c: await caja(p, whatsapp), n: 3, esquina: "derecha" });
+            if (await whatsapp.count()) marcasFicha.push({ c: afuera(await caja(p, whatsapp), -3, -3), n: 3, esquina: "derecha" });
         }
         await marcar(p, marcasFicha);
         await guardar(p, `${cual}-nuevo.webp`, holgura(cFicha, 12, vista));
@@ -560,12 +615,13 @@ async function capturas(p) {
         const campos = laVentana(p, "Configurar campos");
         const cCampos = await laCajaDeLaVentana(p, campos);
         const fila = campos.locator('[title="Obligatorio"]').first().locator("xpath=..");
-        // Solo los interruptores: con el grupo entero los dos recuadros se
-        // tocaban y el del 1 cortaba «Oblig.» por la mitad.
-        const interruptor = (titulo) => campos.locator(`[title="${titulo}"]`).first().locator('[role="switch"]');
+        // El interruptor con su palabra, metido 3 px a los lados: abiertos, los
+        // dos recuadros se tocaban y el del 2 tapaba el punto de «Oblig.»; solo
+        // con el interruptor, su raya tachaba la primera letra de la palabra.
+        const interruptor = (titulo) => campos.locator(`[title="${titulo}"]`).first();
         await marcar(p, [
-            { c: afuera(await caja(p, interruptor("Obligatorio")), 3, 3), n: 1 },
-            { c: afuera(await caja(p, interruptor("Visible")), 3, 3), n: 2, esquina: "derecha" },
+            { c: afuera(await caja(p, interruptor("Obligatorio")), -3, 0), n: 1 },
+            { c: afuera(await caja(p, interruptor("Visible")), -3, 0), n: 2, esquina: "derecha" },
             { c: await caja(p, campos.getByRole("button", { name: "Agregar campo" })), texto: cual === "clientes" ? "Añade los tuyos" : `Solo para cada ${singular}`, lado: "derecha" },
         ]);
         await guardar(p, `${cual}-campos.webp`, holgura(cCampos, 12, vista));
@@ -578,7 +634,7 @@ async function capturas(p) {
     await abrir(p, "cuentas");
     // El rótulo de cada columna y no la celda entera: las tres celdas van
     // pegadas, así que sus recuadros se montaban y el 1 caía sobre el filtro.
-    const elRotulo = async (t) => afuera(await caja(p, laCabecera(p, t).getByText(t, { exact: true })), 8, 4);
+    const elRotulo = async (t) => afuera(await elTexto(laCabecera(p, t).getByText(t, { exact: true })), 6, 4);
     await marcar(p, [
         { c: await elRotulo("Ventas"), n: 1, esquina: "derecha" },
         { c: await elRotulo("Gastos"), n: 2, esquina: "derecha" },
@@ -649,8 +705,10 @@ async function capturas(p) {
     if (await guardarMoneda.isDisabled()) throw new Error("Guardar sigue apagado después de elegir otra moneda");
     await espera(p, 300);
     await marcar(p, [
-        { c: afuera(await caja(p, selector), 2, 2), n: 1, esquina: "derecha" },
-        { c: afuera(await caja(p, guardarMoneda), 2, 2), n: 2, esquina: "derecha" },
+        // Metidos 3 px: abiertos, la raya del 1 tachaba «Moneda preferida» y
+        // el número del 2 caía encima de la raya del 1. El 2, abajo.
+        { c: afuera(await caja(p, selector), -3, -3), n: 1, esquina: "derecha" },
+        { c: afuera(await caja(p, guardarMoneda), -3, -3), n: 2, esquina: "derecha", borde: "abajo" },
     ]);
     await guardar(p, "configuracion-lista.webp", holgura({ ...cTarjeta, h: cTarjeta.h + 40 }, 20, vista));
     await desmarcar(p);
@@ -718,7 +776,12 @@ async function capturas(p) {
     await vaciar.waitFor({ state: "visible", timeout: 10000 });
     await vaciar.locator("input").fill("VACIAR");
     await espera(p, 500);
-    await marcar(p, [{ c: await caja(p, vaciar.locator("input")), texto: "Escribe VACIAR para confirmar", lado: "abajo" }]);
+    // Números y no un rótulo: la ventana ya lo dice («Escribe VACIAR…») y el
+    // rótulo de abajo se montaba sobre el botón rojo.
+    await marcar(p, [
+        { c: afuera(await caja(p, vaciar.locator("input")), -3, -3), n: 1 },
+        { c: await caja(p, vaciar.getByRole("button", { name: "Vaciar contabilidad" })), n: 2, esquina: "derecha" },
+    ]);
     await guardar(p, "vaciar.webp", holgura(await caja(p, vaciar), 14, vista));
     await desmarcar(p);
     // Nunca se confirma: se cierra sin vaciar nada.
@@ -862,12 +925,12 @@ async function video(navegador, estado) {
     await pulsar(p, p.locator('[data-grupo="periodo"] button', { hasText: "Mes" }));
     await alDecir("un rango", 350);
     await pulsar(p, p.locator('[data-grupo="periodo"] button', { hasText: "Rango" }));
-    await callar();
-    await pulsar(p, p.locator('[data-grupo="periodo"] button', { hasText: "Todo" }));
-    await p.keyboard.press("Escape");
-    await espera(p, 300);
 
+    // El filtro se cierra MIENTRAS empieza la frase siguiente, no callado: volver
+    // a «Todo» y cerrarlo después de la frase dejaba 1,4 s mudos en el vídeo. No
+    // hace falta devolverlo a «Todo»: la frase se va a Clientes, que no lo hereda.
     await decir("contactos");
+    await p.keyboard.press("Escape");
     await irA(p, "clients", "clientes");
     await alDecir("en Proveedores", 300);
     await irA(p, "providers", "proveedores");
