@@ -126,7 +126,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Los canales",
-                    texto: "Un entrenamiento por canal: WhatsApp, Llamadas, WhatsApp API, Telegram, Facebook e Instagram. El que tiene recuadro es el que editas.",
+                    texto: "Un entrenamiento por canal: WhatsApp, Llamadas, WhatsApp API, Telegram, Facebook e Instagram. El que va resaltado es el que editas.",
                     imagen: "canales.webp",
                     alt: "La fila de canales arriba del editor, con WhatsApp elegido",
                 },
@@ -201,7 +201,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Firma y notas",
-                    texto: "La firma es el nombre con el que se presenta el agente. En «Notas / Instrucciones extra» le das el tono y lo que no debe hacer.",
+                    texto: "1 La firma: el nombre con el que se presenta el agente · 2 Notas / Instrucciones extra: el tono y lo que no debe hacer.",
                     imagen: "perfil-firma.webp",
                     alt: "La firma del agente y las notas del perfil",
                 },
@@ -275,7 +275,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Respuesta y nota interna",
-                    texto: "La respuesta es lo que lee el cliente. La nota interna, con candado, es una instrucción que el agente obedece y no dice.",
+                    texto: "1 La respuesta: lo que lee el cliente · 2 La nota interna, con candado: una instrucción que el agente obedece y no dice.",
                     imagen: "elementos-nota.webp",
                     alt: "Una respuesta y una nota interna dentro de un paso",
                 },
@@ -294,19 +294,19 @@ export const GUIA_AGENTE_IA: Contenido = {
             pasos: [
                 {
                     titulo: "Preguntas",
-                    texto: "Una tarjeta por pregunta frecuente, con su respuesta. «Agregar pregunta» suma otra.",
+                    texto: "1 Una tarjeta por pregunta frecuente, con su respuesta · 2 «Agregar pregunta» suma otra.",
                     imagen: "preguntas.webp",
                     alt: "La pestaña Preguntas con sus preguntas frecuentes",
                 },
                 {
                     titulo: "Productos",
-                    texto: "Una tarjeta por producto o servicio: qué es, su precio y cómo ofrecerlo.",
+                    texto: "1 Una tarjeta por producto o servicio: qué es, su precio y cómo ofrecerlo · 2 «Agregar producto» suma otro.",
                     imagen: "productos.webp",
                     alt: "La pestaña Productos con sus productos",
                 },
                 {
                     titulo: "Extras",
-                    texto: "Objeciones, garantías, envíos o cualquier caso especial que el agente deba saber manejar.",
+                    texto: "1 Objeciones, garantías, envíos o cualquier caso especial que el agente deba saber manejar · 2 «Agregar extra» suma otro.",
                     imagen: "extras.webp",
                     alt: "La pestaña Extras con sus casos especiales",
                 },
@@ -331,7 +331,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Una regla nueva",
-                    texto: "Eliges el tipo de coincidencia —Contiene o Exacta—, escribes las palabras y la respuesta exacta.",
+                    texto: "1 El tipo de coincidencia: Contiene o Exacta · 2 Las palabras · 3 La respuesta exacta que sale.",
                     imagen: "palabras-clave-nueva.webp",
                     alt: "El formulario de una regla nueva",
                 },
@@ -368,7 +368,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Los campos",
-                    texto: "Escribes cada dato que debe pedir —nombre, dirección, cédula— y lo agregas con el botón verde.",
+                    texto: "1 Escribes el dato que debe pedir: nombre, dirección, cédula · 2 Lo agregas con el botón verde.",
                     imagen: "gestion-campos.webp",
                     alt: "Los campos de una captura de datos",
                 },

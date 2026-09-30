@@ -305,7 +305,7 @@ export function AgentPromptChatDialog({
     () =>
       createMessage(
         "assistant",
-        `Estoy listo para ayudarte con ${TYPE_AI_LABELS[activeTab]}. Puedo mejorar prompts, crear formulas y revisar si el Agente IA quedara claro para WhatsApp.`
+        `Estoy listo para ayudarte con ${TYPE_AI_LABELS[activeTab]}. Puedo mejorar prompts, crear fórmulas y revisar si el Agente IA quedará claro para WhatsApp.`
       ),
     [activeTab]
   );

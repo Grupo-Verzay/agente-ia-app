@@ -77,7 +77,11 @@ export function AgentMetricsPanel({ open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
         <SheetHeader className="px-4 pt-4 pb-3 border-b shrink-0">
-          <div className="flex items-center justify-between">
+          {/* `pr-8`: la equis de cerrar de la hoja va `absolute right-4 top-4`
+              (16 px del borde y 16 de ancho), así que sin este hueco el botón
+              de actualizar quedaba justo debajo de ella y se pulsaba uno por
+              el otro. */}
+          <div className="flex items-center justify-between pr-8">
             <SheetTitle className="flex items-center gap-2 text-base">
               <BarChart2 className="h-4 w-4" />
               {OPCIONES_DEL_AGENTE.metricas}

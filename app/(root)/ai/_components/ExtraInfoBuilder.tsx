@@ -508,7 +508,7 @@ export function ExtraInfoBuilder({
                                                 const elementCount = (step.elements ?? []).length;
 
                                                 return (
-                                                    <Card className="bg-muted/20 border-muted/60 overflow-hidden">
+                                                    <Card className="bg-muted/20 border-muted/60 overflow-hidden" data-bloque>
                                                         <div className="flex items-center justify-between gap-1 px-3 py-3">
                                                             <div className="flex items-center gap-1 min-w-0 flex-1">
                                                                 <div
