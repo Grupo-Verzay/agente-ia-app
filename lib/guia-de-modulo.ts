@@ -62,6 +62,7 @@ export const ICONOS_DE_SECCION = [
     "ClipboardList",
     "Unlink",
     "Trash2",
+    "FileText",
 ] as const;
 
 export type Seccion = {

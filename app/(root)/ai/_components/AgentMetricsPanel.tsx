@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { getAgentMetrics, type AgentMetrics } from "@/actions/agent-metrics-actions";
 import { cn } from "@/lib/utils";
+import { OPCIONES_DEL_AGENTE } from "./ai-section-labels";
 
 interface Props {
   open: boolean;
@@ -76,12 +77,16 @@ export function AgentMetricsPanel({ open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
         <SheetHeader className="px-4 pt-4 pb-3 border-b shrink-0">
-          <div className="flex items-center justify-between">
+          {/* `pr-8`: la equis de cerrar de la hoja va `absolute right-4 top-4`
+              (16 px del borde y 16 de ancho), así que sin este hueco el botón
+              de actualizar quedaba justo debajo de ella y se pulsaba uno por
+              el otro. */}
+          <div className="flex items-center justify-between pr-8">
             <SheetTitle className="flex items-center gap-2 text-base">
               <BarChart2 className="h-4 w-4" />
-              Métricas del Agente IA
+              {OPCIONES_DEL_AGENTE.metricas}
             </SheetTitle>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} disabled={isPending} aria-label="Actualizar métricas" title="Actualizar métricas">
               <RefreshCw className={cn("h-3.5 w-3.5", isPending && "animate-spin")} />
             </Button>
           </div>

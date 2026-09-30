@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { listPromptRevisions, restoreRevision } from "@/actions/system-prompt-actions";
+import { OPCIONES_DEL_AGENTE } from "./ai-section-labels";
 
 type Revision = {
     id: string;
@@ -77,11 +78,14 @@ export function VersionHistoryPanel({ open, onOpenChange, promptId, onRestored }
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className="w-full sm:max-w-sm flex flex-col p-0">
+            {/* `sm:max-w-md`, el mismo ancho que Métricas: las dos hojas salen del
+                mismo menú «⋯» y una más estrecha que la otra se leía como un
+                panel distinto. */}
+            <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
                 <SheetHeader className="px-4 pt-4 pb-3 border-b shrink-0">
                     <SheetTitle className="flex items-center gap-2 text-base">
                         <History className="h-4 w-4" />
-                        Historial de versiones
+                        {OPCIONES_DEL_AGENTE.historial}
                     </SheetTitle>
                     <p className="text-xs text-muted-foreground">
                         Cada vez que guardas se crea una versión. Puedes restaurar cualquiera.

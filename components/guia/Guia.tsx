@@ -14,6 +14,7 @@ import {
     Download,
     ExternalLink,
     FileStack,
+    FileText,
     Filter,
     FolderOpen,
     GitBranch,
@@ -101,6 +102,7 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     ClipboardList,
     Unlink,
     Trash2,
+    FileText,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

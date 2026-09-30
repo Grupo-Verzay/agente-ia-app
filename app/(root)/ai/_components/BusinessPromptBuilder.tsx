@@ -39,6 +39,7 @@ import {
 } from "@/types/agentAi";
 import { useBusinessAutosave, AutosaveStatus } from "./hooks/useBusinessAutosave";
 import { buildFirmaBlock } from "./helpers/firmaTemplate";
+import { TYPE_AI_LABELS } from "./ai-section-labels";
 
 /* ---------- CAMPOS ADICIONALES DISPONIBLES ---------- */
 const optionalFields = [
@@ -136,7 +137,7 @@ export const BusinessPromptBuilder = ({
         <div className="gap-2 flex flex-col">
             <Card className="border-muted/60">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-base uppercase">Información del Negocio</CardTitle>
+                    <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.business}</CardTitle>
 
                     {/* Indicador de autosave */}
                     {autosaveStatus !== "idle" && (
