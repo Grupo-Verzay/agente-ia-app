@@ -342,8 +342,9 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
    una de esas dos secciones cae en la misma, nunca en una repetida.
 3. **En la ficha, Nombre y Teléfono son el nombre y el número REALES**: Nombre
    se guarda por el mismo camino que el lápiz de la cabecera
-   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre más
-   alta (`LINEAS_DE_LAS_NOTAS`, `min-h-[8rem]`) y con la manija de la esquina
+   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre con
+   3 líneas (`LINEAS_DE_LAS_NOTAS`, sin `min-h`: pisaría a `rows`), se desplaza
+   por dentro si el texto es más largo, y lleva la manija de la esquina
    (`resize-y`); los demás campos no se estiran.
 4. **Su dato sigue en `ExternalClientData.data.notas`**, la clave del Notas de
    fábrica de antes: lo escrito no se pierde, y una lista vieja con esa clave la
@@ -352,7 +353,7 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
 
 Lo prueba `scripts/banco-ficha-simetrica.sh`: la regla, y el diálogo y la ficha
 REALES en Chromium a 1440/1024/390 (mismas columnas y altos en todas las filas,
-Notas la última al agregar campos, Notas más alta y estirable arrastrando la
+Notas la última al agregar campos, Notas con 3 líneas y estirable arrastrando la
 esquina). `MODO=roto` monta los de `4834a9e` y afirma «Fijo», las filas sin asa
 ni interruptor y la ficha sin Nombre, Teléfono ni Notas.
 
@@ -10788,6 +10789,39 @@ Dos reglas:
 2. **Un estado, una difusión o un canal se descartan antes de todo**: antes de
    guardar el mensaje, de registrar el lead y de despertar a la IA. Va **después**
    de aprender el par `@lid` → número de los grupos, que eso sí interesa.
+
+## El primer mensaje a un lead guardado a mano: el número va LIMPIO, y Waha confirma a quién
+
+«Crear contacto» (Leads) guardaba el número tal cual se tecleó —`+507 6027-0754`—
+pegándole `@s.whatsapp.net`, y ninguna capa lo limpiaba. El primer mensaje a ese
+lead salía a Waha como `+50760270754@c.us`, y **Waha no contesta a eso**: el envío
+agotaba sus 15 s, salía «el servidor no contestó a tiempo» y al cliente no le
+llegaba nada (visto en producción el 2026-09-30, línea MULTIGAMA). A una
+conversación que empezó el lead no le pasa: ese número lo pone WhatsApp, limpio.
+
+Tres cosas, y hacen falta las tres:
+
+1. **El formato se quita en `cleanValue`** (`sinFormatoDeTelefono`,
+   `lib/whatsapp-jid.ts`), igual que el sufijo de dispositivo: `+`, espacios,
+   guiones, paréntesis y puntos, solo en un JID de teléfono (`@s.whatsapp.net` /
+   `@c.us`) o en un valor sin arroba. `canonicalToWahaJid` y
+   `wahaJidToCanonical` pasan por la misma función. `buildWhatsAppJidCandidates`
+   conserva además la forma LITERAL, para que una ficha vieja se siga encontrando.
+2. **Las dos pantallas que crean un lead a mano** («Crear contacto» y
+   `LeadCreateForm`) arman el JID con `jidDelTelefonoTecleado` y piden al menos
+   8 dígitos; el servidor limpia igual (`registrarLaSesion` → `cleanValue`).
+3. **Waha confirma el destinatario antes de enviar**, como ya hacía Evolution
+   (`resolveWhatsAppJid`): `destinoSegunWaha` pregunta a
+   `GET /api/contacts/check-exists` (0,1-0,2 s medidos), manda al número (`pn`),
+   recuerda la respuesta 30 min, y va dentro de `sendWahaText`/`sendWahaMedia`,
+   que es por donde sale TODO envío a Waha. `numberExists: false` se dice al
+   momento («El número +X no tiene WhatsApp»); si la consulta falla o tarda, se
+   envía con lo que había.
+
+Lo prueba `scripts/banco-primer-mensaje-a-un-lead.sh`, con un Waha de mentira
+que se cuelga igual que el real ante un `chatId` que no es solo dígitos.
+`MODO=roto` empaqueta la misma cadena con `lib/` de `c7fbb82` y afirma el
+cuelgue de 15 s.
 
 ## Chats: buscar la fila por TODAS las identidades
 
@@ -23721,7 +23755,79 @@ servida a 390 y 1440— y `scripts/banco-equipo-usuarios.sh` —lo de la pantall
 con las acciones de verdad contra Postgres—. Los dos con `MODO=roto` contra
 `ab6b110`, que afirma que no había guía y los fallos de la pantalla.
 
-### La décima guía, Mis macros: lo que se arregló al documentarla
+### La décima guía, Respuestas Rápidas: y documentarla destapó respuestas que no veía nadie
+
+`/guia/respuestas-rapidas` documenta Automatizaciones › Respuestas Rápidas
+(`/auto-replies`) con el estándar de las nueve guías anteriores: ocho
+secciones —vista general, crear una de texto, una que ejecuta un flujo,
+editar, filtrar y buscar, ordenar, eliminar y usarlas en un chat—, una
+miniatura con enfoque por tarjeta y el vídeo narrado con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/auto-replies` (`GUIAS_PUBLICADAS`): «Aprende a crear y usar tus respuestas
+rápidas en la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-respuestas-rapidas.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-respuestas-rapidas.mjs`, sobre
+`sembrarElMarco`, con respuestas de las dos clases, un flujo y una
+conversación), receta de capturas y vídeo
+(`capturar-guia-respuestas-rapidas.mjs`, sobre el taller) y narración. Se
+regenera con `npm run build && scripts/generar-guia-respuestas-rapidas.sh &&
+npm run build`.
+
+**La guía se compara con el CÓDIGO**: las pastillas y el «⋯» de la barra con
+`MainAutoReplies.tsx`, las categorías con `lib/quick-reply-categories.ts`, los
+dos tipos con `ReplyTypeSelector.tsx` y las partes de una respuesta con sus
+`data-zona` (`SortableAutoRepliesList.tsx`, `AutoRepliesCard.tsx`). Un mando
+nuevo sin su nombre en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+Las reglas viven en `lib/respuestas-rapidas.ts` (pura) y las usan la
+pantalla, las acciones y los TRES sitios de Chats que ofrecen una respuesta
+—la barra «/», el panel de Atajos (⚡) y «Nueva conversación»—.
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que creaba alguien del equipo nacía a nombre de SU fila, y la pantalla lee por la cuenta: **no lo veía nadie, ni quien lo creó**. En producción había 14, con repetidas («referido», «referido_1»…) de volver a crearlas | `createRR` sube a la cuenta de la fila (`laCuentaDeLaFila`). Las ya creadas las devuelve `scripts/mover-respuestas-a-su-cuenta.mjs` (sin `--aplicar` solo dice qué haría), al FINAL de la lista de su cuenta y personales si las creó un agente |
+| una respuesta de FLUJO no salía en ningún sitio de Chats: se le exigía el mensaje | `seOfreceEnChats`: a una de texto su mensaje, a una de flujo su flujo |
+| en una línea de Waha una de flujo contestaba «no encontrada» | `sendWahaQuickReplyAction` lanza el flujo (con su `intention`, del flujo de la MISMA cuenta) |
+| el panel de Atajos escondía las que no tienen atajo | salen todas; la barra «/» sigue ofreciendo solo las de texto con atajo (`seSugiereConLaBarra`): elegir una ahí PONE su mensaje, y una de flujo no tiene |
+| el atajo se guardaba de dos formas —la tarjeta lo subía a MAYÚSCULAS y crear lo bajaba— y había uno guardado como «//bienvenida» | `comoAtajo`: sin la barra, en minúsculas y sin espacios, se toque por donde se toque; vacío es `null`, o borrar el atajo no borraba nada |
+| una nueva nacía con el 0 de la columna, empatada o perdida en medio | sale la PRIMERA (`elOrdenDeUnaNueva`), sin mover a las demás |
+| el orden eran N llamadas en fila india, y un asesor reordenando movía las personales de sus compañeros | una acción y una sentencia (`guardarElOrdenDeLasRespuestasAction`); lo que no se ve se queda en su sitio (`elOrdenConLasDemasEnSuSitio`) |
+| con un filtro o una búsqueda puestos se reordenaba el trozo y las escondidas saltaban | no se reordena, y se dice (`porQueNoSePuedeOrdenar`) |
+| la búsqueda no encontraba «Envío» tecleando «envio» | `pasaLaBusqueda`, la misma `sinTildes` de Mis notas, que mira también el flujo y la categoría |
+| un asesor veía «Editar» en las de la cuenta y el servidor le contestaba «No autorizado» | cada respuesta trae `editable`, y lo que no puede tocar no ofrece mandos |
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que decide si algo sale en Chats es `lib/respuestas-rapidas.ts`.** Con
+   la regla escrita en cada uno de los tres sitios, una respuesta sale en uno y
+   en otro no, y eso no se ve como un error.
+2. **Una respuesta nueva es de la CUENTA; la de un agente, además suya**
+   (`respuestas_personales`, la regla de *lo que crea un asesor es SUYO*). La
+   persona no es nunca la dueña de la fila.
+3. **El borrado en bloque pasa por `deleteRR`**, con las puertas de cada fila,
+   y cuenta lo que no pudo.
+4. **La receta localiza la fila que se edita por su POSICIÓN, sacada una vez
+   por lo que dice** (`fijarLaFila`): al editar el atajo, la pastilla
+   «/horario» pasa a ser un campo, su valor no cuenta como texto y `hasText`
+   deja de encontrarla.
+5. **`mover` y `pulsar` del vídeo NO desplazan nada**: llevan el ratón a la
+   caja del elemento, y una fila por debajo del borde de la ventana (a
+   1280×800, con la respuesta recién creada arriba) deja el clic fuera de la
+   pantalla. El menú no se abre y el guion se cae con un plazo agotado que no
+   dice por qué. Antes se trae con la rueda (`aLaVista`), como una persona.
+
+Lo prueban `scripts/banco-guia-respuestas-rapidas.sh` —el contenido contra el
+código, el vídeo medido como los demás, las miniaturas en sus píxeles
+(`GUIA=respuestas-rapidas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
+las diez guías— y la guía servida a 390 y 1440— y
+`scripts/banco-respuestas-rapidas.sh` —las reglas y un barrido, y las acciones
+de verdad contra Postgres—. Los dos con `MODO=roto` contra `ab6b110`, que
+afirma que no había guía y los fallos de la pantalla.
+
+### La undécima guía, Mis macros: lo que se arregló al documentarla
 
 `/guia/macros` documenta Automatizaciones › Mis macros (`/macros`) con el
 estándar de las nueve anteriores: diez secciones —vista general, crear una
