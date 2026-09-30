@@ -154,6 +154,8 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/equipo",
         contenido: GUIA_USUARIOS,
         tarjeta: "Aprende a crear tu equipo y repartir los chats en la plataforma",
+    },
+    {
         modulo: "formularios",
         ruta: "/mis-formularios",
         contenido: GUIA_FORMULARIOS,

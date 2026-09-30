@@ -23783,10 +23783,12 @@ Cinco cosas que hay que mantener:
    `MisFormulariosClient`, `FormEditorClient`, `FormRegistrosClient` y
    `TIPOS_DE_CAMPO`. Un tipo de campo nuevo sin su nombre en la guía la pone
    en rojo.
-2. **El diálogo de Google Sheets enseña el correo de la cuenta de servicio**,
-   así que el lanzador exporta un `GOOGLE_SERVICE_ACCOUNT_JSON` con **solo el
-   `client_email`** de producción —que la pantalla enseña a cualquier
-   cliente—, nunca una llave: la guía no escribe en ninguna hoja.
+2. **El diálogo de Google Sheets enseña el correo de la cuenta de servicio**, y
+   es el de EJEMPLO que pone el lanzador común
+   (`hojas@plataforma-ejemplo.iam.gserviceaccount.com`), el MISMO de la guía de
+   Google Sheets: la guía es pública y el de verdad no se publica. Estuvo con
+   el de producción, que el lanzador de esta guía exportaba por su cuenta; lo
+   comprueba el banco, que falla si vuelve a poner el suyo.
 3. **Pulsar una variable de WhatsApp la AÑADE al final del mensaje**, así que
    el guion escribe en orden (texto → variable → `Control+End` → texto). Con
    el cursor donde quedó, el mensaje salía revuelto.
@@ -23808,8 +23810,41 @@ la caché sirve igual; lo que hay que hacer es recargar «IA CRM».
 Lo prueba `scripts/banco-guia-formularios.sh`: el contenido contra el código,
 el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
 (`GUIA=formularios`), `fin-de-la-guia` y `menu-de-la-guia` —que barren las
-diez guías— y la guía servida a 390 y 1440. `MODO=roto` lee `ab6b110` y afirma
-que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
+diez guías—, el `pulsar` con un aviso encima (abajo) y la guía servida a 390 y
+1440. `MODO=roto` lee `ab6b110` y afirma que no había guía, ni vídeo, ni
+miniaturas, ni marcas en la pantalla, y que el clic se lo llevaba el aviso.
+
+#### Un aviso que tapa lo que el vídeo pulsa: `pulsar` espera con el cursor FUERA
+
+El vídeo se quedaba a medias en el Guardar del enlace corto, y no era la
+pantalla. La URL personalizada es la ÚLTIMA tarjeta del editor, así que por
+mucho que se pida el centro se queda pegada al borde de abajo, que es donde
+sale el aviso «WhatsApp guardado» del paso anterior. Su Guardar quedaba debajo
+del aviso —y de la franja invisible de 15 px que cada aviso lleva encima
+(`[data-sonner-toast]::after`)—, así que el clic se lo llevaba el aviso: el
+enlace no se guardaba, sin un solo error. Y el cursor se quedaba ENCIMA del
+aviso, y **sonner no quita un aviso con el puntero sobre él**: esperar ahí era
+esperar para siempre.
+
+> **`pulsar` (el taller común) pregunta antes qué hay en el centro de lo que va
+> a pulsar** (`queAvisoTapa`, con `elementFromPoint`: la caja del botón dice que
+> está ahí aunque esté debajo de otra cosa). Si es un aviso, el cursor se queda
+> justo a su izquierda y pulsa en cuanto se va (`sinAvisoEncima`). Vale para
+> todas las guías, sin tocar ninguna receta.
+
+Tres cosas que hay que mantener:
+
+1. **Lo que se espera es lo que le queda al aviso**, con la narración sonando
+   mientras tanto: no es un `quitarAvisos`, que en el vídeo está prohibido. En
+   el de Mis formularios fueron 1,2 s.
+2. **El cursor espera FUERA del aviso.** Encima lo para, y se quedaría ahí.
+3. **Hay un tope** (`ESPERA_POR_UN_AVISO_MS`, 12 s): un aviso que no se va solo
+   corta la generación con su motivo en vez de dejar un vídeo mudo.
+
+Lo prueba `lib/__tests__/pulsar-con-un-aviso-encima.test.mjs`, en Chromium con
+el `Toaster` real de la App y el botón debajo del aviso y en su franja
+invisible. `MODO=roto` corre el `pulsar` de `ab6b110` y afirma el fallo: el
+clic no llega, el cursor queda encima y el aviso sigue ahí pasados sus 4 s.
 
 ## Mis formularios: el formulario público es PÚBLICO, y las reglas viven en un sitio
 

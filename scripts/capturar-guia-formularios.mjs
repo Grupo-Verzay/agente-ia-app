@@ -976,9 +976,12 @@ async function video(navegador, estado) {
     const url = p.locator(URL_CORTA);
     const nombreCorto = url.locator('input[placeholder="nombre-formulario"]');
     await decir("url");
-    // Al centro: abajo a la derecha sigue el aviso «WhatsApp guardado», y
-    // pegado al borde el botón Guardar quedaba DEBAJO de él (el clic se lo
-    // llevaba el aviso y el enlace no se guardaba).
+    // Es la ÚLTIMA tarjeta del editor: por mucho que se pida el centro, se
+    // queda pegada al borde de abajo, que es donde sale el aviso «WhatsApp
+    // guardado». Su botón Guardar queda DEBAJO del aviso (y de su franja
+    // invisible de encima) y el clic se lo llevaba el aviso: el enlace no se
+    // guardaba y el vídeo se quedaba aquí. Lo resuelve `pulsar`, que espera a
+    // que el aviso se vaya con el cursor fuera de él (`sinAvisoEncima`).
     await url.evaluate((e) => e.scrollIntoView({ block: "center" }));
     await alDecir("la URL personalizada", 400);
     await pulsar(p, nombreCorto);

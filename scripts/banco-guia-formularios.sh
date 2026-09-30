@@ -21,7 +21,12 @@
 #      `GUIA=formularios`: cada tarjeta de Secciones con su enfoque, medido en
 #      los píxeles.
 #   4. `fin-de-la-guia` y `menu-de-la-guia`, que barren TODAS las guías.
-#   5. `probar-guia.mjs` con `GUIA=formularios`: la guía SERVIDA, sin sesión
+#   5. `lib/__tests__/pulsar-con-un-aviso-encima.test.mjs`: el `pulsar` del
+#      taller con el aviso de la App encima de lo que pulsa, en Chromium. Es lo
+#      que dejaba el vídeo a medias en el Guardar del enlace corto: el clic se
+#      lo llevaba el aviso «WhatsApp guardado» y, con el cursor encima, el
+#      aviso no se iba nunca.
+#   6. `probar-guia.mjs` con `GUIA=formularios`: la guía SERVIDA, sin sesión
 #      y sin base, en Chromium a 390 y 1440 (hace falta el build).
 #
 # Las capturas y el vídeo se generan desde la App real:
@@ -30,8 +35,9 @@
 # `MODO=roto` lee ANTES_FORMULARIOS_REF —pinchado a un commit, nunca
 # `origin/main`— y afirma que no había guía, ni vídeo, ni narración, ni
 # miniaturas de Mis formularios, ni marcas en la pantalla con las que una
-# receta pudiera señalar sus partes. (Lo que se arregló en la propia pantalla
-# lo prueba `scripts/banco-formularios.sh`.)
+# receta pudiera señalar sus partes; y con el `pulsar` del taller de
+# ANTES_TALLER_REF (el mismo commit), que el clic se lo llevaba el aviso. (Lo
+# que se arregló en la propia pantalla lo prueba `scripts/banco-formularios.sh`.)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -40,10 +46,19 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
 export MODO ANTES_FORMULARIOS_REF="${ANTES_FORMULARIOS_REF:-ab6b110}"
+export ANTES_TALLER_REF="${ANTES_TALLER_REF:-$ANTES_FORMULARIOS_REF}"
+
+# La maqueta del aviso: el `Toaster` de la App y un botón que el banco coloca
+# debajo de él.
+AVISO="lib/__tests__/.compilado/pulsar-con-un-aviso"
+mkdir -p "$AVISO"
+npx esbuild lib/__tests__/pulsar-con-un-aviso/entrada.tsx --bundle --format=esm --platform=browser \
+  --jsx=automatic --define:process.env.NODE_ENV='"production"' --outfile="$AVISO/harness.js" --log-level=warning
 
 if [ "$MODO" = "roto" ]; then
   node --test lib/__tests__/guia-formularios.test.mjs lib/__tests__/video-guia-formularios.test.mjs
   GUIA=formularios ANTES_REF="$ANTES_FORMULARIOS_REF" node --test lib/__tests__/miniaturas-guia-leads.test.mjs
+  node --test lib/__tests__/pulsar-con-un-aviso-encima.test.mjs
   exit 0
 fi
 
@@ -60,6 +75,7 @@ node --test lib/__tests__/video-guia-formularios.test.mjs
 GUIA=formularios node --test lib/__tests__/miniaturas-guia-leads.test.mjs
 node --test lib/__tests__/fin-de-la-guia.test.mjs
 node --test lib/__tests__/menu-de-la-guia.test.mjs
+node --test lib/__tests__/pulsar-con-un-aviso-encima.test.mjs
 
 if [ ! -d .next/static/css ]; then
   echo "(sin build: se salta la mitad del navegador)"; exit 0

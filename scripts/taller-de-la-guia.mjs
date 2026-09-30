@@ -469,7 +469,63 @@ export async function mover(p, locator) {
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
     await espera(p, 250);
 }
+/**
+ * Cuánto se espera, como mucho, a que se vaya un aviso que tapa lo que hay que
+ * pulsar. Un aviso de sonner dura 4 s y tarda medio en irse: si a los 12 sigue
+ * ahí, no se está yendo solo, y esperar más sería un vídeo mudo.
+ */
+export const ESPERA_POR_UN_AVISO_MS = 12000;
+
+/**
+ * Si un AVISO (sonner) tapa el centro de `locator`, dónde empieza por la
+ * izquierda lo que ocupan los avisos; si no lo tapa nada, `null`. Se le
+ * pregunta al navegador qué hay en ese punto (`elementFromPoint`), que es lo
+ * único que sabe lo que se lleva el clic: la caja del botón dice que está ahí
+ * aunque esté debajo de otra cosa.
+ */
+export async function queAvisoTapa(p, locator) {
+    const b = await locator.boundingBox();
+    if (!b) return null;
+    return p.evaluate(({ x, y }) => {
+        const encima = document.elementFromPoint(x, y);
+        const avisos = encima?.closest("[data-sonner-toaster]");
+        if (!avisos) return null;
+        let izquierda = avisos.getBoundingClientRect().left;
+        for (const t of avisos.querySelectorAll("[data-sonner-toast]")) izquierda = Math.min(izquierda, t.getBoundingClientRect().left);
+        return { izquierda };
+    }, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+}
+
+/**
+ * Los avisos salen abajo a la derecha, y lo que viva ahí —el botón de la
+ * última tarjeta de una pantalla, pegada al borde de abajo porque no queda más
+ * página que desplazar— se queda DEBAJO de uno durante sus 4 s. Y no solo
+ * debajo de lo que se ve: cada aviso lleva por encima una franja invisible de
+ * 15 px (`[data-sonner-toast]::after`, para no perder el puntero al pasar de un
+ * aviso a otro), así que tapa también lo que asoma justo encima.
+ *
+ * El clic se lo lleva el aviso y no pasa nada, sin ningún error. Y el ratón no
+ * puede esperar ENCIMA: sonner no quita un aviso mientras el puntero está sobre
+ * él, así que esperar ahí es esperar para siempre. Como haría una persona, el
+ * cursor se acerca, se queda justo a la izquierda de los avisos y pulsa en
+ * cuanto se va el que tapa. Lo que se espera es lo que le quede al aviso, y la
+ * narración sigue sonando mientras tanto: no es un `quitarAvisos`.
+ */
+export async function sinAvisoEncima(p, locator) {
+    const tapa = await queAvisoTapa(p, locator);
+    if (!tapa) return;
+    const b = await locator.boundingBox();
+    await p.mouse.move(Math.max(4, tapa.izquierda - 28), b.y + b.height / 2, { steps: 22 });
+    const desde = Date.now();
+    while (await queAvisoTapa(p, locator)) {
+        if (Date.now() - desde > ESPERA_POR_UN_AVISO_MS) throw new Error(`[guia] un aviso sigue tapando lo que había que pulsar: ${locator}`);
+        await espera(p, 100);
+    }
+    console.log(`  · un aviso tapaba lo que había que pulsar: se esperó ${Date.now() - desde} ms a que se fuera`);
+}
+
 export async function pulsar(p, locator) {
+    await sinAvisoEncima(p, locator);
     await mover(p, locator);
     await p.mouse.down();
     await espera(p, 90);
