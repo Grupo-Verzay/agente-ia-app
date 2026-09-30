@@ -19384,7 +19384,10 @@ vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
 con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
 del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
 los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
-sigue la cadena): mejor callar que cantar un fallo que no existe.
+sigue la cadena): mejor callar que cantar un fallo que no existe. Y una
+variable **desestructurada** también es una exportación: `export const {
+laSeccion, lasVecinas } = GUIA` exporta esos dos. Sin recorrer el patrón, el
+banco cantaba en rojo las páginas de todas las guías públicas.
 
 > **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
 > culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
@@ -23413,10 +23416,137 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
-### La sexta guía, Agente IA: la pantalla Y su editor, y las ocho pestañas de UNA fuente
+### La sexta guía, Google Sheets: y documentarla destapó una pantalla que se quedaba en blanco
+
+`/guia/google-sheets` documenta Integraciones › Google Sheets
+(`/google-sheets`) con el estándar de las cinco anteriores: ocho secciones
+—vista general, vincular, tu hoja, copiar el enlace, cambiar de hoja, quitar
+la hoja, un enlace que no sirve y las respuestas de las citas—, una miniatura
+con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO
+ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/google-sheets`:
+«Aprende a vincular y consultar tu hoja de Google Sheets en la plataforma».
+Ninguna pieza propia: contenido con `laGuiaDe`, capturas con el taller, el
+marco con `sembrarElMarco`. Se regenera con
+`npm run build && scripts/generar-guia-google-sheets.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| se guardaba CUALQUIER texto: un documento, una carpeta de Drive o el enlace de «Publicar en la web» quedaban guardados, el campo se escondía —ya había algo— y no se pintaba ninguna hoja —no era una—. Pantalla en blanco para siempre y sin un solo error | lo decide `laHojaQueSeGuarda` (`lib/url-de-google-sheets.ts`, pura), y la preguntan la pantalla antes de mandar y la acción antes de escribir. Lo que no sirve se dice con su motivo bajo el campo, que se queda a la vista; y una hoja mala ya guardada abre el campo con «El enlace guardado no sirve» |
+| se guardaba lo pegado (`?usp=sharing`, dos `gid`…) | se guarda el enlace LIMPIO (`/edit`, con su pestaña) y la acción devuelve lo que quedó escrito, que es lo que se pinta |
+| nada decía con qué correo compartir la hoja, y sin compartirla la plataforma no puede escribir en ella | el paso 1 de vincular enseña el correo de la cuenta de servicio (`getServiceAccountEmail`), con su botón de copiar |
+| escribir la respuesta de una cita en la hoja fallaba EN SILENCIO (`catch {}`) | sigue sin tumbar la cita, y se dice (`[google-sheets] no se pudo escribir…`) |
+| la regla del id de una hoja estaba COPIADA en dos acciones | `elIdDeLaHoja`, una vez, y el banco la compara con la copia de antes entrada por entrada: cambiarla cambiaría a qué hoja escriben las integraciones que ya funcionan |
+| copiar el enlace sin `try`: sin HTTPS el portapapeles lanza | en su `try`, y si falla se dice qué hacer |
+| la barra de la hoja eran iconos sin palabra y no se podía quitar la hoja | Cambiar hoja, Copiar enlace y Abrir, con su palabra, y «Quitar hoja» con confirmación; quitar guarda «sin hoja» (`''`), como siempre |
+| la página pedía `sheetsFormName` y `sheetsRegistroName` y no los usaba nadie | ya no los pide |
+
+Cinco cosas que hay que mantener:
+
+1. **El correo que enseña la guía es de EJEMPLO**
+   (`hojas@plataforma-ejemplo.iam.gserviceaccount.com`, en
+   `scripts/generar-guia.sh`): la guía es pública y el de verdad no se publica.
+2. **La hoja es un SIMULACRO** servido por Playwright en `docs.google.com`: una
+   rejilla de 40 filas con sus pestañas. Las filas con datos son
+   `[data-fila]` —debajo siguen filas vacías, así que la última con datos es
+   `.last()`, nunca `:last-of-type`—.
+3. **El cursor entra en el iframe**: dentro de un marco el ratón se mueve en
+   OTRO documento y la página de arriba deja de recibir sus `mousemove`, así
+   que `cursor-de-la-guia.mjs` hace que el marco le cuente a la página dónde
+   está la punta y qué forma toca (`postMessage`), y la pinta ella. Vale para
+   cualquier guía con un iframe.
+4. **El vídeo no quita la hoja ni confirma nada**: señala «Quitar hoja» y
+   enseña un enlace que no sirve con su motivo, sin cambiar los datos delante
+   de la cámara.
+5. **La sección de las citas dice lo que el código escribe**: la pestaña y las
+   columnas se comparan con `SHEET_NAME` y `HEADERS` de
+   `booking-form-actions.ts`.
+
+Lo prueban `scripts/banco-google-sheets.sh` —la regla y un barrido, la acción
+contra Postgres y la pantalla real en Chromium (enlace malo sin mandar, bueno
+guardado limpio, la barra con palabra, copiar que falla, quitar con
+confirmación)— y `scripts/banco-guia-google-sheets.sh` —el contenido contra
+el código, el vídeo, las miniaturas (`GUIA=google-sheets`) y la guía servida—.
+Los dos con `MODO=roto` contra `ab6b110`, que afirma que se guardaba cualquier
+texto, que no había guía y que la barra no tenía palabras.
+
+### La séptima guía, Integrar URLs: y documentarla destapó que la pantalla guardaba cualquier cosa
+
+`/guia/integraciones` documenta Apps Externas › Integrar urls (`/integraciones`)
+con el estándar de las otras seis: siete secciones —vista general, agregar,
+tu app dentro de los chats, abrir y editar, ordenar y buscar, eliminar, y
+cuando una app no se abre—, una miniatura con enfoque por tarjeta y el vídeo
+de un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/integraciones` (`GUIAS_PUBLICADAS`): «Guía de
+Integrar URLs» · «Aprende a abrir tus apps web dentro de tus chats en la
+plataforma». Siete secciones y no ocho a propósito: el cierre de la cuadrícula
+deja la página simétrica tenga las que tenga (con siete, «Contáctanos» y «Ver
+el vídeo de nuevo» en escritorio), y la entrada de las apps en el menú
+(`#user-integrations`) no la tiene el menú de un cliente, así que no se
+documenta.
+
+No trae ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Se regenera con
+`npm run build && scripts/generar-guia-integraciones.sh && npm run build`. La
+semilla siembra cuatro apps y cuatro conversaciones, porque media guía es ver
+las apps como pestañas de un chat; sus direcciones son de `mi-negocio.co` y
+las contesta la receta con una página de ejemplo (`ctx.route`), así que no
+dependen de ninguna web ajena. `CON_UNA_ROTA=1` añade la app con la dirección
+vieja que enseña el aviso amarillo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+La pantalla guardaba lo que se escribiera, tal cual, y ninguno de estos fallos
+daba un error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| una dirección `javascript:` se **ejecutaba** al abrir la pestaña de la app en Chats: se pinta en un `<iframe>` y en un enlace, y el React de Next 14 no la bloquea (solo avisa) | solo se guardan `http`/`https` con dominio (`comoUrlDeIntegracion`), y lo que se ABRE pasa por la misma regla (`laUrlQueSeAbre`) en la pestaña, en «Abrir en nueva pestaña» y en el menú; y el `<iframe>` común (`IframeRenderer`, que usan también Evo, Copiloto y Canva) descarta cualquier esquema que no sea web (`sePuedeIncrustar`) |
+| una dirección sin `https://` abría **la propia App** dentro de la pestaña (el navegador la lee como ruta relativa) | se le pone `https://` al guardar, y una fila vieja se abre bien |
+| el «máx. 10» de la pastilla no existía: la acción aceptaba la undécima | `TOPE_DE_INTEGRACIONES`, en la acción; «Nuevo» se apaga y el pie lo dice |
+| dos apps con el mismo nombre: dos pestañas iguales en Chats | se rechaza, sin mirar mayúsculas ni tildes (`yaExisteElNombre`) |
+| borrar era de un clic, sin confirmar | pide confirmación; la fila se quita al momento y vuelve si el servidor dice que no |
+| al borrar la ÚLTIMA volvía a salir (`store.length > 0 ? store : initial`) | el store se siembra con lo del servidor y manda él |
+| cuatro pastillas arriba que no filtraban nada —dos repetían el total— | se fueron; la cifra va en el pie, debajo, como dice la regla de las métricas |
+| crear y editar eran dos formularios en línea distintos, en dos columnas | UNA ventana con la forma de «Crear contacto» de Leads |
+| una posición nueva = número de filas: tras borrar una del medio, dos filas en el mismo sitio | la siguiente a la última |
+| editar o borrar una fila que ya no estaba **reventaba** (`update`/`delete` de Prisma) | `updateMany`/`deleteMany` con su cuenta; y reordenar va en una transacción |
+| con una búsqueda puesta se podía arrastrar una lista a la que le faltaban filas | el asa se apaga y el pie dice por qué |
+| en `/canva` se encendían TODAS las apps del menú a la vez | se enciende la que se abrió (`canvaUrl === sub.url`) |
+
+Cinco cosas que hay que mantener:
+
+1. **Las reglas son UNA, `lib/integraciones.ts` (pura)**, y pasan por ella los
+   cinco sitios: la acción que guarda, la pantalla, la pestaña de Chats, el
+   `<iframe>` común y el menú. Con la regla en uno solo, el quinto la olvida.
+2. **Lo que se guarda es lo que se escribió**, con `https://` delante si no lo
+   traía, y no el `href` normalizado: el `href` le pone una barra al final y la
+   fila diría otra cosa que lo tecleado.
+3. **El `<iframe>` común admite rutas de la casa** (`/copiloto`, `/canva?u=`):
+   ahí las direcciones las pone la plataforma. Lo único que cierra es un
+   esquema que no sea web, decidido con el mismo analizador del navegador
+   (`java\tscript:` o un espacio delante no se cuelan).
+4. **Las apps son de la PERSONA** (`userId = user.id`, como siempre); ninguna
+   acción toca las de otra cuenta, y lo prueba el banco.
+5. **Algunas webs no dejan abrirse dentro de otra** (`X-Frame-Options`): eso no
+   se puede arreglar desde aquí, y la guía lo dice —«Abrir en nueva pestaña»—.
+
+Lo prueban `scripts/banco-integraciones.sh` —las reglas, un barrido de los
+cinco sitios y las cinco acciones contra Postgres; `MODO=roto` corre las de
+`ab6b110` y afirma la `javascript:` guardada, la undécima aceptada y la
+edición que revienta— y `scripts/banco-guia-integraciones.sh`: el contenido
+contra el código (los mandos de la fila, los campos de la ventana, el orden de
+las pestañas en Chats), el vídeo, las miniaturas (`GUIA=integraciones`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las siete guías— y la guía
+servida a 390 y 1440; `MODO=roto` lee `ab6b110` y afirma que no había guía.
+El test de miniaturas dejó de exigir «al menos ocho secciones» (era la octava
+de Leads): ahora compara las secciones leídas con las de la guía compilada.
+
+### La octava guía, Agente IA: la pantalla Y su editor, y las ocho pestañas de UNA fuente
 
 `/guia/agente-ia` documenta Entrenamiento › Agente IA (`/ia`) **y su editor
-interno** con el estándar de las cinco guías anteriores: diez secciones —vista
+interno** con el estándar de las siete guías anteriores: diez secciones —vista
 general, canales, perfil, pasos, acciones y respuestas de un paso, preguntas
 productos y extras, palabras clave, gestión, cotizaciones, y guardar y más
 opciones—, una miniatura con enfoque por tarjeta y el vídeo narrado con la voz
@@ -23479,7 +23609,7 @@ Cuatro cosas que hay que mantener:
 Lo prueban `scripts/banco-guia-agente-ia.sh` —la pantalla
 (`pestanas-del-agente`), el contenido contra el código, el vídeo medido como el
 de Mis notas, las miniaturas en sus píxeles (`GUIA=agente-ia`),
-`fin-de-la-guia` y `menu-de-la-guia` —que barren las seis guías— y la guía
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las ocho guías— y la guía
 servida a 390 y 1440—. `MODO=roto` lee `ab6b110` para afirmar los fallos de la
 pantalla y `24ba0b2` para afirmar que no había guía, ni vídeo, ni miniaturas,
 ni marcas en la pantalla.
@@ -23580,6 +23710,87 @@ pago) llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea):
 con el contenedor ancho se leerían a 140. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
 1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
+
+## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
+
+`/demo` es una página pública (noindex, sin sesión) con un vídeo de menos de dos
+minutos para que un lead lo vea antes de agendar: la historia de una clínica
+contada en **tres pantallas a la vez** —el celular del negocio, WhatsApp Web y
+el **panel de Verzay de verdad**—, con la voz Cedar y el ritmo de las guías.
+
+Se genera con `npm run build && scripts/generar-video-de-ventas.sh` y **después
+se vuelve a construir** (`next start` solo sirve lo que había en `public/`).
+`ENSAYO=1` graba sin tocar `public/demo/` y deja una captura por escena en
+`/tmp/video-de-ventas`.
+
+> **Lo que es de verdad y lo que no se dice en la propia página**
+> (`LO_QUE_ES_EL_VIDEO`, `lib/video-de-ventas.ts`): el panel es la App servida
+> con `next start` leyendo la base que va escribiendo la historia; el celular y
+> WhatsApp Web son recreaciones fieles; las respuestas de la IA siguen un guion
+> (`scripts/video-de-ventas/historia.mjs`). Un lead que después ve la plataforma
+> no puede sentir que el vídeo le mintió.
+
+### Cómo se graba sin fingir el panel
+
+- **Cada mensaje lo escribe `backend.mjs` en la base como lo haría el webhook**
+  —mismo tipo, `sentByAi`, transcripción, adjunto— y **el aviso en vivo sale por
+  el mismo socket que en producción**: `tiempo-real.mjs` sirve socket.io v4 sobre
+  sondeo desde Playwright, y la App pide su token y se conecta como siempre. Sin
+  eso el panel solo se enteraría por sus relojes de respaldo, que es lo que ve
+  una cuenta con el socket caído y no un cliente.
+- **La historia salta horas con un reloj falso** (`clock.setSystemTime`: del
+  mensaje al seguimiento, y al día del recordatorio). Por eso el `pingTimeout`
+  del socket emulado es de una semana (`PLAZO_DEL_PING_MS`): engine.io mide su
+  plazo con `Date.now()` y cada salto cerraba la conexión; el aviso que caía en
+  ese segundo no le llegaba a nadie. **Un aviso que no llega a ninguna pestaña
+  tumba la grabación de verdad**; en un ensayo solo avisa.
+- **Lo que viaja en la conversación sale de `MEDIOS`**, también lo que se sirve
+  al estudio. Con la lista escrita a mano se quedó sirviendo un `.mp4` viejo
+  cuando el vídeo pasó a `.webm`: 404, y el vídeo de WhatsApp Web se quedaba en
+  su portada sin decir nada. **Un vídeo que el estudio no puede pintar también
+  tumba la grabación.**
+- **Dentro de la grabación los vídeos van en WebM VP9** (el Chromium de
+  Playwright no trae H.264) y se sirven como `video/webm`. El vídeo publicado sí
+  es H.264 + AAC, que se reproduce en cualquier sitio.
+- **El vídeo se graba con `grabadora-de-la-guia.mjs`, nunca con `recordVideo`**
+  (estira las animaciones y la imagen se despega de la voz; ver la sección de
+  las guías).
+
+### Lo que hubo que arreglar en la App para poder grabarlo
+
+Grabar la App de verdad destapó tres fallos que un cliente también ve:
+
+1. **El borrador de un aviso en vivo no se sustituía nunca**
+   (`lib/aviso-en-vivo-del-chat.ts`). La conversación abierta pinta al instante
+   lo que trae el socket como texto plano; el mensaje de verdad —con su
+   reproductor, su archivo y su «Agente IA»— lo trae el reloj con el MISMO id y
+   la misma hora, así que `areListsDifferent` no veía nada nuevo y el borrador
+   se quedaba: una nota de voz como «🎧 Audio» sin reproductor, un PDF como su
+   etiqueta, la IA firmada «Asesor». Ahora el borrador lleva `DEL_AVISO_EN_VIVO`
+   y mientras la respuesta del reloj traiga su versión real, la lista cambió.
+2. **La ficha, la cabecera y la etapa no se enteraban de lo que la IA hacía**
+   (`lib/crm-de-la-conversacion-abierta.ts`): al entrar un mensaje NUEVO en la
+   conversación abierta se vuelve a leer lo de ESA conversación, agrupando la
+   ráfaga. No es un reloj nuevo: el de sesiones sigue a 60 s.
+3. **Un chat que nace no salía hasta el reloj de la lista**: el servidor
+   recuerda la bandeja 10 s (`MEMORIA_DE_LA_BANDEJA_MS`) y la primera vuelta
+   traía la foto de antes. Hay una segunda vuelta pasada esa memoria
+   (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
+
+### La página
+
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las ocho capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, dos filas de cuatro o cuatro de
+dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
+`noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
+(`/demo/:path*`, también el vídeo).
+
+Lo prueba `scripts/banco-video-de-ventas.sh`: el borrador que se sustituye (con
+la `areListsDifferent` sacada del fichero), el CRM de la conversación abierta,
+la historia y el estudio, la voz Cedar completa y el guion, el vídeo publicado
+medido con ffmpeg (H.264 1920×1080, menos de dos minutos, sin huecos mudos) y la
+página servida sin sesión a 390 y 1440. `MODO=roto` saca la función de
+`316b70c` y afirma que el borrador se quedaba y que no había ni vídeo ni página.
 
 ## Cómo reportar al terminar
 

@@ -55,7 +55,13 @@ export const ICONOS_DE_SECCION = [
     "History",
     "FileStack",
     "Archive",
+    "Sheet",
+    "ExternalLink",
+    "ArrowLeftRight",
+    "TriangleAlert",
     "ClipboardList",
+    "Unlink",
+    "Trash2",
     "FileText",
 ] as const;
 

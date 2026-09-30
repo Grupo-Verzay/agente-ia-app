@@ -46,6 +46,7 @@ import { PanelLateral } from '@/components/shared/PanelLateral';
 import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { Session } from '@/types/session';
+import { mezclarLaFicha } from '@/lib/crm-de-la-conversacion-abierta';
 
 /* ── Contact data fields (dinámicos por usuario) ───────────── */
 // Los datos se guardan como JSON flexible, así que la ficha admite cualquier
@@ -223,6 +224,12 @@ interface ContactInfoPanelProps {
   onClose: () => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
+  /**
+   * Sube cuando entra un mensaje nuevo en la conversación abierta
+   * (`lib/crm-de-la-conversacion-abierta.ts`): los datos de la ficha se vuelven
+   * a leer, que es lo que hace que lo que rellena la IA se vea sin reabrir.
+   */
+  refrescar?: number;
 }
 
 /* ── Panel ─────────────────────────────────────────────────── */
@@ -291,6 +298,7 @@ function FichaDeContacto({
   onClose,
   onSessionMutate,
   onSessionRefresh,
+  refrescar,
   configOpen,
   setConfigOpen,
 }: ContactInfoPanelProps & { configOpen: boolean; setConfigOpen: (v: boolean) => void }) {
@@ -339,6 +347,10 @@ function FichaDeContacto({
     return () => { cancelled = true; };
   }, [ownerId]);
 
+  // Lo último que se leyó de la base: dice qué campos tocó la persona y no
+  // guardó todavía (ver el refresco de más abajo).
+  const ultimoLeidoRef = useRef<ContactFields>({});
+
   /* Load external contact data */
   useEffect(() => {
     if (!remoteJid) { setLoadingData(false); return; }
@@ -350,11 +362,41 @@ function FichaDeContacto({
         const loaded: ContactFields = {};
         for (const [k, v] of Object.entries(d)) loaded[k] = String(v ?? '');
         setFields(loaded);
+        ultimoLeidoRef.current = loaded;
       }
       if (!cancelled) setLoadingData(false);
     });
     return () => { cancelled = true; };
   }, [ownerId, remoteJid]);
+
+  /*
+   * Vuelve a leer los datos cuando entra un mensaje nuevo, SIN la carga: la
+   * ficha ya está pintada y un parpadeo en cada mensaje se lee como un fallo.
+   * Lo que la persona está tecleando y todavía no guardó se queda como lo tiene
+   * delante (`mezclarLaFicha`).
+   */
+  const refrescarAntes = useRef(refrescar);
+  useEffect(() => {
+    if (refrescarAntes.current === refrescar) return;
+    refrescarAntes.current = refrescar;
+    if (!remoteJid) return;
+    let cancelled = false;
+    getExternalClientDataByRemoteJid(ownerId, remoteJid)
+      .then((rec) => {
+        if (cancelled) return;
+        const fresca: ContactFields = {};
+        if (rec?.data && typeof rec.data === 'object') {
+          for (const [k, v] of Object.entries(rec.data as Record<string, unknown>)) fresca[k] = String(v ?? '');
+        }
+        setFields((enPantalla) => mezclarLaFicha(enPantalla, ultimoLeidoRef.current, fresca));
+        ultimoLeidoRef.current = fresca;
+      })
+      .catch((error) => {
+        // Callado se vería como una ficha que no se entera; que diga por qué.
+        console.warn('[chats] no se pudo volver a leer la ficha', { remoteJid, error });
+      });
+    return () => { cancelled = true; };
+  }, [refrescar, ownerId, remoteJid]);
 
   /* Sync name draft when contact changes */
   useEffect(() => { setNameDraft(displayedContactName); }, [displayedContactName]);
@@ -434,6 +476,9 @@ function FichaDeContacto({
     if (pendingRef.current) clearTimeout(pendingRef.current);
     try {
       await upsertExternalClientData(ownerId, remoteJid, fields, 'manual');
+      // Guardado: ya no es algo «tocado sin guardar», y lo que la IA escriba
+      // después en ese campo tiene que poder verse.
+      ultimoLeidoRef.current = { ...ultimoLeidoRef.current, ...fields };
     } catch {
       toast.error('No se pudo guardar');
     }
