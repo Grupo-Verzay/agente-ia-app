@@ -449,8 +449,15 @@ body::before {
 #portatil .pantallaApp { position: absolute; left: ${PORTATIL.lado}px; top: ${PORTATIL.arriba}px; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.barra + PORTATIL.pantalla.alto}px; background: #fff; overflow: hidden; border-radius: 4px; }
 #portatil .barraNav { height: ${PORTATIL.barra}px; background: #e8ebf0; }
 #portatil .capas { position: relative; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; }
-#portatil iframe { position: absolute; left: 0; top: 0; display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff; opacity: 0; transition: opacity .6s ease; }
-#portatil iframe.on { opacity: 1; }
+/* Las capas que no se ven van con visibility:hidden, no solo transparentes: con
+   opacity 0 Chromium las sigue rasterizando, y cuatro pantallas de la App a
+   1440×900 agotan la memoria de raster del compositor sin cabeza —ninguna se
+   pinta y el portátil sale con teselas viejas o en blanco—. La visibilidad
+   espera a que acabe el fundido, así la que sale se sigue viendo mientras se
+   va. */
+#portatil iframe { position: absolute; left: 0; top: 0; display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff;
+  opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s linear .6s; }
+#portatil iframe.on { opacity: 1; visibility: visible; transition: opacity .6s ease, visibility 0s; }
 #portatil .base { position: absolute; left: -${PORTATIL.base.sobra}px; right: -${PORTATIL.base.sobra}px; top: ${PORTATIL.alto}px; height: ${PORTATIL.base.alto}px;
   border-radius: 0 0 22px 22px; background: linear-gradient(180deg,#c9ced6 0%,#9aa1ac 55%,#6c727d 100%); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
 #portatil .base::before { content: ""; position: absolute; top: 0; left: 50%; width: 200px; margin-left: -100px; height: 8px; border-radius: 0 0 10px 10px; background: #868d98; }
