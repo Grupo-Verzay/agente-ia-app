@@ -59,6 +59,12 @@ export const ICONOS_DE_SECCION = [
     "Database",
     "BookOpen",
     "Layers",
+    "Sheet",
+    "ExternalLink",
+    "ArrowLeftRight",
+    "TriangleAlert",
+    "ClipboardList",
+    "Unlink",
 ] as const;
 
 export type Seccion = {

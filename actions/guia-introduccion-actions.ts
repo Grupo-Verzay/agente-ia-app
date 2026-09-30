@@ -9,6 +9,7 @@ import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
 import { GUIA_MIS_DATOS } from "@/lib/guia-mis-datos";
+import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -29,6 +30,11 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
         titulo: GUIA_MIS_DATOS.titulo,
         subtitulo: GUIA_MIS_DATOS.subtitulo,
         descripcion: GUIA_MIS_DATOS.descripcion,
+    },
+    "google-sheets": {
+        titulo: GUIA_GOOGLE_SHEETS.titulo,
+        subtitulo: GUIA_GOOGLE_SHEETS.subtitulo,
+        descripcion: GUIA_GOOGLE_SHEETS.descripcion,
     },
 };
 

@@ -174,8 +174,8 @@ export const GUIA_MIS_DATOS: Contenido = {
                 {
                     titulo: "Iniciar importación",
                     texto:
-                        "El registro de actividad va contando cada paso, y el resumen dice cuántos se crearon, cuántos se " +
-                        "actualizaron, cuántos fallaron y el total.",
+                        "El registro de actividad va contando cada paso, y el resumen lo dice en cuatro números: Creados, " +
+                        "Actualizados, Errores y Total.",
                     imagen: "sheets-resultado.webp",
                     alt: "El registro de actividad y el resumen de la importación",
                 },
