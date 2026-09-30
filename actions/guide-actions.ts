@@ -1,7 +1,7 @@
 ﻿'use server';
 
 import { db } from "@/lib/db"; // Adjust the path if necessary
-import { GuideUrl } from "@prisma/client";
+import { juntarLosTutoriales, type TutorialDelModulo } from "@/lib/tutoriales-del-modulo";
 
 // Get all guides (global, no filter by userId)
 export async function getAllGuides() {
@@ -108,9 +108,15 @@ export async function deleteGuide(id: string) {
  * de `/panel`. La raíz `/` se queda fuera a propósito —si contara, su tutorial
  * saldría en toda la App—, salvo cuando se está justo en ella.
  */
-export async function getGuidesForPath(path: string) {
+export async function getGuidesForPath(path: string): Promise<TutorialDelModulo[]> {
   const actual = (path || '/').replace(/\/+$/, '');
-  if (!actual) return db.guideUrl.findMany({ where: { path: '/' } });
+  if (!actual) {
+    const raiz = await db.guideUrl.findMany({
+      where: { path: '/' },
+      select: { id: true, path: true, title: true, description: true, url: true },
+    });
+    return juntarLosTutoriales(raiz, ['/']);
+  }
 
   const segmentos = actual.split('/').filter(Boolean);
   const candidatos = segmentos.map((_, i) => '/' + segmentos.slice(0, i + 1).join('/'));
@@ -151,8 +157,10 @@ export async function getGuidesForPath(path: string) {
 
   const guides = await db.guideUrl.findMany({
     where: { path: { in: candidatos } },
+    select: { id: true, path: true, title: true, description: true, url: true },
   });
 
-  // El más específico primero: si hay uno de la pantalla exacta, ese encabeza.
-  return guides.sort((a, b) => b.path.length - a.path.length);
+  // Más las guías publicadas en /guia/<modulo>, que se registran en código
+  // (`lib/tutoriales-del-modulo.ts`) y no piden un paso manual en el panel.
+  return juntarLosTutoriales(guides, candidatos);
 }
