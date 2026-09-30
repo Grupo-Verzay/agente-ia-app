@@ -10790,6 +10790,39 @@ Dos reglas:
    guardar el mensaje, de registrar el lead y de despertar a la IA. Va **después**
    de aprender el par `@lid` → número de los grupos, que eso sí interesa.
 
+## El primer mensaje a un lead guardado a mano: el número va LIMPIO, y Waha confirma a quién
+
+«Crear contacto» (Leads) guardaba el número tal cual se tecleó —`+507 6027-0754`—
+pegándole `@s.whatsapp.net`, y ninguna capa lo limpiaba. El primer mensaje a ese
+lead salía a Waha como `+50760270754@c.us`, y **Waha no contesta a eso**: el envío
+agotaba sus 15 s, salía «el servidor no contestó a tiempo» y al cliente no le
+llegaba nada (visto en producción el 2026-09-30, línea MULTIGAMA). A una
+conversación que empezó el lead no le pasa: ese número lo pone WhatsApp, limpio.
+
+Tres cosas, y hacen falta las tres:
+
+1. **El formato se quita en `cleanValue`** (`sinFormatoDeTelefono`,
+   `lib/whatsapp-jid.ts`), igual que el sufijo de dispositivo: `+`, espacios,
+   guiones, paréntesis y puntos, solo en un JID de teléfono (`@s.whatsapp.net` /
+   `@c.us`) o en un valor sin arroba. `canonicalToWahaJid` y
+   `wahaJidToCanonical` pasan por la misma función. `buildWhatsAppJidCandidates`
+   conserva además la forma LITERAL, para que una ficha vieja se siga encontrando.
+2. **Las dos pantallas que crean un lead a mano** («Crear contacto» y
+   `LeadCreateForm`) arman el JID con `jidDelTelefonoTecleado` y piden al menos
+   8 dígitos; el servidor limpia igual (`registrarLaSesion` → `cleanValue`).
+3. **Waha confirma el destinatario antes de enviar**, como ya hacía Evolution
+   (`resolveWhatsAppJid`): `destinoSegunWaha` pregunta a
+   `GET /api/contacts/check-exists` (0,1-0,2 s medidos), manda al número (`pn`),
+   recuerda la respuesta 30 min, y va dentro de `sendWahaText`/`sendWahaMedia`,
+   que es por donde sale TODO envío a Waha. `numberExists: false` se dice al
+   momento («El número +X no tiene WhatsApp»); si la consulta falla o tarda, se
+   envía con lo que había.
+
+Lo prueba `scripts/banco-primer-mensaje-a-un-lead.sh`, con un Waha de mentira
+que se cuelga igual que el real ante un `chatId` que no es solo dígitos.
+`MODO=roto` empaqueta la misma cadena con `lib/` de `c7fbb82` y afirma el
+cuelgue de 15 s.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto

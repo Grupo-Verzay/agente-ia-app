@@ -11,6 +11,8 @@
  * difusiones.
  */
 
+import { sinFormatoDeTelefono } from '@/lib/whatsapp-jid';
+
 const CANONICAL_USER_SUFFIX = '@s.whatsapp.net';
 const WAHA_USER_SUFFIX = '@c.us';
 
@@ -37,7 +39,7 @@ function sinSufijoDeDispositivo(jid: string): string {
  * igual que en el backend (`waha-jid.util.ts`).
  */
 export function wahaJidToCanonical(value?: string | null): string {
-  const raw = sinSufijoDeDispositivo((value ?? '').trim());
+  const raw = sinFormatoDeTelefono(sinSufijoDeDispositivo((value ?? '').trim()));
   if (!raw) return '';
   if (raw.toLowerCase().endsWith(WAHA_USER_SUFFIX)) {
     return `${raw.slice(0, -WAHA_USER_SUFFIX.length)}${CANONICAL_USER_SUFFIX}`;
@@ -45,8 +47,13 @@ export function wahaJidToCanonical(value?: string | null): string {
   return raw;
 }
 
+/**
+ * El `+`, los espacios y los guiones de un número tecleado se quitan aquí
+ * también (`sinFormatoDeTelefono`): con ellos dentro Waha no contesta y el
+ * envío agota su plazo.
+ */
 export function canonicalToWahaJid(value?: string | null): string {
-  const raw = sinSufijoDeDispositivo((value ?? '').trim());
+  const raw = sinFormatoDeTelefono(sinSufijoDeDispositivo((value ?? '').trim()));
   if (!raw) return '';
   if (raw.toLowerCase().endsWith(CANONICAL_USER_SUFFIX)) {
     return `${raw.slice(0, -CANONICAL_USER_SUFFIX.length)}${WAHA_USER_SUFFIX}`;
