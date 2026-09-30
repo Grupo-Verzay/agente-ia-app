@@ -39,6 +39,13 @@ export const ICONOS_DE_SECCION = [
     "Share2",
     "SlidersHorizontal",
     "Store",
+    "PlusCircle",
+    "Users",
+    "FolderOpen",
+    "PenLine",
+    "GitBranch",
+    "StickyNote",
+    "LayoutGrid",
 ] as const;
 
 export type Seccion = {

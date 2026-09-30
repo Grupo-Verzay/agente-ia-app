@@ -24,6 +24,7 @@ import {
     LIBRE_POR_DEFECTO,
 } from './diagrama-node-types';
 import { SourceDotHandle } from './SourceDotHandle';
+import { SALIDAS_DE_LA_DECISION_PCT, elAbanicoDeLosMas } from '@/lib/abanico-de-los-mas';
 import { useSoloLectura } from './FlowReadOnlyContext';
 import { IdeaNode, type IdeaAjustes } from './IdeaNode';
 
@@ -219,6 +220,7 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
     });
 
     const size = data.size ?? 'md';
+    const abanico = elAbanicoDeLosMas(SIZE_PX[size].caja);
     const t = SIZE_TOKENS[size];
     const currentCardAction = diagramaActions.find((a) => a.type === data.tipo);
     const Icon = currentCardAction?.icon ?? MessageSquareIcon;
@@ -274,14 +276,52 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
 
     return (
         <div className={`group relative ${isLibre ? '' : caja.wrapper} text-center`} style={estiloWrapper}>
+            {/* barra de acciones: oculta hasta que se pasa el mouse por el
+                nodo, y no existe en un diagrama de lectura. Va ENCIMA del
+                nombre y centrada: pegada a la esquina de la caja se montaba
+                sobre la mitad derecha del nombre. Con `pb-1` y no un margen,
+                para que entre el nodo y la barra no quede un hueco donde el
+                cursor pierda el `group-hover` al subir a pulsarla. */}
+            {!soloLectura && (
+            <div className="nodrag absolute bottom-full left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 pb-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                    type="button"
+                    title={`Tamaño: ${SIZE_LABEL[size]} (clic para cambiar)`}
+                    onClick={() => data.onChangeSize(id, NEXT_SIZE[size])}
+                    className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-[9px] font-semibold text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
+                >
+                    {SIZE_LABEL[size]}
+                </button>
+                <button
+                    type="button"
+                    title="Duplicar nodo"
+                    onClick={() => data.onDuplicate(id)}
+                    className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
+                >
+                    <Copy className="h-2.5 w-2.5" />
+                </button>
+                <button
+                    type="button"
+                    title="Eliminar nodo"
+                    onClick={() => data.onDelete(id)}
+                    className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-destructive/50 hover:text-destructive"
+                >
+                    <Trash2 className="h-2.5 w-2.5" />
+                </button>
+            </div>
+            )}
             {/* El nombre va ARRIBA del cuadro y se edita ahi mismo: es un input
-                sin borde que se ve como texto hasta que se le hace foco. */}
+                sin borde que se ve como texto hasta que se le hace foco.
+                En un diagrama de lectura es solo texto: se escribia en el, no
+                se guardaba y al recargar volvia el nombre de antes. */}
             <input
                 value={data.label}
                 onChange={(e) => data.onChangeLabel(id, e.target.value)}
+                readOnly={soloLectura}
+                tabIndex={soloLectura ? -1 : undefined}
                 placeholder={currentCardAction?.label ?? 'Nombre del paso'}
-                title="Nombre del paso (se puede editar aquí)"
-                className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 hover:border-border focus:border-primary focus-visible:ring-0 ${t.title}`}
+                title={soloLectura ? data.label : 'Nombre del paso (se puede editar aquí)'}
+                className={`nodrag mb-1.5 w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-center font-semibold leading-tight text-foreground outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 ${soloLectura ? 'cursor-default' : 'hover:border-border focus:border-primary'} ${t.title}`}
             />
 
             <div className={`relative mx-auto ${isLibre ? '' : caja.box}`} style={estiloCaja}>
@@ -312,10 +352,13 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
                     />
                 )}
 
+                {/* En un diagrama de lectura la caja no es un botón: con el
+                    cursor de mano y «Clic para escribir…» prometía algo que
+                    `abrir` no hace, y eso se lee como un clic que no responde. */}
                 <div
-                    role="button"
-                    tabIndex={0}
-                    title="Clic para escribir el texto de este paso"
+                    role={soloLectura ? undefined : 'button'}
+                    tabIndex={soloLectura ? undefined : 0}
+                    title={soloLectura ? undefined : 'Clic para escribir el texto de este paso'}
                     onClick={abrir}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
@@ -323,7 +366,7 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
                             abrir();
                         }
                     }}
-                    className={`flex h-full w-full cursor-pointer items-center border border-border/70 bg-card outline-none transition-colors hover:border-primary/60 focus-visible:border-primary ${isLibre ? 'justify-center' : `${caja.pad} ${caja.box}`}`}
+                    className={`flex h-full w-full items-center border border-border/70 bg-card outline-none transition-colors ${soloLectura ? 'cursor-default' : 'cursor-pointer hover:border-primary/60 focus-visible:border-primary'} ${isLibre ? 'justify-center' : `${caja.pad} ${caja.box}`}`}
                     style={{ boxShadow: '0 3px 12px rgba(20,24,29,0.14)', ...(isLibre ? { borderRadius: px.radio } : null) }}
                 >
                     {isLibre ? (
@@ -345,42 +388,14 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
                     )}
                 </div>
 
-                {/* barra de acciones: oculta hasta que se pasa el mouse por el
-                    nodo, y no existe en un diagrama de lectura. */}
-                {!soloLectura && (
-                <div className="nodrag absolute -top-3 right-0 z-20 flex translate-x-1/3 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                        type="button"
-                        title={`Tamaño: ${SIZE_LABEL[size]} (clic para cambiar)`}
-                        onClick={() => data.onChangeSize(id, NEXT_SIZE[size])}
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-[9px] font-semibold text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
-                    >
-                        {SIZE_LABEL[size]}
-                    </button>
-                    <button
-                        type="button"
-                        title="Duplicar nodo"
-                        onClick={() => data.onDuplicate(id)}
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-primary/50 hover:text-primary"
-                    >
-                        <Copy className="h-2.5 w-2.5" />
-                    </button>
-                    <button
-                        type="button"
-                        title="Eliminar nodo"
-                        onClick={() => data.onDelete(id)}
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-destructive/50 hover:text-destructive"
-                    >
-                        <Trash2 className="h-2.5 w-2.5" />
-                    </button>
-                </div>
-                )}
 
                 {isFin ? null : isIntention ? (
                     <>
-                        <SourceDotHandle id="yes" label="Sí" topPct={16} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
-                        <SourceDotHandle id="variante" label="Variante" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
-                        <SourceDotHandle id="no" label="No" topPct={84} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
+                        {/* Los tres «+» en abanico: pegados a su punto se
+                            montaban unos sobre otros (ver `elAbanicoDeLosMas`). */}
+                        <SourceDotHandle id="yes" label="Sí" topPct={SALIDAS_DE_LA_DECISION_PCT.yes} desplazarElMas={-abanico} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
+                        <SourceDotHandle id="variante" label="Variante" topPct={SALIDAS_DE_LA_DECISION_PCT.variante} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
+                        <SourceDotHandle id="no" label="No" topPct={SALIDAS_DE_LA_DECISION_PCT.no} desplazarElMas={abanico} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
                     </>
                 ) : (
                     <SourceDotHandle id="out" label="" topPct={50} active={!connection.inProgress || isSourceActive} connectableStart={!connection.inProgress} />
@@ -392,8 +407,8 @@ function FlowNodePaso({ id, data }: { id: string; data: FlowNodeData }) {
             {data.content && (
                 <p
                     onClick={abrir}
-                    title="Clic para editar el texto de este paso"
-                    className={`nodrag mt-1.5 line-clamp-2 w-full cursor-pointer leading-tight text-muted-foreground ${t.sub}`}
+                    title={soloLectura ? data.content : 'Clic para editar el texto de este paso'}
+                    className={`nodrag mt-1.5 line-clamp-2 w-full leading-tight text-muted-foreground ${soloLectura ? 'cursor-default' : 'cursor-pointer'} ${t.sub}`}
                 >
                     {data.content}
                 </p>

@@ -6,21 +6,28 @@ import {
     Columns3,
     Download,
     Filter,
+    FolderOpen,
+    GitBranch,
     LayoutDashboard,
+    LayoutGrid,
     Lightbulb,
     Link2,
     Maximize2,
     MessageCircle,
     MoreHorizontal,
     Palette,
+    PenLine,
     PlayCircle,
+    PlusCircle,
     Search,
     Share2,
     SlidersHorizontal,
+    StickyNote,
     Store,
     ToggleRight,
     Type,
     UserPlus,
+    Users,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -55,6 +62,13 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Share2,
     SlidersHorizontal,
     Store,
+    PlusCircle,
+    Users,
+    FolderOpen,
+    PenLine,
+    GitBranch,
+    StickyNote,
+    LayoutGrid,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

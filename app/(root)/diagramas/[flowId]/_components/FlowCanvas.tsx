@@ -234,6 +234,19 @@ interface FlowCanvasProps {
   soloLectura?: boolean;
 }
 
+/**
+ * Lo que dicen los botones del lienzo al pasar el ratón (y a un lector de
+ * pantalla). React Flow los trae en inglés —«Zoom In», «Fit View»— y en una
+ * pantalla en español eso se lee como una parte que se quedó sin traducir.
+ */
+export const ETIQUETAS_DEL_LIENZO = {
+  'controls.ariaLabel': 'Controles del lienzo',
+  'controls.zoomIn.ariaLabel': 'Acercar',
+  'controls.zoomOut.ariaLabel': 'Alejar',
+  'controls.fitView.ariaLabel': 'Ver todo el diagrama',
+  'controls.interactive.ariaLabel': 'Bloquear o desbloquear el lienzo',
+} as const;
+
 export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function FlowCanvas(
   { initialNodes: initialNodesDB, initialEdges: initialEdgesDB, onGraphChange, soloLectura = false },
   ref,
@@ -531,7 +544,9 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
         },
       })),
     );
-    toast.success('Diagrama ordenado. Recuerda darle a Guardar.');
+    // Se guarda solo, como cualquier otro cambio: pedir que se le de a
+    // Guardar era de cuando no habia guardado automatico.
+    toast.success('Diagrama ordenado.');
   }, [setNodes]);
 
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {
@@ -793,9 +808,15 @@ export const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(function
           fitViewOptions={{ padding: 0.28 }}
           colorMode={isDark ? 'dark' : 'light'}
           minZoom={0.05}
+          ariaLabelConfig={ETIQUETAS_DEL_LIENZO}
         >
           <Background />
+          {/* El candado se quita en un diagrama de lectura: con el lienzo ya
+              bloqueado, pulsarlo lo DESBLOQUEABA —React Flow cambia su propio
+              estado, no el nuestro— y se podían arrastrar nodos que luego no
+              se guardaban. */}
           <Controls
+            showInteractive={!soloLectura}
             fitViewOptions={{ padding: 0.28 }}
             className="overflow-hidden !rounded-xl !border !border-border !bg-background !shadow-lg [&>button+button]:!border-t [&>button+button]:!border-border [&>button]:!h-9 [&>button]:!w-9 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!text-foreground [&>button:hover]:!bg-accent [&_svg]:!h-3.5 [&_svg]:!w-3.5 [&_svg]:!max-h-none [&_svg]:!max-w-none [&_svg]:!fill-current"
           />

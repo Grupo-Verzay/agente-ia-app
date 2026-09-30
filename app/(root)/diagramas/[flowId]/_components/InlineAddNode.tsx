@@ -214,7 +214,7 @@ export function InlineAddNode({
                                 Ningún nodo se llama{' '}
                                 <span className="font-medium text-foreground">{busqueda.trim()}</span>.
                                 <br />
-                                Pruebe con otra palabra.
+                                Prueba con otra palabra.
                             </p>
                         ) : (
                             <div className="flex flex-col gap-2">
