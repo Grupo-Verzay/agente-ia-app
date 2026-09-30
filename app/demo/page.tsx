@@ -9,6 +9,7 @@ import {
     PORTADA_DEL_VIDEO_DE_VENTAS,
     VIDEO_DE_VENTAS,
     elEnlaceDeWhatsapp,
+    losNegociosEnUnaFrase,
 } from "@/lib/video-de-ventas";
 
 /**
@@ -94,7 +95,7 @@ export default function PaginaDelVideoDeVentas() {
                         ¿Lo quieres funcionando en tu negocio?
                     </h2>
                     <p className="mx-auto mt-2 max-w-xl text-balance text-sm text-slate-600">
-                        En una reunión corta te lo enseñamos con tus propios casos: restaurante, clínica, tienda en línea, consultoría o agencia.
+                        En una reunión corta te lo enseñamos con tus propios casos: {losNegociosEnUnaFrase()}.
                     </p>
                     <div className="mx-auto mt-5 grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
                         <a

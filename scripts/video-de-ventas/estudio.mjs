@@ -16,8 +16,8 @@
  * manda `X-Frame-Options: SAMEORIGIN` y desde otro origen el portátil saldría
  * en blanco.
  *
- * Además: el montaje del arranque (cinco negocios a la vez), la tarjeta de la
- * marca, los carteles del tiempo que pasa, los subtítulos de la narración, la
+ * Además: el montaje del arranque (cinco negocios a la vez y, debajo, el
+ * cierre «y cualquier negocio que venda por WhatsApp»), la tarjeta de la marca, los carteles del tiempo que pasa, los subtítulos de la narración, la
  * capacidad que se está enseñando, los anillos que señalan lo que cambió en el
  * CRM y el cursor.
  *
@@ -28,7 +28,7 @@
  */
 import { SVG_FLECHA, SVG_MANO, PUNTA } from "../cursor-de-la-guia.mjs";
 import { comoDuracion } from "./banda-sonora.mjs";
-import { MEDIOS, laHora } from "./historia.mjs";
+import { CIERRE_DEL_MONTAJE, LEMA_DE_LA_MARCA, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
 
 /** El cuadro del vídeo. */
 export const VISTA = Object.freeze({ ancho: 1920, alto: 1080 });
@@ -154,6 +154,50 @@ export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
         default:
             return base;
     }
+}
+
+/**
+ * Las tarjetas del arranque como las pinta el estudio: cada mensaje con su hora
+ * y, si lleva archivo, su dirección servida (`/__estudio/medios/…`); la nota de
+ * voz con su duración y el avatar de quien la manda; la ubicación con su mapa,
+ * su nombre y su dirección. Puro: el banco comprueba que las cinco salen con lo
+ * que su burbuja necesita.
+ */
+export function losNegociosDelMontaje(negocios, { hora }) {
+    const url = (clave) => {
+        const m = MEDIOS_DEL_MONTAJE[clave];
+        if (!m) throw new Error(`[estudio] la tarjeta pide un archivo que no existe: ${clave}`);
+        return `/__estudio/medios/${m.archivo}`;
+    };
+    return negocios.map((n) => {
+        const iniciales = lasIniciales(n.contacto);
+        return {
+            id: n.id,
+            tipo: n.tipo,
+            detalle: n.detalle,
+            contacto: n.contacto,
+            color: n.color,
+            medio: n.medio,
+            iniciales,
+            mensajes: n.mensajes.map((m, i) => {
+                const base = { id: `mini-${n.id}-${i}`, de: m.de, tipo: m.tipo, texto: m.texto ?? "", hora };
+                switch (m.tipo) {
+                    case "nota":
+                        return { ...base, duracion: comoDuracion(m.segundos ?? 0), avatar: { iniciales, color: n.color } };
+                    case "documento":
+                        return { ...base, nombre: m.nombre, detalle: m.detalle };
+                    case "imagen":
+                        return { ...base, url: url(m.archivo) };
+                    case "video":
+                        return { ...base, portada: url(m.archivo), duracion: comoDuracion(m.segundos ?? 0) };
+                    case "ubicacion":
+                        return { ...base, url: url(m.archivo), nombre: m.nombre, direccion: m.direccion };
+                    default:
+                        return base;
+                }
+            }),
+        };
+    });
 }
 
 /**
@@ -306,13 +350,25 @@ body::before {
 .bur.vid { width: 260px; }
 .bur.vid .marco { position: relative; }
 .bur.vid .marco .play { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; display: grid; place-items: center; }
-.bur.vid .marco .dur { position: absolute; left: 8px; bottom: 7px; color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); display: flex; gap: 4px; align-items: center; }
+.bur.vid .marco .dur { position: absolute; left: 8px; bottom: 7px; color: #fff; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); display: flex; gap: 4px; align-items: center; z-index: 1; }
+/* La franja oscura de abajo de la portada, como en WhatsApp: sin ella la
+   duración se pierde sobre una portada clara. Solo mientras hay portada
+   (con su duración): el video reproduciéndose no la lleva. */
+.bur.vid .marco:has(.dur)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 38px; border-radius: 0 0 7px 7px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.5)); pointer-events: none; }
 .bur.doc { width: 270px; padding: 3px 3px 5px; }
 .bur.doc .prev { height: 120px; border-radius: 7px 7px 0 0; overflow: hidden; background: #fff; }
 .bur.doc .prev img { width: 100%; display: block; }
 .bur.doc .ficha { display: flex; gap: 10px; align-items: center; padding: 9px 9px; background: rgba(0,0,0,.045); border-radius: 0 0 7px 7px; }
 .bur.doc .ficha b { display: block; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
 .bur.doc .ficha small { font-size: 12px; color: #667781; }
+.bur.doc .ficha:first-child { border-radius: 7px; }
+.bur.doc .cap { padding: 5px 6px 0; }
+/* Una ubicación de WhatsApp: el mapa, y debajo el nombre del sitio y su dirección. */
+.bur.ubic { width: 260px; }
+.bur.ubic img { aspect-ratio: 1200 / 680; object-fit: cover; }
+.bur.ubic .lugar { padding: 6px 6px 0; }
+.bur.ubic .lugar b { display: block; font-size: 14px; font-weight: 600; }
+.bur.ubic .lugar small { display: block; font-size: 12px; color: #667781; margin-top: 1px; }
 .bur.nota { width: 280px; padding: 8px 10px 6px 8px; }
 .nota .fila2 { display: flex; align-items: center; gap: 8px; }
 .nota .quien { width: 42px; height: 42px; border-radius: 50%; position: relative; flex-shrink: 0; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; background-size: cover; }
@@ -392,19 +448,49 @@ body::before {
 #montaje.sale { opacity: 1; }
 #montaje .titulo { position: absolute; top: 70px; width: 100%; text-align: center; font-size: 42px; font-weight: 800; letter-spacing: -1px; color: #fff; }
 #montaje .titulo span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
-#montaje .fila5 { position: absolute; top: 170px; left: 0; right: 0; display: flex; justify-content: center; gap: 36px; }
+#montaje .tarjetas { position: absolute; top: 170px; left: 0; right: 0; display: flex; justify-content: center; align-items: flex-start; gap: 36px; }
 .mini { width: 300px; transform: translateY(40px); opacity: 0; transition: transform .8s cubic-bezier(.2,.8,.2,1), opacity .8s; }
 .mini.sale { transform: none; opacity: 1; }
-.mini .marco { height: 620px; border-radius: 42px; background: linear-gradient(145deg,#2b2f3a,#0f1116 55%,#23262e); padding: 10px; box-shadow: 0 30px 70px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); }
-.mini .vid { height: 100%; border-radius: 33px; overflow: hidden; display: flex; flex-direction: column; background: #efeae2; }
-.mini .top { height: 88px; padding: 30px 14px 0; display: flex; align-items: center; gap: 10px; color: #fff; }
-.mini .top .avatar { width: 38px; height: 38px; font-size: 14px; background: rgba(255,255,255,.25); }
-.mini .top b { font-size: 15px; display: block; } .mini .top span { font-size: 12px; opacity: .85; }
-.mini .muro { padding: 10px 10px; }
+.mini > .caja { height: 600px; border-radius: 34px; background: linear-gradient(145deg,#2b2f3a,#0f1116 55%,#23262e); padding: 8px; box-shadow: 0 30px 70px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); }
+.mini .caja > .pant { height: 100%; border-radius: 26px; overflow: hidden; display: flex; flex-direction: column; background: #efeae2; }
+/* El encabezado de un chat de WhatsApp: pegado arriba, gris claro, sin franja de color. */
+.mini .cab { height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 12px 0 4px; background: #f6f5f3; border-bottom: 1px solid #e0ddd8; color: #111b21; }
+.mini .cab .atras { display: flex; color: #111b21; }
+.mini .cab .atras svg { width: 22px; height: 22px; }
+.mini .cab .avatar { width: 34px; height: 34px; font-size: 13px; }
+.mini .cab .quien { flex: 1; min-width: 0; margin-left: 3px; }
+.mini .cab .quien b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .cab .quien span { font-size: 11.5px; color: #667781; }
+.mini .cab .acc { display: flex; gap: 16px; align-items: center; color: #111b21; }
+.mini .cab .acc svg { width: 20px; height: 20px; }
+/* Los mensajes arrancan arriba, como en un chat que empieza. */
+.mini .muro { justify-content: flex-start; padding: 10px 9px; }
+.mini .pie { height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: #f6f5f3; color: #54656f; }
+.mini .pie svg { width: 19px; height: 19px; display: block; }
+.mini .pie .campo { flex: 1; height: 30px; border-radius: 16px; background: #fff; border: 1px solid #e2e0dc; padding: 0 12px; display: flex; align-items: center; color: #8a8f93; font-size: 13px; }
 .mini .bur { font-size: 13.5px; max-width: 86%; }
 .mini .bur.doc { width: 210px; } .mini .bur.doc .ficha b { max-width: 140px; font-size: 13px; }
+.mini .bur.foto { width: 200px; }
+.mini .bur.vid { width: 214px; }
+.mini .bur.ubic { width: 214px; }
+.mini .bur.ubic .lugar b { font-size: 13px; }
+.mini .bur.vid .marco .play { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+.mini .bur.vid .marco .play svg { width: 24px; height: 24px; }
+.mini .bur.nota { width: 232px; padding: 6px 8px 5px 6px; }
+.mini .nota .quien { width: 36px; height: 36px; font-size: 13px; }
+.mini .nota .boton { width: 26px; }
+.mini .nota .boton svg { width: 24px; height: 24px; }
+.mini .nota .onda { height: 26px; }
+.mini .nota .abajo { margin-left: 78px; }
 .mini .pie2 { text-align: center; margin-top: 18px; font-size: 20px; font-weight: 700; color: #fff; }
 .mini .pie2 small { display: block; font-size: 14px; font-weight: 500; color: #9fb0cf; margin-top: 4px; }
+/* El cierre del arranque: UNA línea horizontal, centrada, debajo de las cinco
+   tarjetas (no una columna al lado: ahí se leía como una tarjeta más). */
+#montaje .cierreMontaje { position: absolute; top: 872px; left: 0; right: 0; text-align: center; white-space: nowrap;
+  font-size: 46px; font-weight: 800; letter-spacing: -1.2px; line-height: 1.15; color: #fff;
+  opacity: 0; transform: translateY(18px); transition: opacity .7s, transform .9s cubic-bezier(.2,.8,.2,1); }
+#montaje .cierreMontaje.sale { opacity: 1; transform: none; }
+#montaje .cierreMontaje span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .escribiendo { align-self: flex-start; background: #fff; border-radius: 9px; border-top-left-radius: 2px; padding: 10px 12px; display: flex; gap: 4px; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
 .escribiendo i { width: 7px; height: 7px; border-radius: 50%; background: #9aa5ab; animation: puntito 1.1s infinite; }
 .escribiendo i:nth-child(2) { animation-delay: .15s; } .escribiendo i:nth-child(3) { animation-delay: .3s; }
@@ -417,11 +503,6 @@ body::before {
 .tarjeta .nombre { font-size: 104px; font-weight: 800; letter-spacing: -3px; margin-top: 10px; background: linear-gradient(90deg,#ffffff 30%,#9cc7ff); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1.05; }
 .tarjeta .lema { font-size: 38px; font-weight: 600; color: #dfe7f7; margin-top: 18px; letter-spacing: -.5px; }
 .tarjeta .lema span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.chipsMarca { display: flex; gap: 14px; margin-top: 42px; flex-wrap: wrap; justify-content: center; max-width: 1400px; }
-.chipsMarca div { padding: 13px 22px; border-radius: 30px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); font-size: 21px; font-weight: 600; color: #e6eeff;
-  opacity: 0; transform: translateY(16px); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); display: flex; gap: 10px; align-items: center; }
-.chipsMarca div i { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg,#1f7bff,#2fd67a); }
-.tarjeta.sale .chipsMarca div { opacity: 1; transform: none; }
 .cta { margin-top: 46px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .cta .boton { padding: 22px 46px; border-radius: 40px; font-size: 30px; font-weight: 700; color: #04121f; background: linear-gradient(90deg,#4da3ff,#39e08b); box-shadow: 0 20px 50px rgba(57,224,139,.3); }
 .cta .web { font-size: 22px; color: #9fb0cf; font-weight: 500; }
@@ -530,11 +611,11 @@ function programa(DATOS) {
                 b = el("div", `bur ${lado} nota`);
                 const quien = yo
                     ? `<div class="quien" style="background-image:url(${DATOS.logoNegocio})"><span class="mic">${I.mic}</span></div>`
-                    : `<div class="quien" style="background:${DATOS.clienta.color}">${esc(DATOS.clienta.iniciales)}<span class="mic">${I.mic}</span></div>`;
+                    : `<div class="quien" style="background:${(m.avatar ?? DATOS.clienta).color}">${esc((m.avatar ?? DATOS.clienta).iniciales)}<span class="mic">${I.mic}</span></div>`;
                 const orden = yo ? `${quien}<div class="boton">${I.play}</div>` : `<div class="boton">${I.play}</div>`;
                 b.innerHTML =
                     `<div class="fila2">${yo ? orden : quien + orden}<div class="onda"><div class="barras">${ondas()}</div><div class="barras color">${ondas()}</div><div class="punto"></div></div></div>` +
-                    `<div class="abajo" style="margin-left:88px"><span class="dur">${esc(m.duracion)}</span><span>${esc(m.hora)}${yo ? " " + I.checks : ""}</span></div>`;
+                    `<div class="abajo"><span class="dur">${esc(m.duracion)}</span><span>${esc(m.hora)}${yo ? " " + I.checks : ""}</span></div>`;
                 (notas[m.id] ??= []).push(b);
                 break;
             }
@@ -543,7 +624,14 @@ function programa(DATOS) {
                     "div",
                     `bur ${lado} doc`,
                     `${m.portada ? `<div class="prev"><img src="${m.portada}"></div>` : ""}<div class="ficha">${I.pdf}<div style="min-width:0"><b>${esc(m.nombre)}</b><small>${esc(m.detalle)}</small></div></div>` +
-                        `<div style="padding:4px 6px 0">${meta}<div style="clear:both"></div></div>`,
+                        (m.texto ? `<div class="cap">${esc(m.texto)}${meta}<div style="clear:both"></div></div>` : `<div style="padding:4px 6px 0">${meta}<div style="clear:both"></div></div>`),
+                );
+                break;
+            case "ubicacion":
+                b = el(
+                    "div",
+                    `bur ${lado} media ubic`,
+                    `<img src="${m.url}"><div class="lugar"><b>${esc(m.nombre)}</b><small>${esc(m.direccion)}</small></div><div style="padding:0 6px">${meta}<div style="clear:both"></div></div>`,
                 );
                 break;
             case "imagen":
@@ -571,6 +659,7 @@ function programa(DATOS) {
         if (m.tipo === "documento") return `📄 ${m.nombre}`;
         if (m.tipo === "imagen") return `📷 ${m.texto || "Foto"}`;
         if (m.tipo === "video") return `🎥 ${m.texto || "Video"}`;
+        if (m.tipo === "ubicacion") return "📍 Ubicación";
         return "";
     }
 
@@ -731,27 +820,41 @@ function programa(DATOS) {
     }
 
     /* ---------- el montaje ---------- */
+    // Cuándo sale el último mensaje de las tarjetas: el cierre del arranque no
+    // puede salir antes, o se leería por delante de la última tarjeta.
+    let montajeTermina = 0;
     function montaje() {
         const minis = [...document.querySelectorAll(".mini")];
         minis.forEach((mini, i) => setTimeout(() => mini.classList.add("sale"), 150 + i * 140));
+        let ultimo = 0;
         DATOS.montaje.forEach((negocio, i) => {
             const muro = minis[i].querySelector(".muro");
-            let t = 900 + i * 260;
+            let t = 700 + i * 380;
             for (const m of negocio.mensajes) {
                 const yo = m.de === "ia";
                 if (yo) {
                     const escr = el("div", "escribiendo", "<i></i><i></i><i></i>");
                     setTimeout(() => muro.appendChild(escr), t);
-                    t += 1100;
+                    t += 900;
                     setTimeout(() => escr.remove(), t);
                 }
-                const mm = m.adjunto
-                    ? { de: m.de, tipo: "documento", nombre: m.adjunto.nombre, detalle: m.adjunto.detalle, hora: m.hora }
-                    : { de: m.de, tipo: "texto", texto: m.texto, hora: m.hora };
-                setTimeout(() => muro.appendChild(burbuja(mm, "mini")), t);
-                t += yo ? 900 : 1000;
+                setTimeout(() => {
+                    muro.appendChild(burbuja(m, "mini"));
+                    // La nota se escucha: la onda avanza como en el celular.
+                    if (m.tipo === "nota") setTimeout(() => reproducirNota(m.id, 2200, 1), 350);
+                }, t);
+                ultimo = Math.max(ultimo, t);
+                t += 800;
             }
         });
+        montajeTermina = Date.now() + ultimo + 450;
+    }
+    /** El cierre del arranque, debajo de las cinco tarjetas (nunca antes del último mensaje de la última). */
+    function yCualquierNegocio() {
+        const c = $("#montaje .cierreMontaje");
+        const falta = Math.max(0, montajeTermina - Date.now());
+        setTimeout(() => c.classList.add("sale"), falta);
+        return falta;
     }
 
     /* ---------- lo de encima ---------- */
@@ -840,6 +943,7 @@ function programa(DATOS) {
     window.__estudio = {
         plano,
         montaje,
+        yCualquierNegocio,
         llega,
         separador,
         escribiendo,
@@ -872,20 +976,25 @@ export function laPaginaDelEstudio(datos) {
     const e = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     const miniaturas = datos.montaje
         .map(
-            (n) => `<div class="mini"><div class="marco"><div class="vid"><div class="top" style="background:${n.color}"><div class="avatar">${e(n.iniciales)}</div><div><b>${e(n.contacto)}</b><span>en línea</span></div></div><div class="muro"></div></div></div>` +
-                `<div class="pie2">${e(n.tipo)}<small>${e(n.negocio)}</small></div></div>`,
+            (n) =>
+                `<div class="mini" data-negocio="${e(n.id)}" data-medio="${e(n.medio)}"><div class="caja"><div class="pant">` +
+                `<div class="cab"><span class="atras">${I.atras}</span><div class="avatar" style="background:${n.color}">${e(n.iniciales)}</div><div class="quien"><b>${e(n.contacto)}</b><span>en línea</span></div><div class="acc">${I.video}${I.tel}</div></div>` +
+                `<div class="muro"></div>` +
+                `<div class="pie">${I.mas}<div class="campo">Mensaje</div>${I.camara}${I.mic}</div>` +
+                `</div></div><div class="pie2">${e(n.tipo)}<small>${e(n.detalle)}</small></div></div>`,
         )
         .join("");
+    // «WhatsApp», al final del cierre, con el degradado de la marca.
+    const cierre = e(CIERRE_DEL_MONTAJE).replace(/WhatsApp$/, "<span>WhatsApp</span>");
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Verzay · video de ventas</title>
 <style>${CSS}</style></head><body>
 <div class="escena">
-  <div id="montaje"><div class="titulo">Tus clientes escriben. <span>La IA responde.</span></div><div class="fila5">${miniaturas}</div></div>
+  <div id="montaje"><div class="titulo">Tus clientes escriben. <span>La IA responde.</span></div><div class="tarjetas">${miniaturas}</div><div class="cierreMontaje">${cierre}</div></div>
 
   <div id="marca" class="tarjeta">
     <img class="logo" src="${datos.logo}">
     <div class="nombre">Verzay</div>
-    <div class="lema">Inteligencia artificial que <span>atiende, vende y agenda</span> por WhatsApp</div>
-    <div class="chipsMarca">${datos.chipsDeLaMarca.map((c, i) => `<div style="transition-delay:${500 + i * 130}ms"><i></i>${e(c)}</div>`).join("")}</div>
+    <div class="lema">${e(LEMA_DE_LA_MARCA.antes)}<span>${e(LEMA_DE_LA_MARCA.resaltado)}</span>${e(LEMA_DE_LA_MARCA.despues)}</div>
   </div>
 
   <div id="tel" class="pantalla"><div class="vidrio">

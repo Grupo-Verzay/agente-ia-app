@@ -37,71 +37,95 @@ export const CLIENTA = Object.freeze({
 });
 
 /**
- * Los negocios del arranque: cinco teléfonos a la vez, cada uno con su
- * pregunta y su respuesta. Es lo que dice «da igual el negocio» sin decirlo.
- * `tipo` es el rótulo grande de debajo de cada teléfono y va en el orden en
- * que los nombra la narración (`gancho`).
- * `adjunto` es solo lo que pinta el teléfono (no hay archivo detrás).
+ * Los negocios del arranque: cinco tarjetas de WhatsApp a la vez, cada una
+ * con su conversación, y debajo, en una línea, el cierre «y cualquier negocio
+ * que venda por WhatsApp» (`CIERRE_DEL_MONTAJE`). Es lo que dice «da igual el
+ * negocio» sin decirlo.
+ *
+ *   - `tipo` es el rótulo grande de debajo de cada tarjeta y va en el orden en
+ *     que los nombra la narración (`gancho`); `detalle`, lo que cubre.
+ *   - Cada una enseña un tipo de contenido DISTINTO —imagen, nota de voz,
+ *     video, PDF y ubicación— para que se vea todo lo que la IA maneja
+ *     (`medio` de la burbuja que lo lleva; lo comprueba el banco). Lo que
+ *     ENVÍA la IA lleva `de: "ia"`: el PDF de la consultoría lo manda ella,
+ *     no el cliente.
+ *   - Los archivos de las tarjetas son solo lo que pinta la tarjeta: la foto
+ *     del sofá, la portada de la clase y el mapa los dibuja `medios.mjs`
+ *     (`MEDIOS_DEL_MONTAJE`); la nota de voz y el PDF son su burbuja, sin
+ *     archivo detrás.
  */
 export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     {
-        id: "restaurante",
-        tipo: "Restaurante",
-        negocio: "La Casona",
-        contacto: "Andrés",
-        color: "#e76f51",
+        id: "tienda",
+        tipo: "Tienda en línea",
+        detalle: "Productos, muebles, repuestos",
+        contacto: "Camila",
+        color: "#7c3aed",
+        medio: "imagen",
         mensajes: [
-            { de: "cliente", texto: "¿Tienen mesa para 4 hoy a las 8?" },
-            { de: "ia", texto: "¡Sí, Andrés! Te reservé mesa para 4 a las 8:00 p. m. ¿La quieres en la terraza?" },
+            { de: "cliente", tipo: "texto", texto: "¿Tienen este sofá en gris? 🛋️" },
+            { de: "ia", tipo: "imagen", archivo: "sofa-gris", texto: "¡Sí, Camila! Te llega en 48 horas con envío gratis 🚚" },
         ],
     },
     {
         id: "clinica",
         tipo: "Clínica",
-        negocio: "Clínica Sonríe",
+        detalle: "Salud, estética, odontología",
         contacto: "Laura",
         color: "#2a9d8f",
+        medio: "nota",
         mensajes: [
-            { de: "cliente", texto: "¿Cuánto cuesta el blanqueamiento dental?" },
-            { de: "ia", texto: "¡Hola, Laura! Este mes tiene 30 % de descuento 😊 ¿Te envío la lista de precios?" },
+            { de: "cliente", tipo: "nota", segundos: 7 },
+            { de: "ia", tipo: "texto", texto: "¡Hola, Laura! Tienes hasta 6 cuotas sin interés 😊 ¿Te agendo una valoración?" },
         ],
     },
     {
-        id: "tienda",
-        tipo: "Tienda en línea",
-        negocio: "Urbana Store",
-        contacto: "Camila",
-        color: "#7c3aed",
+        id: "cursos",
+        tipo: "Cursos",
+        detalle: "Academias y formación en línea",
+        contacto: "Santiago",
+        color: "#e76f51",
+        medio: "video",
         mensajes: [
-            { de: "cliente", texto: "¿Hacen envíos a Medellín? 📦" },
-            { de: "ia", texto: "¡Claro! Llega en 24 horas y el envío es gratis. ¿Qué talla necesitas?" },
+            { de: "cliente", tipo: "texto", texto: "¿Cómo son las clases del curso de Excel?" },
+            { de: "ia", tipo: "video", archivo: "clase-de-excel", segundos: 42, texto: "Mira una clase por dentro 🎬" },
         ],
     },
     {
         id: "consultoria",
         tipo: "Consultoría",
-        negocio: "Contadores Asociados",
+        detalle: "Contable, legal, empresarial",
         contacto: "Jorge",
         color: "#264653",
+        medio: "documento",
         mensajes: [
-            { de: "cliente", adjunto: { tipo: "documento", nombre: "RUT-2026.pdf", detalle: "1 página · PDF" } },
-            { de: "cliente", texto: "Necesito ayuda con mi declaración" },
-            { de: "ia", texto: "Recibido, Jorge ✅ ¿Agendamos una asesoría de 20 minutos mañana?" },
+            { de: "cliente", tipo: "texto", texto: "¿Qué papeles necesito para declarar renta?" },
+            { de: "ia", tipo: "documento", nombre: "Requisitos-renta.pdf", detalle: "2 páginas · PDF", texto: "Aquí tienes la lista, Jorge ✅ ¿Agendamos 20 minutos mañana?" },
         ],
     },
     {
-        id: "agencia",
-        tipo: "Agencia de marketing",
-        negocio: "Impulso",
+        id: "viajes",
+        tipo: "Agencia de viajes",
+        detalle: "Tours, vuelos y paquetes",
         contacto: "Valentina",
-        color: "#f4a261",
+        color: "#0284c7",
+        medio: "ubicacion",
         mensajes: [
-            { de: "cliente", texto: "¿Cuánto cuesta manejar mi Instagram?" },
-            { de: "ia", texto: "Tenemos tres planes desde $890.000 al mes 📈 Te envío la propuesta:" },
-            { de: "ia", adjunto: { tipo: "documento", nombre: "Propuesta Impulso.pdf", detalle: "4 páginas · PDF" } },
+            { de: "cliente", tipo: "texto", texto: "¿Dónde nos recogen para el tour de mañana? 🌴" },
+            { de: "ia", tipo: "ubicacion", archivo: "mapa-punto-de-encuentro", nombre: "Punto de encuentro", direccion: "Parque de la 93, Bogotá" },
         ],
     },
 ]);
+
+/** El cierre del arranque: una línea debajo de las cinco tarjetas, después de la última; antes de la marca. */
+export const CIERRE_DEL_MONTAJE = "y cualquier negocio que venda por WhatsApp";
+
+/** Los archivos que pintan las tarjetas del arranque (no viajan en la conversación). */
+export const MEDIOS_DEL_MONTAJE = Object.freeze({
+    "sofa-gris": { archivo: "montaje-sofa-gris.jpg" },
+    "clase-de-excel": { archivo: "montaje-clase-de-excel.jpg" },
+    "mapa-punto-de-encuentro": { archivo: "montaje-mapa-punto-de-encuentro.jpg" },
+});
 
 /** Los archivos que viajan en la conversación. Los genera `medios.mjs`. */
 export const MEDIOS = Object.freeze({
@@ -391,14 +415,8 @@ export const CAPACIDADES = Object.freeze([
     { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
 ]);
 
-/** Lo que dice la tarjeta de la marca, debajo del lema. */
-export const CHIPS_DE_LA_MARCA = Object.freeze([
-    "Responde al instante, 24/7",
-    "Entiende notas de voz, fotos y PDF",
-    "Agenda y recuerda citas",
-    "Hace seguimiento solo",
-    "Llena tu CRM",
-]);
+/** El lema de la tarjeta de la marca: lo único que dice, debajo de «Verzay». */
+export const LEMA_DE_LA_MARCA = Object.freeze({ antes: "Inteligencia artificial que ", resaltado: "atiende, vende y agenda", despues: " por WhatsApp" });
 
 /** A dónde lleva el cierre: la reunión, y el WhatsApp de Verzay. */
 export const LLAMADO = Object.freeze({
