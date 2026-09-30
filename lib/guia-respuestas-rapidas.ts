@@ -322,6 +322,43 @@ export const GUIA_RESPUESTAS_RAPIDAS: Contenido = {
             consejos: ["Una respuesta nueva sale la primera: muévela a su sitio cuando quieras."],
         },
         {
+            slug: "eliminar",
+            titulo: "Eliminar respuestas",
+            resumen: "Borra una respuesta, o varias a la vez con las acciones masivas.",
+            icono: "Trash2",
+            miniatura: "mini-eliminar.webp",
+            pasos: [
+                {
+                    titulo: "Los tres puntos de la respuesta",
+                    texto: "El botón de los tres puntos de la respuesta tiene «Eliminar».",
+                    imagen: "eliminar-menu.webp",
+                    alt: "El menú de tres puntos de una respuesta abierto con Eliminar",
+                },
+                {
+                    titulo: "Siempre pide confirmación",
+                    texto: "La ventana avisa que se borra para siempre. «Cancelar» no cambia nada.",
+                    imagen: "eliminar-confirmar.webp",
+                    alt: "La ventana de confirmación para eliminar una respuesta",
+                },
+                {
+                    titulo: "Varias a la vez",
+                    texto: "Marca las casillas de las que quieras borrar, o «Marcar todas las que se ven» en el «⋯» de la barra.",
+                    imagen: "masivas-marcar.webp",
+                    alt: "Varias respuestas marcadas con su casilla",
+                },
+                {
+                    titulo: "El «⋯» de la barra",
+                    texto: "Su «Eliminar» borra de una vez todas las marcadas, y también pide confirmación.",
+                    imagen: "masivas-menu.webp",
+                    alt: "El menú de acciones masivas abierto con Eliminar",
+                },
+            ],
+            consejos: [
+                "Eliminar no se puede deshacer.",
+                "Solo se pueden marcar las respuestas que tú puedes borrar.",
+            ],
+        },
+        {
             slug: "usar-en-un-chat",
             titulo: "Usarlas en un chat",
             resumen: "Envía una respuesta desde la conversación con «/» o con el rayo.",
@@ -356,43 +393,6 @@ export const GUIA_RESPUESTAS_RAPIDAS: Contenido = {
             consejos: [
                 "En un chat salen las respuestas de la cuenta dueña de la línea de esa conversación.",
                 "La barra «/» sugiere las de texto con atajo; en el rayo salen todas.",
-            ],
-        },
-        {
-            slug: "eliminar",
-            titulo: "Eliminar respuestas",
-            resumen: "Borra una respuesta, o varias a la vez con las acciones masivas.",
-            icono: "Trash2",
-            miniatura: "mini-eliminar.webp",
-            pasos: [
-                {
-                    titulo: "El «⋯» de una respuesta",
-                    texto: "El botón de los tres puntos de la respuesta tiene «Eliminar».",
-                    imagen: "eliminar-menu.webp",
-                    alt: "El menú de tres puntos de una respuesta abierto con Eliminar",
-                },
-                {
-                    titulo: "Siempre pide confirmación",
-                    texto: "La ventana avisa que se borra para siempre. «Cancelar» no cambia nada.",
-                    imagen: "eliminar-confirmar.webp",
-                    alt: "La ventana de confirmación para eliminar una respuesta",
-                },
-                {
-                    titulo: "Varias a la vez",
-                    texto: "Marca las casillas de las que quieras borrar, o «Marcar todas las que se ven» en el «⋯» de la barra.",
-                    imagen: "masivas-marcar.webp",
-                    alt: "Varias respuestas marcadas con su casilla",
-                },
-                {
-                    titulo: "El «⋯» de la barra",
-                    texto: "Su «Eliminar» borra de una vez todas las marcadas, y también pide confirmación.",
-                    imagen: "masivas-menu.webp",
-                    alt: "El menú de acciones masivas abierto con Eliminar",
-                },
-            ],
-            consejos: [
-                "Eliminar no se puede deshacer.",
-                "Solo se pueden marcar las respuestas que tú puedes borrar.",
             ],
         },
     ],

@@ -163,7 +163,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{workflow.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {workflow.isPro ? 'Workflow Pro' : 'Workflow estandar'}
+                          {workflow.isPro ? 'Workflow Pro' : 'Workflow estándar'}
                         </p>
                       </div>
                       <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
