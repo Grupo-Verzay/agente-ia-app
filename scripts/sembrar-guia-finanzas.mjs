@@ -50,6 +50,22 @@ await db.financeContact.deleteMany({ where: { userId } });
 await db.financeContactFieldConfig.deleteMany({ where: { userId } });
 
 // ── Las cuentas del dinero ────────────────────────────────────────────────
+// Los productos de la tienda (los mismos de la guía de Catálogo): el
+// formulario de una venta los ofrece para elegir, y sin ninguno diría «Aún no
+// hay productos».
+await db.product.deleteMany({ where: { userId } });
+for (const [i, [title, category, price, sku]] of [
+    ["Café Origen Huila 500 g", "Café en grano", 42000, "CDM-HUI-500"],
+    ["Café Nariño Especial 500 g", "Café en grano", 48000, "CDM-NAR-500"],
+    ["Café Molido para Filtro 500 g", "Café molido", 39000, "CDM-MOL-500"],
+    ["Prensa Francesa 600 ml", "Accesorios", 89000, "CDM-PRE-600"],
+    ["Caja Regalo Degustación", "Regalos", 95000, "CDM-REG-DEG"],
+].entries()) {
+    await db.product.create({
+        data: { userId, title, category, price, sku, stock: 20, tags: [], images: [], isActive: true, order: i },
+    });
+}
+
 const CUENTAS = [
     ["Caja principal", "COMPANY", true],
     ["Bancolombia", "COMPANY", false],
@@ -65,31 +81,33 @@ for (const [i, [name, type, isDefault]] of CUENTAS.entries()) {
 
 // ── Las categorías ────────────────────────────────────────────────────────
 // Las de ventas son las que la pantalla crea sola; las de gastos, las de una
-// tostadora. «Salarios», «Arriendo» y «Herramientas» salen «Fijo»; «Insumos» y
-// «Marketing», «Variable» (`elTipoDelGasto`).
+// tostadora. «Salarios» y «Arriendo» salen «Fijo»; «Insumos», «Marketing» y
+// «Mantenimiento», «Variable» (`elTipoDelGasto`). El tostador va en
+// Mantenimiento y no en Herramientas: esa cuenta como fija (las herramientas
+// de software se pagan cada mes) y un arreglo del tostador no lo es.
 const categoria = {};
 for (const [i, name] of ["Ventas", "Servicios", "Suscripciones", "Otros"].entries()) {
     const c = await db.financeCategory.create({ data: { userId, name, type: "SALE", order: i + 1 } });
     categoria[`SALE:${name}`] = c.id;
 }
-for (const [i, name] of ["Salarios", "Arriendo", "Insumos", "Marketing", "Herramientas"].entries()) {
+for (const [i, name] of ["Salarios", "Arriendo", "Insumos", "Marketing", "Mantenimiento"].entries()) {
     const c = await db.financeCategory.create({ data: { userId, name, type: "EXPENSE", order: i + 1 } });
     categoria[`EXPENSE:${name}`] = c.id;
 }
 
 // ── Clientes y proveedores ────────────────────────────────────────────────
 const CLIENTES = [
-    ["CLI-001", "Hotel Andino", "573105550101", "compras@hotelandino.test", "Cundinamarca", "Bogotá", "Cra 7 # 72-41"],
-    ["CLI-002", "Oficinas Nube", "573105550102", "admin@oficinasnube.test", "Antioquia", "Medellín", "Cl 10 # 43-12"],
-    ["CLI-003", "Laura Gómez", "573105550103", "laura.gomez@correo.test", "Cundinamarca", "Bogotá", "Cl 85 # 15-20"],
-    ["CLI-004", "Restaurante Fogón", "573105550104", "pedidos@fogon.test", "Valle del Cauca", "Cali", "Av 6N # 23-10"],
-    ["CLI-005", "Andrés Rincón", "573105550105", "andres.rincon@correo.test", "Santander", "Bucaramanga", "Cra 33 # 48-05"],
+    ["C-1", "Hotel Andino", "573105550101", "compras@hotelandino.test", "Cundinamarca", "Bogotá", "Cra 7 # 72-41"],
+    ["C-2", "Oficinas Nube", "573105550102", "admin@oficinasnube.test", "Antioquia", "Medellín", "Cl 10 # 43-12"],
+    ["C-3", "Laura Gómez", "573105550103", "laura.gomez@correo.test", "Cundinamarca", "Bogotá", "Cl 85 # 15-20"],
+    ["C-4", "Restaurante Fogón", "573105550104", "pedidos@fogon.test", "Valle del Cauca", "Cali", "Av 6N # 23-10"],
+    ["C-5", "Andrés Rincón", "573105550105", "andres.rincon@correo.test", "Santander", "Bucaramanga", "Cra 33 # 48-05"],
 ];
 const PROVEEDORES = [
-    ["PRO-001", "Finca La Esperanza", "573115550201", "ventas@laesperanza.test", "Huila", "Pitalito", "Vereda El Cedro"],
-    ["PRO-002", "Empaques del Valle", "573115550202", "comercial@empaquesvalle.test", "Valle del Cauca", "Palmira", "Zona Franca, bodega 4"],
-    ["PRO-003", "Inmobiliaria Centro", "573115550203", "arriendos@inmocentro.test", "Cundinamarca", "Bogotá", "Cl 26 # 13-19"],
-    ["PRO-004", "Tostadores Pro", "573115550204", "soporte@tostadorespro.test", "Antioquia", "Medellín", "Cra 50 # 30-88"],
+    ["P-1", "Finca La Esperanza", "573115550201", "ventas@laesperanza.test", "Huila", "Pitalito", "Vereda El Cedro"],
+    ["P-2", "Empaques del Valle", "573115550202", "comercial@empaquesvalle.test", "Valle del Cauca", "Palmira", "Zona Franca, bodega 4"],
+    ["P-3", "Inmobiliaria Centro", "573115550203", "arriendos@inmocentro.test", "Cundinamarca", "Bogotá", "Cl 26 # 13-19"],
+    ["P-4", "Tostadores Pro", "573115550204", "soporte@tostadorespro.test", "Antioquia", "Medellín", "Cra 50 # 30-88"],
 ];
 for (const [kind, filas] of [["CLIENT", CLIENTES], ["SUPPLIER", PROVEEDORES]]) {
     for (const [i, [code, name, phone, email, department, city, address]] of filas.entries()) {
@@ -118,8 +136,9 @@ const VENTAS = [];
 /** [mes, día, concepto, categoría, cuenta, valor, proveedor] */
 const GASTOS = [];
 
-// Enero a agosto: la base de cada mes, con su ritmo. Junio lleva la compra del
-// tostador nuevo y sale en rojo.
+// Enero a agosto: la base de cada mes, con su ritmo. Julio lleva la compra del
+// tostador nuevo y sale en rojo (en la fila de septiembre, que es la que se
+// señala en las capturas).
 const BASE = [
     [1, 9_800_000], [2, 10_400_000], [3, 11_200_000], [4, 10_900_000],
     [5, 12_300_000], [6, 11_800_000], [7, 13_100_000], [8, 13_600_000],
@@ -141,7 +160,7 @@ for (const [mes, total] of BASE) {
         [mes, 20, "Pauta en redes sociales", "Marketing", "Nequi", 420_000, null],
     );
 }
-GASTOS.push([6, 12, "Tostador nuevo — Tostadores Pro", "Herramientas", "Bancolombia", 14_500_000, "Tostadores Pro"]);
+GASTOS.push([7, 12, "Tostador nuevo — Tostadores Pro", "Mantenimiento", "Bancolombia", 4_500_000, "Tostadores Pro"]);
 
 // Septiembre, el mes que se mira al abrir: movimiento casi a diario, para que
 // la gráfica del mes tenga forma.
@@ -164,7 +183,7 @@ GASTOS.push(
     [9, 6, "Café verde — Finca La Esperanza", "Insumos", "Bancolombia", 2_900_000, "Finca La Esperanza"],
     [9, 13, "Bolsas y etiquetas", "Insumos", "Caja principal", 640_000, "Empaques del Valle"],
     [9, 20, "Pauta en redes sociales", "Marketing", "Nequi", 420_000, null],
-    [9, 24, "Mantenimiento del tostador", "Herramientas", "Caja principal", 380_000, "Tostadores Pro"],
+    [9, 24, "Mantenimiento del tostador", "Mantenimiento", "Caja principal", 380_000, "Tostadores Pro"],
     [9, 28, "Nómina del mes", "Salarios", "Bancolombia", 3_400_000, null],
 );
 
@@ -230,6 +249,7 @@ console.log(
         cuentas: CUENTAS.length,
         clientes: CLIENTES.length,
         proveedores: PROVEEDORES.length,
+        productos: 5,
         modulos: MENU_DE_UN_CLIENTE.length,
     }),
 );

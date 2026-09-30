@@ -32,10 +32,18 @@ function esImagen(mime?: string | null, url?: string) {
   return /\.(png|jpe?g|webp|gif|avif)$/i.test(url ?? '');
 }
 
-export function columnaDeConcepto<T extends Movimiento>(concepto: (f: T) => string | null | undefined): ColumnDef<T> {
+/**
+ * `tambien` es lo que el buscador tiene que encontrar además del concepto sin
+ * enseñarlo en la celda: el proveedor de un gasto. Se busca por lo que dice
+ * `accessorFn`, así que va ahí, detrás del concepto (que es lo que ordena).
+ */
+export function columnaDeConcepto<T extends Movimiento>(
+  concepto: (f: T) => string | null | undefined,
+  tambien?: (f: T) => string | null | undefined,
+): ColumnDef<T> {
   return {
     id: 'concepto',
-    accessorFn: (f) => concepto(f) ?? '',
+    accessorFn: (f) => [concepto(f), tambien?.(f)].filter(Boolean).join(' · '),
     header: 'Concepto',
     cell: ({ row }) => (
       <span className="block max-w-[260px] truncate font-medium" title={concepto(row.original) ?? ''}>
@@ -61,11 +69,11 @@ export function columnaDeTotal<T extends Movimiento>(
   return {
     id: 'total',
     accessorFn: (f) => total(f),
-    meta: { etiqueta: 'Total' },
+    meta: { etiqueta: 'Total', alinear: 'derecha' },
     header: ({ column }) => (
       <Button
         variant="ghost"
-        className="h-8 px-2 text-sm"
+        className="-mr-2 h-8 px-2 text-sm"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         Total

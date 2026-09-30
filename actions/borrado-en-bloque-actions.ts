@@ -149,8 +149,13 @@ export async function eliminarContactosDeFinanzasAction(
     const cuenta = await laCuenta(userId);
     if (!cuenta) return NO_AUTORIZADO;
 
-    const { count } = await db.financeContact.deleteMany({
-        where: { id: { in: lista }, userId: cuenta },
+    // Marca DELETED, igual que borrar un contacto de uno en uno
+    // (`deleteFinanceContact`): el módulo es de borrado suave. Con un
+    // `deleteMany` las filas desaparecían de verdad, y el código automático del
+    // siguiente contacto repetía el de uno que ya estaba.
+    const { count } = await db.financeContact.updateMany({
+        where: { id: { in: lista }, userId: cuenta, status: { not: "DELETED" } },
+        data: { status: "DELETED" },
     });
     revalidatePath("/dashboard/finance");
     return comoResumen(count, lista.length - count, "contactos");

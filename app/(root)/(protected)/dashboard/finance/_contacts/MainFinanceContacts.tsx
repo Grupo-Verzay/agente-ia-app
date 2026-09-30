@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { TablaDeFinanzas } from '../_components/TablaDeFinanzas';
-import { elNombreDelContacto, elNumeroDelContacto } from '@/lib/tabla-de-finanzas';
+import { elCodigoAutomatico, elNombreDelContacto, elNumeroDelContacto } from '@/lib/tabla-de-finanzas';
 import { buildContactsColumns, type FinanceContactRow } from './columns';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
@@ -377,7 +377,7 @@ export default function MainFinanceContacts({
         value={val}
         onChange={(e) => setValue(f.key, e.target.value)}
         className="h-9 text-sm"
-        placeholder={f.key === 'code' ? (kind === 'SUPPLIER' ? 'P-1 (automático)' : 'C-1 (automático)') : undefined}
+        placeholder={f.key === 'code' ? elCodigoAutomatico(kind) : undefined}
       />
     );
   };

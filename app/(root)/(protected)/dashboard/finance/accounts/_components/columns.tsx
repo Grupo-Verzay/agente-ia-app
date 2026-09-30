@@ -49,6 +49,7 @@ export function buildAccountsColumns({
     {
       id: 'ventas',
       header: 'Ventas',
+      meta: { alinear: 'derecha' },
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums text-muted-foreground">
           {getAccountSummary(row.original.id).salesText}
@@ -58,6 +59,7 @@ export function buildAccountsColumns({
     {
       id: 'gastos',
       header: 'Gastos',
+      meta: { alinear: 'derecha' },
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right tabular-nums text-muted-foreground">
           {getAccountSummary(row.original.id).expensesText}
@@ -67,6 +69,7 @@ export function buildAccountsColumns({
     {
       id: 'saldo',
       header: 'Saldo',
+      meta: { alinear: 'derecha' },
       cell: ({ row }) => (
         <div className="whitespace-nowrap text-right font-semibold tabular-nums">
           {getAccountSummary(row.original.id).balanceText}

@@ -158,3 +158,75 @@ export function elTipoDelGasto(categoria?: string | null): "Fijo" | "Variable" {
     if (!categoria) return "Variable";
     return FIJAS.has(sinTildes(categoria)) ? "Fijo" : "Variable";
 }
+
+/**
+ * El número corto del eje de la gráfica: «850k», «3,4M». Sin el «,0» de
+ * sobra: «850.0k» pedía más ancho del que tiene el eje y la primera cifra
+ * salía cortada por el borde izquierdo de la tarjeta (se leía «350.0k» donde
+ * decía 850).
+ */
+export function elNumeroCortoDelEje(n: number): string {
+    if (!Number.isFinite(n)) return "0";
+    const abs = Math.abs(n);
+    const corto = (v: number, sufijo: string) => `${v.toFixed(1).replace(/\.0$/, "").replace(".", ",")}${sufijo}`;
+    if (abs >= 1_000_000_000) return corto(n / 1_000_000_000, "B");
+    if (abs >= 1_000_000) return corto(n / 1_000_000, "M");
+    if (abs >= 1_000) return corto(n / 1_000, "k");
+    return `${Math.round(n)}`;
+}
+
+/**
+ * El concepto de un gasto: lo que se escribió en «Concepto» (`title`), y el
+ * proveedor (`counterparty`) solo si no hay concepto.
+ *
+ * Iba al revés —`counterparty || title`— en la columna, en el detalle y en el
+ * «¿Eliminar…?»: el formulario escribe `title`, así que en un gasto que traía
+ * además el proveedor, la columna «Concepto» enseñaba el proveedor y lo que se
+ * había escrito no salía por ningún lado. En Ventas la columna ya era `title`.
+ */
+export function elConceptoDelGasto(g: { title?: string | null; counterparty?: string | null }): string {
+    return String(g.title ?? "").trim() || String(g.counterparty ?? "").trim();
+}
+
+/**
+ * El proveedor de un gasto, para enseñarlo aparte en su detalle. Vacío si no
+ * hay, o si es lo mismo que el concepto: repetido no dice nada.
+ */
+export function elProveedorDelGasto(g: { title?: string | null; counterparty?: string | null }): string {
+    const proveedor = String(g.counterparty ?? "").trim();
+    return proveedor && proveedor !== elConceptoDelGasto(g) ? proveedor : "";
+}
+
+/**
+ * El código que se le pone solo a un contacto nuevo: `C-` para un cliente y
+ * `P-` para un proveedor, con el número que sigue al MÁS ALTO que ya exista.
+ *
+ * Era `cuántos hay + 1`, y eso repetía códigos: borrar en bloque quitaba filas
+ * de verdad, el conteo bajaba y el siguiente contacto nacía con el código de
+ * uno que ya estaba —dos «C-3» en la misma lista—. Se cuentan también los
+ * borrados, así que un código no se reutiliza nunca. Los códigos escritos a
+ * mano con otra forma («CLI-001») no cuentan: no chocan con los automáticos.
+ */
+export function elSiguienteCodigo(prefijo: "C" | "P", codigos: readonly (string | null | undefined)[]): string {
+    const forma = new RegExp(`^${prefijo}-(\\d+)$`, "i");
+    let mayor = 0;
+    for (const c of codigos) {
+        const m = forma.exec(String(c ?? "").trim());
+        if (m) mayor = Math.max(mayor, Number(m[1]));
+    }
+    return `${prefijo}-${mayor + 1}`;
+}
+
+/** El prefijo del código de un contacto de Finanzas según su tipo. */
+export function elPrefijoDelContacto(tipo: "CLIENT" | "SUPPLIER"): "C" | "P" {
+    return tipo === "SUPPLIER" ? "P" : "C";
+}
+
+/**
+ * Lo que dice la caja del código vacía. Decía «C-1 (automático)» con cinco
+ * clientes dentro, o sea un número que no iba a salir: dice cómo se numera.
+ */
+export function elCodigoAutomatico(tipo: "CLIENT" | "SUPPLIER"): string {
+    const p = elPrefijoDelContacto(tipo);
+    return `Se pone solo: ${p}-1, ${p}-2…`;
+}

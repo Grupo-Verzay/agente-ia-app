@@ -21,6 +21,7 @@ import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_FINANZAS } from "@/lib/guia-finanzas";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -125,6 +126,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/notas",
         contenido: GUIA_NOTAS,
         tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
+    },
+    {
+        modulo: "finanzas",
+        ruta: "/dashboard/finance",
+        contenido: GUIA_FINANZAS,
+        tarjeta: "Aprende a registrar ventas y gastos y ver tu balance en la plataforma",
     },
 ];
 

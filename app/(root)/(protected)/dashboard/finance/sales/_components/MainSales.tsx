@@ -33,6 +33,7 @@ import { eliminarVentasAction } from '@/actions/borrado-en-bloque-actions';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
 import { filtrarPorPeriodo, laFechaDeUnoNuevo, elDiaDeHoy, unPeriodo, type Periodo } from '@/lib/periodo-de-finanzas';
 import { comoImporte, elNombreDelContacto, elNumeroDelContacto, elTotalDeLaVenta, formatoDeDinero } from '@/lib/tabla-de-finanzas';
+import { CABECERA_DEL_DETALLE, CUERPO_DEL_DETALLE, DIALOGO_DEL_DETALLE, REJILLA_DEL_DETALLE } from '@/lib/detalle-de-finanzas';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -667,11 +668,13 @@ export default function MainSales({
           onConfirmar={onDeleteAll}
         />
 
-{/* Modal Detalle (MEJORADO) */}
+{/* Detalle: la misma forma que el de un gasto (lib/detalle-de-finanzas.ts).
+    La cabecera deja sitio a la X: con los botones pegados al borde, la X
+    quedaba encima de Eliminar. */}
 <Dialog open={detailOpen} onOpenChange={(v) => (v ? setDetailOpen(true) : closeDetail())}>
-  <DialogContent className="sm:max-w-[980px] rounded-2xl p-0 overflow-hidden">
+  <DialogContent className={DIALOGO_DEL_DETALLE} data-detalle-de-finanzas>
     {/* Header */}
-    <div className="border-b bg-background/95 p-4 sm:p-5">
+    <div className={CABECERA_DEL_DETALLE} data-cabecera-del-detalle>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <DialogTitle className="text-base sm:text-lg font-semibold truncate">
@@ -700,9 +703,9 @@ export default function MainSales({
     </div>
 
     {detailRow ? (
-      <div className="p-4 sm:p-5">
+      <div className={CUERPO_DEL_DETALLE}>
         {/* Layout: info + total */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+        <div className={REJILLA_DEL_DETALLE}>
           {/* LEFT */}
           <div className="space-y-4">
             {/* Hero card */}
@@ -831,7 +834,7 @@ export default function MainSales({
 
           {/* RIGHT */}
           <div className="space-y-3 lg:sticky lg:top-4">
-            <div className="rounded-2xl border bg-background p-4">
+            <div className="rounded-2xl border bg-background p-4" data-total-del-detalle>
               <p className="text-xs text-muted-foreground">Total</p>
 
               <div className="mt-1 flex items-end justify-between gap-3">
@@ -841,24 +844,27 @@ export default function MainSales({
                 </Badge>
               </div>
 
-              {/* Base, extra y descuento: el total es base + extra − descuento. */}
+              {/* Base, extra y descuento: el total es base + extra − descuento.
+                  Una fila por importe y la cifra a la derecha, entera: en tres
+                  cajitas de 87 px los importes se recortaban con «…», o sea que
+                  el detalle no decía cuánto era cada cosa. */}
               {(detailExtra !== 0 || detailDiscount !== 0) ? (
                 <>
                   <Separator className="my-3" />
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Base</p>
-                      <p className="text-sm font-semibold truncate tabular-nums">{dinero(detailBase)}</p>
+                  <dl className="space-y-1.5 text-sm" data-desglose-del-detalle>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Base</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">{dinero(detailBase)}</dd>
                     </div>
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Extra</p>
-                      <p className="text-sm font-semibold truncate tabular-nums">{dinero(detailExtra)}</p>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Extra</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">+ {dinero(detailExtra)}</dd>
                     </div>
-                    <div className="rounded-xl border bg-muted/10 p-2">
-                      <p className="text-[11px] text-muted-foreground">Descuento</p>
-                      <p className="text-sm font-semibold truncate tabular-nums">{dinero(detailDiscount)}</p>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Descuento</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">− {dinero(detailDiscount)}</dd>
                     </div>
-                  </div>
+                  </dl>
                 </>
               ) : null}
             </div>
@@ -1084,28 +1090,33 @@ export default function MainSales({
                     </div>
 
                     <div className="rounded-xl border bg-background p-3">
+                      {/* El desglose va en su propia línea, debajo: dentro de la
+                          columna del total (que no encoge) se comía el ancho del
+                          concepto —«Café O…»— y partía la cuenta en dos líneas. */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-[11px] text-muted-foreground">Concepto</p>
                           <p className="truncate text-sm font-medium">{form.title?.trim() ? form.title.trim() : '—'}</p>
-
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant="outline" className="h-6 text-[11px]">{previewAccountName}</Badge>
-                            <Badge variant="outline" className="h-6 text-[11px]">{previewCategoryName}</Badge>
-                            <Badge variant="outline" className="h-6 text-[11px]">
-                              <span className="inline-flex items-center gap-1">
-                                <UserRound className="h-3.5 w-3.5" />
-                                <span className="truncate max-w-[170px]">{contactText}</span>
-                              </span>
-                            </Badge>
-                          </div>
                         </div>
 
                         <div className="shrink-0 text-right">
                           <p className="text-[11px] text-muted-foreground">Total</p>
                           <p className="text-lg font-bold leading-tight tabular-nums">{enSuMoneda(total)}</p>
-                          <p className="text-[11px] text-muted-foreground tabular-nums">Base {enSuMoneda(base)} · Extra {enSuMoneda(extra)} · Descuento {enSuMoneda(disc)}</p>
                         </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground tabular-nums" data-desglose-de-la-venta>
+                        Base {enSuMoneda(base)} · Extra {enSuMoneda(extra)} · Descuento {enSuMoneda(disc)}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">{previewAccountName}</Badge>
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">{previewCategoryName}</Badge>
+                        <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound className="h-3.5 w-3.5" />
+                            <span className="truncate max-w-[170px]">{contactText}</span>
+                          </span>
+                        </Badge>
                       </div>
 
                       {form.description?.trim() ? (

@@ -209,7 +209,17 @@ export function TablaDeFinanzas<TData, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="border-border [&>th]:text-sm">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="py-2">
+                    <TableHead
+                      key={header.id}
+                      // Una columna de dinero lleva el título a la derecha, encima
+                      // de sus cifras: a la izquierda, «Saldo» quedaba sobre el
+                      // hueco de la columna de al lado.
+                      className={
+                        (header.column.columnDef.meta as { alinear?: string } | undefined)?.alinear === 'derecha'
+                          ? 'py-2 text-right'
+                          : 'py-2'
+                      }
+                    >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}

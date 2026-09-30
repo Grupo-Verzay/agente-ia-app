@@ -146,3 +146,18 @@ export function elRotuloDelPeriodo(periodo: Periodo, queSon = "Todo"): string {
     if (hasta) return `Hasta ${diaCorto(hasta)}`;
     return queSon;
 }
+
+/**
+ * El mismo mes, `delta` años antes o después (`"2026-09"`, -1 → `"2025-09"`).
+ * El resumen anual solo enseña los doce meses de UN año y pulsar uno cambia de
+ * mes, no de año: sin esto, mirar el diciembre pasado solo se podía escribiendo
+ * la dirección a mano. Un mes que no se entiende devuelve `null`: un enlace a
+ * «NaN-09» se abriría en el mes de hoy sin decir por qué.
+ */
+export function elMesDeOtroAno(mes: string, delta: number): string | null {
+    const m = /^(\d{4})-(\d{2})$/.exec(mes);
+    if (!m || !Number.isInteger(delta)) return null;
+    const ano = Number(m[1]) + delta;
+    if (ano < 1 || ano > 9999) return null;
+    return `${String(ano).padStart(4, "0")}-${m[2]}`;
+}

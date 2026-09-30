@@ -11,19 +11,13 @@ import {
   Legend,
 } from 'recharts';
 
+import { elNumeroCortoDelEje } from '@/lib/tabla-de-finanzas';
+
 type Row = {
   day: number;
   sales: number;
   expenses: number;
 };
-
-function compactNumber(n: number) {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${Math.round(n)}`;
-}
 
 function makeMoneyFormatter(currencyCode: string) {
   return (value: number) => {
@@ -64,8 +58,9 @@ export function FinanceMonthChart({
             axisLine={false}
             fontSize={12}
             tickMargin={8}
-            width={48}
-            tickFormatter={(v) => compactNumber(Number(v))}
+            // Ancho para «-850k» con su margen: con 48 la cifra se cortaba.
+            width={60}
+            tickFormatter={(v) => elNumeroCortoDelEje(Number(v))}
           />
 
           <Tooltip

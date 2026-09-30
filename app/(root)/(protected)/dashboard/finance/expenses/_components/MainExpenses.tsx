@@ -8,7 +8,8 @@ import { TablaDeFinanzas } from '../../_components/TablaDeFinanzas';
 import { FiltroDePeriodo } from '../../_components/FiltroDePeriodo';
 import { AccionesDeLaFila, ConfirmarBorrado } from '../../_components/AccionesDeLaFila';
 import { filtrarPorPeriodo, laFechaDeUnoNuevo, elDiaDeHoy, unPeriodo, type Periodo } from '@/lib/periodo-de-finanzas';
-import { comoImporte, formatoDeDinero } from '@/lib/tabla-de-finanzas';
+import { comoImporte, elConceptoDelGasto, elProveedorDelGasto, formatoDeDinero } from '@/lib/tabla-de-finanzas';
+import { CABECERA_DEL_DETALLE, CUERPO_DEL_DETALLE, DIALOGO_DEL_DETALLE, REJILLA_DEL_DETALLE } from '@/lib/detalle-de-finanzas';
 import { buildExpenseColumns, type ExpenseRow } from './columns';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
@@ -50,6 +51,7 @@ import {
   FileText,
   Receipt,
   Trash2,
+  Truck,
 } from 'lucide-react';
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
 import { AccionesMasivas } from '@/components/shared/AccionesMasivas';
@@ -520,16 +522,26 @@ export default function MainExpenses({
           onConfirmar={onDeleteAll}
         />
 
-        {/* Modal Detalle (más parecido a Sales: botones icon) */}
+        {/* Detalle: la misma forma que el de una venta (lib/detalle-de-finanzas.ts).
+            Iba a 820 px con el total metido en la tarjeta del concepto, y los
+            botones pegados al borde: la X de cerrar quedaba encima de Eliminar. */}
         <Dialog open={detailOpen} onOpenChange={(v) => (v ? setDetailOpen(true) : closeDetail())}>
-          <DialogContent className="sm:max-w-[820px] rounded-2xl">
-            <DialogHeader className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <DialogTitle className="text-base">Detalle del gasto</DialogTitle>
+          <DialogContent className={DIALOGO_DEL_DETALLE} data-detalle-de-finanzas>
+            <div className={CABECERA_DEL_DETALLE} data-cabecera-del-detalle>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <DialogTitle className="text-base sm:text-lg font-semibold truncate">
+                    Detalle del gasto
+                  </DialogTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Visualiza el resumen, el proveedor y los soportes.
+                  </p>
+                </div>
+
                 {detailRow ? (
                   <AccionesDeLaFila
                     queEs="el gasto"
-                    nombre={detailRow.counterparty || detailRow.title}
+                    nombre={elConceptoDelGasto(detailRow)}
                     ajena={filaAjena(detailRow)}
                     ocupado={isPending}
                     tamano="detalle"
@@ -541,101 +553,117 @@ export default function MainExpenses({
                   />
                 ) : null}
               </div>
-              <p className="text-xs text-muted-foreground">Visualiza el resumen y soportes.</p>
-            </DialogHeader>
+            </div>
 
             {detailRow ? (
-              <div className="space-y-4">
-                <div className="rounded-xl border bg-muted/10 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-semibold">{detailRow.counterparty || detailRow.title || 'Sin concepto'}</p>
+              <div className={CUERPO_DEL_DETALLE}>
+                <div className={REJILLA_DEL_DETALLE}>
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border bg-muted/10 p-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold">{elConceptoDelGasto(detailRow) || 'Sin concepto'}</p>
 
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="secondary" className="h-6 text-[11px]">
-                          {toISODate(detailRow.occurredAt)}
-                        </Badge>
-                        <Badge variant="outline" className="h-6 text-[11px]">
-                          {detailAccountName || '—'}
-                        </Badge>
-                        <Badge variant="outline" className="h-6 text-[11px]">
-                          {detailCategoryName}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary" className="h-6 rounded-lg text-[11px]">
+                            {toISODate(detailRow.occurredAt)}
+                          </Badge>
+                          <Badge variant="outline" className="h-6 rounded-lg text-[11px]">
+                            {detailAccountName || '—'}
+                          </Badge>
+                          <Badge variant="outline" className="h-6 rounded-lg text-[11px]">
+                            {detailCategoryName}
+                          </Badge>
+                          {elProveedorDelGasto(detailRow) ? (
+                            <Badge variant="outline" className="h-6 rounded-lg text-[11px]">
+                              <span className="inline-flex items-center gap-1">
+                                <Truck className="h-3.5 w-3.5" />
+                                <span className="truncate max-w-[170px]">{elProveedorDelGasto(detailRow)}</span>
+                              </span>
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <Separator className="my-3" />
+
+                      {detailRow.description ? (
+                        <div className="rounded-xl border bg-background p-3">
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed">{detailRow.description}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin descripción</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Soportes</p>
+                        <p className="text-xs text-muted-foreground">
+                          {detailAttachments.length ? `${detailAttachments.length} archivo(s)` : '0 archivos'}
+                        </p>
+                      </div>
+
+                      {detailAttachments.length ? (
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {detailAttachments.map((a) => {
+                            const isImg = guessIsImage(a.mimeType, a.url);
+                            const isPdf = guessIsPdf(a.mimeType, a.url);
+
+                            return (
+                              <a
+                                key={a.id ?? a.url}
+                                href={a.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group flex items-center gap-3 rounded-2xl border bg-background p-3 transition-colors hover:bg-muted/30"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border bg-muted/10">
+                                  {isImg ? (
+                                    <SafeImage
+                                      src={a.url}
+                                      alt={a.fileName || 'soporte'}
+                                      width={44}
+                                      height={44}
+                                      className="h-11 w-11 object-cover"
+                                    />
+                                  ) : isPdf ? (
+                                    <FileText className="h-5 w-5 text-muted-foreground" />
+                                  ) : (
+                                    <Receipt className="h-5 w-5 text-muted-foreground" />
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{a.fileName || 'Archivo'}</p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Abrir <ExternalLink className="ml-1 inline h-3 w-3" />
+                                  </p>
+                                </div>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <EmptyBox text="Sin soportes" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 lg:sticky lg:top-4">
+                    <div className="rounded-2xl border bg-background p-4" data-total-del-detalle>
+                      <p className="text-xs text-muted-foreground">Total</p>
+
+                      <div className="mt-1 flex items-end justify-between gap-3">
+                        <p className="text-2xl font-bold leading-none tabular-nums">
+                          {formatoDeDinero(currencies, detailRow.currencyCode || defaultCurrency, comoImporte(detailRow.amount))}
+                        </p>
+                        <Badge variant="outline" className="h-7 rounded-xl text-[11px]">
+                          {detailRow.currencyCode}
                         </Badge>
                       </div>
                     </div>
-
-                    <div className="shrink-0 text-right">
-                      <p className="text-[11px] text-muted-foreground">Total</p>
-                      <p className="text-lg font-bold leading-tight tabular-nums">
-                        {formatoDeDinero(currencies, detailRow.currencyCode || defaultCurrency, comoImporte(detailRow.amount))}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{detailRow.currencyCode}</p>
-                    </div>
                   </div>
-
-                  <Separator className="my-3" />
-
-                  {detailRow.description ? (
-                    <div className="rounded-lg border bg-background p-3">
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{detailRow.description}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Sin descripción</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Soportes</p>
-                    <p className="text-xs text-muted-foreground">
-                      {detailAttachments.length ? `${detailAttachments.length} archivo(s)` : '0 archivos'}
-                    </p>
-                  </div>
-
-                  {detailAttachments.length ? (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {detailAttachments.map((a) => {
-                        const isImg = guessIsImage(a.mimeType, a.url);
-                        const isPdf = guessIsPdf(a.mimeType, a.url);
-
-                        return (
-                          <a
-                            key={a.id ?? a.url}
-                            href={a.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="group flex items-center gap-3 rounded-xl border bg-background p-3 hover:bg-muted/30"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border bg-muted/10">
-                              {isImg ? (
-                                <SafeImage
-                                  src={a.url}
-                                  alt={a.fileName || 'soporte'}
-                                  width={40}
-                                  height={40}
-                                  className="h-10 w-10 object-cover"
-                                />
-                              ) : isPdf ? (
-                                <FileText className="h-5 w-5 text-muted-foreground" />
-                              ) : (
-                                <Receipt className="h-5 w-5 text-muted-foreground" />
-                              )}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{a.fileName || 'Archivo'}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                Abrir <ExternalLink className="ml-1 inline h-3 w-3" />
-                              </p>
-                            </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <EmptyBox text="Sin soportes" />
-                  )}
                 </div>
               </div>
             ) : null}
@@ -781,10 +809,10 @@ export default function MainExpenses({
                           <p className="truncate text-sm font-medium">{form.title?.trim() ? form.title.trim() : '—'}</p>
 
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant="outline" className="h-6 text-[11px]">
+                            <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
                               {previewAccountName}
                             </Badge>
-                            <Badge variant="outline" className="h-6 text-[11px]">
+                            <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
                               {previewCategoryName}
                             </Badge>
                           </div>

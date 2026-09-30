@@ -12,7 +12,7 @@ import {
     columnaDeSoportes,
     columnaDeTotal,
 } from '../../_components/ColumnasDeMovimientos';
-import { comoImporte, elTipoDelGasto, type MonedaDeFinanzas } from '@/lib/tabla-de-finanzas';
+import { comoImporte, elConceptoDelGasto, elTipoDelGasto, type MonedaDeFinanzas } from '@/lib/tabla-de-finanzas';
 
 export type ExpenseRow = {
     id: string;
@@ -52,7 +52,7 @@ export function buildExpenseColumns(opts: {
     // Las mismas columnas que Ventas y en el mismo orden (`ColumnasDeMovimientos`);
     // «Tipo» es la única propia: Fijo/Variable solo tiene sentido en un gasto.
     return [
-        columnaDeConcepto<ExpenseRow>((f) => f.counterparty || f.title),
+        columnaDeConcepto<ExpenseRow>((f) => elConceptoDelGasto(f), (f) => f.counterparty),
         columnaDeCategoria<ExpenseRow>(),
         {
             id: 'tipo',
@@ -76,7 +76,7 @@ export function buildExpenseColumns(opts: {
             cell: ({ row }) => (
                 <AccionesDeLaFila
                     queEs="el gasto"
-                    nombre={row.original.counterparty || row.original.title}
+                    nombre={elConceptoDelGasto(row.original)}
                     ajena={opts.esDeOtraCuenta?.(row.original)}
                     ocupado={opts.busy}
                     onEditar={() => opts.onEdit(row.original)}
