@@ -1,0 +1,135 @@
+{
+  "voz": "cedar",
+  "modelo": "gpt-4o-mini-tts",
+  "frases": {
+    "gancho": "6504482a2d6475710b163178",
+    "promesa": "30bce838d67090932c445829",
+    "tresPantallas": "6c21e83b3b330b99d3f7b1fe",
+    "texto": "5eb33edc7c92c850ce8e56d3",
+    "voz": "33d44cc4cf74bb6a312a6ff7",
+    "medios": "11d9479b50557689c0012b8d",
+    "caliente": "09422d3a3b77796f7cdc8bcf",
+    "seguimiento": "290b57a2d77ecde61c9cc593",
+    "cita": "a73aee68871363211fee3e65",
+    "recordatorio": "956769dd58c4aab827fd42f0",
+    "embudo": "b71c4063b597ecb676ace343",
+    "cierre": "296f6dd90cc465fa5a3d6340"
+  },
+  "duracionMs": 99567,
+  "colocados": [
+    {
+      "clase": "narracion",
+      "texto": "Restaurantes, clínicas, tiendas en línea, consultorías y agencias: tus clientes te escriben por WhatsApp a cualquier hora.",
+      "inicioMs": 462,
+      "finMs": 7692
+    },
+    {
+      "clase": "narracion",
+      "texto": "Con Verzay, una inteligencia artificial les contesta al instante, entiende lo que piden y lo deja todo listo en tu CRM.",
+      "inicioMs": 7952,
+      "finMs": 16042
+    },
+    {
+      "clase": "narracion",
+      "texto": "Mira la misma conversación en el celular del negocio, en WhatsApp Web y en el panel de Verzay, al mismo tiempo.",
+      "inicioMs": 17208,
+      "finMs": 24338
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M01",
+      "inicioMs": 18925,
+      "finMs": 19195
+    },
+    {
+      "clase": "narracion",
+      "texto": "Laura pregunta por un blanqueamiento. La IA le da el precio, y su ficha se llena sola.",
+      "inicioMs": 25141,
+      "finMs": 31021
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M03",
+      "inicioMs": 33093,
+      "finMs": 33363
+    },
+    {
+      "clase": "nota",
+      "texto": "nota clienta",
+      "inicioMs": 33366,
+      "finMs": 37066
+    },
+    {
+      "clase": "narracion",
+      "texto": "¿Te manda una nota de voz? La escucha, la entiende y le contesta con su propia voz.",
+      "inicioMs": 37323,
+      "finMs": 42013
+    },
+    {
+      "clase": "nota",
+      "texto": "nota ia",
+      "inicioMs": 42226,
+      "finMs": 46386
+    },
+    {
+      "clase": "narracion",
+      "texto": "Le envía la lista de precios, un video de la clínica, y entiende la imagen que Laura le manda.",
+      "inicioMs": 47108,
+      "finMs": 52258
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M07",
+      "inicioMs": 49523,
+      "finMs": 49793
+    },
+    {
+      "clase": "narracion",
+      "texto": "Laura ya está interesada: queda calificada como caliente y etiquetada, sin que nadie toque nada.",
+      "inicioMs": 53225,
+      "finMs": 59925
+    },
+    {
+      "clase": "narracion",
+      "texto": "¿Y si deja de responder? La IA le hace seguimiento sola, con los cupos de la semana.",
+      "inicioMs": 60545,
+      "finMs": 66515
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M11",
+      "inicioMs": 68167,
+      "finMs": 68437
+    },
+    {
+      "clase": "narracion",
+      "texto": "Laura elige un horario, y la cita queda agendada en tu calendario.",
+      "inicioMs": 68203,
+      "finMs": 72673
+    },
+    {
+      "clase": "narracion",
+      "texto": "Un día antes le llega el recordatorio. Confirma, y tú lo ves al instante.",
+      "inicioMs": 75204,
+      "finMs": 79954
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M14",
+      "inicioMs": 77251,
+      "finMs": 77521
+    },
+    {
+      "clase": "narracion",
+      "texto": "Cada cliente avanza solo por tu embudo, con toda su historia en su ficha.",
+      "inicioMs": 80714,
+      "finMs": 85744
+    },
+    {
+      "clase": "narracion",
+      "texto": "Verzay responde, vende, agenda y hace seguimiento las veinticuatro horas. Agenda una reunión y míralo funcionando en tu negocio.",
+      "inicioMs": 87161,
+      "finMs": 96661
+    }
+  ]
+}

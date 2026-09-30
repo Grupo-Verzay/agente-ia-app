@@ -1289,6 +1289,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         escalatedAt={escalatedAt}
         etapaDelEmbudo={etapaDelEmbudo}
         onEtapaCambiada={onEtapaCambiada}
+        refrescarLaEtapa={sessionRefreshSignal}
         onResolucionCambiada={onResolucionCambiada}
         onUnescalated={onUnescalated}
         onAssignAdvisor={onAssignAdvisor}
@@ -1546,6 +1547,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onClose={cerrarFicha}
         onSessionMutate={mutateSessionStatus}
         onSessionRefresh={refreshSessionStatus}
+        refrescar={sessionRefreshSignal}
       />
     </div>
   );
