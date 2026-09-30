@@ -9,6 +9,7 @@ import { PLAN_LEVEL_LABELS } from '@/types/plans';
 import { etiquetaDePlanParaCuenta } from '@/lib/plan-pricing';
 import { db } from '@/lib/db';
 import { laCuentaActiva } from '@/lib/cuenta-activa';
+import { TITULO_DE_LA_PANTALLA } from '@/lib/pantalla-de-mis-datos';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +76,7 @@ export default async function MyDataPage() {
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
-          <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
+          <h2 className="h3-bold text-gray-900 dark:text-white">{TITULO_DE_LA_PANTALLA}</h2>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
           <UpgradeRequired planLabel={planLabel} />

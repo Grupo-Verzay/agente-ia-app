@@ -1,18 +1,13 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import type { ExternalClientData } from '@/types/external-client-data';
 import { CasillaDeFila } from '@/components/shared/AccionesMasivas';
+import { EditarYEliminar } from '@/components/shared/EditarYEliminar';
+import { laClaveQueSeLee, laEtiquetaDeLaColumna, laFuente } from '@/lib/pantalla-de-mis-datos';
 
 // ─── Interfaces (ISP) ─────────────────────────────────────────────────────────
 
@@ -55,17 +50,21 @@ export function buildExternalClientDataColumns(
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           className="-ml-3"
         >
-          WhatsApp / Remote JID
+          {laEtiquetaDeLaColumna('remoteJid')}
           <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
         </Button>
       ),
+      // El número, no la forma de WhatsApp (`laClaveQueSeLee`); la clave entera
+      // sigue en el globo.
       cell: ({ row }) => (
-        <span className="font-mono text-xs">{row.getValue('remoteJid')}</span>
+        <span className="font-mono text-xs" title={row.getValue('remoteJid')}>
+          {laClaveQueSeLee(row.getValue('remoteJid'))}
+        </span>
       ),
     },
     {
       accessorKey: 'data',
-      header: 'Datos',
+      header: laEtiquetaDeLaColumna('data'),
       enableSorting: false,
       cell: ({ row }) => {
         const data = row.getValue('data') as Record<string, unknown>;
@@ -90,7 +89,7 @@ export function buildExternalClientDataColumns(
     },
     {
       accessorKey: 'source',
-      header: 'Fuente',
+      header: laEtiquetaDeLaColumna('source'),
       cell: ({ row }) => {
         const source = (row.getValue('source') as string | null) ?? 'manual';
         const variant =
@@ -100,8 +99,8 @@ export function buildExternalClientDataColumns(
               ? 'secondary'
               : 'outline';
         return (
-          <Badge variant={variant} className="text-xs capitalize">
-            {source}
+          <Badge variant={variant} className="text-xs">
+            {laFuente(source)}
           </Badge>
         );
       },
@@ -115,7 +114,7 @@ export function buildExternalClientDataColumns(
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           className="-ml-3"
         >
-          Actualizado
+          {laEtiquetaDeLaColumna('updatedAt')}
           <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
         </Button>
       ),
@@ -134,30 +133,9 @@ export function buildExternalClientDataColumns(
       enableHiding: false,
       cell: ({ row }) => {
         const record = row.original;
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Abrir menú</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => actions.onEdit(record)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => actions.onDelete(record)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
+        // El lápiz y la papelera a la vista, como en la lista de bloques de la
+        // base de conocimiento: iban escondidos detrás de un «⋯».
+        return <EditarYEliminar onEditar={() => actions.onEdit(record)} onEliminar={() => actions.onDelete(record)} />;
       },
     },
   ];

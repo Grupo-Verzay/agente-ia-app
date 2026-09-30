@@ -7,13 +7,16 @@ import {
     CalendarPlus,
     CircleDot,
     Columns3,
+    Database,
     DoorOpen,
     Download,
+    FileSpreadsheet,
     FileStack,
     Filter,
     FolderOpen,
     GitBranch,
     History,
+    Layers,
     LayoutDashboard,
     LayoutGrid,
     Lightbulb,
@@ -87,6 +90,10 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     History,
     FileStack,
     Archive,
+    FileSpreadsheet,
+    Database,
+    BookOpen,
+    Layers,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

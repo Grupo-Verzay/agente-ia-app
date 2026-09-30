@@ -23,3 +23,31 @@ export function esUrlDeGoogleSheets(url: string | null | undefined): boolean {
         return false;
     }
 }
+
+/**
+ * La dirección del CSV de una hoja de Google, a partir de la que se pegó.
+ *
+ * Se rearma SIEMPRE contra `docs.google.com` con el id de la hoja: lo que llega
+ * del navegador no decide a qué servidor va a pedir la App.
+ *
+ * El `gid` —la pestaña— sale de `?gid=` o de `#gid=`, y solo si son dígitos.
+ * Sin él no se manda: Google exporta la PRIMERA pestaña. Antes se mandaba
+ * `&gid=` vacío cuando la URL no lo traía (`"".trim() ?? "0"` nunca cae en el
+ * `"0"`: una cadena vacía no es nula), y un `#heading=…` se colaba entero.
+ */
+export function laUrlDelCsv(url: string | null | undefined): string | null {
+    const texto = (url ?? "").trim();
+    if (!texto) return null;
+    try {
+        const partes = new URL(texto);
+        const id = /\/spreadsheets\/d\/([^/?#]+)/.exec(partes.pathname)?.[1];
+        if (!id) return null;
+        const gid = [partes.searchParams.get("gid") ?? "", /(?:^|[#&])gid=(\d+)/.exec(partes.hash)?.[1] ?? ""].find((g) =>
+            /^\d+$/.test(g),
+        );
+        const csv = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(decodeURIComponent(id))}/export?format=csv`;
+        return gid ? `${csv}&gid=${gid}` : csv;
+    } catch {
+        return null;
+    }
+}

@@ -463,14 +463,49 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
 /* ------------------------------------------------------------------ */
 
 export async function mover(p, locator) {
-    const b = await locator.boundingBox();
+    let b = await locator.boundingBox();
     // Sin caja, `b.x` revienta con un TypeError que no dice qué faltaba.
     if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que señalar: ${locator}`);
+    // Fuera de la ventana, el ratón iría a un punto que no existe y el clic no
+    // tocaría nada —sin ningún error: el vídeo se quedaba esperando un
+    // resultado que no llega—. Se trae a la vista con un desplazamiento suave
+    // (el vídeo lo enseña) y, si aun así no se ve, se cae.
+    const vista = p.viewportSize();
+    const fuera = (c) => c.y + c.height / 2 < 0 || c.y + c.height / 2 > vista.height || c.x + c.width / 2 < 0 || c.x + c.width / 2 > vista.width;
+    if (fuera(b)) {
+        await locator.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+        await espera(p, 700);
+        b = await locator.boundingBox();
+        if (!b || fuera(b)) throw new Error(`[guia] lo que el vídeo tenía que señalar se queda fuera de la ventana: ${locator}`);
+    }
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
     await espera(p, 250);
 }
+/**
+ * ¿Hay algo ENCIMA de lo que se va a pulsar? Un aviso flotante que acaba de
+ * salir tapa lo que haya debajo —en Mis datos, «6 columnas detectadas» caía
+ * justo sobre «Iniciar importación»—, y el clic se lo come el aviso: nada falla,
+ * el vídeo se queda esperando un resultado que no llega. Se espera a que se
+ * destape (un aviso se va solo) y, si no, se cae diciendo qué lo tapa.
+ */
+async function sinNadaEncima(p, locator) {
+    const libre = () =>
+        locator.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !e || el === e || el.contains(e) ? "" : `${e.tagName.toLowerCase()} ${(e.textContent ?? "").trim().slice(0, 40)}`;
+        });
+    let encima = await libre();
+    for (let i = 0; i < 40 && encima; i += 1) {
+        await espera(p, 200);
+        encima = await libre();
+    }
+    if (encima) throw new Error(`[guia] lo que el vídeo tenía que pulsar está tapado por «${encima}»: ${locator}`);
+}
+
 export async function pulsar(p, locator) {
     await mover(p, locator);
+    await sinNadaEncima(p, locator);
     await p.mouse.down();
     await espera(p, 90);
     // El clic lo hace el ratón (así el vídeo lo enseña): no se vuelve a pulsar.

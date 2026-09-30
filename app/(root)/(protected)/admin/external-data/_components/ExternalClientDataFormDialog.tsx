@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { upsertExternalClientData } from '@/actions/external-client-data-actions';
 import type { ExternalClientData, ExternalClientDataRecord } from '@/types/external-client-data';
+import { laEtiquetaDeLaColumna } from '@/lib/pantalla-de-mis-datos';
 
 // ─── Key-value pair types (SRP — data shape for the form) ─────────────────────
 
@@ -84,7 +85,7 @@ export function ExternalClientDataFormDialog({
   const handleSave = async () => {
     const jid = remoteJid.trim();
     if (!jid) {
-      toast.error('El remoteJid es obligatorio');
+      toast.error('Escribe el número de WhatsApp o la clave del registro.');
       return;
     }
     const data = kvToRecord(pairs);
@@ -114,17 +115,19 @@ export function ExternalClientDataFormDialog({
           <DialogDescription>
             {isEditing
               ? 'Modifica los campos de datos del contacto.'
-              : 'Ingresa el número de WhatsApp y los datos del contacto.'}
+              : 'Escribe el número de WhatsApp (o la clave, si es un catálogo) y sus datos.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
           {/* Remote JID */}
           <div className="space-y-1.5">
-            <Label htmlFor="remoteJid">WhatsApp / Remote JID</Label>
+            {/* El mismo nombre que su columna en la tabla: decía «WhatsApp /
+                Remote JID», una palabra interna en una pantalla de cliente. */}
+            <Label htmlFor="remoteJid">{laEtiquetaDeLaColumna('remoteJid')}</Label>
             <Input
               id="remoteJid"
-              placeholder="ej: 5491112345678@s.whatsapp.net"
+              placeholder="ej: 573001234567 o SKU-001"
               value={remoteJid}
               onChange={(e) => setRemoteJid(e.target.value)}
               disabled={isEditing || isSaving}
@@ -132,7 +135,7 @@ export function ExternalClientDataFormDialog({
             />
             {isEditing && (
               <p className="text-xs text-muted-foreground">
-                El remoteJid no puede modificarse una vez creado.
+                El número o la clave no se puede cambiar una vez creado.
               </p>
             )}
           </div>
@@ -180,6 +183,8 @@ export function ExternalClientDataFormDialog({
                     className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
                     onClick={() => removePair(i)}
                     disabled={isSaving || pairs.length === 1}
+                    title="Quitar campo"
+                    aria-label="Quitar campo"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -193,7 +198,8 @@ export function ExternalClientDataFormDialog({
           <Button variant="outline" onClick={handleClose} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button variant="save" onClick={handleSave} disabled={isSaving} className="gap-2">
+          {/* Crear va en azul y guardar en verde, como en toda la plataforma. */}
+          <Button variant={isEditing ? 'save' : 'default'} onClick={handleSave} disabled={isSaving} className="gap-2">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEditing ? 'Guardar cambios' : 'Crear registro'}
           </Button>

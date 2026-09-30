@@ -79,8 +79,17 @@ mkdir -p "$OUT"
 npx esbuild "lib/guia-$MODULO.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$MODULO.mjs" --log-level=warning
 export CAPTURAS_ESPERADAS="$(node -e "import('./$OUT/guia-$MODULO.mjs').then(m=>console.log(JSON.stringify(m.lasCapturasQueSeEnsenan())))")"
 
+# Una guía cuya pantalla habla con un servicio de FUERA —las hojas de Google
+# que importa Mis datos— trae un `servidor-guia-<modulo>.cjs` que contesta en su
+# lugar. Se carga antes que Next y SOLO en `next start`: este equipo no sale a
+# internet, y una guía no puede depender de una hoja que alguien puede borrar.
+PRECARGA=""
+if [ -f "scripts/servidor-guia-$MODULO.cjs" ]; then
+  PRECARGA="--require $PWD/scripts/servidor-guia-$MODULO.cjs"
+fi
+
 LOG=/tmp/guia-next.log
-setsid npx next start -p "$APP" >"$LOG" 2>&1 </dev/null &
+NODE_OPTIONS="${NODE_OPTIONS:-} $PRECARGA" setsid npx next start -p "$APP" >"$LOG" 2>&1 </dev/null &
 NEXT_PID=$!
 trap 'kill -- -$NEXT_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do
