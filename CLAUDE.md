@@ -19384,7 +19384,10 @@ vigila la familia entera. `scripts/banco-importaciones.sh` lee todo el código
 con el compilador de TypeScript y exige que cada `import { … }` entre ficheros
 del repo (`@/…` y `./…`) esté exportado donde se importa — en segundos, no en
 los siete minutos de `next build`. Un `export *` da el fichero por bueno (no se
-sigue la cadena): mejor callar que cantar un fallo que no existe.
+sigue la cadena): mejor callar que cantar un fallo que no existe. Y una
+variable **desestructurada** también es una exportación: `export const {
+laSeccion, lasVecinas } = GUIA` exporta esos dos. Sin recorrer el patrón, el
+banco cantaba en rojo las páginas de todas las guías públicas.
 
 > **Si un despliegue sale rojo, se lee el primer `Type error` del log antes de
 > culpar al último PR**: el #1000 salió rojo por un choque entre #998 y #999, y
@@ -23412,6 +23415,61 @@ Lo prueba `scripts/banco-guia-notas.sh`: el contenido contra el código
 sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
+
+### La sexta guía, Google Sheets: y documentarla destapó una pantalla que se quedaba en blanco
+
+`/guia/google-sheets` documenta Integraciones › Google Sheets
+(`/google-sheets`) con el estándar de las cinco anteriores: ocho secciones
+—vista general, vincular, tu hoja, copiar el enlace, cambiar de hoja, quitar
+la hoja, un enlace que no sirve y las respuestas de las citas—, una miniatura
+con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO
+ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/google-sheets`:
+«Aprende a vincular y consultar tu hoja de Google Sheets en la plataforma».
+Ninguna pieza propia: contenido con `laGuiaDe`, capturas con el taller, el
+marco con `sembrarElMarco`. Se regenera con
+`npm run build && scripts/generar-guia-google-sheets.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| se guardaba CUALQUIER texto: un documento, una carpeta de Drive o el enlace de «Publicar en la web» quedaban guardados, el campo se escondía —ya había algo— y no se pintaba ninguna hoja —no era una—. Pantalla en blanco para siempre y sin un solo error | lo decide `laHojaQueSeGuarda` (`lib/url-de-google-sheets.ts`, pura), y la preguntan la pantalla antes de mandar y la acción antes de escribir. Lo que no sirve se dice con su motivo bajo el campo, que se queda a la vista; y una hoja mala ya guardada abre el campo con «El enlace guardado no sirve» |
+| se guardaba lo pegado (`?usp=sharing`, dos `gid`…) | se guarda el enlace LIMPIO (`/edit`, con su pestaña) y la acción devuelve lo que quedó escrito, que es lo que se pinta |
+| nada decía con qué correo compartir la hoja, y sin compartirla la plataforma no puede escribir en ella | el paso 1 de vincular enseña el correo de la cuenta de servicio (`getServiceAccountEmail`), con su botón de copiar |
+| escribir la respuesta de una cita en la hoja fallaba EN SILENCIO (`catch {}`) | sigue sin tumbar la cita, y se dice (`[google-sheets] no se pudo escribir…`) |
+| la regla del id de una hoja estaba COPIADA en dos acciones | `elIdDeLaHoja`, una vez, y el banco la compara con la copia de antes entrada por entrada: cambiarla cambiaría a qué hoja escriben las integraciones que ya funcionan |
+| copiar el enlace sin `try`: sin HTTPS el portapapeles lanza | en su `try`, y si falla se dice qué hacer |
+| la barra de la hoja eran iconos sin palabra y no se podía quitar la hoja | Cambiar hoja, Copiar enlace y Abrir, con su palabra, y «Quitar hoja» con confirmación; quitar guarda «sin hoja» (`''`), como siempre |
+| la página pedía `sheetsFormName` y `sheetsRegistroName` y no los usaba nadie | ya no los pide |
+
+Cinco cosas que hay que mantener:
+
+1. **El correo que enseña la guía es de EJEMPLO**
+   (`hojas@plataforma-ejemplo.iam.gserviceaccount.com`, en
+   `scripts/generar-guia.sh`): la guía es pública y el de verdad no se publica.
+2. **La hoja es un SIMULACRO** servido por Playwright en `docs.google.com`: una
+   rejilla de 40 filas con sus pestañas. Las filas con datos son
+   `[data-fila]` —debajo siguen filas vacías, así que la última con datos es
+   `.last()`, nunca `:last-of-type`—.
+3. **El cursor entra en el iframe**: dentro de un marco el ratón se mueve en
+   OTRO documento y la página de arriba deja de recibir sus `mousemove`, así
+   que `cursor-de-la-guia.mjs` hace que el marco le cuente a la página dónde
+   está la punta y qué forma toca (`postMessage`), y la pinta ella. Vale para
+   cualquier guía con un iframe.
+4. **El vídeo no quita la hoja ni confirma nada**: señala «Quitar hoja» y
+   enseña un enlace que no sirve con su motivo, sin cambiar los datos delante
+   de la cámara.
+5. **La sección de las citas dice lo que el código escribe**: la pestaña y las
+   columnas se comparan con `SHEET_NAME` y `HEADERS` de
+   `booking-form-actions.ts`.
+
+Lo prueban `scripts/banco-google-sheets.sh` —la regla y un barrido, la acción
+contra Postgres y la pantalla real en Chromium (enlace malo sin mandar, bueno
+guardado limpio, la barra con palabra, copiar que falla, quitar con
+confirmación)— y `scripts/banco-guia-google-sheets.sh` —el contenido contra
+el código, el vídeo, las miniaturas (`GUIA=google-sheets`) y la guía servida—.
+Los dos con `MODO=roto` contra `ab6b110`, que afirma que se guardaba cualquier
+texto, que no había guía y que la barra no tenía palabras.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
