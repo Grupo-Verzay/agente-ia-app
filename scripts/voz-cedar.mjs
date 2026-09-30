@@ -62,10 +62,15 @@ export function llaveDeLaFrase(texto, voz = VOZ_CEDAR) {
     return h.slice(0, 24);
 }
 
-export const rutaDeLaFrase = (texto, dir = CACHE_CEDAR) => path.join(dir, `${llaveDeLaFrase(texto)}.ogg`);
+/**
+ * Dónde vive una frase en la caché. `voz` es la de las guías si no se dice otra:
+ * el vídeo de ventas usa la misma Cedar con otras instrucciones, y las notas de
+ * voz de su historia van con otras voces (`scripts/video-de-ventas/narracion.mjs`).
+ */
+export const rutaDeLaFrase = (texto, dir = CACHE_CEDAR, voz = VOZ_CEDAR) => path.join(dir, `${llaveDeLaFrase(texto, voz)}.ogg`);
 
-export function lasQueFaltan(textos, dir = CACHE_CEDAR) {
-    return [...new Set(textos)].filter((t) => !existsSync(rutaDeLaFrase(t, dir)));
+export function lasQueFaltan(textos, dir = CACHE_CEDAR, voz = VOZ_CEDAR) {
+    return [...new Set(textos)].filter((t) => !existsSync(rutaDeLaFrase(t, dir, voz)));
 }
 
 export function laLlaveDeOpenAi(env = process.env) {
@@ -82,8 +87,8 @@ export function laPeticion(texto, voz = VOZ_CEDAR) {
  * pidió. Sin llave, o si OpenAI dice que no, lanza con el motivo: nunca sigue
  * con una voz que no es la pedida.
  */
-export async function llenarLaCache(textos, { dir = CACHE_CEDAR, llave = laLlaveDeOpenAi(), pedir = fetch } = {}) {
-    const faltan = lasQueFaltan(textos, dir);
+export async function llenarLaCache(textos, { dir = CACHE_CEDAR, llave = laLlaveDeOpenAi(), pedir = fetch, voz = VOZ_CEDAR } = {}) {
+    const faltan = lasQueFaltan(textos, dir, voz);
     if (!faltan.length) return 0;
     if (!llave) {
         throw new Error(
@@ -96,20 +101,20 @@ export async function llenarLaCache(textos, { dir = CACHE_CEDAR, llave = laLlave
         const r = await pedir("https://api.openai.com/v1/audio/speech", {
             method: "POST",
             headers: { Authorization: `Bearer ${llave}`, "Content-Type": "application/json" },
-            body: JSON.stringify(laPeticion(texto)),
+            body: JSON.stringify(laPeticion(texto, voz)),
         });
         const cuerpo = Buffer.from(await r.arrayBuffer());
         if (!r.ok) throw new Error(`[guia] OpenAI no sintetizó «${texto.slice(0, 40)}…»: ${r.status} ${cuerpo.toString().slice(0, 200)}`);
         if (cuerpo.subarray(0, 4).toString("ascii") !== "OggS") throw new Error(`[guia] OpenAI no devolvió Opus para «${texto.slice(0, 40)}…»`);
-        writeFileSync(rutaDeLaFrase(texto, dir), cuerpo);
-        console.log(`  ✓ voz Cedar: «${texto.slice(0, 50)}${texto.length > 50 ? "…" : ""}»`);
+        writeFileSync(rutaDeLaFrase(texto, dir, voz), cuerpo);
+        console.log(`  ✓ voz ${voz.voz}: «${texto.slice(0, 50)}${texto.length > 50 ? "…" : ""}»`);
     }
     return faltan.length;
 }
 
 /** El audio de una frase ya en la caché, como WAV PCM mono de 16 bits a 24 kHz. */
-export function wavDeLaCache(texto, dir = CACHE_CEDAR) {
-    const ruta = rutaDeLaFrase(texto, dir);
+export function wavDeLaCache(texto, dir = CACHE_CEDAR, voz = VOZ_CEDAR) {
+    const ruta = rutaDeLaFrase(texto, dir, voz);
     if (!existsSync(ruta)) {
         throw new Error(
             `[guia] la frase «${texto.slice(0, 50)}…» no está sintetizada con la voz Cedar. ` +
@@ -118,7 +123,7 @@ export function wavDeLaCache(texto, dir = CACHE_CEDAR) {
     }
     return execFileSync(
         "ffmpeg",
-        ["-loglevel", "error", "-i", ruta, "-ac", "1", "-ar", String(VOZ_CEDAR.frecuencia), "-c:a", "pcm_s16le", "-f", "wav", "-"],
+        ["-loglevel", "error", "-i", ruta, "-ac", "1", "-ar", String(voz.frecuencia ?? VOZ_CEDAR.frecuencia), "-c:a", "pcm_s16le", "-f", "wav", "-"],
         { maxBuffer: 64 << 20 },
     );
 }

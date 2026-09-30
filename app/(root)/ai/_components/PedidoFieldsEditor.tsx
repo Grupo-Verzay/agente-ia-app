@@ -106,7 +106,8 @@ export const PedidoFieldsEditor = ({
                             type="button"
                             variant="secondary"
                             onClick={add}
-                            aria-label="Guardar"
+                            aria-label="Agregar campo"
+                            title="Agregar campo"
                             className="
             gap-0 sm:gap-2 px-2 sm:px-3 h-9
             bg-emerald-600 text-white

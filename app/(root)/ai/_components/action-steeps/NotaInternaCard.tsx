@@ -2,12 +2,13 @@
 "use client";
 
 import { FC } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Lock } from "lucide-react";
 import { PropsNotaInterna } from "@/types/agentAi";
 import { TOPE_DE_NOTA_INTERNA } from "@/lib/nota-interna-de-paso";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 /**
  * La nota interna del paso: el agente la lee, el cliente no la ve nunca.
@@ -36,10 +37,7 @@ export const NotaInternaCard: FC<PropsNotaInterna> = ({
     return (
         <Card className="bg-muted/10 border-muted/60">
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
-                <CardTitle className="text-md flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                    NOTA INTERNA
-                </CardTitle>
+                <TituloDelElemento icono={Lock}>NOTA INTERNA</TituloDelElemento>
                 {!isManagement && <ElementMenu onRemove={onRemove} />}
             </CardHeader>
 

@@ -46,11 +46,12 @@ import { AgentMetricsPanel } from "./AgentMetricsPanel";
 import { applyTemplateToPrompt } from "@/actions/apply-template-action";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
-import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
+import { OPCIONES_DEL_AGENTE, TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VoiceSettings } from "./VoiceSettings";
 import { CotizacionesBuilder } from "./CotizacionesBuilder";
 import { AJUSTES_POR_DEFECTO } from "@/lib/cotizacion-ia";
+import { laSeccionEnOrden } from "@/lib/orden-de-elementos";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     business:   "Base transversal · Datos del negocio y contexto del agente",
@@ -74,20 +75,23 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
     const [showPromptChat, setShowPromptChat] = useState(false);
     const [showVoice, setShowVoice] = useState(false);
 
+    // Con los pasos ENDEREZADOS, igual que los pinta cada builder al abrirse
+    // (`laSeccionEnOrden`): de este texto sale la foto de «lo guardado», y sin
+    // enderezar, abrir una pestaña ponía Guardar en verde sin haber cambiado nada.
     const trainingMd = sections?.training
-        ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
+        ? buildTrainingMarkdown(laSeccionEnOrden(TrainingDraftSchema.parse(sections.training)))
         : "";
     const faqMd = sections?.faq
-        ? buildFaqMarkdown(FaqDraftSchema.parse(sections.faq))
+        ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(sections.faq)))
         : "";
     const productsMd = sections?.products
-        ? buildProductsMarkdown(ProductsDraftSchema.parse(sections.products))
+        ? buildProductsMarkdown(laSeccionEnOrden(ProductsDraftSchema.parse(sections.products)))
         : "";
     const extrasMd = sections?.extras
-        ? buildExtrasMarkdown(ExtrasDraftSchema.parse(sections.extras))
+        ? buildExtrasMarkdown(laSeccionEnOrden(ExtrasDraftSchema.parse(sections.extras)))
         : "";
     const managementMd = sections?.management
-        ? buildManagementMarkdown(ManagementDraftSchema.parse(sections.management))
+        ? buildManagementMarkdown(laSeccionEnOrden(ManagementDraftSchema.parse(sections.management)))
         : "";
 
     const hydrated: BusinessValues = {
@@ -353,14 +357,14 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
     return (
         <>
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full flex flex-col flex-1 min-h-0">
-                <div className="sticky w-full top-0 z-10 -mx-4 lg:mx-0 bg-slate-100 dark:bg-black">
+                <div className="sticky w-full top-0 z-10 -mx-4 lg:mx-0 bg-slate-100 dark:bg-black" data-barra-del-editor>
                     <div className="flex items-center justify-between gap-2 py-2 pl-2 pr-0.5">
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => scroll("left")}
                             className="sm:hidden"
-                            aria-label="Desplazar pestanas a la izquierda"
+                            aria-label="Desplazar pestañas a la izquierda"
                         >
                             <ArrowLeft />
                         </Button>
@@ -407,7 +411,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                             size="icon"
                             onClick={() => scroll("right")}
                             className="sm:hidden shrink-0"
-                            aria-label="Desplazar pestanas a la derecha"
+                            aria-label="Desplazar pestañas a la derecha"
                         >
                             <ArrowRight />
                         </Button>
@@ -430,25 +434,25 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
 
                                         const nextTrainingMd = serverSections.training
                                             ? buildTrainingMarkdown(
-                                                TrainingDraftSchema.parse(serverSections.training)
+                                                laSeccionEnOrden(TrainingDraftSchema.parse(serverSections.training))
                                             )
                                             : "";
                                         const nextFaqMd = serverSections.faq
-                                            ? buildFaqMarkdown(FaqDraftSchema.parse(serverSections.faq))
+                                            ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(serverSections.faq)))
                                             : "";
                                         const nextProductsMd = serverSections.products
                                             ? buildProductsMarkdown(
-                                                ProductsDraftSchema.parse(serverSections.products)
+                                                laSeccionEnOrden(ProductsDraftSchema.parse(serverSections.products))
                                             )
                                             : "";
                                         const nextExtrasMd = serverSections.extras
                                             ? buildExtrasMarkdown(
-                                                ExtrasDraftSchema.parse(serverSections.extras)
+                                                laSeccionEnOrden(ExtrasDraftSchema.parse(serverSections.extras))
                                             )
                                             : "";
                                         const nextManagementMd = serverSections.management
                                             ? buildManagementMarkdown(
-                                                ManagementDraftSchema.parse(serverSections.management)
+                                                laSeccionEnOrden(ManagementDraftSchema.parse(serverSections.management))
                                             )
                                             : "";
 
@@ -490,7 +494,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
 
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" aria-label="Open menu" size="icon">
+                                    <Button variant="outline" aria-label="Más opciones del agente" title="Más opciones del agente" size="icon">
                                         <MoreVertical />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -521,24 +525,24 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                             cada rato. */}
                                         <DropdownMenuItem onSelect={() => setShowPromptChat(true)}>
                                             <Bot className="mr-2 h-4 w-4 text-primary" />
-                                            IA Prompts
+                                            {OPCIONES_DEL_AGENTE.asistente}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowVoice(true)}>
                                             <Mic className="mr-2 h-4 w-4" />
-                                            Voz del agente
+                                            {OPCIONES_DEL_AGENTE.voz}
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
-                                            Métricas del agente
+                                            {OPCIONES_DEL_AGENTE.metricas}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowHistory(true)}>
                                             <History className="mr-2 h-4 w-4" />
-                                            Historial de versiones
+                                            {OPCIONES_DEL_AGENTE.historial}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowAlertDialog(true)} className="text-destructive focus:text-destructive">
                                             <Trash2 className="mr-2 h-4 w-4" />
-                                            Eliminar todo
+                                            {OPCIONES_DEL_AGENTE.eliminar}
                                         </DropdownMenuItem>
                                     </DropdownMenuGroup>
                                 </DropdownMenuContent>
@@ -546,7 +550,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                             </div>
                     </div>
                     {/* Barra de progreso global */}
-                    <div className="px-3 pb-1.5 flex items-center gap-2">
+                    <div className="px-3 pb-1.5 flex items-center gap-2" data-progreso-del-agente>
                         <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
                             <div
                                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
@@ -560,7 +564,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                 </div>
 
                 <div className="flex flex-row w-full gap-2 flex-1 min-h-0">
-                    <div className="flex flex-1 flex-col min-h-0 overflow-y-auto pr-1">
+                    <div className="flex flex-1 flex-col min-h-0 overflow-y-auto pr-1" data-editor-del-agente>
 
                         <TabsContent value="business" className="m-0">
                             <BusinessPromptBuilder
@@ -708,7 +712,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                         <div className="h-6" />
                     </div>
 
-                    <aside className="hidden lg:block lg:w-[420px]">
+                    <aside className="hidden lg:block lg:w-[420px]" data-vista-previa>
                         <PromptPreview prompt={prompt} />
                     </aside>
                 </div>
@@ -717,10 +721,10 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
             <GenericDeleteDialog
                 open={showAlertDialog}
                 setOpen={setShowAlertDialog}
-                itemName="auto prompt"
+                itemName="entrenamiento del agente"
                 itemId={user.effectiveId ?? user.id}
                 mutationFn={() => deleteAgentPromptsByUserId(user.effectiveId ?? user.id)}
-                entityLabel="todo el auto prompt"
+                entityLabel="entrenamiento del agente"
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
@@ -730,7 +734,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                     <DialogHeader className="border-b px-5 py-3">
                         <DialogTitle className="flex items-center gap-2">
                             <Mic className="h-4 w-4 text-primary" />
-                            Voz del agente
+                            {OPCIONES_DEL_AGENTE.voz}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="flex-1 overflow-y-auto px-5 py-4">

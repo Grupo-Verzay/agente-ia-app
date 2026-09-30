@@ -2,7 +2,7 @@
 
 import { FC, useState } from "react";
 import { nanoid } from "nanoid";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/command";
 import { PropsRouting, RoutingRule } from "@/types/agentAi";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 export const RoutingCard: FC<PropsRouting> = ({
     el,
@@ -60,16 +61,17 @@ export const RoutingCard: FC<PropsRouting> = ({
 
     return (
         <Card className="bg-muted/20 border-muted/60">
-            <CardHeader className="py-2 flex-row items-center justify-between gap-2">
+            {/* `px-3`, y el título por `TituloDelElemento`: como las demás
+                tarjetas de un paso. Esta llevaba el relleno de la `Card`
+                (24 px) y su propio título en azul, así que su borde
+                arrancaba en otra columna que el de la tarjeta de al lado. */}
+            <CardHeader className="py-2 px-3 flex-row items-center justify-between gap-2">
                 <button
                     type="button"
                     onClick={() => setExpanded((v) => !v)}
                     className="flex items-center gap-2 flex-1 min-w-0"
                 >
-                    <GitBranch className="h-4 w-4 text-blue-500 shrink-0" />
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide">
-                        Enrutamiento por paso
-                    </CardTitle>
+                    <TituloDelElemento icono={GitBranch}>Enrutamiento por paso</TituloDelElemento>
                     {el.rules.length > 0 && (
                         <Badge variant="secondary" className="text-xs px-1.5 py-0">
                             {el.rules.length}
@@ -82,7 +84,7 @@ export const RoutingCard: FC<PropsRouting> = ({
                 )}
             </CardHeader>
 
-            {expanded && <CardContent className="space-y-3 pt-0">
+            {expanded && <CardContent className="space-y-3 px-3 pb-3 pt-0">
                 <div className="flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 px-3 py-2">
                     <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">

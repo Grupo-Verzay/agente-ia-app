@@ -3,7 +3,7 @@
 
 import { FC } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
     Popover, PopoverTrigger, PopoverContent,
@@ -11,10 +11,11 @@ import {
 import {
     Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { Check, ChevronsUpDown, Plus, SquareArrowOutUpRight } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, SquareArrowOutUpRight, Zap } from "lucide-react";
 import { PropsExecuteFlow } from "@/types/agentAi";
 import { getWorkflowEditorPath } from "@/types/workflow";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, onSelectFlow, isManagement }) => {
     // El elemento guarda el id y el nombre, no el flujo entero, asi que para
@@ -31,7 +32,7 @@ export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, o
     return (
         <Card className="bg-muted/20 border-muted/60">
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
-                <CardTitle className="text-md uppercase">Ejecutar flujo</CardTitle>
+                <TituloDelElemento icono={Zap}>Ejecutar flujo</TituloDelElemento>
                 {!isManagement && (
                     <ElementMenu onRemove={onRemove} />
                 )}

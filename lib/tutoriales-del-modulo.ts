@@ -21,6 +21,9 @@ import type { Contenido } from "@/lib/guia-de-modulo";
 import { GUIA_LEADS } from "@/lib/guia-leads";
 import { GUIA_REUNIONES } from "@/lib/guia-reuniones";
 import { GUIA_NOTAS } from "@/lib/guia-notas";
+import { GUIA_GOOGLE_SHEETS } from "@/lib/guia-google-sheets";
+import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
+import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
@@ -126,6 +129,24 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/notas",
         contenido: GUIA_NOTAS,
         tarjeta: "Aprende a escribir, organizar y compartir tus notas en la plataforma",
+    },
+    {
+        modulo: "google-sheets",
+        ruta: "/google-sheets",
+        contenido: GUIA_GOOGLE_SHEETS,
+        tarjeta: "Aprende a vincular y consultar tu hoja de Google Sheets en la plataforma",
+    },
+    {
+        modulo: "integraciones",
+        ruta: "/integraciones",
+        contenido: GUIA_INTEGRACIONES,
+        tarjeta: "Aprende a abrir tus apps web dentro de tus chats en la plataforma",
+    },
+    {
+        modulo: "agente-ia",
+        ruta: "/ia",
+        contenido: GUIA_AGENTE_IA,
+        tarjeta: "Aprende a entrenar tu agente de IA paso a paso en la plataforma",
     },
     {
         modulo: "usuarios",

@@ -5,6 +5,7 @@ import { google } from 'googleapis';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { elIdDeLaHoja } from '@/lib/url-de-google-sheets';
 
 export type FormAnswer = { questionId: string; label: string; answer: string };
 
@@ -17,12 +18,6 @@ function getAuth() {
   });
 }
 
-function extractSheetId(input: string): string | null {
-  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-  if (/^[a-zA-Z0-9_-]{30,}$/.test(input.trim())) return input.trim();
-  return null;
-}
 
 export async function saveBookingFormResponse(data: {
   userId: string;
@@ -72,7 +67,7 @@ async function syncResponseToSheets(
 
     if (!user?.sheetsUrl) return;
 
-    const sheetId = extractSheetId(user.sheetsUrl);
+    const sheetId = elIdDeLaHoja(user.sheetsUrl);
     if (!sheetId) return;
 
     const auth = getAuth();
@@ -136,8 +131,15 @@ async function syncResponseToSheets(
       where: { id: responseId },
       data: { syncedToSheets: true, sheetsSyncedAt: new Date() },
     });
-  } catch {
-    // Silencioso — el fallo de Sheets no afecta la cita
+  } catch (error) {
+    // Que falle Sheets no puede tumbar la cita, pero tampoco puede ser mudo:
+    // lo normal es que la hoja no esté compartida con la cuenta de servicio, y
+    // callado eso se ve como una hoja que «no recibe nada» sin ningún motivo.
+    console.warn('[google-sheets] no se pudo escribir la respuesta en «Registro cita»', {
+      cuenta: data.userId,
+      respuesta: responseId,
+      error: String((error as any)?.message ?? error),
+    });
   }
 }
 
