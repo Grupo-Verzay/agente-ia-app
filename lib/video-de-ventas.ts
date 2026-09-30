@@ -17,19 +17,23 @@ export const VIDEO_DE_VENTAS = "/demo/verzay-demo.mp4";
 export const PORTADA_DEL_VIDEO_DE_VENTAS = "/demo/verzay-demo.jpg";
 
 /** Cuánto dura, en palabras: el banco comprueba que el vídeo publicado no pasa de ahí. */
-export const DURACION_DEL_VIDEO_DE_VENTAS = "Menos de dos minutos";
-export const TOPE_DEL_VIDEO_DE_VENTAS_MS = 120_000;
+export const DURACION_DEL_VIDEO_DE_VENTAS = "Menos de tres minutos";
+export const TOPE_DEL_VIDEO_DE_VENTAS_MS = 180_000;
 
 /** Lo que el vídeo enseña, escena por escena y en su orden. */
 export const CAPACIDADES_DEL_VIDEO = Object.freeze([
     { escena: "texto", titulo: "Responde y llena tu CRM", detalle: "Texto · ficha del contacto" },
     { escena: "voz", titulo: "Escucha y responde con voz", detalle: "Notas de voz" },
+    { escena: "sheets", titulo: "Sincroniza con Google Sheets", detalle: "Cada dato, en tu hoja" },
     { escena: "medios", titulo: "Envía y entiende archivos", detalle: "PDF · video · imágenes" },
     { escena: "caliente", titulo: "Califica y etiqueta", detalle: "Calificación · etiquetas · etapa" },
-    { escena: "seguimiento", titulo: "Hace seguimiento", detalle: "Al cliente que no responde" },
+    { escena: "seguimiento", titulo: "Hace seguimiento", detalle: "Texto · nota de voz · archivo · llamada" },
+    { escena: "llamada", titulo: "Hace llamadas con IA", detalle: "Llamada de WhatsApp" },
     { escena: "cita", titulo: "Agenda citas", detalle: "Directo en tu calendario" },
     { escena: "recordatorio", titulo: "Recuerda y confirma", detalle: "Un día antes de la cita" },
+    { escena: "asesor", titulo: "Pasa a un asesor", detalle: "Cuando hace falta una persona" },
     { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
+    { escena: "reportes", titulo: "Reportes y analíticas", detalle: "Todo resumido, cada semana" },
 ] as const);
 
 /**
@@ -49,7 +53,7 @@ export function losNegociosEnUnaFrase(): string {
 /** A dónde lleva la página: la reunión y el WhatsApp de Verzay (los del cierre del vídeo). */
 export const LLAMADO_DEL_VIDEO = Object.freeze({
     agendar: "https://verzay.com/agendar-una-reunion",
-    whatsapp: "573115616975",
+    whatsapp: "573233612620",
     web: "verzay.com",
 });
 
@@ -67,4 +71,4 @@ export function elEnlaceDeWhatsapp(numero: string, texto: string): string {
  * lead que después ve la plataforma no puede sentir que el vídeo le mintió.
  */
 export const LO_QUE_ES_EL_VIDEO =
-    "Demostración con datos de ejemplo. El panel es la plataforma real; el celular y WhatsApp Web son recreaciones fieles, y las respuestas de la IA siguen un guion.";
+    "Demostración con datos de ejemplo. El panel es la plataforma real; el celular, WhatsApp Web, la hoja de Google Sheets y la llamada son recreaciones fieles, y las respuestas de la IA siguen un guion.";

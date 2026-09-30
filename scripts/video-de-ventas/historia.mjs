@@ -204,6 +204,7 @@ export function elCalendario(ahora = Date.now()) {
     return {
         inicio: aLas(martes, 9, 40),
         seguimiento: aLas(martes, 11, 46),
+        llamada: aLas(martes, 15, 30),
         recordatorio: aLas(miercoles, 10, 0),
         cita: aLas(jueves, 10, 0),
         finDeLaCita: aLas(jueves, 10, 45),
@@ -264,13 +265,15 @@ export function laConversacion(cal = elCalendario()) {
             en: m("seguimiento", 0),
         },
         { id: "M10", de: "ia", tipo: "imagen", medio: "horarios", en: m("seguimiento", 0) },
-        { id: "M11", de: "cliente", tipo: "texto", texto: "¡Sí! El jueves a las 10 me sirve 🙌", en: m("seguimiento", 6) },
+        // Laura no contesta, y la IA la llama: la llamada queda en la conversación
+        // como la registra la plataforma (su duración la pone la grabación).
+        { id: "M11", de: "ia", tipo: "llamada", en: m("llamada", 0) },
         {
             id: "M12",
             de: "ia",
             tipo: "texto",
-            texto: `¡Listo, Laura! ✅ Te agendé tu valoración el ${cita}, y te enviaré un recordatorio el día antes.`,
-            en: m("seguimiento", 6),
+            texto: `¡Listo, Laura! ✅ Como hablamos, te agendé tu valoración el ${cita}, y te enviaré un recordatorio el día antes.`,
+            en: m("llamada", 2),
             efectos: [{ cita: true }, { etapa: "Cita agendada" }, { etiqueta: "Cita agendada" }, { ficha: { proximaCita: `${elDia(cal.cita)}, ${laHora(cal.cita)}` } }],
         },
         {
@@ -288,6 +291,21 @@ export function laConversacion(cal = elCalendario()) {
             texto: "1 ✅ ¡Allá estaré!",
             en: m("recordatorio", 3),
             efectos: [{ citaConfirmada: true }, { etapa: "Cita confirmada" }],
+        },
+        {
+            id: "M15",
+            de: "cliente",
+            tipo: "texto",
+            texto: "¿Me pueden pasar con alguien? Quiero preguntar también por la ortodoncia 🦷",
+            en: m("recordatorio", 6),
+        },
+        {
+            id: "M16",
+            de: "ia",
+            tipo: "texto",
+            texto: `¡Claro, Laura! Ya te paso con ${ASESORA.nombre}, nuestra asesora 😊`,
+            en: m("recordatorio", 6),
+            efectos: [{ asesor: true }, { escalado: true }],
         },
     ];
 }
@@ -407,13 +425,75 @@ export function lasIniciales(nombre) {
 export const CAPACIDADES = Object.freeze([
     { escena: "texto", titulo: "Responde y llena tu CRM", detalle: "Texto · ficha del contacto" },
     { escena: "voz", titulo: "Escucha y responde con voz", detalle: "Notas de voz" },
+    { escena: "sheets", titulo: "Sincroniza con Google Sheets", detalle: "Cada dato, en tu hoja" },
     { escena: "medios", titulo: "Envía y entiende archivos", detalle: "PDF · video · imágenes" },
     { escena: "caliente", titulo: "Califica y etiqueta", detalle: "Calificación · etiquetas · etapa" },
-    { escena: "seguimiento", titulo: "Hace seguimiento", detalle: "Al cliente que no responde" },
+    { escena: "seguimiento", titulo: "Hace seguimiento", detalle: "Texto · nota de voz · archivo · llamada" },
+    { escena: "llamada", titulo: "Hace llamadas con IA", detalle: "Llamada de WhatsApp" },
     { escena: "cita", titulo: "Agenda citas", detalle: "Directo en tu calendario" },
     { escena: "recordatorio", titulo: "Recuerda y confirma", detalle: "Un día antes de la cita" },
+    { escena: "asesor", titulo: "Pasa a un asesor", detalle: "Cuando hace falta una persona" },
     { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
+    { escena: "reportes", titulo: "Reportes y analíticas", detalle: "Todo resumido, cada semana" },
 ]);
+
+/**
+ * La ráfaga del final: tres funciones avanzadas que no caben en la historia
+ * de Laura, cada una con su frase. Son recreaciones de lo que hacen, dichas
+ * así en la página (`LO_QUE_ES_EL_VIDEO`).
+ */
+export const AVANZADAS = Object.freeze([
+    {
+        id: "dueno",
+        icono: "📊",
+        titulo: "Modo dueño",
+        detalle: "Le preguntas a tu WhatsApp cómo van tus ventas, citas y embudos.",
+        ejemplo: "¿Cuántas citas tengo esta semana?",
+    },
+    {
+        id: "campo",
+        icono: "🔧",
+        titulo: "Operarios de campo",
+        detalle: "La IA consulta otro WhatsApp y le traslada la respuesta a tu cliente.",
+        ejemplo: "¿A qué hora llega el técnico?",
+    },
+    {
+        id: "multiagente",
+        icono: "👥",
+        titulo: "Multiagente",
+        detalle: "Varias líneas y asesores en un solo panel.",
+        ejemplo: "Ventas · Soporte · Agenda",
+    },
+]);
+
+/** La asesora que recibe a Laura cuando pide hablar con alguien. */
+export const ASESORA = Object.freeze({ nombre: "Andrea", apellido: "Rojas", correo: "andrea@clinica-sonrie.test" });
+
+/**
+ * La LLAMADA con IA: lo que se oye cuando Laura contesta. Cada línea con su
+ * voz (la de Sofía y la de Laura, pero habladas por teléfono).
+ */
+export const LA_LLAMADA = Object.freeze([
+    { quien: "ia", texto: "¡Hola, Laura! Te habla Sofía, de Clínica Sonríe. ¿Pudiste ver los cupos para tu valoración?" },
+    { quien: "clienta", texto: "¡Hola, Sofía! Sí, el jueves a las diez me queda perfecto." },
+    { quien: "ia", texto: "¡Listo! Te la dejo agendada y te confirmo por WhatsApp." },
+]);
+
+/**
+ * La hoja de Google Sheets de la clínica: las columnas y los pacientes que ya
+ * estaban. La fila de Laura la escribe el vídeo con lo que dijo en el chat.
+ */
+export const LA_HOJA = Object.freeze({
+    titulo: "Pacientes · Clínica Sonríe",
+    columnas: ["Fecha", "Nombre", "Teléfono", "Servicio de interés", "Financiación"],
+    filas: [
+        ["Lun", "Mariana Ruiz", "+57 300 ••• 1123", "Limpieza", "No"],
+        ["Lun", "Pedro Castaño", "+57 311 ••• 4410", "Ortodoncia", "Sí · 12 cuotas"],
+        ["Mar", "Daniela Mejía", "+57 320 ••• 7781", "Ortodoncia", "No"],
+        ["Mar", "Carlos Ramírez", "+57 315 ••• 2290", "Blanqueamiento", "Sí · 3 cuotas"],
+    ],
+    laura: ["Mar", "Laura Gómez", "+57 300 ••• 1188", "Blanqueamiento dental", "Sí · hasta 6 cuotas"],
+});
 
 /** El lema de la tarjeta de la marca: lo único que dice, debajo de «Verzay». */
 export const LEMA_DE_LA_MARCA = Object.freeze({ antes: "Inteligencia artificial que ", resaltado: "atiende, vende y agenda", despues: " por WhatsApp" });
@@ -421,6 +501,6 @@ export const LEMA_DE_LA_MARCA = Object.freeze({ antes: "Inteligencia artificial 
 /** A dónde lleva el cierre: la reunión, y el WhatsApp de Verzay. */
 export const LLAMADO = Object.freeze({
     agendar: "https://verzay.com/agendar-una-reunion",
-    whatsapp: "573115616975",
+    whatsapp: "573233612620",
     web: "verzay.com",
 });
