@@ -5,6 +5,7 @@ import { MainGuide } from "./_components";
 import AccessDenied from "@/app/AccessDenied";
 import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
 import { EditarIntroduccionDeLaGuia } from "./_components/EditarIntroduccionDeLaGuia";
+import { MODULOS_CON_GUIA, NOMBRE_DE_LA_GUIA } from "@/lib/introduccion-de-la-guia";
 
 interface Props {
     searchParams: { [key: string]: string | undefined }
@@ -27,8 +28,10 @@ const GuidePage = async ({ searchParams }: Props) => {
 
     return (
         <div className="flex flex-col gap-2">
-            <div className="px-4 pt-4">
-                <EditarIntroduccionDeLaGuia modulo="leads" nombre="Leads" />
+            <div className="space-y-2 px-4 pt-4">
+                {MODULOS_CON_GUIA.map((modulo) => (
+                    <EditarIntroduccionDeLaGuia key={modulo} modulo={modulo} nombre={NOMBRE_DE_LA_GUIA[modulo]} />
+                ))}
             </div>
             <MainGuide user={user} />
         </div>

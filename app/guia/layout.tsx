@@ -8,7 +8,8 @@ import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
  *
  * - **Pública a propósito**: está en el middleware, porque se le pasa a un
  *   cliente que todavía no tiene cuenta o a alguien del equipo que no ha
- *   entrado. No lee nada de la base: todo sale de `lib/guia-leads.ts`.
+ *   entrado. No lee nada de la base salvo el texto editable del índice: el
+ *   contenido sale de `lib/guia-<modulo>.ts` (Leads, Catálogo).
  * - **No se indexa**: `robots` aquí y `X-Robots-Tag` en la cabecera
  *   (`next.config.js`). Es una prueba piloto y enseña capturas de la App.
  * - Vive fuera de `(root)`, así que lleva su propio contenedor que se desplaza

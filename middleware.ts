@@ -159,9 +159,21 @@ export default auth((req) => {
     // es la única puerta y lo que se enseña se elige campo por campo en
     // `laPropuestaPublica`. No se indexa (metadata y `X-Robots-Tag`).
     currentPath.startsWith("/propuesta/") ||
+    // Catálogo público (/catalogo/<cuenta> y su enlace corto /c/<nombre>):
+    // lo que cada cuenta comparte con SUS clientes para que vean sus
+    // productos y le escriban por WhatsApp. No estaba aquí, así que a
+    // cualquiera sin sesión lo mandaba al login —medido en producción:
+    // `307 -> /login?callbackUrl=%2Fcatalogo%2F…`—, y el dueño no lo notaba
+    // porque él sí tiene sesión al pulsar «Ver catálogo».
+    //
+    // Ser pública no abre nada: `getPublicCatalog` enseña solo los productos
+    // ACTIVOS y los campos de marca que el dueño publicó, y lo decide
+    // `isActive`, no quién pregunta.
+    currentPath.startsWith("/catalogo/") ||
+    currentPath.startsWith("/c/") ||
     // Documentación pública (/guia/...): la guía de un módulo, que se le pasa
-    // a quien todavía no tiene cuenta. No lee nada de la base —todo sale de
-    // `lib/guia-leads.ts`— y no se indexa (metadata y `X-Robots-Tag`).
+    // a quien todavía no tiene cuenta. Su contenido sale de `lib/guia-<modulo>.ts`
+    // y no se indexa (metadata y `X-Robots-Tag`).
     currentPath === "/guia" ||
     currentPath.startsWith("/guia/");
 
