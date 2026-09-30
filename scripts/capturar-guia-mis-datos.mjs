@@ -15,7 +15,7 @@
  * (`data-cabecera-de-mis-datos`, `data-atajo`, `data-importar`…) y por sus
  * rótulos, nunca por coordenadas.
  *
- * Las hojas de Google que se importan las sirve `servidor-guia-mis-datos.cjs`
+ * Las hojas de Google que se importan las sirve `fingido-guia-mis-datos.mjs`
  * dentro del propio `next start`: este equipo no sale a internet, y una guía no
  * puede depender de una hoja que alguien puede cambiar.
  *
@@ -81,7 +81,7 @@ const FOCOS = path.join(RAIZ, "scripts", "miniaturas-guia-mis-datos.json");
 /** Lo que pinta el menú recogido en las capturas: lo lee el banco. */
 const MENU = path.join(RAIZ, "scripts", "menu-guia-mis-datos.json");
 
-/** La pantalla, y la hoja de clientes que sirve `servidor-guia-mis-datos.cjs`. */
+/** La pantalla, y la hoja de clientes que sirve `fingido-guia-mis-datos.mjs`. */
 const PANTALLA = "/my-data";
 const HOJA_DE_CLIENTES = "https://docs.google.com/spreadsheets/d/1GuiaMisDatosClientesDeEjemplo/edit#gid=0";
 /** Uno de los números sembrados: el buscador lo encuentra. */

@@ -433,7 +433,7 @@ export function StageAutomationsPanel({ userId, initialStage }: { userId: string
       setAutomations((prev) => [...prev, res.data!]);
       setNewName("");
     } else {
-      toast.error(res.message ?? "Error al crear automación");
+      toast.error(res.message ?? "Error al crear automatización");
     }
   };
 
@@ -486,7 +486,7 @@ export function StageAutomationsPanel({ userId, initialStage }: { userId: string
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold mb-1">Automaciones por etapa</h3>
+        <h3 className="text-sm font-semibold mb-1">Automatizaciones por etapa</h3>
         <p className="text-xs text-muted-foreground">
           Define acciones que se ejecutan automáticamente cuando un lead cambia a una etapa.
         </p>
@@ -518,7 +518,7 @@ export function StageAutomationsPanel({ userId, initialStage }: { userId: string
         <div className="space-y-3">
           {stageAutomations.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Sin automaciones para esta etapa.
+              Sin automatizaciones para esta etapa.
             </p>
           )}
           {stageAutomations.map((automation) => (
@@ -539,7 +539,7 @@ export function StageAutomationsPanel({ userId, initialStage }: { userId: string
           <div className="flex gap-2 pt-1">
             <Input
               className="h-8 text-sm"
-              placeholder="Nombre de la automación..."
+              placeholder="Nombre de la automatización..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void handleCreate()}

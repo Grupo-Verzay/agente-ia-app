@@ -320,6 +320,43 @@ Lo prueba `scripts/banco-campos-de-la-ficha.sh`: la regla, la migración contra
 Postgres y el diálogo real en Chromium (filas fijas alineadas con las demás);
 su «antes» es `ANTES_FICHA_REF` y afirma los 14 de fábrica sin papelera.
 
+### Y la anatomía es UNA: los bloqueados se ven igual que los demás
+
+Nombre y Teléfono habían quedado como filas peladas —sin asa, sin
+interruptor y con «Fijo» donde va la sección—, y al lado de los demás campos
+no se leían como la misma lista. Ahora **toda fila del diálogo tiene la misma
+anatomía y las mismas columnas**: asa, interruptor, ícono, etiqueta y su
+sección REAL (las clases se escriben una vez: `FILA`, `ASA`, `ICONO`,
+`SECCION`, `MANDO_FINAL`). Las bloqueadas llevan el asa y el interruptor
+**encendido pero apagados como mando**, y un candado donde va la papelera.
+
+Y la ficha tiene un tercer bloqueado, **Notas** (`CAMPO_NOTAS`): texto libre
+en TODA ficha y **siempre el último**, por eso va FUERA de la lista que se
+arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas:
+
+1. **Nombre y Teléfono van en «Contacto» y Notas en «Libre»**
+   (`SECCION_DE_LOS_FIJOS`, `SECCION_DE_LAS_NOTAS`), secciones de verdad.
+2. **La ficha abierta sigue el orden del diálogo** (`lasSeccionesDeLaFicha`,
+   pura): «Contacto» la primera con Nombre y Teléfono delante, los campos de la
+   cuenta, y «Libre» la última con Notas cerrándola. Un campo de la cuenta en
+   una de esas dos secciones cae en la misma, nunca en una repetida.
+3. **En la ficha, Nombre y Teléfono son el nombre y el número REALES**: Nombre
+   se guarda por el mismo camino que el lápiz de la cabecera
+   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre con
+   3 líneas (`LINEAS_DE_LAS_NOTAS`, sin `min-h`: pisaría a `rows`), se desplaza
+   por dentro si el texto es más largo, y lleva la manija de la esquina
+   (`resize-y`); los demás campos no se estiran.
+4. **Su dato sigue en `ExternalClientData.data.notas`**, la clave del Notas de
+   fábrica de antes: lo escrito no se pierde, y una lista vieja con esa clave la
+   suelta al leerse. Google Sheets la exporta la última
+   (`losCamposQueSeExportan`), aunque ya no viva en la lista.
+
+Lo prueba `scripts/banco-ficha-simetrica.sh`: la regla, y el diálogo y la ficha
+REALES en Chromium a 1440/1024/390 (mismas columnas y altos en todas las filas,
+Notas la última al agregar campos, Notas con 3 líneas y estirable arrastrando la
+esquina). `MODO=roto` monta los de `4834a9e` y afirma «Fijo», las filas sin asa
+ni interruptor y la ficha sin Nombre, Teléfono ni Notas.
+
 ## Chats: resincronizar historial NO es novedad
 
 Cuando un asesor escribe desde la App, la IA se calla: `pausarIaPorIntervencionHumana`
@@ -10753,6 +10790,39 @@ Dos reglas:
    guardar el mensaje, de registrar el lead y de despertar a la IA. Va **después**
    de aprender el par `@lid` → número de los grupos, que eso sí interesa.
 
+## El primer mensaje a un lead guardado a mano: el número va LIMPIO, y Waha confirma a quién
+
+«Crear contacto» (Leads) guardaba el número tal cual se tecleó —`+507 6027-0754`—
+pegándole `@s.whatsapp.net`, y ninguna capa lo limpiaba. El primer mensaje a ese
+lead salía a Waha como `+50760270754@c.us`, y **Waha no contesta a eso**: el envío
+agotaba sus 15 s, salía «el servidor no contestó a tiempo» y al cliente no le
+llegaba nada (visto en producción el 2026-09-30, línea MULTIGAMA). A una
+conversación que empezó el lead no le pasa: ese número lo pone WhatsApp, limpio.
+
+Tres cosas, y hacen falta las tres:
+
+1. **El formato se quita en `cleanValue`** (`sinFormatoDeTelefono`,
+   `lib/whatsapp-jid.ts`), igual que el sufijo de dispositivo: `+`, espacios,
+   guiones, paréntesis y puntos, solo en un JID de teléfono (`@s.whatsapp.net` /
+   `@c.us`) o en un valor sin arroba. `canonicalToWahaJid` y
+   `wahaJidToCanonical` pasan por la misma función. `buildWhatsAppJidCandidates`
+   conserva además la forma LITERAL, para que una ficha vieja se siga encontrando.
+2. **Las dos pantallas que crean un lead a mano** («Crear contacto» y
+   `LeadCreateForm`) arman el JID con `jidDelTelefonoTecleado` y piden al menos
+   8 dígitos; el servidor limpia igual (`registrarLaSesion` → `cleanValue`).
+3. **Waha confirma el destinatario antes de enviar**, como ya hacía Evolution
+   (`resolveWhatsAppJid`): `destinoSegunWaha` pregunta a
+   `GET /api/contacts/check-exists` (0,1-0,2 s medidos), manda al número (`pn`),
+   recuerda la respuesta 30 min, y va dentro de `sendWahaText`/`sendWahaMedia`,
+   que es por donde sale TODO envío a Waha. `numberExists: false` se dice al
+   momento («El número +X no tiene WhatsApp»); si la consulta falla o tarda, se
+   envía con lo que había.
+
+Lo prueba `scripts/banco-primer-mensaje-a-un-lead.sh`, con un Waha de mentira
+que se cuelga igual que el real ante un `chatId` que no es solo dígitos.
+`MODO=roto` empaqueta la misma cadena con `lib/` de `c7fbb82` y afirma el
+cuelgue de 15 s.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto
@@ -19500,6 +19570,54 @@ Lo prueba `scripts/banco-ancho-de-la-campana.sh`: la campana real y la franja
 real de `PanelLateral` en la misma página, a 1440/1280/1024/800/700/390, con
 «99+» en todas. `MODO=roto` monta la de `a62250d` y afirma los 420 px.
 
+## Documentación: flecha de regreso, orden propio arrastrando, y una barra
+
+Las cuatro pantallas internas de Documentación (Actualizaciones, Tutoriales,
+Guías y Conexión API de Meta) abren con **la misma cabecera**
+(`components/documentacion/CabeceraDeDocumentacion.tsx`): la flecha de regreso a
+`/documentation` y el título, en el mismo píxel en las cuatro. Y encima **va la
+barra de pestañas del panel**, como en Embudos (ver *Documentación es un apartado
+del panel*, abajo).
+
+> **Regla de la plataforma: donde haya una lista o unas tarjetas reordenables,
+> se reordenan arrastrando y soltando**, como en Módulos. En Documentación son
+> tres: las cuatro tarjetas de la portada (`doc-portada`), las guías publicadas
+> (`guias-publicadas`, solo la casa) y los tutoriales (`tutoriales`).
+
+Cinco cosas que hay que mantener:
+
+1. **El orden es de la PERSONA**, no de la cuenta: `orden_en_tablero` con
+   `tableroId` = `laPersonaQueActua(user).id`. Lo leen y guardan
+   `leerMiOrdenAction`/`guardarMiOrdenAction` (`actions/orden-propio-actions.ts`),
+   que ponen la persona ellas —ninguna recibe un id de persona— y filtran los ids
+   contra la lista de esa pantalla (`losIdsQueValen`). La acción genérica de
+   columnas **rechaza** estos tres tipos.
+2. **La colocación y el arrastre son los de Proyectos**: `RejillaOrdenable`,
+   `TarjetaOrdenable` (con `asa` izquierda, derecha o centro para no pisar lo de
+   la esquina) y `moverEnLaListaCompleta`. `useOrdenPropio` es
+   `useOrdenDeTarjetas` con otra llave. Con una búsqueda puesta se guarda la
+   lista ENTERA y lo escondido conserva su sitio.
+3. **La página trae el orden del servidor** (`ordenInicial`), para no pintar la
+   lista en un orden y moverla al instante. `comoOrdenGuardado` convierte lo que
+   no sea un objeto en «nada colocado».
+4. **Guías y Tutoriales van por `BarraDeAcciones`**: el buscador a la izquierda
+   y «Nuevo» (`BotonDeCrear`) a la derecha. `BotonDeCrear` no reenvía la ref,
+   así que su diálogo se abre con `onClick`, **nunca con `DialogTrigger`**.
+5. **Una tarjeta de recurso mide lo mismo que la de al lado**
+   (`TarjetaDeDocumento`: título en dos líneas reservadas, detalle en una,
+   descripción en dos, botones abajo) en `REJILLA_DE_DOCUMENTOS`: sin eso la
+   rejilla de tutoriales salía escalonada. Meta va en bloques con título
+   (Elige cómo conectar, Antes de empezar, Credenciales paso a paso, Preguntas
+   frecuentes), con los dos caminos del mismo alto.
+
+Lo prueba `scripts/banco-documentacion-simetrica.sh`: las reglas y un barrido,
+las acciones contra Postgres (el orden de una persona no mueve el de otra, un id
+inventado no entra, un cliente no ordena las guías publicadas) y las pantallas
+reales en Chromium a 1440/1280/1024/390 (la flecha en el mismo píxel, «Nuevo» a
+la derecha, tarjetas iguales, y arrastrar que reordena y guarda). `MODO=roto`
+lee las pantallas de `e3f2e7a` y afirma que no había flecha, ni arrastre, ni
+barra.
+
 ## Documentación › Actualizaciones: publicar y que salte UNA vez a cada persona
 
 La tarjeta «Plantillas IA» se quitó de Documentación (su pantalla `/templates`
@@ -19561,6 +19679,30 @@ DOCUMENTO. Tres reglas:
 Lo prueba `scripts/banco-contenido-de-actualizacion.sh`, en la tarjeta y en la
 ventana con ese mismo video servido como lo sirve el bucket; `MODO=roto` monta
 `0a3f714` y afirma el texto plano y la descarga.
+
+## Documentación es un apartado del panel: lleva su barra, como Embudos
+
+Documentación se quedaba sin la barra de pestañas del panel (Operaciones,
+Embudos, Proyectos…) que Embudos sí conserva. No era la ruta: las dos viven
+fuera de `/panel` (`/documentation`, `/embudos`) y a las dos se la pone el
+layout raíz por ser una pestaña del panel. Lo que la quitaba era una lista de
+excepciones (`RUTAS_SIN_PESTANAS`), puesta al darle a Documentación su flecha
+de regreso.
+
+> **Quién ve la barra lo decide `seVeLaBarraDelPanel` (`lib/barra-del-panel.ts`)
+> y no tiene excepciones por ruta.** Toda pantalla cuya dirección sea una
+> pestaña del panel —y sus subpantallas, por segmento— la lleva. No se vuelve a
+> escribir una lista de rutas sin barra.
+
+**No se mudó a `/panel/documentation`**, y es a propósito: ser un módulo del
+panel es que su dirección esté entre sus pestañas (`ModuleItem`), no que cuelgue
+de `/panel`. Mudarla rompería los enlaces, las guías, los tutoriales guardados y
+los apartados de la base, y el layout de `/panel` además pide sus apartados.
+
+Lo prueba `scripts/banco-barra-del-panel.sh`, pintando el `PanelAwareTabNav`
+real con las pestañas de producción: Documentación y sus cuatro pantallas con
+la barra y «Documentacion» marcada, la misma barra que Embudos. `MODO=roto`
+pinta la de `675dcee` y afirma que Documentación salía sin ella.
 
 ## Mis notas: archivar y desarchivar son UN botón con dos caras
 
@@ -21905,6 +22047,38 @@ arreglo al modo bueno se pone en rojo** —la pastilla incondicional tumba dos
 casos, el submenú quitado uno, y el `h-7` de vuelta tres—.
 
 
+## La llamada con IA: el enlace no se manda dos veces, y no se llama dos veces
+
+«Después de una llamada con IA, "Llamada realizada" y el mensaje con el enlace
+de la reunión salen duplicados.» Eran dos fallos distintos con la misma cara:
+
+| lo que se veía | la causa |
+| --- | --- |
+| el enlace de la reunión llegaba 2-3 veces | el backend contestaba **201** a `POST /voicebot/tool` (lo normal de un `@Post` en NestJS) y wacalls solo da por buena una herramienta con **200 exacto**: el asistente oía «No pude completarlo», volvía a llamar a `enviar_whatsapp` y el enlace salía otra vez. Arreglado en `api-webhook` con `@HttpCode(200)` en las cuatro rutas (`banco-voicebot-contesta-200.sh`) |
+| dos «Llamada realizada» | eran **dos llamadas de verdad** al mismo número, la segunda lanzada 29 s después, con la primera todavía en curso |
+
+> **Una llamada con IA a la vez por número** (`startBotCallAction`). Antes de
+> pedirla se cruzan las llamadas que ya le hicimos a ese número por esa sesión
+> (las filas `callout_<ts>_<digitos>` con su `astraCallId`, últimos 30 min)
+> con las que el servidor de llamadas tiene VIVAS (`GET /calls`). Si alguna
+> sigue, no se llama: «Ya hay una llamada en curso con este número».
+
+Cuatro cosas que hay que mantener:
+
+1. **El cruce es por el `callId`**: la lista del servidor de llamadas no dice a
+   qué número va cada llamada. Una colgada (`stale`) no cuenta.
+2. **Un candado en memoria tapa el doble clic** (`lanzandose`): entre pedir la
+   llamada y escribir su fila la consulta todavía no la ve.
+3. **Si no se puede saber, se deja llamar, y se dice**: bloquear una llamada
+   legítima porque el servidor no contestó es peor que el duplicado.
+4. **La regla es `lib/llamada-en-curso.ts` (pura)**; la consulta y la red,
+   `lib/llamada-en-curso.server.ts`.
+
+Lo prueba `scripts/banco-llamada-en-curso.sh`, contra Postgres con la acción de
+verdad y el servidor de llamadas fingido (con la primera viva, el doble clic,
+la llamada terminada, el servidor caído y otro número). `MODO=roto` empaqueta
+la acción de `675dcee` y afirma dos llamadas y dos filas.
+
 ## El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 
 «Límite de llamadas simultáneas alcanzado» al llamar desde un chat, **sin
@@ -23471,7 +23645,800 @@ el código, el vídeo, las miniaturas (`GUIA=google-sheets`) y la guía servida�
 Los dos con `MODO=roto` contra `ab6b110`, que afirma que se guardaba cualquier
 texto, que no había guía y que la barra no tenía palabras.
 
-### La séptima guía, Mis datos: una hoja de Google FINGIDA, y la pantalla arreglada
+### La séptima guía, Integrar URLs: y documentarla destapó que la pantalla guardaba cualquier cosa
+
+`/guia/integraciones` documenta Apps Externas › Integrar urls (`/integraciones`)
+con el estándar de las otras seis: siete secciones —vista general, agregar,
+tu app dentro de los chats, abrir y editar, ordenar y buscar, eliminar, y
+cuando una app no se abre—, una miniatura con enfoque por tarjeta y el vídeo
+de un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/integraciones` (`GUIAS_PUBLICADAS`): «Guía de
+Integrar URLs» · «Aprende a abrir tus apps web dentro de tus chats en la
+plataforma». Siete secciones y no ocho a propósito: el cierre de la cuadrícula
+deja la página simétrica tenga las que tenga (con siete, «Contáctanos» y «Ver
+el vídeo de nuevo» en escritorio), y la entrada de las apps en el menú
+(`#user-integrations`) no la tiene el menú de un cliente, así que no se
+documenta.
+
+No trae ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Se regenera con
+`npm run build && scripts/generar-guia-integraciones.sh && npm run build`. La
+semilla siembra cuatro apps y cuatro conversaciones, porque media guía es ver
+las apps como pestañas de un chat; sus direcciones son de `mi-negocio.co` y
+las contesta la receta con una página de ejemplo (`ctx.route`), así que no
+dependen de ninguna web ajena. `CON_UNA_ROTA=1` añade la app con la dirección
+vieja que enseña el aviso amarillo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+La pantalla guardaba lo que se escribiera, tal cual, y ninguno de estos fallos
+daba un error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| una dirección `javascript:` se **ejecutaba** al abrir la pestaña de la app en Chats: se pinta en un `<iframe>` y en un enlace, y el React de Next 14 no la bloquea (solo avisa) | solo se guardan `http`/`https` con dominio (`comoUrlDeIntegracion`), y lo que se ABRE pasa por la misma regla (`laUrlQueSeAbre`) en la pestaña, en «Abrir en nueva pestaña» y en el menú; y el `<iframe>` común (`IframeRenderer`, que usan también Evo, Copiloto y Canva) descarta cualquier esquema que no sea web (`sePuedeIncrustar`) |
+| una dirección sin `https://` abría **la propia App** dentro de la pestaña (el navegador la lee como ruta relativa) | se le pone `https://` al guardar, y una fila vieja se abre bien |
+| el «máx. 10» de la pastilla no existía: la acción aceptaba la undécima | `TOPE_DE_INTEGRACIONES`, en la acción; «Nuevo» se apaga y el pie lo dice |
+| dos apps con el mismo nombre: dos pestañas iguales en Chats | se rechaza, sin mirar mayúsculas ni tildes (`yaExisteElNombre`) |
+| borrar era de un clic, sin confirmar | pide confirmación; la fila se quita al momento y vuelve si el servidor dice que no |
+| al borrar la ÚLTIMA volvía a salir (`store.length > 0 ? store : initial`) | el store se siembra con lo del servidor y manda él |
+| cuatro pastillas arriba que no filtraban nada —dos repetían el total— | se fueron; la cifra va en el pie, debajo, como dice la regla de las métricas |
+| crear y editar eran dos formularios en línea distintos, en dos columnas | UNA ventana con la forma de «Crear contacto» de Leads |
+| una posición nueva = número de filas: tras borrar una del medio, dos filas en el mismo sitio | la siguiente a la última |
+| editar o borrar una fila que ya no estaba **reventaba** (`update`/`delete` de Prisma) | `updateMany`/`deleteMany` con su cuenta; y reordenar va en una transacción |
+| con una búsqueda puesta se podía arrastrar una lista a la que le faltaban filas | el asa se apaga y el pie dice por qué |
+| en `/canva` se encendían TODAS las apps del menú a la vez | se enciende la que se abrió (`canvaUrl === sub.url`) |
+
+Cinco cosas que hay que mantener:
+
+1. **Las reglas son UNA, `lib/integraciones.ts` (pura)**, y pasan por ella los
+   cinco sitios: la acción que guarda, la pantalla, la pestaña de Chats, el
+   `<iframe>` común y el menú. Con la regla en uno solo, el quinto la olvida.
+2. **Lo que se guarda es lo que se escribió**, con `https://` delante si no lo
+   traía, y no el `href` normalizado: el `href` le pone una barra al final y la
+   fila diría otra cosa que lo tecleado.
+3. **El `<iframe>` común admite rutas de la casa** (`/copiloto`, `/canva?u=`):
+   ahí las direcciones las pone la plataforma. Lo único que cierra es un
+   esquema que no sea web, decidido con el mismo analizador del navegador
+   (`java\tscript:` o un espacio delante no se cuelan).
+4. **Las apps son de la PERSONA** (`userId = user.id`, como siempre); ninguna
+   acción toca las de otra cuenta, y lo prueba el banco.
+5. **Algunas webs no dejan abrirse dentro de otra** (`X-Frame-Options`): eso no
+   se puede arreglar desde aquí, y la guía lo dice —«Abrir en nueva pestaña»—.
+
+Lo prueban `scripts/banco-integraciones.sh` —las reglas, un barrido de los
+cinco sitios y las cinco acciones contra Postgres; `MODO=roto` corre las de
+`ab6b110` y afirma la `javascript:` guardada, la undécima aceptada y la
+edición que revienta— y `scripts/banco-guia-integraciones.sh`: el contenido
+contra el código (los mandos de la fila, los campos de la ventana, el orden de
+las pestañas en Chats), el vídeo, las miniaturas (`GUIA=integraciones`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las siete guías— y la guía
+servida a 390 y 1440; `MODO=roto` lee `ab6b110` y afirma que no había guía.
+El test de miniaturas dejó de exigir «al menos ocho secciones» (era la octava
+de Leads): ahora compara las secciones leídas con las de la guía compilada.
+
+### La octava guía, Agente IA: la pantalla Y su editor, y las ocho pestañas de UNA fuente
+
+`/guia/agente-ia` documenta Entrenamiento › Agente IA (`/ia`) **y su editor
+interno** con el estándar de las siete guías anteriores: diez secciones —vista
+general, canales, perfil, pasos, acciones y respuestas de un paso, preguntas
+productos y extras, palabras clave, gestión, cotizaciones, y guardar y más
+opciones—, una miniatura con enfoque por tarjeta y el vídeo narrado con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/ia` (`GUIAS_PUBLICADAS`): «Aprende a entrenar tu agente de IA paso a paso en
+la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-agente-ia.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-agente-ia.mjs`, sobre `sembrarElMarco`, con
+un negocio de ejemplo —«Café de la Montaña»— y sus ocho pestañas llenas),
+receta de capturas y vídeo (`capturar-guia-agente-ia.mjs`, sobre el taller) y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-agente-ia.sh && npm run build`.
+
+**La guía se compara con el CÓDIGO de `/ia`, no con una lista escrita en el
+banco**: los canales (`lib/channel-training.ts`), las ocho pestañas
+(`TYPE_AI_LABELS`), lo que ofrece «Agregar acción» (`FunctionSelector.tsx`,
+grupo por grupo y sin el emoji), los modos de la bienvenida, los tipos de
+captura de Gestión (`SUBTYPE_OPTIONS`), las coincidencias y acciones de una
+palabra clave, el «⋯» del editor (`OPCIONES_DEL_AGENTE`) y los campos fijos del
+Perfil. Una pestaña o una acción nueva sin su nombre en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+La pantalla eran ocho pestañas escritas cada una a su manera, y ninguna de esas
+diferencias daba un error: se veían como una pantalla que no es de una pieza.
+
+| lo que se veía | ahora |
+| --- | --- |
+| la pestaña «Inicio» abría una tarjeta que decía «Entrenamiento»; «Perfil», una que decía «Información del Negocio» | el título de cada tarjeta ES el de su pestaña (`TYPE_AI_LABELS`) |
+| «Agregar Pregunta» con mayúscula al lado de «Agregar producto», y cada mensaje vacío con su frase | `AGREGAR_EN_LA_PESTANA` y `PESTANA_VACIA`, una fuente |
+| el paso de Inicio abría «Eliminar entrenamiento» —se lee como borrar el agente entero— y una regla de palabras clave se borraba al primer clic, sin preguntar | `ELIMINAR_EN_LA_PESTANA`, y la regla pide confirmación como las demás |
+| el contador de «Elementos del paso» enseñaba el NÚMERO del paso | cuenta sus elementos (`data-cuantos-elementos`) |
+| cada lista con sus bordes (`px-6` en Preguntas, Productos y Extras) | los de un paso de Inicio: el contenido arranca bajo el título (`pl-10`) y acaba bajo la papelera (`pr-3`) |
+| unas tarjetas de elemento con icono en el título y otras sin él; «Enrutamiento por paso» con el relleno de la `Card` y su título en azul | TODAS por `TituloDelElemento` y con `px-3` |
+| el asa decía «Arrastrar» a secas | dice qué arrastra: «Arrastrar paso», «Arrastrar pregunta»… |
+| abrir una pestaña ponía «Guardar» en verde sin haber cambiado nada | la foto de lo guardado se arma con las secciones enderezadas (`laSeccionEnOrden`), igual que las pinta cada lista al abrirse |
+| el «⋯» decía «IA Prompts» y abría «Chat IA»; «Métricas del agente» abría «Métricas del Agente IA» | `OPCIONES_DEL_AGENTE`: el menú y la ventana se llaman igual |
+| la «X» de Métricas caía encima del botón de actualizar, y Métricas e Historial medían distinto | `pr-8` en la fila, y las dos hojas `sm:max-w-md` |
+| el botón verde de un campo de Gestión se anunciaba «Guardar» y lo que hace es agregarlo | «Agregar campo» |
+| «Condicion para avanzar», «crear formulas», «quedara claro», «Desplazar pestanas» | con sus tildes |
+
+Cuatro cosas que hay que mantener:
+
+1. **Los nombres de la pantalla salen de `ai-section-labels.ts`** y de ningún
+   otro sitio. Una tarjeta que vuelva a escribir su título, su botón o su
+   mensaje a mano pone el banco en rojo.
+2. **Toda tarjeta de elemento lleva `TituloDelElemento` y `px-3`**, también
+   las que ya no se ofrecen (Enrutamiento, Consulta, Actualizar datos): los
+   bloques que las tengan guardadas se siguen viendo al lado de las demás.
+3. **La pantalla expone marcas para la receta** (`data-canales-del-agente`,
+   `data-canal`, `data-barra-del-editor`, `data-progreso-del-agente`,
+   `data-editor-del-agente`, `data-vista-previa`, `data-bloque`,
+   `data-motor-de-flujo`…), y las recetas no usan coordenadas. Las ventanas de
+   Radix se quedan montadas escondidas, así que la receta busca con `:visible`.
+4. **Ninguna marca tapa lo que se lee**: donde un rótulo de campo ocupa el
+   borde de arriba de la caja, el número va al final de ese borde
+   (`arribaALaDerecha`) o en el de abajo.
+
+Lo prueban `scripts/banco-guia-agente-ia.sh` —la pantalla
+(`pestanas-del-agente`), el contenido contra el código, el vídeo medido como el
+de Mis notas, las miniaturas en sus píxeles (`GUIA=agente-ia`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las ocho guías— y la guía
+servida a 390 y 1440—. `MODO=roto` lee `ab6b110` para afirmar los fallos de la
+pantalla y `24ba0b2` para afirmar que no había guía, ni vídeo, ni miniaturas,
+ni marcas en la pantalla.
+
+### La novena guía, Usuarios: y documentarla destapó puertas abiertas en `/equipo`
+
+`/guia/usuarios` documenta Usuarios (`/equipo`) con el estándar de las ocho
+guías anteriores: diez secciones —vista general, crear un usuario, rol y
+disponibilidad, auto-asignación, por porcentaje, medir al equipo, el Pipeline,
+qué ve cada usuario, editar y quitar, y asignar y más—, una miniatura con
+enfoque por tarjeta y el vídeo narrado con la voz Cedar y el MISMO ritmo. Su
+tarjeta sale sola en «Tutoriales del módulo» de `/equipo`
+(`GUIAS_PUBLICADAS`): «Aprende a crear tu equipo y repartir los chats en la
+plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-usuarios.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-usuarios.mjs`, sobre `sembrarElMarco`, con
+un equipo de ejemplo y conversaciones por repartir), receta de capturas y vídeo
+(`capturar-guia-usuarios.mjs`, sobre el taller) y narración. Se regenera con
+`npm run build && scripts/generar-guia-usuarios.sh && npm run build`. Las
+capturas CAMBIAN los datos (reparten, crean, editan), así que antes del vídeo
+se vuelve a sembrar lo pendiente.
+
+**La guía se compara con el CÓDIGO de `/equipo`**: la barra de trabajo, los
+tres modos de reparto, las columnas de la tabla, los roles, los campos de
+«Nuevo asesor», el «⋯» de cada fila, el «⋯» de la barra y las tres gráficas,
+leídos de `team-client.tsx` y `TeamCharts.tsx`. Un mando nuevo sin su nombre
+en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+| lo que pasaba | ahora |
+| --- | --- |
+| «Vincular existente» con el correo de CUALQUIER cuenta se la apropiaba | solo se vincula lo que ya se alcanza (`puertaParaVincular` → `assertCanAccessTargetUser`), y la opción solo sale a quien ya administra cuentas |
+| «Reiniciar vínculos» al alcance de cualquier administrador | solo el súper administrador de verdad, tecleando `LIMPIAR` |
+| la tabla y «Carga del equipo» contaban distinto a un asesor que atiende otra cuenta | las métricas van acotadas a la cuenta, igual que `getTeamAdvisors` |
+| «Asignar sin atender» rechazaba a la administradora del equipo | usa la puerta de la pantalla (`laCuentaQueConfigura`) |
+| guardar la auto-asignación repartía lo pendiente y solo decía «Configuración guardada» | devuelve cuántas repartió (`asignadas`), lo dice, y la tabla y las gráficas se ponen al día |
+| repartir desde el «⋯» dejaba la tabla con los números de antes | vuelve a leer el equipo y las métricas (`refrescarElEquipo`) |
+| «conversaciónes», «Automaciones», «Configuracion» | con su plural y sus tildes |
+| los cinco paneles de automatizaciones repetían su título debajo del de la hoja | el título lo pone la hoja, una vez |
+| «Mover a otra cuenta» sin destino, «Clientes asignados» en una cuenta sin clientes | se QUITAN, no se pintan en gris |
+| «Permisos» enseñaba la ruta interna y el rol como clave | cuántos apartados ve, y el rol en palabras |
+
+Tres cosas que hay que mantener:
+
+1. **Guardar con la auto-asignación encendida CAMBIA datos** (reparte lo que
+   estaba sin asesor), así que tiene que decirlo con el número y refrescar lo
+   que se ve. Un «guardado» a secas hace desaparecer la columna Sin asignar del
+   Pipeline sin que nadie sepa por qué.
+2. **Las capturas no llevan marcas encima de lo que se lee**: un desplegable de
+   Radix pone `aria-hidden` fuera de él, así que se mide ANTES de abrirlo; y se
+   suelta el foco (`soltarElFoco`) antes de cada foto.
+3. **La voz se sintetizó con la llave «Agente IA»**: la de «IA CRM» se quedó sin
+   créditos en OpenAI. Si vuelve a faltar una frase, se pide desde el
+   contenedor de la App con la llave que sí tenga saldo.
+4. **A 1280 px la barra de `/equipo` no cabe entera** (le sobran 18 px) y la
+   flecha «Ver más filtros» queda ENCIMA de la mitad de «Pipeline»: un clic en
+   su centro se lo lleva la flecha. Es el diseño de `BarraDeAcciones`, no un
+   fallo; el vídeo hace lo que haría una persona —pulsar la flecha antes—
+   con `alAlcance`, que mira qué hay de verdad en ese punto
+   (`elementFromPoint`). Se descubrió así: el botón estaba pintado, su
+   caja decía que estaba ahí, y el Pipeline no se abría nunca.
+5. **El color de las iniciales sale del id** (`colorFor`), así que la semilla
+   pone ids FIJOS —y quita a la Sofía que crea antes `sembrar-barra.mjs` con un
+   id al azar—. Si no, la misma persona sale de un color en las capturas y de
+   otro en el vídeo.
+
+Lo prueban `scripts/banco-guia-usuarios.sh` —el contenido contra el código, el
+vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=usuarios`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las nueve guías— y la guía
+servida a 390 y 1440— y `scripts/banco-equipo-usuarios.sh` —lo de la pantalla,
+con las acciones de verdad contra Postgres—. Los dos con `MODO=roto` contra
+`ab6b110`, que afirma que no había guía y los fallos de la pantalla.
+
+### La décima guía, Respuestas Rápidas: y documentarla destapó respuestas que no veía nadie
+
+`/guia/respuestas-rapidas` documenta Automatizaciones › Respuestas Rápidas
+(`/auto-replies`) con el estándar de las nueve guías anteriores: ocho
+secciones —vista general, crear una de texto, una que ejecuta un flujo,
+editar, filtrar y buscar, ordenar, eliminar y usarlas en un chat—, una
+miniatura con enfoque por tarjeta y el vídeo narrado con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/auto-replies` (`GUIAS_PUBLICADAS`): «Aprende a crear y usar tus respuestas
+rápidas en la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-respuestas-rapidas.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-respuestas-rapidas.mjs`, sobre
+`sembrarElMarco`, con respuestas de las dos clases, un flujo y una
+conversación), receta de capturas y vídeo
+(`capturar-guia-respuestas-rapidas.mjs`, sobre el taller) y narración. Se
+regenera con `npm run build && scripts/generar-guia-respuestas-rapidas.sh &&
+npm run build`.
+
+**La guía se compara con el CÓDIGO**: las pastillas y el «⋯» de la barra con
+`MainAutoReplies.tsx`, las categorías con `lib/quick-reply-categories.ts`, los
+dos tipos con `ReplyTypeSelector.tsx` y las partes de una respuesta con sus
+`data-zona` (`SortableAutoRepliesList.tsx`, `AutoRepliesCard.tsx`). Un mando
+nuevo sin su nombre en la guía la pone en rojo.
+
+#### Lo que se arregló en la pantalla al documentarla
+
+Las reglas viven en `lib/respuestas-rapidas.ts` (pura) y las usan la
+pantalla, las acciones y los TRES sitios de Chats que ofrecen una respuesta
+—la barra «/», el panel de Atajos (⚡) y «Nueva conversación»—.
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que creaba alguien del equipo nacía a nombre de SU fila, y la pantalla lee por la cuenta: **no lo veía nadie, ni quien lo creó**. En producción había 14, con repetidas («referido», «referido_1»…) de volver a crearlas | `createRR` sube a la cuenta de la fila (`laCuentaDeLaFila`). Las ya creadas las devuelve `scripts/mover-respuestas-a-su-cuenta.mjs` (sin `--aplicar` solo dice qué haría), al FINAL de la lista de su cuenta y personales si las creó un agente |
+| una respuesta de FLUJO no salía en ningún sitio de Chats: se le exigía el mensaje | `seOfreceEnChats`: a una de texto su mensaje, a una de flujo su flujo |
+| en una línea de Waha una de flujo contestaba «no encontrada» | `sendWahaQuickReplyAction` lanza el flujo (con su `intention`, del flujo de la MISMA cuenta) |
+| el panel de Atajos escondía las que no tienen atajo | salen todas; la barra «/» sigue ofreciendo solo las de texto con atajo (`seSugiereConLaBarra`): elegir una ahí PONE su mensaje, y una de flujo no tiene |
+| el atajo se guardaba de dos formas —la tarjeta lo subía a MAYÚSCULAS y crear lo bajaba— y había uno guardado como «//bienvenida» | `comoAtajo`: sin la barra, en minúsculas y sin espacios, se toque por donde se toque; vacío es `null`, o borrar el atajo no borraba nada |
+| una nueva nacía con el 0 de la columna, empatada o perdida en medio | sale la PRIMERA (`elOrdenDeUnaNueva`), sin mover a las demás |
+| el orden eran N llamadas en fila india, y un asesor reordenando movía las personales de sus compañeros | una acción y una sentencia (`guardarElOrdenDeLasRespuestasAction`); lo que no se ve se queda en su sitio (`elOrdenConLasDemasEnSuSitio`) |
+| con un filtro o una búsqueda puestos se reordenaba el trozo y las escondidas saltaban | no se reordena, y se dice (`porQueNoSePuedeOrdenar`) |
+| la búsqueda no encontraba «Envío» tecleando «envio» | `pasaLaBusqueda`, la misma `sinTildes` de Mis notas, que mira también el flujo y la categoría |
+| un asesor veía «Editar» en las de la cuenta y el servidor le contestaba «No autorizado» | cada respuesta trae `editable`, y lo que no puede tocar no ofrece mandos |
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que decide si algo sale en Chats es `lib/respuestas-rapidas.ts`.** Con
+   la regla escrita en cada uno de los tres sitios, una respuesta sale en uno y
+   en otro no, y eso no se ve como un error.
+2. **Una respuesta nueva es de la CUENTA; la de un agente, además suya**
+   (`respuestas_personales`, la regla de *lo que crea un asesor es SUYO*). La
+   persona no es nunca la dueña de la fila.
+3. **El borrado en bloque pasa por `deleteRR`**, con las puertas de cada fila,
+   y cuenta lo que no pudo.
+4. **La receta localiza la fila que se edita por su POSICIÓN, sacada una vez
+   por lo que dice** (`fijarLaFila`): al editar el atajo, la pastilla
+   «/horario» pasa a ser un campo, su valor no cuenta como texto y `hasText`
+   deja de encontrarla.
+5. **`mover` y `pulsar` del vídeo NO desplazan nada**: llevan el ratón a la
+   caja del elemento, y una fila por debajo del borde de la ventana (a
+   1280×800, con la respuesta recién creada arriba) deja el clic fuera de la
+   pantalla. El menú no se abre y el guion se cae con un plazo agotado que no
+   dice por qué. Antes se trae con la rueda (`aLaVista`), como una persona.
+
+Lo prueban `scripts/banco-guia-respuestas-rapidas.sh` —el contenido contra el
+código, el vídeo medido como los demás, las miniaturas en sus píxeles
+(`GUIA=respuestas-rapidas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
+las diez guías— y la guía servida a 390 y 1440— y
+`scripts/banco-respuestas-rapidas.sh` —las reglas y un barrido, y las acciones
+de verdad contra Postgres—. Los dos con `MODO=roto` contra `ab6b110`, que
+afirma que no había guía y los fallos de la pantalla.
+
+### La undécima guía, Mis macros: lo que se arregló al documentarla
+
+`/guia/macros` documenta Automatizaciones › Mis macros (`/macros`) con el
+estándar de las nueve anteriores: diez secciones —vista general, crear una
+macro, responder, otra línea, clasificar y enrutar, tareas y cierre, usar en un
+chat, buscar y ordenar, activar/duplicar/eliminar y acciones masivas—, una
+miniatura con enfoque por tarjeta y el vídeo de un minuto con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/macros`
+(`GUIAS_PUBLICADAS`): «Aprende a automatizar tus chats con acciones de un clic
+en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-macros.sh && npm run build`.
+
+No trae ninguna pieza propia. Lo que sí trajo es la pantalla arreglada, porque
+documentarla destapó que **una macro podía decir «Macro aplicada» sin haber
+hecho nada**:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| lo que ENVÍA (mensaje, respuesta rápida, flujo, archivo) salía siempre por Evolution, y el chat solo le pasaba la línea si tenía clave de Evolution: en una de WhatsApp Mensajería **no salía nada** y el aviso decía «aplicada» | sale por el proveedor de la línea de la conversación (`enviarPorLaLinea`, con `elProveedorDeLaLinea`): Waha, canales o Evolution con la clave puesta en el servidor |
+| una acción que contestaba `success: false` contaba como hecha | cada una se MIRA (`exigir`) y el aviso lo arma `elResumenDeLaEjecucion`, que nombra lo que no salió y por qué; «parcial» sale en ámbar |
+| una acción a medias (mensaje vacío, flujo sin elegir) se saltaba y contaba como hecha | `porQueNoEstaLista` es la misma pregunta al guardar y al correr: el editor —y ahora también el servidor— no guarda una a medias, y al correr una vieja se cuenta como fallida |
+| «Enviar por otra línea» no ofrecía las de WhatsApp Mensajería y ponía «Empresa Demo» delante | `seOfreceParaEnviarPorOtraLinea` y `nombreDeLaCuenta`, con el nombre visible de la línea |
+| el Agente IA se apagaba con la cuenta de quien pulsa | con la cuenta DUEÑA de la conversación |
+| la lista decía «acciónes» y «ejecuciónes» | `elDetalleDeLaFila` |
+| el menú de Macros de Chats se quedaba abierto tras lanzar una, comiéndose el primer clic | se cierra al terminar (controlado, `setAbierto(false)` en el `finally`); el nombre largo se lee entero en su `title` |
+
+Las reglas viven en `lib/macros.ts` (puro) y las usan la pantalla, el menú del
+chat, la acción y la guía. Tres cosas que hay que mantener:
+
+1. **Activar o desactivar una macro vieja no pasa por la validación**: solo se
+   comprueba lo que llega (`updateMacroAction` valida `actions` si vienen).
+2. **Nada sale recortado con «…» en una captura**: `queNadaSalgaRecortado` corta
+   la generación, en la lista y en el menú del chat. Se acorta en la semilla
+   («Dar la bienvenida», «Pedir valoración»), no en la guía.
+3. **El vídeo lanza la macro que no envía nada** («Marcar como caliente»:
+   etiqueta, calificación y nota) y no elimina, ni duplica ni desactiva.
+4. **Dos opciones pegadas de un menú no llevan un recuadro cada una**: con el
+   relleno de la marca se montan. Va UNO alrededor del grupo y cada número a la
+   izquierda de su opción (`sinRecuadro` + `numeroEn`), en el orden en que se
+   ven —«Más acciones» y el «⋯» de las masivas—.
+
+Lo prueban `scripts/banco-macros.sh` —las reglas y un barrido, y las acciones
+contra Postgres con las ocho acciones internas apuntadas para afirmar por cuál
+proveedor salió cada cosa; `MODO=roto` corre las de `ab6b110` y afirma que en
+una línea de WhatsApp Mensajería no salía nada y decía «Macro aplicada.»— y
+`scripts/banco-guia-macros.sh` (el contenido contra el código, el vídeo, las
+miniaturas y la guía servida; `MODO=roto` contra `ab6b110`).
+
+#### La voz iba por delante de Chats: la carga es un CORTE que no se graba
+
+El vídeo publicado decía «Luego, en cualquier conversación de Chats, pulsas
+Macros…» encima de la lista de macros y de «Cargando mensajes…»: la frase
+empezaba y DESPUÉS se abría Chats, que tarda unos segundos. Medido en la
+imagen, la conversación se veía **2,5 s después** de que la voz la nombrara, y
+sin rótulo, porque la navegación se lo llevaba.
+
+> **Lo que tarda en cargar una pantalla no sale en el vídeo.**
+> `sinGrabarLaEspera(hacer)` (del taller, junto a `decir`) calla la frase que
+> suena, hace `hacer` —abrir Chats y esperar a que la conversación tenga sus
+> burbujas (`laConversacionCargada`)— y apunta ese rato como un CORTE. Al
+> montar, la imagen lo pierde (`filtroSinLosCortes`) y la voz de después se
+> adelanta lo mismo (`tramosSinLosCortes`); la frase empieza con la pantalla ya
+> entera, y con su rótulo.
+
+Cuatro cosas que hay que mantener:
+
+1. **Un corte nunca parte una frase**: por eso calla antes, y
+   `tramosSinLosCortes` se cae si alguna sonara dentro de uno.
+2. **Es opcional**: las guías que no lo llaman se montan exactamente igual. Y
+   `macros.json` dice dónde se empalmó (`cortes`) solo cuando lo hay.
+3. **La grabadora escribe a 25 fps fijos**, y eso es lo que deja numerar los
+   fotogramas seguidos al quitar el corte (`setpts=N/25/TB`): la imagen queda en
+   el mismo reloj que la pista.
+4. **Volver a Mis macros con «Gestionar macros» no necesita corte**: es una
+   navegación dentro de la App y se pinta en menos de medio segundo (medido).
+
+Lo prueba `lib/__tests__/video-guia-macros.test.mjs`: el corte con un vídeo de
+colores hecho con ffmpeg, el guion, y en el vídeo publicado que la zona de la
+conversación ya se ve como cargada cuando empieza la frase. `MODO=roto` lee el
+vídeo de `7c6869f` y afirma que la conversación aparecía segundos después.
+
+#### La ruedita del menú «Macros» de Chats va en el hueco del punto
+
+Al lanzar una macro, la ruedita iba al FINAL de su fila y le quitaba su ancho
+(14 px más 8 de hueco) al nombre: «Marcar como caliente» se leía «Marcar como
+cali…» justo mientras corría. Ahora gira **en el hueco del punto de color**, con
+el color de la macro, así que el nombre no cambia de ancho ni de sitio.
+
+Dos cosas que hay que mantener:
+
+1. **El hueco mide lo que el punto (10 px, `HUECO_DE_LA_MARCA`)**, no lo que la
+   ruedita. Con un hueco de 14 px el nombre perdía 4 px también EN REPOSO, y
+   con el panel más estrecho (a 1024) «Marcar como caliente» salía cortado sin
+   que corriera nada. La ruedita (14 px) gira encima, centrada con `inset`
+   negativo, y sobresale 2 px por lado sobre el relleno y el hueco.
+2. **`inset` y no `translate`, y con `!`**: `animate-spin` es un `transform` y
+   se comería el desplazamiento; y la fila de un menú fuerza todo `svg` a 16 px
+   (`[&_svg]:size-4`), así que sin `!h-3.5 !w-3.5` la ruedita sale de 16.
+
+Lo prueba `scripts/banco-ruedita-de-macros.sh`, en Chromium con el `MacrosMenu`
+real, Poppins y el ancho de panel de la cabecera, a 1440/1280/1024: el nombre
+mide lo mismo antes y mientras gira, la ruedita cae centrada donde estaba el
+punto, y ninguna macro de la guía sale con «…».
+`MODO=roto` monta el de `7c6869f` y afirma el recorte.
+
+### La duodécima guía, Mis formularios: la lista, su EDITOR y lo que ve el cliente
+
+`/guia/formularios` documenta Apps Externas › Mis formularios
+(`/mis-formularios`) con el estándar de las once anteriores, y **las tres
+pantallas del módulo**: la lista, el editor de un formulario (preguntas,
+redirección a WhatsApp y URL personalizada) y sus Registros, más el formulario
+público que llena el cliente (`/f/…`). Diez secciones —vista general, crear,
+el editor, las preguntas, WhatsApp, el enlace corto, compartir, Google Sheets,
+los registros y activar/eliminar—, una miniatura con enfoque por tarjeta y el
+vídeo de un minuto con la voz Cedar y el mismo ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/mis-formularios` (`GUIAS_PUBLICADAS`): «Aprende a
+crear formularios y recibir sus respuestas en la plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-formularios.ts`, con
+`laGuiaDe`), semilla (`sembrar-guia-formularios.mjs`, sobre `sembrarElMarco`),
+receta de capturas y vídeo (`capturar-guia-formularios.mjs`, sobre el taller)
+y narración. Se regenera con
+`npm run build && scripts/generar-guia-formularios.sh && npm run build`.
+
+Cinco cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara cada lista
+   (`CIFRAS_DE_LA_LISTA`, `MENU_DE_LA_TARJETA`, `CAMPOS_DEL_FORMULARIO`,
+   `SECCIONES_DEL_EDITOR`, `MENU_DEL_EDITOR`, `CAMPOS_DEL_CAMPO`,
+   `TIPOS_DOCUMENTADOS` y las de Registros) con lo que pintan
+   `MisFormulariosClient`, `FormEditorClient`, `FormRegistrosClient` y
+   `TIPOS_DE_CAMPO`. Un tipo de campo nuevo sin su nombre en la guía la pone
+   en rojo.
+2. **El diálogo de Google Sheets enseña el correo de la cuenta de servicio**, y
+   es el de EJEMPLO que pone el lanzador común
+   (`hojas@plataforma-ejemplo.iam.gserviceaccount.com`), el MISMO de la guía de
+   Google Sheets: la guía es pública y el de verdad no se publica. Estuvo con
+   el de producción, que el lanzador de esta guía exportaba por su cuenta; lo
+   comprueba el banco, que falla si vuelve a poner el suyo.
+3. **Pulsar una variable de WhatsApp la AÑADE al final del mensaje**, así que
+   el guion escribe en orden (texto → variable → `Control+End` → texto). Con
+   el cursor donde quedó, el mensaje salía revuelto.
+4. **Las capturas cambian los datos** (crean «Solicitud de evento», le ponen
+   WhatsApp y enlace corto, desactivan una encuesta), así que antes del vídeo
+   se vuelve a sembrar. El vídeo no elimina nada: desactiva, que se deshace
+   con el mismo interruptor.
+5. **Ninguna marca tapa lo que se lee** (la regla de la guía de Mis notas): los
+   números van a la esquina libre o en el hueco entre filas (`numeroEn`), los
+   rótulos que repetían lo que ya dice la pantalla se quitaron, antes de una
+   foto se suelta el foco (`soltarElFoco`), y lo que crece al guardar (la
+   tarjeta de URL personalizada) se centra antes de fotografiarlo.
+
+La narración se sintetizó el 2026-09-30 con la llave **«Agente IA»** de Panel ›
+API keys: la de siempre, «IA CRM», contestaba `429` (sin créditos en OpenAI).
+La voz es la misma —Cedar, el mismo modelo y las mismas instrucciones—, así que
+la caché sirve igual; lo que hay que hacer es recargar «IA CRM».
+
+Lo prueba `scripts/banco-guia-formularios.sh`: el contenido contra el código,
+el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
+(`GUIA=formularios`), `fin-de-la-guia` y `menu-de-la-guia` —que barren las
+doce guías—, el `pulsar` con un aviso encima (abajo) y la guía servida a 390 y
+1440. `MODO=roto` lee `ab6b110` y afirma que no había guía, ni vídeo, ni
+miniaturas, ni marcas en la pantalla, y que el clic se lo llevaba el aviso.
+
+#### Un aviso que tapa lo que el vídeo pulsa: `pulsar` espera con el cursor FUERA
+
+El vídeo se quedaba a medias en el Guardar del enlace corto, y no era la
+pantalla. La URL personalizada es la ÚLTIMA tarjeta del editor, así que por
+mucho que se pida el centro se queda pegada al borde de abajo, que es donde
+sale el aviso «WhatsApp guardado» del paso anterior. Su Guardar quedaba debajo
+del aviso —y de la franja invisible de 15 px que cada aviso lleva encima
+(`[data-sonner-toast]::after`)—, así que el clic se lo llevaba el aviso: el
+enlace no se guardaba, sin un solo error. Y el cursor se quedaba ENCIMA del
+aviso, y **sonner no quita un aviso con el puntero sobre él**: esperar ahí era
+esperar para siempre.
+
+> **`pulsar` (el taller común) pregunta antes qué hay en el centro de lo que va
+> a pulsar** (`queAvisoTapa`, con `elementFromPoint`: la caja del botón dice que
+> está ahí aunque esté debajo de otra cosa). Si es un aviso, el cursor se queda
+> justo a su izquierda y pulsa en cuanto se va (`sinAvisoEncima`). Vale para
+> todas las guías, sin tocar ninguna receta.
+
+Tres cosas que hay que mantener:
+
+1. **Lo que se espera es lo que le queda al aviso**, con la narración sonando
+   mientras tanto: no es un `quitarAvisos`, que en el vídeo está prohibido. En
+   el de Mis formularios fueron 1,2 s.
+2. **El cursor espera FUERA del aviso.** Encima lo para, y se quedaría ahí.
+3. **Hay un tope** (`ESPERA_POR_UN_AVISO_MS`, 12 s): un aviso que no se va solo
+   corta la generación con su motivo en vez de dejar un vídeo mudo.
+
+Lo prueba `lib/__tests__/pulsar-con-un-aviso-encima.test.mjs`, en Chromium con
+el `Toaster` real de la App y el botón debajo del aviso y en su franja
+invisible. `MODO=roto` corre el `pulsar` de `ab6b110` y afirma el fallo: el
+clic no llega, el cursor queda encima y el aviso sigue ahí pasados sus 4 s.
+
+### La decimotercera guía, Copiloto: la pantalla tiene DOS dueños, y la guía los separa
+
+`/guia/copiloto` documenta Herramientas › Copiloto (`/copiloto`) con el mismo
+estándar: nueve secciones —vista general, entrar por primera vez, preguntar,
+qué hacer con una respuesta, tus conversaciones, elegir la IA, adjuntar y
+dictar, fijar en Chats y pantalla completa, y tu cuenta del copiloto—, una
+miniatura con enfoque por tarjeta y el vídeo narrado con Cedar al MISMO ritmo.
+Su tarjeta sale sola en «Tutoriales del módulo» de `/copiloto`: «Aprende a
+redactar mensajes y resolver dudas con IA en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-copiloto.sh && npm run build`.
+
+Lo que la hace distinta es que dentro de la pantalla va OTRA aplicación: el
+copiloto es LibreChat v0.8.7 (`copiloto.ia-app.com`), en un `<iframe>`.
+
+> **Lo de la plataforma sale de `lib/copiloto.ts`** —los dos botones, el
+> nombre de la pestaña que se fija en Chats— y es lo mismo que pinta
+> `MainCopiloto.tsx`. **Lo de dentro son rótulos del copiloto**, que no son
+> nuestros: cada lista de `lib/guia-copiloto.ts` lleva la `etiqueta` exacta
+> que enseña, y `anotar()` guarda lo que VIO en
+> `scripts/copiloto-guia-librechat.json`. El banco exige que cada etiqueta que
+> la guía nombra estuviera ahí: si el copiloto se actualiza y un botón cambia
+> de nombre, la guía se pone en rojo.
+
+Seis cosas que hay que mantener:
+
+1. **Las capturas no se toman contra producción.** Desde aquí no se llega a
+   `copiloto.ia-app.com`, y aunque se llegara escribirían conversaciones en la
+   cuenta de alguien y cada respuesta costaría dinero. `copiloto-de-la-guia.sh`
+   levanta el MISMO LibreChat (imagen fijada, `librechat.yaml` de producción,
+   registro y entrada por correo como allí) con su Mongo y su Meilisearch, y
+   una IA de ejemplo (`ia-de-ejemplo.mjs`, `:4010`) en lugar de OpenAI y
+   DeepSeek. Lo único que se afloja es el tope de entradas: las capturas entran
+   una vez por contexto y el de producción las bloqueaba a la décima.
+2. **La página de la App y el copiloto tienen que ser del MISMO sitio**
+   (`localhost` y `localhost:3080`, nunca `127.0.0.1`): la sesión del copiloto
+   es una cookie, y entre sitios distintos el navegador no la manda dentro de
+   un marco. `preparar.mjs` deja el copiloto como al empezar —cuatro
+   conversaciones de ejemplo, cada una en su día— antes de las capturas y
+   antes del vídeo, escribiéndolas en el copiloto de verdad y tocando en su
+   base solo la fecha.
+3. **Lo guardado es lo que se LEE**: `anotar()` quita el texto que solo oye
+   un lector de pantalla, y el copiloto lo esconde de DOS formas —la clase
+   `sr-only` y un estilo en línea con el recorte a 0—. Con una sola, el
+   selector se guardaba como «OpenAIseleccionado» y la guía, que dice
+   «OpenAI», no encontraba su rótulo.
+4. **La «Guía rápida» de Chats se da por vista** en el vídeo
+   (`SIN_LA_GUIA_RAPIDA`, un `addInitScript` sobre `chat-onboarding-shown`).
+   Con el foco dentro del marco del copiloto, el Escape que la apartaba no le
+   llega, y el primer clic del vídeo en Chats se lo comía su ventana.
+5. **El cursor dibujado es uno, el del documento de arriba**
+   (`cursor-de-la-guia.mjs`): dentro del marco del copiloto el ratón se mueve
+   en OTRO documento, y ese le cuenta a la página de arriba dónde está la
+   punta y qué forma toca —el mismo mecanismo que estrenó la guía de Google
+   Sheets con su hoja incrustada—. Y a PANTALLA COMPLETA el cursor y el rótulo
+   se mudan dentro del elemento que la ocupa: colgados del `<body>` quedaban
+   debajo y el vídeo los perdía. Vale para cualquier guía con un marco dentro.
+6. **Lo que no se puede hacer aquí se hace en producción, y solo eso**: las
+   diez frases nuevas de Cedar se sintetizaron desde el contenedor de la App
+   con la llave «IA CRM» (ver *El vídeo: el cursor de VERDAD y narración*). La
+   frase de la barra de arriba es la de Leads, así que su audio ya estaba.
+
+Lo prueba `scripts/banco-guia-copiloto.sh`: lo de la plataforma contra
+`lib/copiloto.ts`, lo del copiloto contra lo que enseñó, el vídeo medido como
+el de Mis notas, las miniaturas en sus píxeles (`GUIA=copiloto`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren todas las guías—, el cursor
+en Chromium con un marco de OTRO origen y a pantalla completa (un solo cursor,
+en la punta del ratón, y dentro del elemento a pantalla completa; con el
+cursor de `ab6b110` los dos casos se ponen en rojo) y la guía servida a 390 y
+1440. `MODO=roto` lee `ab6b110` y afirma que no había guía, ni vídeo, ni
+miniaturas.
+
+### La decimocuarta guía, AI Imágenes: la única pantalla que habla con FUERA, y se fotografía igual
+
+`/guia/ai-imagenes` documenta Apps Externas › AI imágenes (`/ai-image`) con el
+estándar de las otras trece: nueve secciones —vista general, la API key, el
+producto, la campaña, el estilo, el motor, generar, el texto del post y el kit
+de landing—, una miniatura con enfoque por tarjeta y el vídeo de un minuto con
+la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo»
+de `/ai-image` (`GUIAS_PUBLICADAS`): «Guía de AI Imágenes» y «Aprende a crear
+anuncios de tu producto con IA en la plataforma».
+
+No trae ninguna pieza propia salvo una, y es la que la distingue: **generar un
+anuncio es una llamada a Gemini con la API key de la cuenta**, y en el banco no
+hay clave de Google —ni debe haberla: sería la de un cliente— ni red hacia
+Google. Así que la contesta un doble.
+
+> **El Gemini fingido (`scripts/fingido-guia-ai-imagenes.mjs`) se carga DENTRO
+> de `next start`** con `NODE_OPTIONS=--import`, y lo pone el lanzador común
+> (`generar-guia.sh`) para cualquier guía que tenga su
+> `fingido-guia-<modulo>.mjs`. Parchea `globalThis.fetch` antes de que Next
+> ponga el suyo, así que **todo lo demás es de verdad**: la acción, el SDK con
+> su petición, el cobro de créditos, el hook que reparte por vista y el panel
+> del texto. Lo único que no sale de la casa es la respuesta.
+
+Seis cosas que hay que mantener:
+
+1. **Qué devuelve lo decide la PETICIÓN, no un contador**: la etapa se lee del
+   prompt (`MARCAS_DE_LA_ETAPA`, las frases que escribe `generateAdImage`), el
+   formato de `aspectRatio` y la red del prompt del copy (`REDES_DEL_PROMPT`).
+   El banco comprueba que las marcas son las de la acción y las redes las de
+   `LAS_REDES`: si la pantalla gana una etapa, el doble no la reconoce y se pone
+   rojo.
+2. **Las imágenes de ejemplo se generaron UNA vez** con Gemini de verdad
+   (`generar-ejemplos-ai-imagenes.mjs`, desde el contenedor de la App, como la
+   voz) y viven en `scripts/guia-ai-imagenes/` con sus textos
+   (`copies.json`). Solo el producto héroe tiene todos los formatos y redes, así
+   que **el vídeo se queda en Hero**: una etapa sin ejemplo saldría vacía.
+3. **La pantalla expone sus marcas** (`data-panel`, `data-zona`, `data-paso`,
+   `data-boton`, `data-formato`, `data-etapa`…) y las recetas no usan
+   coordenadas. Y **no hay `SOLO_MINIATURAS`**: cada miniatura se toma con su
+   captura, porque hace falta una tanda generada y el kit encendido.
+4. **El vídeo no guarda la clave ni borra estilos**: nombra «Cambiar» y la
+   papelera, no las pulsa. El banco falla si el guion pulsa «Guardar».
+5. **La API key se pone en ESTA pantalla, con «Configurar»**, no en Mi Perfil
+   (Perfil solo ofrece OpenAI): el mensaje de antes mandaba a un sitio donde no
+   se puede poner. Y sin clave, el último paso ofrece **«Configurar API key»**
+   en vez de «Generar imagen»: un botón que al pulsarlo solo puede dar error es
+   peor que uno que dice qué falta.
+6. **Regenerar**: `npm run build && scripts/generar-guia-ai-imagenes.sh`
+   (`SIN_VIDEO=1` o `SOLO_VIDEO=1`) y volver a construir.
+
+#### Y documentarla destapó diez fallos de la pantalla, que ya están arreglados
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el paso 2 se llamaba «imagen», en minúscula y diciendo otra cosa | «Campaña» |
+| sin clave, el aviso mandaba a «Mi Perfil» | al botón «Configurar» de la propia pantalla (`FALTA_LA_CLAVE`, que `porQueFalloGemini` reconoce como `sin_clave`) |
+| la foto del producto y la generada viajaban siempre como `image/png`, fueran lo que fueran | con SU tipo (`lib/imagen-en-base64.ts`: `partirLaImagen`, `comoDataUrl`) |
+| borrar un estilo lo quitaba de la pantalla pasara lo que pasara, sin preguntar | pide confirmación, se pinta al momento y vuelve a su sitio si el servidor dice que no, con aviso |
+| el chulito del estilo elegido caía encima de la papelera | cada uno en su sitio |
+| el servidor guardaba una clave vacía y un estilo sin nombre | los rechaza, con su motivo |
+| los dos `catch` de la página eran mudos: un fallo de lectura se veía como «te falta la API key» | avisan en la consola (`[ai-image]`) |
+| los nombres de las etapas de la campaña se cortaban con «…» («Identificación del pro…») | parten en dos líneas y se leen enteros |
+| la vista previa recortaba el anuncio: la caja se estira con el panel y la imagen iba `object-cover`, así que de un 9:16 se veía una tira | `object-contain`: el anuncio se ve entero, en su formato |
+| arriba del menú, en TODAS las pantallas, decía «1 cuenta asociadas» | el adjetivo va con el número (`getAccountCountLabel`): «1 cuenta asociada», «3 cuentas asociadas» |
+
+Más los acentos que faltaban en toda la pantalla (Iluminación, Solución,
+Demostración, «Aún no hay vista generada»…).
+
+Lo prueba `scripts/banco-guia-ai-imagenes.sh`: los arreglos de la pantalla
+(`pantalla-ai-imagenes.test.mjs`), el contenido contra el código —los pasos, los
+formatos, las etapas, los estilos, los motores, las calidades y las redes—, el
+doble contra la acción, el vídeo medido como el de Diagramas, las miniaturas en
+sus píxeles (`GUIA=ai-imagenes`), `fin-de-la-guia` y `menu-de-la-guia` —que
+barren todas las guías— y la guía servida a 390 y 1440. `MODO=roto` lee
+`ab6b110` y afirma que no había guía, ni doble, ni vídeo, y los fallos de la
+pantalla.
+
+## Mis formularios: el formulario público es PÚBLICO, y las reglas viven en un sitio
+
+Documentar la pantalla destapó fallos que no daban ningún error, y el primero
+es el que dejaba el módulo sin servir para lo que existe:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| **`/f/…` y la subida de archivos del formulario mandaban al LOGIN**: el dueño no lo notaba (él tiene sesión) y a sus clientes no les abría | los dos prefijos pasan sin sesión en el middleware, con su puerta propia (formulario activo, carpeta del bucket del formulario) |
+| el enlace se armaba con el id de QUIEN MIRA: el de alguien del equipo llevaba a un formulario inexistente | `elEnlaceDelFormulario`, con la cuenta dueña y su URL personalizada |
+| el slug quitaba la letra con tilde («satisfaccin») | la regla del enlace del catálogo: se quita la tilde, se queda la letra |
+| `{{¿Cuál es tu nombre?}}` no se sustituía, y un «(» sin cerrar tumbaba el envío | `elMensajeDeWhatsapp` sustituye el texto literal |
+| la pestaña de Google Sheets se buscaba por nombre exacto: «A sheet with the name … already exists» en cada registro (visto en producción) | `laPestanaDelFormulario`, sin mirar mayúsculas ni espacios |
+| el envío público guardaba cualquier clave que llegara, y se podía enviar a un formulario desactivado | solo los campos del formulario, topados, y nunca a uno inactivo |
+| las cifras de la lista y de Registros no filtraban; el editor pintaba cifras que no filtraban nada | las cifras SON el filtro (Registros filtra en el servidor); las del editor se fueron al «⋯» |
+| las acciones usaban el id de la persona | van por `laCuentaDeLaAccion`, y el equipo ve los formularios de su cuenta |
+
+Las reglas son puras y viven en `lib/formularios.ts`: las usan la lista, el
+editor, Registros, el formulario público, las acciones y la guía. **Si otra
+pantalla arma un enlace, un slug o un mensaje de un formulario, va por ahí.**
+
+Lo prueba `scripts/banco-formularios.sh` (las reglas, y las acciones y la ruta
+de subida contra Postgres con Google fingido); `MODO=roto` corre `ab6b110` y
+afirma cada fallo.
+
+## Copiloto: `?u=` no puede ser código, y los dos botones se miden contra el COPILOTO
+
+Documentar `/copiloto` destapó tres fallos, y ninguno se ve probando a mano con
+una pantalla grande.
+
+### 1. `?u=` pasa por la regla de Integrar URLs
+
+`/copiloto?u=javascript:alert(document.domain)` **ejecutaba ese código en la
+plataforma**: `?u=` —con el que un módulo cambia el copiloto, el de un
+reseller— iba tal cual al `src` del `<iframe>`, y un `src` con `javascript:`
+corre en el origen de quien lo pinta, con su sesión. Bastaba con que alguien
+pulsara un enlace.
+
+> **No hay una regla nueva: es la de Integrar URLs** (`lib/integraciones.ts`,
+> ver *La séptima guía*), que se escribió a la vez en otra rama. `laUrlDelCopiloto`
+> pasa `?u=` por `laUrlQueSeAbre` —una dirección sin `https://` se completa, y
+> lo que no es una web cae en el copiloto de la plataforma y se dice en la
+> consola—, y el `<iframe>` común tiene su red de abajo, `sePuedeIncrustar`.
+> Dos reglas para «qué dirección se abre» serían una que se afina y otra que
+> se queda atrás.
+
+Y esa regla admite **`localhost`**, que es la única dirección de verdad sin
+punto. No afloja nada —`http://127.0.0.1:3080`, la misma máquina, ya pasaba por
+tener puntos— y sin ella la guía de Copiloto no se podía volver a generar: sus
+capturas abren `?u=http://localhost:3080`, el copiloto local, y caían en el de
+la plataforma. Lo afirman `integraciones.test.mjs` y `copiloto.test.mjs`.
+
+Dos cosas más del marco, que son de aquí: `IframeRenderer` lleva `title` (el
+copiloto se anuncia «Copiloto de IA»; una pestaña de Chats, con su nombre) en
+vez del «Tool 2» de siempre, y «Fijar en Chats» reconoce la pestaña con
+`laLlaveDelNombre` —sin mayúsculas ni tildes, como la compara Integrar URLs al
+guardar—: con una «copiloto» ya puesta a mano, fijar chocaba con «ya tienes
+una app llamada Copiloto» en vez de ofrecer quitarla.
+
+### 2. Los dos botones dependen del ANCHO del copiloto, no de la ventana
+
+«Fijar en Chats» y «Pantalla completa» flotaban siempre a 52 px del borde, y
+la cabecera del copiloto no es nuestra y cambia con su ancho: con el menú de la
+plataforma abierto, una tableta o un teléfono, **tapaban su selector de modelo
+y sus botones** —medido a 390 px: los cuatro—. Ahora son tres tamaños, con una
+consulta de CONTENEDOR sobre la caja del copiloto (`CAJA_DEL_COPILOTO`,
+`[container-type:inline-size]`):
+
+| el copiloto mide | los botones |
+| --- | --- |
+| 860 px o más | flotan, con el rótulo |
+| de 560 a 860 | flotan, solo con el icono |
+| menos de 560 | en su propia fila, encima del copiloto |
+
+Los cortes salen de medir la cabecera de la v0.8.7 y viven en `lib/copiloto.ts`
+en px y en las clases en rem; el banco comprueba que digan lo mismo. **Si el
+copiloto se actualiza, esto se vuelve a medir**: es lo único de la pantalla
+que depende de una cabecera ajena.
+
+### 3. Pantalla completa solo donde el navegador la deja
+
+En un iPhone un `<div>` no tiene `requestFullscreen`, y el botón salía y no
+hacía nada. `hayPantallaCompleta` decide si se ofrece, y un «no» del navegador
+se dice en vez de quedarse en una promesa muda.
+
+Lo prueba `scripts/banco-copiloto.sh`: las reglas y un barrido, y la pantalla
+REAL en Chromium con el
+copiloto local dentro, midiendo si los botones tapan alguno de sus botones a
+1280/900/800/640/500/390 **con su menú abierto y cerrado** —estrechando la
+ventana desde una ancha, el copiloto lo deja abierto encima de su cabecera—.
+`MODO=roto` monta la pantalla de `ab6b110` y afirma los fallos: el
+`javascript:` corriendo en la plataforma y los botones tapando. (Guardar una
+integración lo prueba `scripts/banco-integraciones.sh`.)
+
+### La decimoquinta guía, Finanzas: el resumen y sus seis pantallas, y lo que se arregló al documentarlas
+
+`/guia/finanzas` documenta Panel › Finanzas (`/dashboard/finance`) y sus seis
+pantallas —Ventas, Gastos, Clientes, Proveedores, Cuentas y Configuración— con
+el estándar de las demás: diez secciones (vista general, el resumen del
+año, Ventas, Gastos, el filtro de fecha, Clientes, Proveedores, Cuentas,
+Configuración y las acciones de cada fila), una miniatura con enfoque por
+tarjeta y el vídeo de un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta
+sale sola en «Tutoriales del módulo» de `/dashboard/finance` y de sus
+subpantallas: «Guía de Finanzas», con «Aprende a registrar ventas y gastos y
+ver tu balance en la plataforma».
+
+No trae ninguna pieza propia: contenido en `lib/guia-finanzas.ts`
+(`laGuiaDe`), semilla en `sembrar-guia-finanzas.mjs` (sobre `sembrarElMarco`),
+receta en `capturar-guia-finanzas.mjs` (sobre el taller) y narración en
+`narracion-guia-finanzas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-finanzas.sh && npm run build`.
+
+> **Las seis listas son UNA pantalla escrita una vez.** Eran tres tablas
+> distintas, tres juegos de botones de fila y un filtro de fecha en unas sí y
+> en otras no. Ahora pintan `TablaDeFinanzas`, sus filas llevan
+> `AccionesDeLaFila` (Editar y Eliminar con confirmación), las columnas comunes
+> salen de `ColumnasDeMovimientos`, el filtro de fecha es `FiltroDePeriodo`
+> (Todo, Mes, Rango; `lib/periodo-de-finanzas.ts`) y la fila de accesos, de
+> `lib/accesos-de-finanzas.ts`. Y los dos DETALLES —el de una venta y el de un
+> gasto— salen de `lib/detalle-de-finanzas.ts`.
+
+Lo que se arregló al documentarlas, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| la fila de accesos no llevaba al Resumen | es la primera, y la pantalla que se tiene delante sale marcada (`elAccesoActivo`) |
+| el resumen anual solo cambiaba de mes | flechas de año, conservando el mes |
+| el eje de la gráfica escribía «850.0k» y salía cortado | sin el «.0» |
+| «Fijo» salía de la lista de una empresa de software: un «Arriendo» era variable | `CATEGORIAS_DE_GASTO_FIJO` (nómina, arriendo, servicios, internet…), sin tildes ni mayúsculas, y la guía nombra exactamente esas |
+| en los dos detalles la X de cerrar quedaba ENCIMA de Eliminar, y no se parecían (980 y 820 px) | la cabecera deja `SITIO_PARA_LA_X` (48 px, `pr-12`) y la X se baja al centro de los botones (`--cerrar-arriba`, `laAlturaDeLaX`) |
+| la columna «Concepto» de Gastos enseñaba el proveedor | `elConceptoDelGasto`; el proveedor va aparte, y el buscador encuentra los dos |
+| el código de un contacto era «cuántos hay + 1», y el borrado en bloque borraba DE VERDAD | `elSiguienteCodigo`: sigue al más alto (C-1, C-2… / P-1, P-2…), y en bloque marca `DELETED` como el de uno en uno |
+| el «Nuevo» del resumen (venta o gasto) abría su menú FUERA de la pantalla: se pulsaba y no pasaba nada | `BotonDeCrear` pasa su `ref` (`forwardRef`). Radix ancla el menú de un `Trigger asChild` con la ref del hijo; sin ella se queda en `translate(0,-200%)`. Vale para cualquier botón de la casa que se meta en un `asChild` |
+| en los detalles, 16 px de más entre la cabecera y la primera tarjeta | `gap-0` en `DIALOGO_DEL_DETALLE`: `DialogContent` es una rejilla con `gap-4` |
+
+Cinco cosas que hay que mantener:
+
+1. **Las capturas en español necesitan DOS cosas**: `args: ["--lang=es-CO"]`
+   y `env LANG=es_CO.UTF-8`. El `locale` del contexto no basta: los campos de
+   fecha y de mes los pinta el proceso de Chromium con su idioma.
+2. **Mientras un `Select` de Radix está abierto, lo de fuera es
+   `aria-hidden`**: `getByRole` no encuentra el botón de Guardar. Se mide
+   antes de abrir.
+3. **La receta comprueba que la X no tape nada** (`queLaXNoTapeNada`) al abrir
+   los dos detalles, y que el menú de «Nuevo» caiga dentro de la pantalla: si
+   una de las dos vuelve, la generación se corta.
+4. **Si «IA CRM» no tiene crédito**, `sintetizar-voz-desde-la-app.mjs` prueba
+   las demás llaves de Panel › API keys, desde el contenedor de la App y sin
+   sacar la llave de allí.
+5. **La zona de una miniatura es lo que SE VE** (`cajaVisible`): el
+   rectángulo recortado por cada antepasado que desplaza y por la ventana.
+   Con `boundingBox` a secas, la fila de accesos, una tabla ancha y una lista
+   larga daban una zona más grande que la pantalla y el recuadro se salía de
+   la tarjeta. Una lista larga (Ventas, Gastos) enseña su cabecera y sus
+   primeras filas (`FILAS_EN_LA_MINIATURA`).
+
+Lo prueban `scripts/banco-guia-finanzas.sh` —el contenido contra el código
+(accesos, columnas, campos, modos del filtro, acciones de fila, categorías
+fijas), el vídeo medido como el de Diagramas, las miniaturas en sus píxeles
+(`GUIA=finanzas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren todas las
+guías— y la guía servida a 390 y 1440— y `scripts/banco-finanzas-simetrica.sh`,
+con las reglas y un barrido de las seis pantallas. Los dos con `MODO=roto`
+contra `ab6b110`, que afirma que no había guía y los fallos de la tabla.
+
+### La decimosexta guía, Mis datos: una hoja de Google FINGIDA, y la pantalla arreglada
 
 `/guia/mis-datos` documenta Integraciones › Mis datos (`/my-data`) con el
 mismo estándar: seis secciones —vista general, Google Sheets, los datos
@@ -23484,10 +24451,13 @@ en la plataforma». Se regenera con
 
 Cinco cosas que hay que mantener:
 
-1. **La hoja de Google la contesta `scripts/servidor-guia-mis-datos.cjs`**,
-   cargado antes que Next solo en `next start` (`generar-guia.sh` lo pone con
-   `--require` cuando existe `servidor-guia-<modulo>.cjs`). Este equipo no sale
-   a internet, y una guía no puede depender de una hoja que alguien puede
+1. **La hoja de Google la contesta `scripts/fingido-guia-mis-datos.mjs`**,
+   cargado DENTRO de `next start` con el MISMO mecanismo que el Gemini fingido
+   de AI Imágenes (`generar-guia.sh` lo pone con `--import` cuando existe
+   `fingido-guia-<modulo>.mjs`). Nació como un `servidor-guia-*.cjs` con
+   `--require` en otra rama y se fundió al juntarlas: dos mecanismos para lo
+   mismo son uno que se afina y otro que se queda atrás. Este equipo no sale a
+   internet, y una guía no puede depender de una hoja que alguien puede
    borrar. Sus filas se cruzan a propósito con la semilla —ocho existen y
    cuatro son nuevas—, así el resumen enseña «Creados» y «Actualizados».
 2. **Los nombres que la pantalla y la guía comparten salen de
@@ -23500,7 +24470,8 @@ Cinco cosas que hay que mantener:
    escondía detrás de un «⋯» y la lista de bloques los enseñaba sueltos—.
 4. **El vídeo abre el «⋯» y lo cierra con Escape**: sus acciones borran o
    apagan TODO, y nada se confirma delante de la cámara.
-5. **Seis secciones y no ocho**: `miniaturas-guia-leads` acepta desde seis.
+5. **Seis secciones y no ocho**: `miniaturas-guia-leads` compara lo leído con
+   las secciones de la guía compilada, tenga las que tenga.
 
 Y dos que el vídeo destapó en el taller común (`taller-de-la-guia.mjs`), que
 valen para todas las guías:
@@ -23509,10 +24480,14 @@ valen para todas las guías:
   suave) y se cae si aun así no se ve. Antes movía el ratón a un punto fuera de
   la pantalla, el clic no tocaba nada y el vídeo se quedaba esperando un
   resultado que no llegaba.
-- **`pulsar` espera a que no haya nada ENCIMA** (`sinNadaEncima`) y, si no se
-  destapa, se cae diciendo qué lo tapa. Con el ratón encima un aviso no se va
-  nunca —sonner pausa su reloj—, así que lo que se arregla es la pantalla que
-  lo pone encima del botón, no la espera.
+- **`pulsar` trae a la vista, espera a los avisos y después mira que no haya
+  NADA encima.** Un aviso lo resuelve `sinAvisoEncima` —el cursor espera fuera
+  de él, porque con el ratón encima sonner pausa su reloj y no se va nunca—, y
+  por eso va ANTES de `mover` y después de traer el botón a la ventana (un
+  aviso solo tapa lo que está en ella). Lo demás —un menú que no se cerró, una
+  capa puesta— lo caza `sinNadaEncima`, que se cae diciendo qué lo tapa. Y lo
+  que se arregló en Mis datos fue la pantalla que ponía el aviso encima del
+  botón, no la espera.
 
 Y lo que se arregló en la pantalla al documentarla:
 
@@ -23644,6 +24619,137 @@ pago) llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea):
 con el contenedor ancho se leerían a 140. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
 1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
+
+## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
+
+`/demo` es una página pública (noindex, sin sesión) con un vídeo de menos de dos
+minutos para que un lead lo vea antes de agendar: la historia de una clínica
+contada en **tres pantallas a la vez** —el celular del negocio, WhatsApp Web y
+el **panel de Verzay de verdad**—, con la voz Cedar y el ritmo de las guías.
+
+Se genera con `npm run build && scripts/generar-video-de-ventas.sh` y **después
+se vuelve a construir** (`next start` solo sirve lo que había en `public/`).
+`ENSAYO=1` graba sin tocar `public/demo/` y deja una captura por escena en
+`/tmp/video-de-ventas`.
+
+> **Lo que es de verdad y lo que no se dice en la propia página**
+> (`LO_QUE_ES_EL_VIDEO`, `lib/video-de-ventas.ts`): el panel es la App servida
+> con `next start` leyendo la base que va escribiendo la historia; el celular y
+> WhatsApp Web son recreaciones fieles; las respuestas de la IA siguen un guion
+> (`scripts/video-de-ventas/historia.mjs`). Un lead que después ve la plataforma
+> no puede sentir que el vídeo le mintió.
+
+### Cómo se graba sin fingir el panel
+
+- **Cada mensaje lo escribe `backend.mjs` en la base como lo haría el webhook**
+  —mismo tipo, `sentByAi`, transcripción, adjunto— y **el aviso en vivo sale por
+  el mismo socket que en producción**: `tiempo-real.mjs` sirve socket.io v4 sobre
+  sondeo desde Playwright, y la App pide su token y se conecta como siempre. Sin
+  eso el panel solo se enteraría por sus relojes de respaldo, que es lo que ve
+  una cuenta con el socket caído y no un cliente.
+- **La historia salta horas con un reloj falso** (`clock.setSystemTime`: del
+  mensaje al seguimiento, y al día del recordatorio). Por eso el `pingTimeout`
+  del socket emulado es de una semana (`PLAZO_DEL_PING_MS`): engine.io mide su
+  plazo con `Date.now()` y cada salto cerraba la conexión; el aviso que caía en
+  ese segundo no le llegaba a nadie. **Un aviso que no llega a ninguna pestaña
+  tumba la grabación de verdad**; en un ensayo solo avisa.
+- **Lo que viaja en la conversación sale de `MEDIOS`**, también lo que se sirve
+  al estudio. Con la lista escrita a mano se quedó sirviendo un `.mp4` viejo
+  cuando el vídeo pasó a `.webm`: 404, y el vídeo de WhatsApp Web se quedaba en
+  su portada sin decir nada. **Un vídeo que el estudio no puede pintar también
+  tumba la grabación.**
+- **Dentro de la grabación los vídeos van en WebM VP9** (el Chromium de
+  Playwright no trae H.264) y se sirven como `video/webm`. El vídeo publicado sí
+  es H.264 + AAC, que se reproduce en cualquier sitio.
+- **El vídeo se graba con `grabadora-de-la-guia.mjs`, nunca con `recordVideo`**
+  (estira las animaciones y la imagen se despega de la voz; ver la sección de
+  las guías).
+
+### Lo que hubo que arreglar en la App para poder grabarlo
+
+Grabar la App de verdad destapó tres fallos que un cliente también ve:
+
+1. **El borrador de un aviso en vivo no se sustituía nunca**
+   (`lib/aviso-en-vivo-del-chat.ts`). La conversación abierta pinta al instante
+   lo que trae el socket como texto plano; el mensaje de verdad —con su
+   reproductor, su archivo y su «Agente IA»— lo trae el reloj con el MISMO id y
+   la misma hora, así que `areListsDifferent` no veía nada nuevo y el borrador
+   se quedaba: una nota de voz como «🎧 Audio» sin reproductor, un PDF como su
+   etiqueta, la IA firmada «Asesor». Ahora el borrador lleva `DEL_AVISO_EN_VIVO`
+   y mientras la respuesta del reloj traiga su versión real, la lista cambió.
+2. **La ficha, la cabecera y la etapa no se enteraban de lo que la IA hacía**
+   (`lib/crm-de-la-conversacion-abierta.ts`): al entrar un mensaje NUEVO en la
+   conversación abierta se vuelve a leer lo de ESA conversación, agrupando la
+   ráfaga. No es un reloj nuevo: el de sesiones sigue a 60 s.
+3. **Un chat que nace no salía hasta el reloj de la lista**: el servidor
+   recuerda la bandeja 10 s (`MEMORIA_DE_LA_BANDEJA_MS`) y la primera vuelta
+   traía la foto de antes. Hay una segunda vuelta pasada esa memoria
+   (`SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS`).
+
+### El arranque: cinco negocios, un contenido distinto cada uno
+
+Los primeros segundos son cinco tarjetas de ejemplo, en este orden: **tienda en
+línea, clínica, cursos, consultoría y agencia de viajes**
+(`NEGOCIOS_DEL_ARRANQUE`), y **debajo de las cinco**, en UNA línea centrada, «y
+cualquier negocio que venda por WhatsApp» (`CIERRE_DEL_MONTAJE`). Después, la
+pantalla de la marca: el logo, el nombre y la frase `LEMA_DE_LA_MARCA`, **sin la
+lista de píldoras** de antes.
+
+Seis cosas que hay que mantener:
+
+1. **Cada tarjeta enseña un contenido distinto** —imagen, nota de voz, video,
+   PDF y ubicación— y su `medio` tiene que ser el de sus mensajes (el banco lo
+   compara). **El PDF de la consultoría y el mapa del viaje los manda la IA**:
+   es lo que la IA hace por el negocio. La foto, la portada del video y el mapa
+   se generan al grabar (`MEDIOS_DEL_MONTAJE`, `generarLosMediosDelMontaje`),
+   ilustrados: la página es pública y no lleva ni fotos de nadie ni teselas de
+   un servicio de mapas.
+2. **El encabezado es el de un chat de WhatsApp**: 56 px, gris claro, pegado
+   arriba, con atrás, videollamada y llamada. Nada de franja de color.
+3. **Los mensajes arrancan pegados arriba** (`.mini .muro` con
+   `justify-content: flex-start`), no al fondo como en un chat largo.
+4. **El teléfono de una tarjeta es `.caja > .pant`, no `.marco > .vid`**: una
+   burbuja de video también lleva `.vid` y `.marco` dentro, y con esos nombres
+   heredaba los 600 px de alto y el fondo del teléfono y salía como **un
+   recuadro negro con un punto en el centro**. La portada se comprueba en los
+   píxeles —en la página pintada y en los fotogramas del vídeo publicado
+   (`montaje.cajas`)—: una imagen con el botón de reproducir encima, y la
+   duración sobre una franja oscura abajo, como en WhatsApp (sin ella se perdía
+   sobre una portada clara). Y los nombres se leen enteros: el del PDF sin «…»
+   y el del lugar en una línea.
+5. **El cierre es una línea DEBAJO, no una columna al lado**: va fuera de la
+   fila de tarjetas (`#montaje > .cierreMontaje`), centrado, por encima de los
+   subtítulos. Al lado se leía como una tarjeta más.
+6. **El cierre sale con la frase que lo dice y nunca antes del último mensaje
+   de la última tarjeta**: `yCualquierNegocio()` espera lo que falte y devuelve
+   cuánto, y el `.json` del vídeo guarda cuándo salió (`montaje.cierreMs`). La
+   página nombra los mismos negocios (`NEGOCIOS_DEL_VIDEO`).
+
+Lo mide pintado `lib/__tests__/montaje-del-video.test.mjs` (en el banco del
+vídeo), y en el vídeo publicado se buscan el cierre, la portada y el mapa en los
+fotogramas. Su `MODO=roto` pinta el estudio de `1807a22` (el arranque viejo),
+el de `a7e2b45` (cuatro tarjetas, el PDF del cliente, el cierre al lado y la
+duración ilegible) y las tarjetas de hoy con el marco del celular de `1807a22`
+—el choque de clases de la regla 4—, y afirma sus fallos.
+
+### La página
+
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las ocho capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, dos filas de cuatro o cuatro de
+dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
+`noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
+(`/demo/:path*`, también el vídeo).
+
+Lo prueba `scripts/banco-video-de-ventas.sh`: el borrador que se sustituye (con
+la `areListsDifferent` sacada del fichero), el CRM de la conversación abierta,
+la historia y el estudio, la voz Cedar completa y el guion, el vídeo publicado
+medido con ffmpeg (H.264 1920×1080, menos de dos minutos, sin huecos mudos) y la
+página servida sin sesión a 390 y 1440. `MODO=roto` saca la función de
+`316b70c` y afirma que el borrador se quedaba y que no había ni vídeo ni página.
+
+La síntesis de la narración usa «IA CRM» por defecto; si OpenAI contesta 429 se
+pide con otra llave de la misma tabla: `NOMBRE_LLAVE="Agente IA" node
+scripts/sintetizar-en-el-contenedor.mjs scripts/video-de-ventas/narracion.mjs`.
 
 ## Cómo reportar al terminar
 

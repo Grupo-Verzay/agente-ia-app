@@ -11,6 +11,7 @@ import { getAllRRsByUserIds } from "@/actions/rr-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
 import { lasCuentasDeLosCreadores } from "@/lib/atajos-de-la-linea.server";
+import { seOfreceEnChats } from "@/lib/respuestas-rapidas";
 import type {
   ChatConversationPreferenceMap,
   ChatQuickReplyOption,
@@ -231,7 +232,11 @@ export async function loadChatBootstrapData(
   const quickReplyOptions = quickReplies.reduce<ChatQuickReplyOption[]>((items, quickReply) => {
     const workflow = workflows.find((item) => item.id === quickReply.workflowId);
     const message = quickReply.mensaje?.trim() ?? "";
-    if (!message) return items;
+    // Antes se saltaba toda la que no tuviera MENSAJE, y una respuesta de flujo
+    // no tiene: no salía en ningún sitio de Chats, que es donde se usa. La
+    // regla es de las dos clases (`seOfreceEnChats`), y la barra «/» ya sabe
+    // no sugerir las de flujo (`seSugiereConLaBarra`).
+    if (!seOfreceEnChats(quickReply)) return items;
 
     items.push({
       id: quickReply.id,

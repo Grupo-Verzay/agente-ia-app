@@ -17,6 +17,8 @@ import {
   ContactFieldDef,
   DEFAULT_CONTACT_FIELDS,
   DEFAULT_CONTACT_SECTIONS,
+  SECCION_DE_LOS_FIJOS,
+  lasSeccionesDeLaFicha,
 } from '@/lib/contact-fields';
 import { ContactFieldsConfigDialog } from './ContactFieldsConfigDialog';
 import { resolveContactIcon } from './contact-field-icons';
@@ -46,6 +48,7 @@ import { PanelLateral } from '@/components/shared/PanelLateral';
 import { PANEL_DE_LA_FICHA } from '@/lib/panel-lateral';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { Session } from '@/types/session';
+import { mezclarLaFicha } from '@/lib/crm-de-la-conversacion-abierta';
 
 /* ── Contact data fields (dinámicos por usuario) ───────────── */
 // Los datos se guardan como JSON flexible, así que la ficha admite cualquier
@@ -73,17 +76,29 @@ interface InlineFieldProps {
   field: string;
   value: string;
   multiline?: boolean;
+  /**
+   * Notas: más alta de entrada que los demás campos y con la manija de la
+   * esquina para estirarla cuando haga falta escribir más.
+   */
+  grande?: boolean;
+  /** El teléfono: es el número de WhatsApp del contacto, no se reescribe aquí. */
+  soloLectura?: boolean;
   saved: boolean;
   onChange: (field: string, value: string) => void;
   onSave: () => void;
 }
 
-function InlineField({ icon: Icon, label, field, value, multiline, saved, onChange, onSave }: InlineFieldProps) {
+// Cuánto mide Notas al abrir la ficha, en líneas: 3, sin mínimo en píxeles
+// (un `min-h` pisaría a `rows`). Si el texto es más largo se desplaza dentro,
+// y la manija de la esquina la estira.
+export const LINEAS_DE_LAS_NOTAS = 3;
+
+function InlineField({ icon: Icon, label, field, value, multiline, grande, soloLectura, saved, onChange, onSave }: InlineFieldProps) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-  const inputCls = 'flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground/30 border-0 focus:ring-0 p-0 w-full';
+  const inputCls = 'flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground/30 border-0 focus:ring-0 p-0 w-full';
 
   return (
-    <div className="px-4 py-1.5">
+    <div className="px-4 py-1.5" data-campo-de-la-ficha={field}>
       <label className="text-xs text-foreground/60 font-semibold flex items-center gap-1.5 mb-1 cursor-pointer" onClick={() => ref.current?.focus()}>
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -92,11 +107,12 @@ function InlineField({ icon: Icon, label, field, value, multiline, saved, onChan
         className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 focus-within:border-primary/40 focus-within:bg-background transition-colors cursor-text"
         onClick={() => ref.current?.focus()}
       >
-        {multiline ? (
+        {multiline || grande ? (
           <textarea
             ref={ref as React.RefObject<HTMLTextAreaElement>}
-            rows={3}
-            className={inputCls + ' leading-snug'}
+            rows={grande ? LINEAS_DE_LAS_NOTAS : 3}
+            data-notas={grande ? '' : undefined}
+            className={cn(inputCls, 'leading-snug', grande ? 'resize-y overflow-y-auto' : 'resize-none')}
             value={value}
             placeholder={`Agregar ${label.toLowerCase()}…`}
             onChange={(e) => onChange(field, e.target.value)}
@@ -106,11 +122,12 @@ function InlineField({ icon: Icon, label, field, value, multiline, saved, onChan
           <input
             ref={ref as React.RefObject<HTMLInputElement>}
             type="text"
-            className={inputCls}
+            className={cn(inputCls, 'resize-none', soloLectura && 'cursor-default text-foreground/80')}
             value={value}
-            placeholder={`Agregar ${label.toLowerCase()}…`}
-            onChange={(e) => onChange(field, e.target.value)}
-            onBlur={onSave}
+            readOnly={soloLectura}
+            placeholder={soloLectura ? '' : `Agregar ${label.toLowerCase()}…`}
+            onChange={soloLectura ? undefined : (e) => onChange(field, e.target.value)}
+            onBlur={soloLectura ? undefined : onSave}
           />
         )}
         {saved && <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
@@ -223,6 +240,12 @@ interface ContactInfoPanelProps {
   onClose: () => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
+  /**
+   * Sube cuando entra un mensaje nuevo en la conversación abierta
+   * (`lib/crm-de-la-conversacion-abierta.ts`): los datos de la ficha se vuelven
+   * a leer, que es lo que hace que lo que rellena la IA se vea sin reabrir.
+   */
+  refrescar?: number;
 }
 
 /* ── Panel ─────────────────────────────────────────────────── */
@@ -291,6 +314,7 @@ function FichaDeContacto({
   onClose,
   onSessionMutate,
   onSessionRefresh,
+  refrescar,
   configOpen,
   setConfigOpen,
 }: ContactInfoPanelProps & { configOpen: boolean; setConfigOpen: (v: boolean) => void }) {
@@ -307,6 +331,7 @@ function FichaDeContacto({
   const [isPending, startTransition] = useTransition();
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayedContactName);
+  const [nombreEnLaFicha, setNombreEnLaFicha] = useState(displayedContactName);
   const [savingName, setSavingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [savingUrl, setSavingUrl] = useState(false);
@@ -339,6 +364,10 @@ function FichaDeContacto({
     return () => { cancelled = true; };
   }, [ownerId]);
 
+  // Lo último que se leyó de la base: dice qué campos tocó la persona y no
+  // guardó todavía (ver el refresco de más abajo).
+  const ultimoLeidoRef = useRef<ContactFields>({});
+
   /* Load external contact data */
   useEffect(() => {
     if (!remoteJid) { setLoadingData(false); return; }
@@ -350,25 +379,66 @@ function FichaDeContacto({
         const loaded: ContactFields = {};
         for (const [k, v] of Object.entries(d)) loaded[k] = String(v ?? '');
         setFields(loaded);
+        ultimoLeidoRef.current = loaded;
       }
       if (!cancelled) setLoadingData(false);
     });
     return () => { cancelled = true; };
   }, [ownerId, remoteJid]);
 
+  /*
+   * Vuelve a leer los datos cuando entra un mensaje nuevo, SIN la carga: la
+   * ficha ya está pintada y un parpadeo en cada mensaje se lee como un fallo.
+   * Lo que la persona está tecleando y todavía no guardó se queda como lo tiene
+   * delante (`mezclarLaFicha`).
+   */
+  const refrescarAntes = useRef(refrescar);
+  useEffect(() => {
+    if (refrescarAntes.current === refrescar) return;
+    refrescarAntes.current = refrescar;
+    if (!remoteJid) return;
+    let cancelled = false;
+    getExternalClientDataByRemoteJid(ownerId, remoteJid)
+      .then((rec) => {
+        if (cancelled) return;
+        const fresca: ContactFields = {};
+        if (rec?.data && typeof rec.data === 'object') {
+          for (const [k, v] of Object.entries(rec.data as Record<string, unknown>)) fresca[k] = String(v ?? '');
+        }
+        setFields((enPantalla) => mezclarLaFicha(enPantalla, ultimoLeidoRef.current, fresca));
+        ultimoLeidoRef.current = fresca;
+      })
+      .catch((error) => {
+        // Callado se vería como una ficha que no se entera; que diga por qué.
+        console.warn('[chats] no se pudo volver a leer la ficha', { remoteJid, error });
+      });
+    return () => { cancelled = true; };
+  }, [refrescar, ownerId, remoteJid]);
+
   /* Sync name draft when contact changes */
   useEffect(() => { setNameDraft(displayedContactName); }, [displayedContactName]);
 
-  const handleNameSave = async () => {
-    const name = nameDraft.trim();
-    if (!name || name === displayedContactName) { setEditingName(false); return; }
+  // Guardar el nombre: la cabecera de la ficha y el campo Nombre pasan por
+  // aquí, porque es el MISMO dato.
+  const guardarNombre = async (name: string) => {
+    if (!name || name === displayedContactName) return;
     setSavingName(true);
     const res = await updateLeadPushNameAction({ sessionId: session.id, pushName: name });
     setSavingName(false);
     if (res.success) { toast.success('Nombre actualizado'); onSessionRefresh(); }
-    else toast.error('No se pudo actualizar');
+    else { toast.error('No se pudo actualizar'); setNombreEnLaFicha(displayedContactName); }
+  };
+
+  const handleNameSave = async () => {
+    const name = nameDraft.trim();
+    if (!name || name === displayedContactName) { setEditingName(false); return; }
+    await guardarNombre(name);
     setEditingName(false);
   };
+
+  // El campo Nombre de la ficha arranca con el nombre REAL del contacto y se
+  // pone al día cuando cambia (desde la cabecera, desde la lista, desde el CRM).
+  useEffect(() => { setNombreEnLaFicha(displayedContactName); }, [displayedContactName]);
 
   /* Sync agent state */
   useEffect(() => { setAgentEnabled(!session.agentDisabled); }, [session.agentDisabled]);
@@ -434,6 +504,9 @@ function FichaDeContacto({
     if (pendingRef.current) clearTimeout(pendingRef.current);
     try {
       await upsertExternalClientData(ownerId, remoteJid, fields, 'manual');
+      // Guardado: ya no es algo «tocado sin guardar», y lo que la IA escriba
+      // después en ese campo tiene que poder verse.
+      ultimoLeidoRef.current = { ...ultimoLeidoRef.current, ...fields };
     } catch {
       toast.error('No se pudo guardar');
     }
@@ -470,23 +543,13 @@ function FichaDeContacto({
     else toast.error(res.error ?? 'Error al sincronizar');
   };
 
-  // Secciones armadas dinámicamente desde la config del usuario: solo campos
-  // habilitados, ordenados por `order`, agrupados por sección (en orden de
-  // primera aparición).
-  const SECTIONS_CONFIG = (() => {
-    const sorted = [...fieldDefs].filter((f) => f.enabled).sort((a, b) => a.order - b.order);
-    const order: string[] = [];
-    const bySection = new Map<string, ContactFieldDef[]>();
-    for (const f of sorted) {
-      if (!bySection.has(f.section)) { bySection.set(f.section, []); order.push(f.section); }
-      bySection.get(f.section)!.push(f);
-    }
-    return order.map((title) => ({
-      title,
-      icon: resolveIcon(SECTION_ICON_BY_TITLE[title] ?? 'FileText'),
-      fields: bySection.get(title)!,
-    }));
-  })();
+  // Las secciones salen de la MISMA regla que ordena el diálogo de
+  // configuración: Nombre y Teléfono primero, los campos de la cuenta, y Notas
+  // la última (`lasSeccionesDeLaFicha`).
+  const SECTIONS_CONFIG = lasSeccionesDeLaFicha(fieldDefs).map((s) => ({
+    ...s,
+    icon: resolveIcon(SECTION_ICON_BY_TITLE[s.title] ?? 'FileText'),
+  }));
 
   // El ancho, el anclaje y el deslizamiento los pone `PanelLateral`: aquí
   // solo va el cuerpo.
@@ -595,22 +658,65 @@ function FichaDeContacto({
             <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
           </div>
         ) : (
-          SECTIONS_CONFIG.map(({ title, icon, fields: sectionFields }) => (
-            <Section key={title} title={title} icon={icon} defaultOpen={title === 'Datos de negocio' || title === 'Contacto'}>
+          SECTIONS_CONFIG.map(({ title, icon, filas }) => (
+            <Section
+              key={title}
+              title={title}
+              icon={icon}
+              defaultOpen={title === 'Datos de negocio' || title === SECCION_DE_LOS_FIJOS || filas.some((f) => f.tipo === 'notas')}
+            >
               <div className="space-y-2 py-1">
-                {sectionFields.map((f) => (
-                  <InlineField
-                    key={f.key}
-                    icon={resolveIcon(f.icon)}
-                    label={f.label}
-                    field={f.key}
-                    value={fields[f.key] ?? ''}
-                    multiline={f.multiline}
-                    saved={savedField === f.key}
-                    onChange={handleFieldChange}
-                    onSave={handleSave}
-                  />
-                ))}
+                {filas.map(({ tipo, campo }) => {
+                  if (tipo === 'fijo' && campo.key === 'nombre') {
+                    // El nombre REAL del contacto: el mismo dato que la cabecera
+                    // de la ficha, y se guarda por el mismo camino.
+                    return (
+                      <InlineField
+                        key={campo.key}
+                        icon={resolveIcon(campo.icon)}
+                        label={campo.label}
+                        field={campo.key}
+                        value={nombreEnLaFicha}
+                        saved={false}
+                        onChange={(_, v) => setNombreEnLaFicha(v)}
+                        onSave={() => {
+                          const nombre = nombreEnLaFicha.trim();
+                          if (!nombre) { setNombreEnLaFicha(displayedContactName); return; }
+                          void guardarNombre(nombre);
+                        }}
+                      />
+                    );
+                  }
+                  if (tipo === 'fijo') {
+                    return (
+                      <InlineField
+                        key={campo.key}
+                        icon={resolveIcon(campo.icon)}
+                        label={campo.label}
+                        field={campo.key}
+                        value={displayedWhatsapp}
+                        soloLectura
+                        saved={false}
+                        onChange={() => {}}
+                        onSave={() => {}}
+                      />
+                    );
+                  }
+                  return (
+                    <InlineField
+                      key={campo.key}
+                      icon={resolveIcon(campo.icon)}
+                      label={campo.label}
+                      field={campo.key}
+                      value={fields[campo.key] ?? ''}
+                      multiline={campo.multiline}
+                      grande={tipo === 'notas'}
+                      saved={savedField === campo.key}
+                      onChange={handleFieldChange}
+                      onSave={handleSave}
+                    />
+                  );
+                })}
               </div>
             </Section>
           ))

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, ListOrdered } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -72,12 +72,20 @@ export function SelectorDeEtapaDelEmbudo({
     sessionId,
     etapaInicial,
     onEtapaCambiada,
+    refrescar,
 }: {
     sessionId: number;
     /** La etapa que ya trae la bandeja, para pintar el icono sin abrir nada. */
     etapaInicial?: EtapaDeLaFila | null;
     /** Para que la pastilla de la fila cambie al momento y no en 60 s. */
     onEtapaCambiada?: (etapa: EtapaDeLaFila) => void;
+    /**
+     * Sube cuando entra un mensaje nuevo en la conversación abierta
+     * (`lib/crm-de-la-conversacion-abierta.ts`). Lo leído al abrir el menú
+     * manda sobre `etapaInicial`, así que sin olvidarlo una etapa que la IA
+     * movió después se quedaría tapada por la de antes.
+     */
+    refrescar?: number;
 }) {
     const [abierto, setAbierto] = useState(false);
     // Uno más de los paneles de la cabecera: nace bajo ella y con el mismo
@@ -88,6 +96,18 @@ export function SelectorDeEtapaDelEmbudo({
     const [cargando, setCargando] = useState(false);
     const [fallo, setFallo] = useState<string | null>(null);
     const [moviendo, setMoviendo] = useState(false);
+
+    // Se olvida lo leído y vuelve a mandar `etapaInicial`, que la pantalla ya
+    // puso al día; si el menú se vuelve a abrir, se lee otra vez.
+    const refrescarAntes = useRef(refrescar);
+    useEffect(() => {
+        if (refrescarAntes.current === refrescar) return;
+        refrescarAntes.current = refrescar;
+        if (abierto) return;
+        setDatos(null);
+        setCargado(false);
+        setFallo(null);
+    }, [refrescar, abierto]);
 
     const cargar = useCallback(async () => {
         if (cargado || cargando) return;

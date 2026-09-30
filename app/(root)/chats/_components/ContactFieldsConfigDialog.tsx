@@ -18,7 +18,7 @@ import {
   SortableContext, useSortable, arrayMove, verticalListSortingStrategy, sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CAMPOS_FIJOS, ContactFieldDef, DEFAULT_CONTACT_SECTIONS, pickIconForLabel } from '@/lib/contact-fields';
+import { CAMPOS_FIJOS, CAMPO_NOTAS, type CampoFijo, ContactFieldDef, DEFAULT_CONTACT_SECTIONS, pickIconForLabel } from '@/lib/contact-fields';
 import { saveContactFieldsConfig } from '@/actions/contact-fields-actions';
 import { resolveContactIcon } from './contact-field-icons';
 
@@ -30,33 +30,59 @@ interface Props {
   onSaved: (fields: ContactFieldDef[]) => void;
 }
 
-// Nombre y Teléfono: la MISMA anatomía que una fila editable (mismos huecos y
-// mismos anchos, así las etiquetas caen en la misma columna), pero sin
-// arrastre, sin interruptor y con un candado donde va la papelera. Son el
-// nombre y el número del contacto en toda la plataforma: se editan donde
-// aparezcan, no aquí.
-function FilaFija({ label, icon }: { label: string; icon: string }) {
-  const Icon = resolveContactIcon(icon);
-  const porQue = 'Campo fijo: es el mismo dato en toda la plataforma y se edita donde aparezca';
+// Las MISMAS clases en las filas fijas y en las editables: si una se afina en
+// una, la otra se queda atrás y la lista deja de verse simétrica.
+const FILA = 'flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5';
+const ASA = 'h-7 w-5 flex items-center justify-center text-muted-foreground shrink-0';
+const ICONO = 'h-7 w-7 shrink-0 flex items-center justify-center rounded-md bg-muted text-muted-foreground';
+const SECCION = 'h-8 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-primary/40';
+const MANDO_FINAL = 'h-7 w-7 shrink-0 flex items-center justify-center';
+
+// Nombre, Teléfono y Notas: la MISMA anatomía que una fila editable —asa,
+// interruptor encendido, ícono, etiqueta y su sección real—, pero BLOQUEADA:
+// el asa no arrastra, el interruptor no se apaga, nada se escribe, y donde va
+// la papelera va un candado. Nombre y Teléfono son el nombre y el número del
+// contacto en toda la plataforma; Notas es el último campo de toda ficha.
+function FilaFija({ campo, porQue }: { campo: CampoFijo; porQue: string }) {
+  const Icon = resolveContactIcon(campo.icon);
   return (
-    <div
-      data-campo-fijo={label}
-      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5"
-      title={porQue}
-    >
-      <span className="h-7 w-5 shrink-0" aria-hidden />
-      <span className="h-6 w-11 shrink-0" aria-hidden />
-      <span className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md bg-muted text-muted-foreground">
+    <div data-campo-fijo={campo.label} className={FILA} title={porQue}>
+      <button
+        type="button"
+        disabled
+        aria-disabled
+        title="Este campo no se mueve"
+        className={`${ASA} cursor-not-allowed opacity-40`}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <Switch
+        checked
+        disabled
+        title="Siempre visible"
+        className="shrink-0 disabled:opacity-100"
+      />
+      <span className={ICONO}>
         <Icon className="h-3.5 w-3.5" />
       </span>
-      <Input value={label} readOnly disabled className="h-8 flex-1 min-w-0 disabled:opacity-100" />
-      <span className="h-8 w-28 shrink-0 flex items-center px-2 text-xs text-muted-foreground">Fijo</span>
-      <span className="h-7 w-7 shrink-0 flex items-center justify-center text-muted-foreground" aria-label={porQue}>
+      <Input value={campo.label} readOnly disabled className="h-8 flex-1 min-w-0 disabled:opacity-100" />
+      <input
+        value={campo.section}
+        readOnly
+        disabled
+        placeholder="Sección"
+        aria-label="Sección"
+        className={`${SECCION} disabled:cursor-not-allowed`}
+      />
+      <span className={`${MANDO_FINAL} text-muted-foreground`} aria-label={porQue}>
         <Lock className="h-3.5 w-3.5" />
       </span>
     </div>
   );
 }
+
+const POR_QUE_FIJO = 'Campo fijo: es el mismo dato en toda la plataforma y se edita donde aparezca';
+const POR_QUE_NOTAS = 'Notas va en toda ficha y siempre la última';
 
 function SortableRow({
   field, onChange, onRemove,
@@ -78,11 +104,11 @@ function SortableRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5 ${field.enabled ? '' : 'opacity-60'}`}
+      className={`${FILA} ${field.enabled ? '' : 'opacity-60'}`}
     >
       <button
         type="button"
-        className="h-7 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
+        className={`${ASA} hover:text-foreground cursor-grab active:cursor-grabbing`}
         title="Arrastrar"
         {...attributes}
         {...listeners}
@@ -101,7 +127,7 @@ function SortableRow({
         const Icon = resolveContactIcon(field.icon);
         return (
           <span
-            className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md bg-muted text-muted-foreground"
+            className={ICONO}
             title="El ícono se asigna automáticamente según el nombre"
           >
             <Icon className="h-3.5 w-3.5" />
@@ -126,14 +152,14 @@ function SortableRow({
         value={field.section}
         onChange={(e) => onChange({ ...field, section: e.target.value })}
         placeholder="Sección"
-        className="h-8 w-28 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-primary/40"
+        className={SECCION}
       />
 
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+        className={`${MANDO_FINAL} text-muted-foreground hover:text-destructive`}
         onClick={onRemove}
         title="Eliminar campo"
       >
@@ -227,7 +253,7 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
         <DialogHeader>
           <DialogTitle>Configurar campos de la ficha</DialogTitle>
           <DialogDescription className="text-xs">
-            Nombre y Teléfono son fijos. Los demás campos se activan u ocultan, se renombran, se cambian de sección, se reordenan arrastrando y se eliminan.
+            Nombre y Teléfono van siempre arriba y Notas siempre al final. Los demás campos se activan u ocultan, se renombran, se cambian de sección, se reordenan arrastrando y se eliminan.
           </DialogDescription>
         </DialogHeader>
 
@@ -237,7 +263,7 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
 
         <ScrollArea className="max-h-[55vh] pr-3 -mr-3">
           <div className="space-y-1.5 mb-1.5">
-            {CAMPOS_FIJOS.map((c) => <FilaFija key={c.key} label={c.label} icon={c.icon} />)}
+            {CAMPOS_FIJOS.map((c) => <FilaFija key={c.key} campo={c} porQue={POR_QUE_FIJO} />)}
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={draft.map((f) => f.key)} strategy={verticalListSortingStrategy}>
@@ -253,6 +279,11 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
               </div>
             </SortableContext>
           </DndContext>
+          {/* Notas, fuera de la lista que se arrastra: así ningún campo puede
+              quedar debajo de ella. */}
+          <div className="mt-1.5">
+            <FilaFija campo={CAMPO_NOTAS} porQue={POR_QUE_NOTAS} />
+          </div>
         </ScrollArea>
 
         <Button variant="outline" size="sm" onClick={addField} className="gap-1.5 self-start">

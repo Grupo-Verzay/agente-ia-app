@@ -81,7 +81,7 @@ export async function addReminderGroupAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.reminderGroupAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     const count = await db.reminderGroupAutomationAction.count({ where: { automationId } });
     const action = await db.reminderGroupAutomationAction.create({
       data: { automationId, type: data.type, config: data.config, delayMinutes: data.delayMinutes ?? 0, order: count },
@@ -97,7 +97,7 @@ export async function updateReminderGroupAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.reminderGroupAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.reminderGroupAutomationAction.update({ where: { id: actionId }, data });
     return { success: true };
   } catch (e: any) { return { success: false, message: e.message }; }
@@ -109,7 +109,7 @@ export async function deleteReminderGroupAutomationAction(actionId: string, auto
   try {
     const userId = await getUserId();
     const automation = await db.reminderGroupAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.reminderGroupAutomationAction.delete({ where: { id: actionId } });
     return { success: true };
   } catch (e: any) { return { success: false, message: e.message }; }

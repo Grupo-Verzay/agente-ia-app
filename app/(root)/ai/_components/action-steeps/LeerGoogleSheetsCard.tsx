@@ -2,11 +2,13 @@
 "use client";
 
 import { FC } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Sheet } from "lucide-react";
 import { PropsLeerGoogleSheets } from "@/types/agentAi";
 import { esUrlDeGoogleSheets } from "@/lib/url-de-google-sheets";
 import { ElementMenu } from "./ElementMenu";
+import { TituloDelElemento } from "./TituloDelElemento";
 
 /**
  * El elemento que consulta una hoja de cálculo.
@@ -39,7 +41,7 @@ export const LeerGoogleSheetsCard: FC<PropsLeerGoogleSheets> = ({
     return (
         <Card className="bg-muted/20 border-muted/60">
             <CardHeader className="py-2 px-3 flex-row items-center justify-between">
-                <CardTitle className="text-md uppercase">Leer Google Sheets</CardTitle>
+                <TituloDelElemento icono={Sheet}>Leer Google Sheets</TituloDelElemento>
                 {!isManagement && (
                     <ElementMenu onRemove={onRemove} />
                 )}

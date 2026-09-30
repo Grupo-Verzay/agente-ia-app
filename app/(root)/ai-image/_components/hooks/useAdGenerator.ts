@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   deleteUserVisualStyle,
   generarCopyDelAnuncio,
@@ -8,6 +9,7 @@ import {
   saveUserVisualStyle,
 } from '@/actions/ai-image-actions'
 import { laLlaveDeLaVista, porQueFalloGemini } from '@/lib/copy-del-anuncio'
+import { laExtensionDeLaImagen } from '@/lib/imagen-en-base64'
 import {
   AD_FORMATS,
   DEFAULT_STYLES,
@@ -144,7 +146,7 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
       setSourceImages((prev) => [...prev, ...base64Images])
       setError(null)
     } catch {
-      setError('No se pudieron leer una o mas imagenes.')
+      setError('No se pudieron leer una o más imágenes.')
     }
   }
 
@@ -182,16 +184,47 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
         setNewStyleName('')
         setNewStyleDesc('')
         setIsAddingStyle(false)
+        return
       }
+      // Antes un «no» del servidor dejaba el formulario abierto sin decir
+      // nada: se pulsaba «Guardar estilo» y no pasaba nada.
+      toast.error(result.message ?? 'No se pudo guardar el estilo. Vuelve a intentarlo.')
+    } catch (err) {
+      console.warn('[ai-image] no se pudo guardar el estilo', err)
+      toast.error('No se pudo guardar el estilo. Vuelve a intentarlo.')
     } finally {
       setIsSavingStyle(false)
     }
   }
 
+  /**
+   * Quitar un estilo se pinta AL MOMENTO y, si el servidor dice que no, vuelve
+   * a su sitio y se dice. Antes se borraba de la pantalla pasara lo que pasara:
+   * un fallo dejaba el estilo fuera de la lista y de vuelta al recargar, sin un
+   * solo aviso.
+   */
   const deleteCustomStyle = async (id: string) => {
-    await deleteUserVisualStyle(id)
+    const posicion = customStyles.findIndex((s) => s.id === id)
+    const estilo = customStyles[posicion]
+    if (!estilo) return
+    const eraElElegido = selectedStyleId === id
+
     setCustomStyles((prev) => prev.filter((s) => s.id !== id))
-    if (selectedStyleId === id) setSelectedStyleId(DEFAULT_STYLES[0].id)
+    if (eraElElegido) setSelectedStyleId(DEFAULT_STYLES[0].id)
+
+    let borrado = false
+    try {
+      borrado = (await deleteUserVisualStyle(id)).success
+    } catch (err) {
+      console.warn('[ai-image] no se pudo eliminar el estilo', err)
+    }
+    if (borrado) return
+
+    setCustomStyles((prev) =>
+      prev.some((s) => s.id === id) ? prev : [...prev.slice(0, posicion), estilo, ...prev.slice(posicion)]
+    )
+    if (eraElElegido) setSelectedStyleId(id)
+    toast.error('No se pudo eliminar el estilo. Vuelve a intentarlo.')
   }
 
   /**
@@ -335,7 +368,7 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
       }
     } catch (err) {
       console.error(err)
-      setError('Error al generar las imagenes.')
+      setError('Error al generar las imágenes.')
     } finally {
       setIsGenerating(false)
     }
@@ -348,7 +381,9 @@ export const useAdGenerator = (initialDbStyles: { id: string; name: string; desc
     if (!img) return
     const link = document.createElement('a')
     link.href = img
-    link.download = `ad-${imageIndex}-${templateId}-${formatId.replace(':', 'x')}-v${(variantIndex ?? safeVariant) + 1}.png`
+    // La extensión es la de la imagen que se baja, no una fija: Gemini puede
+    // devolver un JPEG, y un «.png» con un JPEG dentro no lo abre cualquiera.
+    link.download = `anuncio-producto-${imageIndex + 1}-${templateId}-${formatId.replace(':', 'x')}-v${(variantIndex ?? safeVariant) + 1}.${laExtensionDeLaImagen(img)}`
     link.click()
   }
 

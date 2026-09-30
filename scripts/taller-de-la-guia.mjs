@@ -19,7 +19,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { SALIDA as TAMANO_MINI, encuadreDeLaMiniatura } from "./encuadre-de-la-miniatura.mjs";
-import { RITMO, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
+import { RITMO, quitarLosCortes, sintetizar, usaCedar } from "./voz-de-la-guia.mjs";
 import { VOZ_CEDAR, llaveDeLaFrase, llenarLaCache } from "./voz-cedar.mjs";
 
 const require = createRequire(import.meta.url);
@@ -462,14 +462,16 @@ export async function elMarcoDeLaPantalla(p, guardar, { modulo, texto }) {
 /* El vídeo                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function mover(p, locator) {
+/**
+ * Fuera de la ventana, el ratón iría a un punto que no existe y el clic no
+ * tocaría nada —sin ningún error: el vídeo se quedaba esperando un resultado
+ * que no llega—. Se trae a la vista con un desplazamiento suave (el vídeo lo
+ * enseña) y, si aun así no se ve, se cae. Devuelve la caja ya a la vista.
+ */
+async function traerALaVista(p, locator) {
     let b = await locator.boundingBox();
     // Sin caja, `b.x` revienta con un TypeError que no dice qué faltaba.
     if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que señalar: ${locator}`);
-    // Fuera de la ventana, el ratón iría a un punto que no existe y el clic no
-    // tocaría nada —sin ningún error: el vídeo se quedaba esperando un
-    // resultado que no llega—. Se trae a la vista con un desplazamiento suave
-    // (el vídeo lo enseña) y, si aun así no se ve, se cae.
     const vista = p.viewportSize();
     const fuera = (c) => c.y + c.height / 2 < 0 || c.y + c.height / 2 > vista.height || c.x + c.width / 2 < 0 || c.x + c.width / 2 > vista.width;
     if (fuera(b)) {
@@ -478,15 +480,21 @@ export async function mover(p, locator) {
         b = await locator.boundingBox();
         if (!b || fuera(b)) throw new Error(`[guia] lo que el vídeo tenía que señalar se queda fuera de la ventana: ${locator}`);
     }
+    return b;
+}
+
+export async function mover(p, locator) {
+    const b = await traerALaVista(p, locator);
     await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 22 });
     await espera(p, 250);
 }
 /**
- * ¿Hay algo ENCIMA de lo que se va a pulsar? Un aviso flotante que acaba de
- * salir tapa lo que haya debajo —en Mis datos, «6 columnas detectadas» caía
- * justo sobre «Iniciar importación»—, y el clic se lo come el aviso: nada falla,
- * el vídeo se queda esperando un resultado que no llega. Se espera a que se
- * destape (un aviso se va solo) y, si no, se cae diciendo qué lo tapa.
+ * ¿Hay algo ENCIMA de lo que se va a pulsar, que no sea un aviso? Los avisos
+ * los resuelve `sinAvisoEncima`, antes de mover el ratón; esto es la red para
+ * todo lo demás —un menú que no se cerró, una capa que se quedó puesta—: el
+ * clic se lo comería y nada fallaría, el vídeo se quedaría esperando un
+ * resultado que no llega. Se espera a que se destape y, si no, se cae diciendo
+ * qué lo tapa.
  */
 async function sinNadaEncima(p, locator) {
     const libre = () =>
@@ -503,7 +511,66 @@ async function sinNadaEncima(p, locator) {
     if (encima) throw new Error(`[guia] lo que el vídeo tenía que pulsar está tapado por «${encima}»: ${locator}`);
 }
 
+/**
+ * Cuánto se espera, como mucho, a que se vaya un aviso que tapa lo que hay que
+ * pulsar. Un aviso de sonner dura 4 s y tarda medio en irse: si a los 12 sigue
+ * ahí, no se está yendo solo, y esperar más sería un vídeo mudo.
+ */
+export const ESPERA_POR_UN_AVISO_MS = 12000;
+
+/**
+ * Si un AVISO (sonner) tapa el centro de `locator`, dónde empieza por la
+ * izquierda lo que ocupan los avisos; si no lo tapa nada, `null`. Se le
+ * pregunta al navegador qué hay en ese punto (`elementFromPoint`), que es lo
+ * único que sabe lo que se lleva el clic: la caja del botón dice que está ahí
+ * aunque esté debajo de otra cosa.
+ */
+export async function queAvisoTapa(p, locator) {
+    const b = await locator.boundingBox();
+    if (!b) return null;
+    return p.evaluate(({ x, y }) => {
+        const encima = document.elementFromPoint(x, y);
+        const avisos = encima?.closest("[data-sonner-toaster]");
+        if (!avisos) return null;
+        let izquierda = avisos.getBoundingClientRect().left;
+        for (const t of avisos.querySelectorAll("[data-sonner-toast]")) izquierda = Math.min(izquierda, t.getBoundingClientRect().left);
+        return { izquierda };
+    }, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+}
+
+/**
+ * Los avisos salen abajo a la derecha, y lo que viva ahí —el botón de la
+ * última tarjeta de una pantalla, pegada al borde de abajo porque no queda más
+ * página que desplazar— se queda DEBAJO de uno durante sus 4 s. Y no solo
+ * debajo de lo que se ve: cada aviso lleva por encima una franja invisible de
+ * 15 px (`[data-sonner-toast]::after`, para no perder el puntero al pasar de un
+ * aviso a otro), así que tapa también lo que asoma justo encima.
+ *
+ * El clic se lo lleva el aviso y no pasa nada, sin ningún error. Y el ratón no
+ * puede esperar ENCIMA: sonner no quita un aviso mientras el puntero está sobre
+ * él, así que esperar ahí es esperar para siempre. Como haría una persona, el
+ * cursor se acerca, se queda justo a la izquierda de los avisos y pulsa en
+ * cuanto se va el que tapa. Lo que se espera es lo que le quede al aviso, y la
+ * narración sigue sonando mientras tanto: no es un `quitarAvisos`.
+ */
+export async function sinAvisoEncima(p, locator) {
+    const tapa = await queAvisoTapa(p, locator);
+    if (!tapa) return;
+    const b = await locator.boundingBox();
+    await p.mouse.move(Math.max(4, tapa.izquierda - 28), b.y + b.height / 2, { steps: 22 });
+    const desde = Date.now();
+    while (await queAvisoTapa(p, locator)) {
+        if (Date.now() - desde > ESPERA_POR_UN_AVISO_MS) throw new Error(`[guia] un aviso sigue tapando lo que había que pulsar: ${locator}`);
+        await espera(p, 100);
+    }
+    console.log(`  · un aviso tapaba lo que había que pulsar: se esperó ${Date.now() - desde} ms a que se fuera`);
+}
+
 export async function pulsar(p, locator) {
+    // Primero a la vista: un aviso solo se puede ver tapando algo que está en
+    // la ventana, y `sinAvisoEncima` deja el cursor fuera de él.
+    await traerALaVista(p, locator);
+    await sinAvisoEncima(p, locator);
     await mover(p, locator);
     await sinNadaEncima(p, locator);
     await p.mouse.down();
@@ -565,7 +632,25 @@ export function empezarLaNarracion(p, voz, t0, { respiro: respiroEntreFrases }) 
         const falta = frase.inicio + (frase.ms * i) / frase.texto.length - adelanto - Date.now();
         if (falta > 0) await espera(p, falta);
     };
-    return { decir, alDecir, callar, tramos };
+    /**
+     * Lo que tarda en cargar una pantalla NO sale en el vídeo. Se espera a que
+     * la frase que suena acabe, se hace `hacer` —navegar, esperar a que la
+     * pantalla esté entera— y ese rato se apunta como un CORTE: al montar el
+     * vídeo se quita de la imagen y la voz que viene después se adelanta lo
+     * mismo (`quitarLosCortes`). Así la frase siguiente empieza con la pantalla
+     * ya cargada, y no narra un «Cargando…» que el cliente no ve en su día a día.
+     *
+     * Nunca corta una frase a medias: por eso calla antes. Opcional: la guía que
+     * no lo llama se monta exactamente igual que antes.
+     */
+    const cortes = [];
+    const sinGrabarLaEspera = async (hacer) => {
+        await callar();
+        const desdeMs = Date.now() - t0;
+        await hacer();
+        cortes.push({ desdeMs, hastaMs: Date.now() - t0 });
+    };
+    return { decir, alDecir, callar, sinGrabarLaEspera, tramos, cortes };
 }
 
 /**
@@ -573,7 +658,7 @@ export function empezarLaNarracion(p, voz, t0, { respiro: respiroEntreFrases }) 
  * `scripts/voz-de-la-guia/<guia>.json`: el banco lo compara con el guion de
  * hoy y busca en la imagen el cambio del rótulo en cada `empiezanEnMs`.
  */
-export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, respiro }) {
+export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, respiro, cortes = [] }) {
     writeFileSync(
         path.join(import.meta.dirname, "voz-de-la-guia", `${guia}.json`),
         JSON.stringify(
@@ -587,6 +672,17 @@ export function escribirLaVozDelVideo(guia, { narracion, colocados, desdeMs, res
                       // instante cambia el rótulo de abajo: el banco lo busca en la
                       // imagen y así comprueba que la imagen no se despega de la voz.
                       empiezanEnMs: colocados.map((c) => c.inicioMs - desdeMs),
+                      // Dónde se empalma cada CORTE en el vídeo publicado (ms), y
+                      // cuánto se quitó: lo que tardaba en cargar una pantalla.
+                      // Solo lo llevan las guías que cortan.
+                      ...(cortes.length
+                          ? {
+                                cortes: cortes.map((c) => ({
+                                    enMs: quitarLosCortes(c.desdeMs, cortes) - desdeMs,
+                                    quitadoMs: c.hastaMs - c.desdeMs,
+                                })),
+                            }
+                          : {}),
                   }
                 : { voz: process.env.VOZ_GUIA, frases: [] },
             null,

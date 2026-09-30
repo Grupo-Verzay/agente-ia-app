@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { db } from '@/lib/db';
 import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
@@ -54,7 +54,18 @@ export async function createFinanceAccount(payload: {
   }
 }
 
-// ESTA ES LA QUE TE FALTA / NO ESTÁ EXPORTADA
+/**
+ * La cuenta de Finanzas SOLO si es de quien la toca. Editar y borrar iban con
+ * `where: { id }` a secas: con la sesión de cualquier cuenta y el id de otra se
+ * renombraba —o se borraba— una cuenta ajena, y encima antes se le quitaba la
+ * marca de predeterminada a las propias. Es el «un `where` sin dueño es el
+ * mismo hueco sin el id delante» de la auditoría: el dueño sale de la fila.
+ */
+async function laCuentaDeFinanzasPropia(accountId: string, userId: string) {
+  if (!accountId || !userId) return null;
+  return db.financeAccount.findFirst({ where: { id: accountId, userId }, select: { id: true, name: true } });
+}
+
 export async function updateFinanceAccount(
   accountId: string,
   userIdPedido: string,
@@ -67,6 +78,10 @@ export async function updateFinanceAccount(
 ) {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
+    if (!(await laCuentaDeFinanzasPropia(accountId, userId))) {
+      return { success: false, message: 'Cuenta no encontrada.' };
+    }
+
     // si se marca default -> desmarcar las otras
     if (payload.isDefault) {
       await db.financeAccount.updateMany({
@@ -95,9 +110,31 @@ export async function updateFinanceAccount(
 export async function deleteFinanceAccount(accountId: string, userIdPedido: string) {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
-    // opcional: impedir borrar default si quieres
-    // const acc = await db.financeAccount.findUnique({ where: { id: accountId } });
-    // if (acc?.isDefault) return { success:false, message:'No puedes borrar la cuenta default' };
+    const propia = await laCuentaDeFinanzasPropia(accountId, userId);
+    if (!propia) return { success: false, message: 'Cuenta no encontrada.' };
+
+    // Una cuenta con movimientos no se puede borrar: la base lo impide (sus
+    // ventas y gastos apuntan a ella) y el error que salía era el de Prisma,
+    // en inglés. Se dice antes, con palabras, y cuántos son. Los movimientos
+    // ya eliminados también la sujetan —se borran marcándolos, la fila sigue—,
+    // pero no se ven en ninguna lista: contarlos como «tiene 3 movimientos»
+    // mandaría a buscar tres filas que no están.
+    const [vivos, todos] = await Promise.all([
+      db.financeTransaction.count({ where: { accountId, userId, status: { not: 'DELETED' } } }),
+      db.financeTransaction.count({ where: { accountId, userId } }),
+    ]);
+    if (vivos > 0) {
+      return {
+        success: false,
+        message: `«${propia.name}» tiene ${vivos} movimiento(s) y no se puede eliminar.`,
+      };
+    }
+    if (todos > 0) {
+      return {
+        success: false,
+        message: `«${propia.name}» guarda movimientos ya eliminados y no se puede eliminar.`,
+      };
+    }
 
     await db.financeAccount.delete({
       where: { id: accountId },

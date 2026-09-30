@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -217,27 +218,35 @@ export function BarraDeAcciones({
  * ancho es lo único que escasea. El texto sigue llegando al lector de pantalla
  * por el `aria-label`, que sale del mismo `children` para que no se puedan
  * separar.
+ *
+ * # Pasa su `ref`, y no es un detalle
+ *
+ * Donde abre un menú —el «Nuevo» del resumen de Finanzas, que ofrece venta o
+ * gasto— va dentro de un `DropdownMenuTrigger asChild`, y Radix ancla el menú
+ * con la `ref` del botón. Sin `forwardRef` esa ref no llega, Floating UI no
+ * tiene contra qué medir y el menú se queda en su posición de partida,
+ * `translate(0, -200%)`: FUERA de la pantalla. Se pulsaba «Nuevo» y no pasaba
+ * nada, sin un solo error.
  */
-export function BotonDeCrear({
-    children,
-    className,
-    ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-    const etiqueta = typeof children === "string" ? children : undefined;
+export const BotonDeCrear = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+    function BotonDeCrear({ children, className, ...props }, ref) {
+        const etiqueta = typeof children === "string" ? children : undefined;
 
-    return (
-        <Button
-            type="button"
-            title={etiqueta}
-            aria-label={etiqueta}
-            className={cn(
-                "h-10 w-10 shrink-0 gap-1.5 bg-blue-600 p-0 text-white hover:bg-blue-700 sm:w-auto sm:px-4",
-                className,
-            )}
-            {...props}
-        >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">{children}</span>
-        </Button>
-    );
-}
+        return (
+            <Button
+                ref={ref}
+                type="button"
+                title={etiqueta}
+                aria-label={etiqueta}
+                className={cn(
+                    "h-10 w-10 shrink-0 gap-1.5 bg-blue-600 p-0 text-white hover:bg-blue-700 sm:w-auto sm:px-4",
+                    className,
+                )}
+                {...props}
+            >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">{children}</span>
+            </Button>
+        );
+    },
+);

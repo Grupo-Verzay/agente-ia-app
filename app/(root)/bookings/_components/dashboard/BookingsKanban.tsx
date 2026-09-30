@@ -218,7 +218,7 @@ function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
                     <button
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
-                        title="Automaciones"
+                        title="Automatizaciones"
                     >
                         <Settings2 className="h-3.5 w-3.5 text-white/80" />
                     </button>
@@ -228,7 +228,7 @@ function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
             <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
                 <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
                     <SheetHeader className="mb-4">
-                        <SheetTitle>Automaciones — {col.label}</SheetTitle>
+                        <SheetTitle>Automatizaciones — {col.label}</SheetTitle>
                     </SheetHeader>
                     <ApptAutomationsPanel userId={userId} apptStatus={col.id} />
                 </SheetContent>

@@ -22,6 +22,15 @@
  *
  * El estado queda en `data-cursor-de-la-guia` del `<html>` para que el banco
  * lo pueda leer.
+ *
+ * # Y a PANTALLA COMPLETA, dentro del elemento que la ocupa
+ *
+ * El elemento a pantalla completa se pinta en la capa de arriba del todo, por
+ * encima de cualquier `z-index` del resto del documento: el cursor y el
+ * rótulo, colgados del `<body>`, se quedaban debajo y desaparecían del vídeo
+ * mientras durara (el botón de pantalla completa del Copiloto). Se mudan
+ * dentro de ese elemento al entrar y vuelven al `<body>` al salir
+ * (`fullscreenchange`).
  */
 
 /** La flecha de Windows: blanca con borde negro, la punta en (0,0). */
@@ -93,7 +102,10 @@ export const CURSOR = `
   let x = -100, y = -100, forma = '';
   /** La forma que dijo el iframe que está bajo la punta (null si la punta no está en uno). */
   let enMarco = null;
-  const poner = () => { document.body.appendChild(cap); document.body.appendChild(c); };
+  // A pantalla completa solo se ve el elemento que la ocupa: el cursor y el
+  // rótulo viven donde se ve, y vuelven al <body> al salir.
+  const dondeSeVe = () => document.fullscreenElement || document.body;
+  const poner = () => { dondeSeVe().appendChild(cap); dondeSeVe().appendChild(c); };
   const pintar = (f) => {
     if (f !== forma) { forma = f; c.innerHTML = DIBUJOS[f]; document.documentElement.dataset.cursorDeLaGuia = f; }
     c.style.transform = 'translate(' + (x - PUNTA[f][0]) + 'px,' + (y - PUNTA[f][1]) + 'px)';
@@ -106,7 +118,7 @@ export const CURSOR = `
     if (!document.body) return;
     // Un diálogo se pinta en un portal al final del <body>: el cursor se
     // vuelve a poner el último para que no quede debajo del velo.
-    if (document.body.lastElementChild !== c) poner();
+    if (dondeSeVe().lastElementChild !== c) poner();
     pintar(queForma());
   };
   if (document.body) poner(); else addEventListener('DOMContentLoaded', poner);
@@ -122,6 +134,7 @@ export const CURSOR = `
     enMarco = d.forma;
     mirar();
   });
+  addEventListener('fullscreenchange', poner);
   setInterval(mirar, 120);
   window.__rotulo = (t) => { cap.textContent = t; cap.style.opacity = t ? '1' : '0'; };
   window.__cursor = true;

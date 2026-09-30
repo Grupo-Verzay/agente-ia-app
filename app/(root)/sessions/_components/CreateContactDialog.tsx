@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { registerSession } from "@/actions/session-action"
 import { getInstancesByUserId } from "@/actions/instances-actions"
+import { jidDelTelefonoTecleado } from "@/lib/whatsapp-jid"
 import type { Instancia } from "@prisma/client"
 
 export function CreateContactDialog({
@@ -46,6 +47,7 @@ export function CreateContactDialog({
     const validate = () => {
         const next: { phone?: string; name?: string } = {}
         if (!phone.trim()) next.phone = "Número requerido"
+        else if (!jidDelTelefonoTecleado(phone)) next.phone = "Escribe el número completo, con el indicativo del país"
         if (!name.trim()) next.name = "Nombre requerido"
         setErrors(next)
         return Object.keys(next).length === 0
@@ -63,7 +65,9 @@ export function CreateContactDialog({
             const res = await registerSession({
                 userId,
                 instanceId,
-                remoteJid: `${phone.trim()}@s.whatsapp.net`,
+                // Solo los dígitos: con el «+» o los espacios dentro, el primer
+                // mensaje a este lead se quedaba colgado (ver `sinFormatoDeTelefono`).
+                remoteJid: jidDelTelefonoTecleado(phone)!,
                 pushName: name.trim(),
             })
             if (!res.success) {

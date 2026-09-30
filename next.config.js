@@ -138,6 +138,15 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
         ],
       },
+      {
+        // El vídeo de ventas (/demo), igual: la página, el MP4 y su portada.
+        // Se reparte por enlace; que un buscador lo indexe no es el plan.
+        source: "/demo/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
     ];
   },
 };

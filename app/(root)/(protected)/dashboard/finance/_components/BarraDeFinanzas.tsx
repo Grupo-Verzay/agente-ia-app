@@ -49,7 +49,7 @@ import { VaciarContabilidad } from './VaciarContabilidad';
  * volver a buscar no ha buscado nada.
  *
  * Y busca sobre **todas** las ventas, no sobre el mes que se estaba mirando:
- * Ventas abre en su pestaña «todas» (`tab` nace en `'total'`), así que una
+ * Ventas abre con su periodo en «Todas» (`unPeriodo('todo')`), así que una
  * venta de marzo se encuentra aunque se buscara desde diciembre. Acotarlo al
  * mes daría «sin resultados» sobre algo que sí existe, que es la peor respuesta
  * posible de un buscador. El mes viaja igual, para que el selector de mes de

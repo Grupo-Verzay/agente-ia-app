@@ -7,6 +7,7 @@ import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { marcarSesionResuelta, reabrirSesion } from "@/lib/session-resolved";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
 import { esGenteQueAlcanzo, laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
@@ -446,8 +447,13 @@ export async function releaseSession(sessionId: number): Promise<Result> {
 export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId = user.ownerId ? null : user.id;
-  if (!ownerId) return { success: false, message: "Solo el dueño puede hacer asignación masiva." };
+  // La MISMA puerta que el resto de Usuarios (`laCuentaQueConfigura`): el
+  // dueño y el administrador del equipo. Con `user.ownerId ? null : user.id`
+  // la pantalla le enseñaba el botón al administrador y el botón le contestaba
+  // «Solo el dueño» — menú abierto, puerta cerrada.
+  const cuenta = await laCuentaQueConfigura();
+  const ownerId = cuenta?.id ?? null;
+  if (!ownerId) return { success: false, message: "Solo quien administra la cuenta puede hacer asignación masiva." };
 
   const autoAssignResult = await autoAssignUnassignedSessionsForOwner(ownerId, {
     // El alcance es la cuenta (`ownerId`); la firma, la persona que pulsó.

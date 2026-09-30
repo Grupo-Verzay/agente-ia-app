@@ -54,6 +54,13 @@ async function laColumnaQueSePuedeGuardar(
     const user = await currentUser();
     if (!user) throw new Error("No autorizado.");
 
+    if (tipo === "doc-portada" || tipo === "guias-publicadas" || tipo === "tutoriales") {
+        // El orden propio de Documentación va por `guardarMiOrdenAction`, que
+        // pone la persona él mismo. Aceptarlo aquí sería dejar que el
+        // navegador dijera de quién es el orden.
+        throw new Error("Tablero no encontrado.");
+    }
+
     if (tipo === "proyecto") {
         const projectId = Number(tableroId);
         if (!Number.isInteger(projectId) || projectId <= 0) throw new Error("Tablero no encontrado.");

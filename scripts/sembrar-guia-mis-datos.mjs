@@ -15,7 +15,7 @@
  *   la lista enseñe el interruptor en los dos lados y la etiqueta «Inactivo».
  *
  * Las hojas de Google que la guía importa no se siembran aquí: las sirve
- * `servidor-guia-mis-datos.cjs`, que responde en lugar de docs.google.com
+ * `fingido-guia-mis-datos.mjs`, que responde en lugar de docs.google.com
  * dentro de `next start` (este equipo no sale a internet).
  *
  * El marco —cuenta de cliente, su menú, «Ver tutoriales» y «Soporte»— es el de

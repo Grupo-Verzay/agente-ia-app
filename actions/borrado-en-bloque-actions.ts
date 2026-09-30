@@ -7,10 +7,13 @@ import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-
 import {
     borrarUnaAUna,
     comoListaDeIds,
+    comoListaDeIdsNumericos,
     comoResumen,
     type ResumenDelBorrado,
 } from "@/lib/borrado-en-bloque";
 import { deleteFlowAction } from "@/actions/flow-actions";
+import { deleteFinanceAccount } from "@/actions/finance-accounts-actions";
+import { deleteRR } from "@/actions/rr-actions";
 
 /**
  * El borrado en bloque de las pantallas cuyo dominio no tenía ninguno.
@@ -148,8 +151,13 @@ export async function eliminarContactosDeFinanzasAction(
     const cuenta = await laCuenta(userId);
     if (!cuenta) return NO_AUTORIZADO;
 
-    const { count } = await db.financeContact.deleteMany({
-        where: { id: { in: lista }, userId: cuenta },
+    // Marca DELETED, igual que borrar un contacto de uno en uno
+    // (`deleteFinanceContact`): el módulo es de borrado suave. Con un
+    // `deleteMany` las filas desaparecían de verdad, y el código automático del
+    // siguiente contacto repetía el de uno que ya estaba.
+    const { count } = await db.financeContact.updateMany({
+        where: { id: { in: lista }, userId: cuenta, status: { not: "DELETED" } },
+        data: { status: "DELETED" },
     });
     revalidatePath("/dashboard/finance");
     return comoResumen(count, lista.length - count, "contactos");
@@ -165,11 +173,17 @@ export async function eliminarCuentasDeFinanzasAction(
     const cuenta = await laCuenta(userId);
     if (!cuenta) return NO_AUTORIZADO;
 
-    const { count } = await db.financeAccount.deleteMany({
-        where: { id: { in: lista }, userId: cuenta },
+    // De una en una por `deleteFinanceAccount`, que es la que ya sabe borrar
+    // una cuenta: comprueba que sea de quien la borra, no deja borrar una con
+    // movimientos —la base lo impide y un `deleteMany` se caía entero por UNA—
+    // y vuelve a marcar una predeterminada si se borró la que lo era. Con un
+    // `deleteMany` aquí la cuenta quedaba sin predeterminada.
+    const { borrados, fallaron } = await borrarUnaAUna(lista, async (id) => {
+        const res = await deleteFinanceAccount(id, cuenta);
+        return !!res?.success;
     });
     revalidatePath("/dashboard/finance/accounts");
-    return comoResumen(count, lista.length - count, "cuentas");
+    return comoResumen(borrados, fallaron, "cuentas");
 }
 
 /**
@@ -192,6 +206,57 @@ export async function eliminarDiagramasAction(ids: string[]): Promise<ResumenDel
     });
     revalidatePath("/diagramas");
     return comoResumen(borrados, fallaron, "diagramas");
+}
+
+/**
+ * Borra en bloque ventas de Finanzas. Es la hermana de `eliminarGastosAction`
+ * y pasa por la misma puerta (`laCuenta`): Ventas borraba lo marcado con su
+ * propia acción, que preguntaba dos veces y no decía cuántas fallaron.
+ */
+export async function eliminarVentasAction(
+    ids: string[],
+    userId?: string,
+): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIds(ids);
+    if (lista.length === 0) return SIN_IDS;
+    const cuenta = await laCuenta(userId);
+    if (!cuenta) return NO_AUTORIZADO;
+
+    const { count } = await db.financeTransaction.updateMany({
+        where: {
+            id: { in: lista },
+            userId: cuenta,
+            type: "SALE",
+            status: { not: "DELETED" },
+        },
+        data: { status: "DELETED", deletedAt: new Date() },
+    });
+    revalidatePath("/dashboard/finance/sales");
+    return comoResumen(count, lista.length - count, "ventas");
+}
+
+/**
+ * Respuestas rápidas.
+ *
+ * Una a una por `deleteRR`, que es el borrado de la fila y lleva sus dos
+ * puertas —de qué cuenta es la respuesta, y si quien llama puede tocarla: un
+ * asesor no borra las de la cuenta ni las de un compañero— y olvida su marca de
+ * personal. Reescribir aquí esas comprobaciones sería un segundo borrado que el
+ * día que se afine el de al lado se queda atrás.
+ *
+ * Los ids son NÚMEROS (`rr.id` es un entero), así que se sanean como tales:
+ * un saneado de cadenas convertiría basura en el id 0.
+ */
+export async function eliminarRespuestasRapidasAction(ids: number[]): Promise<ResumenDelBorrado> {
+    const lista = comoListaDeIdsNumericos(ids);
+    if (lista.length === 0) return SIN_IDS;
+
+    const { borrados, fallaron } = await borrarUnaAUna(lista.map(String), async (id) => {
+        const res = await deleteRR(Number(id));
+        return !!res?.success;
+    });
+    revalidatePath("/auto-replies");
+    return comoResumen(borrados, fallaron, "respuestas rápidas");
 }
 
 /**
