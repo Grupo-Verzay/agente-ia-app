@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { GuideUrl } from '@prisma/client';
+import { BOTON_VER_TUTORIAL, TEXTO_DEL_BOTON, type TutorialDelModulo } from '@/lib/tutoriales-del-modulo';
 import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
@@ -80,7 +80,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
   const laCabecera = useRef<HTMLElement>(null);
   const loDeLaIzquierda = useRef<HTMLDivElement>(null);
   const loDeLaDerecha = useRef<HTMLDivElement>(null);
-  const [guides, setGuides] = useState<GuideUrl[]>([]);
+  const [guides, setGuides] = useState<TutorialDelModulo[]>([]);
 
   useEffect(() => {
     if (!hayRuta) {
@@ -146,28 +146,33 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                       </DialogHeader>
 
                       <ScrollArea className="max-h-[60vh] pr-2">
+                        {/* Todas las tarjetas con la MISMA anatomía: título,
+                            descripción y, al final, «Ver tutorial» en el azul
+                            de crear, de estilo secundario. Una guía de
+                            /guia/<modulo> y un vídeo de YouTube se ven igual. */}
                         <ul className="space-y-4 mt-4">
                           {guides.map((guide) => (
                             <li
                               key={guide.id}
-                              className="border rounded-lg p-5 shadow-sm transition cursor-pointer group"
-                              onClick={() => window.open(guide.url, '_blank')}
+                              data-tarjeta-de-tutorial
+                              className="flex flex-col items-start gap-1 rounded-lg border p-5 shadow-sm"
                             >
-                              <h3 className="text-base font-semibold text-foreground transition">
+                              <h3 className="text-base font-semibold text-foreground">
                                 {guide.title}
                               </h3>
-
-                              <Button
-                                className="mt-3 bg-[#FF0033] hover:bg-[#e60000] text-white font-semibold transition duration-200 uppercase px-4 py-2 text-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation(); // Evita doble apertura
-                                  window.open(guide.url, '_blank');
-                                }}
+                              {guide.description && (
+                                <p className="text-sm text-muted-foreground">{guide.description}</p>
+                              )}
+                              <a
+                                href={guide.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-ver-tutorial
+                                className={`mt-3 ${BOTON_VER_TUTORIAL}`}
                               >
-                                <Play className="w-4 h-4 text-white mr-2" />
-                                <span className="hidden sm:inline">Ver en YouTube</span>
-                              </Button>
-                              <p className="text-sm text-muted-foreground mt-1">{guide.description}</p>
+                                <Play className="h-4 w-4" />
+                                {TEXTO_DEL_BOTON}
+                              </a>
                             </li>
                           ))}
                         </ul>

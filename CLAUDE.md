@@ -22871,6 +22871,29 @@ fuera de la zona nada pasa de gris medio, dentro hay blanco y en el borde el
 azul del recuadro. `MODO=roto` lee `98a247c` y afirma que las tarjetas usaban
 la captura de un paso.
 
+### Publicar una guía REGISTRA su tarjeta en «Tutoriales del módulo»
+
+**Regla para toda guía nueva:** el hilo que publica `/guia/<modulo>` añade, en
+el MISMO PR, su fila en `GUIAS_PUBLICADAS` (`lib/tutoriales-del-modulo.ts`):
+el módulo, la ruta de su pantalla (la de `navigationRoutes`) y su `Contenido`
+(de ahí salen el título «Guía de X», la descripción —el subtítulo— y el
+enlace). Con eso la tarjeta sale sola en la ventana «Tutoriales del módulo»
+(el botón «Ver tutoriales» de la barra de arriba) de esa pantalla y sus
+subpantallas el día que se despliega. **No se deja como paso manual** en
+Documentación › Administrador tutoriales.
+
+`getGuidesForPath` junta esas filas con las de `GuidesUrl` (las guardadas a
+mano, p. ej. vídeos de YouTube); si alguien ya guardó la misma guía a mano,
+sale una sola vez y manda la de la base. El banco
+(`scripts/banco-tutoriales-del-modulo.sh`) falla si una carpeta de
+`app/guia/` no tiene su fila, o si su ruta no está en el menú.
+
+Y todas las tarjetas de esa ventana son iguales: título, descripción y, al
+final, «Ver tutorial» (`BOTON_VER_TUTORIAL`): el azul del botón de crear
+(`bg-blue-600`) en estilo secundario —fondo blanco, borde y letra azules—,
+abriendo en otra pestaña con `noopener`. Nada de «Ver en YouTube» en rojo.
+`MODO=roto` monta la barra de `7bdc404` y afirma el botón rojo.
+
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
 `CabeceraDeLaGuia` es UNA fila de 56 px en rejilla simétrica
@@ -23230,7 +23253,8 @@ minuto. Mismo estándar que Leads, y no por copiarlo:
 > ESCONDIDO del menú (una semilla con su propio `db.module.create` sería un
 > segundo sitio donde se siembra el menú, y `menu-de-la-guia` lo prohíbe). La
 > lista de guías (`MODULOS_CON_GUIA`, `NOMBRE_DE_LA_GUIA`) alimenta el editor
-> de introducciones y el «Contáctanos».
+> de introducciones y el «Contáctanos», y su fila en `GUIAS_PUBLICADAS` pone
+> la tarjeta en «Ver tutoriales» de `/reuniones` sin ningún paso a mano.
 
 Cinco cosas que hay que mantener:
 
