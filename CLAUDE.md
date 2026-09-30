@@ -342,8 +342,9 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
    una de esas dos secciones cae en la misma, nunca en una repetida.
 3. **En la ficha, Nombre y Teléfono son el nombre y el número REALES**: Nombre
    se guarda por el mismo camino que el lápiz de la cabecera
-   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre más
-   alta (`LINEAS_DE_LAS_NOTAS`, `min-h-[8rem]`) y con la manija de la esquina
+   (`updateLeadPushNameAction`) y Teléfono es de solo lectura. Notas abre con
+   3 líneas (`LINEAS_DE_LAS_NOTAS`, sin `min-h`: pisaría a `rows`), se desplaza
+   por dentro si el texto es más largo, y lleva la manija de la esquina
    (`resize-y`); los demás campos no se estiran.
 4. **Su dato sigue en `ExternalClientData.data.notas`**, la clave del Notas de
    fábrica de antes: lo escrito no se pierde, y una lista vieja con esa clave la
@@ -352,7 +353,7 @@ arrastra —dentro, arrastrar otro campo debajo lo desplazaría—. Cuatro cosas
 
 Lo prueba `scripts/banco-ficha-simetrica.sh`: la regla, y el diálogo y la ficha
 REALES en Chromium a 1440/1024/390 (mismas columnas y altos en todas las filas,
-Notas la última al agregar campos, Notas más alta y estirable arrastrando la
+Notas la última al agregar campos, Notas con 3 líneas y estirable arrastrando la
 esquina). `MODO=roto` monta los de `4834a9e` y afirma «Fijo», las filas sin asa
 ni interruptor y la ficha sin Nombre, Teléfono ni Notas.
 
@@ -10788,6 +10789,39 @@ Dos reglas:
 2. **Un estado, una difusión o un canal se descartan antes de todo**: antes de
    guardar el mensaje, de registrar el lead y de despertar a la IA. Va **después**
    de aprender el par `@lid` → número de los grupos, que eso sí interesa.
+
+## El primer mensaje a un lead guardado a mano: el número va LIMPIO, y Waha confirma a quién
+
+«Crear contacto» (Leads) guardaba el número tal cual se tecleó —`+507 6027-0754`—
+pegándole `@s.whatsapp.net`, y ninguna capa lo limpiaba. El primer mensaje a ese
+lead salía a Waha como `+50760270754@c.us`, y **Waha no contesta a eso**: el envío
+agotaba sus 15 s, salía «el servidor no contestó a tiempo» y al cliente no le
+llegaba nada (visto en producción el 2026-09-30, línea MULTIGAMA). A una
+conversación que empezó el lead no le pasa: ese número lo pone WhatsApp, limpio.
+
+Tres cosas, y hacen falta las tres:
+
+1. **El formato se quita en `cleanValue`** (`sinFormatoDeTelefono`,
+   `lib/whatsapp-jid.ts`), igual que el sufijo de dispositivo: `+`, espacios,
+   guiones, paréntesis y puntos, solo en un JID de teléfono (`@s.whatsapp.net` /
+   `@c.us`) o en un valor sin arroba. `canonicalToWahaJid` y
+   `wahaJidToCanonical` pasan por la misma función. `buildWhatsAppJidCandidates`
+   conserva además la forma LITERAL, para que una ficha vieja se siga encontrando.
+2. **Las dos pantallas que crean un lead a mano** («Crear contacto» y
+   `LeadCreateForm`) arman el JID con `jidDelTelefonoTecleado` y piden al menos
+   8 dígitos; el servidor limpia igual (`registrarLaSesion` → `cleanValue`).
+3. **Waha confirma el destinatario antes de enviar**, como ya hacía Evolution
+   (`resolveWhatsAppJid`): `destinoSegunWaha` pregunta a
+   `GET /api/contacts/check-exists` (0,1-0,2 s medidos), manda al número (`pn`),
+   recuerda la respuesta 30 min, y va dentro de `sendWahaText`/`sendWahaMedia`,
+   que es por donde sale TODO envío a Waha. `numberExists: false` se dice al
+   momento («El número +X no tiene WhatsApp»); si la consulta falla o tarda, se
+   envía con lo que había.
+
+Lo prueba `scripts/banco-primer-mensaje-a-un-lead.sh`, con un Waha de mentira
+que se cuelga igual que el real ante un `chatId` que no es solo dígitos.
+`MODO=roto` empaqueta la misma cadena con `lib/` de `c7fbb82` y afirma el
+cuelgue de 15 s.
 
 ## Chats: buscar la fila por TODAS las identidades
 
