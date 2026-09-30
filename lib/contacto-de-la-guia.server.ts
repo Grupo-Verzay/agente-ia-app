@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getSiteConfig } from "@/actions/admin/site-config-actions";
+import { elNombreDeLaGuia } from "@/lib/introduccion-de-la-guia";
 
 /**
  * A dónde lleva «Contáctanos» de una guía pública: el WhatsApp de la
@@ -20,8 +21,8 @@ export function elEnlaceDeContacto(numero: string | null | undefined, modulo: st
 export async function elContactoDeLaGuia(modulo: string): Promise<string> {
     try {
         const config = await getSiteConfig();
-        return elEnlaceDeContacto(config.whatsappNumber, modulo === "leads" ? "Leads" : modulo);
+        return elEnlaceDeContacto(config.whatsappNumber, elNombreDeLaGuia(modulo));
     } catch {
-        return elEnlaceDeContacto(null, modulo);
+        return elEnlaceDeContacto(null, elNombreDeLaGuia(modulo));
     }
 }

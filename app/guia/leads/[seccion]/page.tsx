@@ -8,7 +8,7 @@ import {
     NavegacionEntreSecciones,
     PasoDeLaGuia,
 } from "@/components/guia/Guia";
-import { laSeccion, lasVecinas, SECCIONES } from "@/lib/guia-leads";
+import { CARPETA_DE_CAPTURAS, laSeccion, lasVecinas, SECCIONES } from "@/lib/guia-leads";
 
 /**
  * Una sección de la guía de Leads, con sus pasos y sus capturas. Se genera
@@ -34,7 +34,7 @@ export default function SeccionDeLaGuiaDeLeads({ params }: { params: { seccion: 
 
     return (
         <>
-            <CabeceraDeLaGuia volver={{ href: "/guia/leads", texto: "Todas las secciones" }} />
+            <CabeceraDeLaGuia volver={{ href: CARPETA_DE_CAPTURAS, texto: "Todas las secciones" }} modulo="Leads" />
             <article className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
                 <header className="space-y-3">
                     <div className="flex items-center gap-2">
@@ -51,13 +51,13 @@ export default function SeccionDeLaGuiaDeLeads({ params }: { params: { seccion: 
 
                 <ol className="space-y-10">
                     {seccion.pasos.map((p, i) => (
-                        <PasoDeLaGuia key={p.imagen + i} paso={p} numero={i + 1} />
+                        <PasoDeLaGuia key={p.imagen + i} carpeta={CARPETA_DE_CAPTURAS} paso={p} numero={i + 1} />
                     ))}
                 </ol>
 
                 <Consejos consejos={seccion.consejos ?? []} />
 
-                <NavegacionEntreSecciones anterior={anterior} siguiente={siguiente} />
+                <NavegacionEntreSecciones carpeta={CARPETA_DE_CAPTURAS} anterior={anterior} siguiente={siguiente} />
             </article>
         </>
     );

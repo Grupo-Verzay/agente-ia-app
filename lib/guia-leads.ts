@@ -18,39 +18,11 @@
  * no existe, que es como envejece toda documentación escrita a mano.
  */
 
-/** Dónde viven las capturas, servidas desde `public/`. */
-export const CARPETA_DE_CAPTURAS = "/guia/leads";
+import { laGuiaDe, TEXTO_DE_LA_BARRA_DE_ARRIBA, type Contenido } from "@/lib/guia-de-modulo";
 
-/** El vídeo de demostración, grabado por el mismo script que las capturas. */
-export const VIDEO_DE_DEMOSTRACION = `${CARPETA_DE_CAPTURAS}/demostracion.webm`;
-export const PORTADA_DEL_VIDEO = `${CARPETA_DE_CAPTURAS}/portada.webp`;
-
-export type Paso = {
-    titulo: string;
-    /** Una o dos frases. La captura explica; el texto solo pone nombre a lo que se ve. */
-    texto: string;
-    /** Nombre del fichero en `CARPETA_DE_CAPTURAS`, sin carpeta. */
-    imagen: string;
-    alt: string;
-};
-
-export type Seccion = {
-    slug: string;
-    titulo: string;
-    resumen: string;
-    /** Nombre de un icono de lucide-react (ver `IconoDeSeccion`). */
-    icono: "LayoutDashboard" | "Columns3" | "ToggleRight" | "Filter" | "Search" | "Download" | "UserPlus" | "MoreHorizontal";
-    /**
-     * La captura de la tarjeta en el índice: `mini-<slug>.webp`, PROPIA de la
-     * tarjeta y no la de un paso. Lleva el enfoque —la zona de la sección
-     * nítida y en su recuadro, el resto atenuado— y es 16:9 como la tarjeta
-     * (`capturar-guia-leads.mjs › miniaturas`).
-     */
-    miniatura: string;
-    pasos: Paso[];
-    /** Lo que conviene saber y no cabe en un paso. Corto. */
-    consejos?: string[];
-};
+// La barra de arriba es la misma en todas las guías: se reexporta para que los
+// bancos que compilan solo esta guía la sigan encontrando aquí.
+export { PARTES_DE_LA_BARRA_DE_ARRIBA } from "@/lib/guia-de-modulo";
 
 /** Lo que dice cada columna de la tabla. El banco lo compara con `Columns.tsx`. */
 export const COLUMNAS_DOCUMENTADAS = [
@@ -63,22 +35,6 @@ export const COLUMNAS_DOCUMENTADAS = [
     "Seguimientos",
     "Etiquetas",
     "Acciones",
-] as const;
-
-/**
- * Las partes de la BARRA DE ARRIBA, en su orden, con el componente que pinta
- * cada una en `components/custom/Breadcrumbs.tsx`. El banco lee esa barra y
- * exige que tenga exactamente estas, en este orden: un botón nuevo arriba sin
- * su nombre en la guía la pone en rojo, que es como se quedó la primera
- * versión —la barra salía en las capturas y la guía no nombraba ni una parte—.
- */
-export const PARTES_DE_LA_BARRA_DE_ARRIBA = [
-    { nombre: "Abrir o recoger el menú", componente: "SidebarTrigger" },
-    { nombre: "Pasar a Chats o a Correos", componente: "AlternarBandeja" },
-    { nombre: "Ver tutoriales", componente: "Ver tutoriales" },
-    { nombre: "Buscar en toda la plataforma", componente: "GlobalSearch" },
-    { nombre: "Soporte", componente: "BotonDeSoporte" },
-    { nombre: "Tus notificaciones", componente: "NotificationCenter" },
 ] as const;
 
 /**
@@ -125,7 +81,7 @@ export const COLUMNAS_DEL_CSV = [
     "Fecha creación",
 ] as const;
 
-export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: string; secciones: Seccion[] } = {
+export const GUIA_LEADS: Contenido = {
     titulo: "Leads",
     subtitulo: "Tus contactos de WhatsApp, en una sola lista",
     descripcion:
@@ -158,9 +114,7 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
                 },
                 {
                     titulo: "La barra de arriba",
-                    texto:
-                        "1 Abrir o recoger el menú · 2 Pasar a Chats o a Correos · 3 Ver tutoriales · " +
-                        "4 Buscar en toda la plataforma · 5 Soporte · 6 Tus notificaciones.",
+                    texto: TEXTO_DE_LA_BARRA_DE_ARRIBA,
                     imagen: "barra-de-arriba.webp",
                     alt: "La barra de arriba con cada botón numerado",
                 },
@@ -490,29 +444,13 @@ export const GUIA_LEADS: { titulo: string; subtitulo: string; descripcion: strin
     ],
 };
 
-export const SECCIONES: readonly Seccion[] = GUIA_LEADS.secciones;
+/** La guía armada: su carpeta, su vídeo y la navegación (`lib/guia-de-modulo.ts`). */
+export const GUIA = laGuiaDe("leads", GUIA_LEADS);
 
-export function laSeccion(slug: string): Seccion | null {
-    return SECCIONES.find((s) => s.slug === slug) ?? null;
-}
-
-/** La anterior y la siguiente, para navegar sin volver al índice. */
-export function lasVecinas(slug: string): { anterior: Seccion | null; siguiente: Seccion | null } {
-    const i = SECCIONES.findIndex((s) => s.slug === slug);
-    if (i < 0) return { anterior: null, siguiente: null };
-    return { anterior: SECCIONES[i - 1] ?? null, siguiente: SECCIONES[i + 1] ?? null };
-}
-
-/** Todas las capturas que la guía enseña, sin repetir: lo que el script tiene que tomar. */
-export function lasCapturasQueSeEnsenan(): string[] {
-    const todas = new Set<string>([PORTADA_DEL_VIDEO.split("/").pop()!]);
-    for (const s of SECCIONES) {
-        todas.add(s.miniatura);
-        for (const p of s.pasos) todas.add(p.imagen);
-    }
-    return [...todas];
-}
-
-export function laRutaDeLaCaptura(nombre: string): string {
-    return `${CARPETA_DE_CAPTURAS}/${nombre}`;
-}
+/** Dónde viven las capturas, servidas desde `public/`. */
+export const CARPETA_DE_CAPTURAS = GUIA.carpeta;
+/** El vídeo de demostración, grabado por el mismo script que las capturas. */
+export const VIDEO_DE_DEMOSTRACION = GUIA.video;
+export const PORTADA_DEL_VIDEO = GUIA.portada;
+export const SECCIONES = GUIA.secciones;
+export const { laSeccion, lasVecinas, lasCapturasQueSeEnsenan, laRutaDeLaCaptura } = GUIA;

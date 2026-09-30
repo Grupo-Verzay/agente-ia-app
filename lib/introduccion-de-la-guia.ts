@@ -14,8 +14,16 @@
 export type Introduccion = { titulo: string; subtitulo: string; descripcion: string };
 
 /** Los módulos con guía pública. La llave de la tabla y el `/guia/<modulo>`. */
-export const MODULOS_CON_GUIA = ["leads"] as const;
+export const MODULOS_CON_GUIA = ["leads", "catalogo"] as const;
 export type ModuloConGuia = (typeof MODULOS_CON_GUIA)[number];
+
+/** Cómo se llama cada guía para una persona: el mismo nombre que su menú. */
+export const NOMBRE_DE_LA_GUIA: Record<ModuloConGuia, string> = { leads: "Leads", catalogo: "Catálogo" };
+
+/** El nombre de una guía; lo que no se reconoce se enseña tal cual. */
+export function elNombreDeLaGuia(modulo: string): string {
+    return esModuloConGuia(modulo) ? NOMBRE_DE_LA_GUIA[modulo] : modulo;
+}
 
 export const TOPES: Record<keyof Introduccion, number> = {
     titulo: 80,

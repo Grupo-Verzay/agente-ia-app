@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
+import { comoNombreDelEnlace } from '@/lib/enlace-del-catalogo';
 
 export type CatalogConfigData = {
   whatsappNumber: string | null;
@@ -85,8 +86,10 @@ export async function updateCatalogSlug(slug: string) {
   const user = await currentUser();
   if (!user) return { success: false, message: 'No autenticado' };
 
-  const normalized = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  if (!normalized) return { success: false, message: 'Slug inválido' };
+  // La misma regla que la pantalla al escribir (`lib/enlace-del-catalogo.ts`):
+  // la tilde se quita y la letra se queda, en vez de volverse un guion.
+  const normalized = comoNombreDelEnlace(slug);
+  if (!normalized) return { success: false, message: 'Escribe un nombre con letras o números.' };
 
   const existing = await db.catalogConfig.findUnique({ where: { slug: normalized } });
   if (existing && existing.userId !== user.effectiveId) {

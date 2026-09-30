@@ -77,7 +77,7 @@ try {
          const vista = new URLSearchParams(location.search).get("vista");
          createRoot(document.getElementById("app")!).render(
              vista === "seccion"
-                 ? <CabeceraDeLaGuia volver={{ href: "/guia/leads", texto: "Todas las secciones" }} />
+                 ? <CabeceraDeLaGuia volver={{ href: "/guia/leads", texto: "Todas las secciones" }} modulo="Leads" />
                  : <>
                      <CabeceraDeLaGuia ${props} />
                      <div className=${JSON.stringify(contenedor)}>

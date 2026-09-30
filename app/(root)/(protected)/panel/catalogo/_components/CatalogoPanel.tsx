@@ -15,6 +15,7 @@ import {
   Package, Hash, Link, Check,
 } from 'lucide-react';
 import { getCatalogConfig, updateCatalogConfig, updateCatalogSlug } from '@/actions/catalog-config-actions';
+import { comoSeEscribeElNombre, elEnlaceQueSeEnsena, laRutaDelCatalogo } from '@/lib/enlace-del-catalogo';
 
 type Props = { userId: string };
 
@@ -36,6 +37,10 @@ export function CatalogoPanel({ userId }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  // El dominio de ESTA página (el de un reseller, si se entra por el suyo):
+  // es el que se enseña en los dos enlaces. Se lee al montar, en el navegador.
+  const [dominio, setDominio] = useState('');
+  useEffect(() => setDominio(window.location.host), []);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, textos: false,
@@ -104,13 +109,13 @@ export function CatalogoPanel({ userId }: Props) {
     );
   }
 
-  const publicUrl = slug ? `/c/${slug}` : `/catalogo/${userId}`;
-  const friendlyUrl = slug ? `/c/${slug}` : null;
+  const publicUrl = laRutaDelCatalogo(slug, userId);
+  const friendlyUrl = slug ? publicUrl : null;
 
   return (
     <div className="flex flex-col gap-6 p-4 h-full overflow-y-auto">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div data-cabecera-del-catalogo className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">Catálogo Público</h2>
           <p className="text-sm text-muted-foreground">
@@ -129,7 +134,7 @@ export function CatalogoPanel({ userId }: Props) {
       </div>
 
       {/* URL amigable */}
-      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
+      <div data-url-personalizada className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
         <div className="flex items-center gap-2">
           <Link className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-sm font-medium">URL personalizada</span>
@@ -141,7 +146,7 @@ export function CatalogoPanel({ userId }: Props) {
               className="min-w-0 flex-1 bg-transparent py-2 outline-none"
               placeholder="nombre-empresa"
               value={slugInput}
-              onChange={(e) => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+              onChange={(e) => setSlugInput(comoSeEscribeElNombre(e.target.value))}
             />
           </div>
           <Button size="sm" onClick={handleSaveSlug} disabled={slugSaving || !slugInput.trim() || slugInput === slug} className="shrink-0 gap-1.5">
@@ -153,13 +158,13 @@ export function CatalogoPanel({ userId }: Props) {
           <p className="text-xs text-muted-foreground">
             URL activa:{' '}
             <a href={friendlyUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">
-              {typeof window !== 'undefined' ? window.location.host : 'agente.ia-app.com'}{friendlyUrl}
+              {elEnlaceQueSeEnsena(dominio, friendlyUrl)}
             </a>
           </p>
         )}
       </div>
 
-      <Card>
+      <Card data-configuracion-del-catalogo>
         <CardHeader className="pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingBag className="h-4 w-4" /> Configuración del catálogo
@@ -168,7 +173,7 @@ export function CatalogoPanel({ userId }: Props) {
         <CardContent className="pb-4 divide-y divide-border">
 
           {/* ── Datos básicos ── */}
-          <div>
+          <div data-seccion-del-catalogo="basicos">
             <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('basicos')}>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos básicos</p>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', openSections.basicos && '-rotate-180')} />
@@ -191,7 +196,7 @@ export function CatalogoPanel({ userId }: Props) {
           </div>
 
           {/* ── Identidad visual ── */}
-          <div>
+          <div data-seccion-del-catalogo="identidad">
             <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('identidad')}>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Identidad visual</p>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', openSections.identidad && '-rotate-180')} />
@@ -233,7 +238,7 @@ export function CatalogoPanel({ userId }: Props) {
           </div>
 
           {/* ── Textos ── */}
-          <div>
+          <div data-seccion-del-catalogo="textos">
             <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('textos')}>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Textos del catálogo</p>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', openSections.textos && '-rotate-180')} />
@@ -274,7 +279,7 @@ export function CatalogoPanel({ userId }: Props) {
           </div>
 
           {/* ── Redes sociales ── */}
-          <div>
+          <div data-seccion-del-catalogo="redes">
             <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('redes')}>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Redes sociales</p>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', openSections.redes && '-rotate-180')} />
@@ -306,7 +311,7 @@ export function CatalogoPanel({ userId }: Props) {
           </div>
 
           {/* ── Opciones de visualización ── */}
-          <div>
+          <div data-seccion-del-catalogo="opciones">
             <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('opciones')}>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Opciones de visualización</p>
               <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', openSections.opciones && '-rotate-180')} />
@@ -339,7 +344,7 @@ export function CatalogoPanel({ userId }: Props) {
       </Card>
 
       {/* Footer: URL pública + Guardar */}
-      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border pt-4">
+      <div data-pie-del-catalogo className="flex shrink-0 items-center justify-between gap-4 border-t border-border pt-4">
         <p className="text-sm text-muted-foreground">
           Catálogo público:{' '}
           <a
@@ -348,7 +353,7 @@ export function CatalogoPanel({ userId }: Props) {
             rel="noreferrer"
             className="text-primary underline-offset-4 hover:underline"
           >
-            agente.ia-app.com{publicUrl}
+            {elEnlaceQueSeEnsena(dominio, publicUrl)}
           </a>
         </p>
         <Button onClick={handleSave} disabled={saving} className="gap-1.5">

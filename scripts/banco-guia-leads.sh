@@ -14,7 +14,7 @@
 #   2c. `lib/__tests__/menu-de-la-guia.test.mjs`: el menú de la izquierda y la
 #      barra de arriba salen en las capturas como en la plataforma (cada módulo
 #      con su icono) y la guía los nombra, parte por parte (ANTES_MENU_REF).
-#   3. `probar-guia-leads.mjs`: la guía SERVIDA, sin sesión, en Chromium a 390
+#   3. `probar-guia.mjs` (`GUIA=leads`): la guía SERVIDA, sin sesión, en Chromium a 390
 #      y 1440 (hace falta el build).
 #
 # `MODO=roto` lee los ficheros de ANTES_REF —pinchado a un commit, nunca
@@ -35,10 +35,13 @@ if [ "$MODO" = "roto" ]; then
   exit $?
 fi
 
-OUT=lib/__tests__/.compilado/guia-leads
-mkdir -p "$OUT"
-npx esbuild lib/guia-leads.ts --bundle --platform=node --format=esm --outfile="$OUT/guia-leads.mjs" --log-level=warning
-npx esbuild lib/cierre-de-la-guia.ts --bundle --platform=node --format=esm --outfile="$OUT/cierre-de-la-guia.mjs" --log-level=warning
+# Las dos guías se compilan: `menu-de-la-guia` comprueba el marco de las dos.
+for G in leads catalogo; do
+  OUT="lib/__tests__/.compilado/guia-$G"
+  mkdir -p "$OUT"
+  npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning
+  npx esbuild lib/cierre-de-la-guia.ts --bundle --platform=node --format=esm --outfile="$OUT/cierre-de-la-guia.mjs" --log-level=warning
+done
 node --test lib/__tests__/guia-leads.test.mjs
 node --test lib/__tests__/video-guia-leads.test.mjs
 node --test lib/__tests__/fin-de-la-guia.test.mjs
@@ -58,4 +61,4 @@ setsid npx next start -p "$APP" >/tmp/guia-banco-next.log 2>&1 </dev/null &
 NEXT_PID=$!
 trap 'kill -- -$NEXT_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do curl -s -o /dev/null "http://localhost:$APP/guia/leads" && break; sleep 1; done
-BASE="http://localhost:$APP" node scripts/probar-guia-leads.mjs
+GUIA=leads BASE="http://localhost:$APP" node scripts/probar-guia.mjs

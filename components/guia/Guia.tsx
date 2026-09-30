@@ -8,16 +8,22 @@ import {
     Filter,
     LayoutDashboard,
     Lightbulb,
+    Link2,
     Maximize2,
     MessageCircle,
     MoreHorizontal,
+    Palette,
     PlayCircle,
     Search,
+    Share2,
+    SlidersHorizontal,
+    Store,
     ToggleRight,
+    Type,
     UserPlus,
 } from "lucide-react";
 
-import { laRutaDeLaCaptura, type Paso, type Seccion } from "@/lib/guia-leads";
+import type { Paso, Seccion } from "@/lib/guia-de-modulo";
 import { lasClasesDelCierre } from "@/lib/cierre-de-la-guia";
 import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
 
@@ -28,7 +34,28 @@ import { losParrafos, type Introduccion } from "@/lib/introduccion-de-la-guia";
  * aire.
  */
 
-const ICONOS = { LayoutDashboard, Columns3, ToggleRight, Filter, Search, Download, UserPlus, MoreHorizontal } as const;
+/**
+ * Un icono por nombre de `ICONOS_DE_SECCION` (`lib/guia-de-modulo.ts`). El
+ * tipo obliga a que estén todos: un nombre de la lista sin su icono aquí no
+ * compila, en vez de pintar una tarjeta sin icono.
+ */
+const ICONOS: Record<Seccion["icono"], typeof Search> = {
+    LayoutDashboard,
+    Columns3,
+    ToggleRight,
+    Filter,
+    Search,
+    Download,
+    UserPlus,
+    MoreHorizontal,
+    Link2,
+    MessageCircle,
+    Palette,
+    Type,
+    Share2,
+    SlidersHorizontal,
+    Store,
+};
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
     const Icono = ICONOS[nombre];
@@ -51,12 +78,13 @@ export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]
 export function CabeceraDeLaGuia({
     volver,
     demostracion,
-    modulo = "Leads",
+    modulo,
 }: {
     volver?: { href: string; texto: string };
     /** El ancla del vídeo del índice: si viene, la barra la ofrece en el centro. */
     demostracion?: { href: string; texto: string };
-    modulo?: string;
+    /** El nombre del módulo, tal cual lo ve el cliente en el menú. */
+    modulo: string;
 }) {
     return (
         <header data-cabecera-de-la-guia className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -99,9 +127,14 @@ export function CabeceraDeLaGuia({
     );
 }
 
-/** Una captura: con borde, sombra y un enlace para verla a tamaño completo. */
-export function Captura({ imagen, alt, prioridad = false }: { imagen: string; alt: string; prioridad?: boolean }) {
-    const src = laRutaDeLaCaptura(imagen);
+/**
+ * Una captura: con borde, sombra y un enlace para verla a tamaño completo.
+ *
+ * `carpeta` es la de la guía (`/guia/<modulo>`, `laGuiaDe`): la misma
+ * dirección sirve las páginas y, en `public/`, sus capturas.
+ */
+export function Captura({ carpeta, imagen, alt, prioridad = false }: { carpeta: string; imagen: string; alt: string; prioridad?: boolean }) {
+    const src = `${carpeta}/${imagen}`;
     return (
         <a
             href={src}
@@ -129,11 +162,12 @@ export function Captura({ imagen, alt, prioridad = false }: { imagen: string; al
 export function TarjetaDeSeccion({
     seccion,
     numero,
-    moduloPath = "/guia/leads",
+    moduloPath,
 }: {
     seccion: Seccion;
     numero: number;
-    moduloPath?: string;
+    /** La carpeta de la guía (`/guia/<modulo>`): de ahí cuelgan la sección y su miniatura. */
+    moduloPath: string;
 }) {
     return (
         <Link
@@ -144,7 +178,7 @@ export function TarjetaDeSeccion({
             <div className="aspect-[16/9] overflow-hidden border-b border-slate-100 bg-slate-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={laRutaDeLaCaptura(seccion.miniatura)}
+                    src={`${moduloPath}/${seccion.miniatura}`}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover object-left-top transition duration-300 group-hover:scale-[1.02]"
@@ -170,7 +204,7 @@ export function TarjetaDeSeccion({
     );
 }
 
-export function PasoDeLaGuia({ paso, numero }: { paso: Paso; numero: number }) {
+export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso: Paso; numero: number }) {
     return (
         <li data-paso className="flex flex-col gap-3">
             <div className="flex items-start gap-3">
@@ -182,7 +216,7 @@ export function PasoDeLaGuia({ paso, numero }: { paso: Paso; numero: number }) {
                     <p className="text-sm leading-relaxed text-slate-600">{paso.texto}</p>
                 </div>
             </div>
-            <Captura imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
+            <Captura carpeta={carpeta} imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
         </li>
     );
 }
@@ -208,9 +242,12 @@ export function Consejos({ consejos }: { consejos: string[] }) {
 }
 
 export function NavegacionEntreSecciones({
+    carpeta,
     anterior,
     siguiente,
 }: {
+    /** La carpeta de la guía (`/guia/<modulo>`): el índice y sus secciones. */
+    carpeta: string;
     anterior: Seccion | null;
     siguiente: Seccion | null;
 }) {
@@ -218,7 +255,7 @@ export function NavegacionEntreSecciones({
         <nav className="grid gap-3 sm:grid-cols-2" aria-label="Otras secciones">
             {anterior ? (
                 <Link
-                    href={`/guia/leads/${anterior.slug}`}
+                    href={`${carpeta}/${anterior.slug}`}
                     className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"
                 >
                     <ArrowLeft className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
@@ -232,7 +269,7 @@ export function NavegacionEntreSecciones({
             )}
             {siguiente ? (
                 <Link
-                    href={`/guia/leads/${siguiente.slug}`}
+                    href={`${carpeta}/${siguiente.slug}`}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="min-w-0">
@@ -243,7 +280,7 @@ export function NavegacionEntreSecciones({
                 </Link>
             ) : (
                 <Link
-                    href="/guia/leads"
+                    href={carpeta}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="block text-sm font-medium text-slate-900">Volver al índice</span>
