@@ -39,12 +39,15 @@ export const CLIENTA = Object.freeze({
 /**
  * Los negocios del arranque: cinco teléfonos a la vez, cada uno con su
  * pregunta y su respuesta. Es lo que dice «da igual el negocio» sin decirlo.
+ * `tipo` es el rótulo grande de debajo de cada teléfono y va en el orden en
+ * que los nombra la narración (`gancho`).
  * `adjunto` es solo lo que pinta el teléfono (no hay archivo detrás).
  */
 export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     {
         id: "restaurante",
-        negocio: "La Casona · Restaurante",
+        tipo: "Restaurante",
+        negocio: "La Casona",
         contacto: "Andrés",
         color: "#e76f51",
         mensajes: [
@@ -54,6 +57,7 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     },
     {
         id: "clinica",
+        tipo: "Clínica",
         negocio: "Clínica Sonríe",
         contacto: "Laura",
         color: "#2a9d8f",
@@ -64,6 +68,7 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     },
     {
         id: "tienda",
+        tipo: "Tienda en línea",
         negocio: "Urbana Store",
         contacto: "Camila",
         color: "#7c3aed",
@@ -74,6 +79,7 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     },
     {
         id: "consultoria",
+        tipo: "Consultoría",
         negocio: "Contadores Asociados",
         contacto: "Jorge",
         color: "#264653",
@@ -85,7 +91,8 @@ export const NEGOCIOS_DEL_ARRANQUE = Object.freeze([
     },
     {
         id: "agencia",
-        negocio: "Impulso · Agencia de marketing",
+        tipo: "Agencia de marketing",
+        negocio: "Impulso",
         contacto: "Valentina",
         color: "#f4a261",
         mensajes: [
@@ -364,3 +371,35 @@ export function lasIniciales(nombre) {
     const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
     return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase() || "?";
 }
+
+/**
+ * Las capacidades que enseña el vídeo, en el orden en que salen: el rótulo de
+ * arriba a la izquierda de cada escena. Son las universales —las de cualquier
+ * negocio—, no las de una clínica.
+ */
+export const CAPACIDADES = Object.freeze([
+    { escena: "texto", titulo: "Responde y llena tu CRM", detalle: "Texto · ficha del contacto" },
+    { escena: "voz", titulo: "Escucha y responde con voz", detalle: "Notas de voz" },
+    { escena: "medios", titulo: "Envía y entiende archivos", detalle: "PDF · video · imágenes" },
+    { escena: "caliente", titulo: "Califica y etiqueta", detalle: "Calificación · etiquetas · etapa" },
+    { escena: "seguimiento", titulo: "Hace seguimiento", detalle: "Al cliente que no responde" },
+    { escena: "cita", titulo: "Agenda citas", detalle: "Directo en tu calendario" },
+    { escena: "recordatorio", titulo: "Recuerda y confirma", detalle: "Un día antes de la cita" },
+    { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
+]);
+
+/** Lo que dice la tarjeta de la marca, debajo del lema. */
+export const CHIPS_DE_LA_MARCA = Object.freeze([
+    "Responde al instante, 24/7",
+    "Entiende notas de voz, fotos y PDF",
+    "Agenda y recuerda citas",
+    "Hace seguimiento solo",
+    "Llena tu CRM",
+]);
+
+/** A dónde lleva el cierre: la reunión, y el WhatsApp de Verzay. */
+export const LLAMADO = Object.freeze({
+    agendar: "https://verzay.com/agendar-una-reunion",
+    whatsapp: "573115616975",
+    web: "verzay.com",
+});

@@ -51,6 +51,21 @@ export const PORTATIL = Object.freeze({
     base: { alto: 24, sobra: 80 },
 });
 
+/**
+ * Las pestañas del portátil: tres `<iframe>` de la App, uno encima de otro, y
+ * se ve uno. Cada pantalla se abre UNA vez y sigue viva debajo —la de Chats
+ * con su tiempo real conectado—: cambiar de una a otra es un fundido, no una
+ * carga, que en un vídeo se leería como un corte.
+ */
+export const CAPAS_DEL_PORTATIL = Object.freeze([
+    { id: "app", ruta: "/chats" },
+    { id: "agenda", ruta: "/schedule" },
+    { id: "embudo", ruta: "/embudos" },
+]);
+
+/** El dominio que enseña la barra del portátil: el de la plataforma. */
+export const DOMINIO_DEL_PANEL = "agente.ia-app.com";
+
 /** La franja de abajo es de los subtítulos: ninguna pantalla baja de aquí. */
 export const LIMITE_DE_ABAJO = 1000;
 /** Arriba a la izquierda va la capacidad que se enseña: ninguna pantalla sube de aquí. */
@@ -326,7 +341,9 @@ body::before {
 #portatil .cam { position: absolute; top: 10px; left: 50%; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: #20242c; box-shadow: 0 0 0 2px #15171c; }
 #portatil .pantallaApp { position: absolute; left: ${PORTATIL.lado}px; top: ${PORTATIL.arriba}px; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.barra + PORTATIL.pantalla.alto}px; background: #fff; overflow: hidden; border-radius: 4px; }
 #portatil .barraNav { height: ${PORTATIL.barra}px; background: #e8ebf0; }
-#portatil iframe { display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff; }
+#portatil .capas { position: relative; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; }
+#portatil iframe { position: absolute; left: 0; top: 0; display: block; width: ${PORTATIL.pantalla.ancho}px; height: ${PORTATIL.pantalla.alto}px; border: 0; background: #fff; opacity: 0; transition: opacity .6s ease; }
+#portatil iframe.on { opacity: 1; }
 #portatil .base { position: absolute; left: -${PORTATIL.base.sobra}px; right: -${PORTATIL.base.sobra}px; top: ${PORTATIL.alto}px; height: ${PORTATIL.base.alto}px;
   border-radius: 0 0 22px 22px; background: linear-gradient(180deg,#c9ced6 0%,#9aa1ac 55%,#6c727d 100%); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
 #portatil .base::before { content: ""; position: absolute; top: 0; left: 50%; width: 200px; margin-left: -100px; height: 8px; border-radius: 0 0 10px 10px; background: #868d98; }
@@ -619,7 +636,8 @@ function programa(DATOS) {
         if (m.de === "ia") sinLeer = 0;
     }
 
-    function reproducirNota(id, ms) {
+    function reproducirNota(id, ms, hasta = 1) {
+        const pct = Math.round(Math.max(0, Math.min(1, hasta)) * 1000) / 10;
         for (const b of notas[id] ?? []) {
             const color = b.querySelector(".barras.color");
             const punto = b.querySelector(".punto");
@@ -628,8 +646,8 @@ function programa(DATOS) {
             color.style.transition = `clip-path ${ms}ms linear`;
             punto.style.transition = `left ${ms}ms linear`;
             requestAnimationFrame(() => {
-                color.style.clipPath = "inset(0 0 0 0)";
-                punto.style.left = "100%";
+                color.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+                punto.style.left = `${pct}%`;
             });
             setTimeout(() => {
                 boton.innerHTML = I.play;
@@ -743,6 +761,13 @@ function programa(DATOS) {
     function url(t) {
         $("#portatil .url span").textContent = t;
     }
+    /** Cuál de las capas del portátil se ve: un fundido, como cambiar de pestaña. */
+    function mostrarApp(id) {
+        const capa = DATOS.capas.find((c) => c.id === id);
+        if (!capa) throw new Error(`[estudio] el portátil no tiene la capa ${id}`);
+        for (const c of DATOS.capas) document.getElementById(c.id).classList.toggle("on", c.id === id);
+        url(`${DATOS.dominio}${capa.ruta}`);
+    }
 
     /* ---------- el cursor ---------- */
     const cursor = $("#cursor");
@@ -781,6 +806,7 @@ function programa(DATOS) {
         cartel,
         anillos,
         url,
+        mostrarApp,
         cursor: { mover: moverCursor, forma, clic, esconder: () => cursor.classList.remove("sale") },
         listo: true,
     };
@@ -797,7 +823,7 @@ function programa(DATOS) {
  * con sus horas y sus direcciones (`losDatosDelEstudio`).
  */
 export function laPaginaDelEstudio(datos) {
-    const D = { ...datos, iconos: I, cursor: { flecha: SVG_FLECHA, mano: SVG_MANO, punta: PUNTA }, tamanos: { tel: TEL, web: WEB, portatil: { ...PORTATIL, baseAlto: PORTATIL.base.alto } } };
+    const D = { ...datos, capas: CAPAS_DEL_PORTATIL, dominio: DOMINIO_DEL_PANEL, iconos: I, cursor: { flecha: SVG_FLECHA, mano: SVG_MANO, punta: PUNTA }, tamanos: { tel: TEL, web: WEB, portatil: { ...PORTATIL, baseAlto: PORTATIL.base.alto } } };
     const e = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     const miniaturas = datos.montaje
         .map(
@@ -858,8 +884,8 @@ export function laPaginaDelEstudio(datos) {
   <div id="portatil" class="pantalla">
     <div class="tapa"></div><div class="cam"></div>
     <div class="pantallaApp">
-      <div class="barraNav"><div class="semaforo"><i></i><i></i><i></i></div><div class="url">${I.candado}<span>agente.ia-app.com/chats</span></div><div style="width:60px"></div></div>
-      <iframe id="app" src="about:blank" title="Verzay"></iframe>
+      <div class="barraNav"><div class="semaforo"><i></i><i></i><i></i></div><div class="url">${I.candado}<span>${DOMINIO_DEL_PANEL}${CAPAS_DEL_PORTATIL[0].ruta}</span></div><div style="width:60px"></div></div>
+      <div class="capas">${CAPAS_DEL_PORTATIL.map((c, i) => `<iframe id="${c.id}" class="${i === 0 ? "on" : ""}" src="about:blank" title="Verzay · ${c.ruta}"></iframe>`).join("")}</div>
     </div>
     <div class="base"></div>
   </div>

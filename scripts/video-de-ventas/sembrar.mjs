@@ -14,6 +14,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { sembrarElMarco } from "../sembrar-marco-de-la-guia.mjs";
+import { laHoraDeLaPosicion } from "./backend.mjs";
 import {
     CALIFICACION,
     CAMPOS_DE_LA_FICHA,
@@ -36,6 +37,9 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         description: "Cómo atender tus conversaciones desde el panel",
         url: "/guia/leads",
     });
+    // Sin tutorial para /chats: el botón rojo de «Ver tutoriales» se llevaría
+    // la mirada en un vídeo que no enseña a usar nada.
+    await db.guideUrl.deleteMany({ where: { path: "/chats" } });
     const dueno = await db.user.update({
         where: { id: marco.id },
         data: {
@@ -124,10 +128,14 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
                 instanceId: NEGOCIO.linea,
                 status: true,
                 leadStatus: CALIFICACION[c.calificacion] ?? null,
+                leadStatusUpdatedAt: new Date(ultimo),
+                createdAt: new Date(ultimo - 3 * 60_000),
+                updatedAt: new Date(ultimo),
             },
         });
         await db.sessionTag.create({ data: { sessionId: sesion.id, tagId: etiquetas[c.etiqueta].id } });
         await embudos.moverConversacion({ sessionId: sesion.id, embudoId, etapaId: etapas[c.etapa], movidoPorId: dueno.id });
+        await laHoraDeLaPosicion(db, sesion.id, ultimo);
         // Dos mensajes por chat: lo que escribió el paciente y lo último.
         const previo =
             c.ultimo.de === "ia"

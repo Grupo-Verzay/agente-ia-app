@@ -113,6 +113,7 @@ import { avatarSrcFor } from "@/lib/avatar";
 import type { LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
+import { SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS } from "@/lib/bandeja";
 import {
   ESPERA_PARA_PONER_AL_DIA_MS,
   conLaSesionAlDia,
@@ -2507,7 +2508,9 @@ export function ChatsClient({
   }, [selectedChannel, instancias, aplicarChatsFrescos, lidPhoneMap, currentChatsResult, sessionUserIds]);
 
   /**
-   * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar.
+   * Refresca la barra lateral. `forzar` SOLO desde el boton de refrescar, y
+   * desde una conversacion abierta que todavia no tiene ficha en la lista
+   * (`hayQuePedirSuFicha`, como mucho una vez cada 15 s por conversacion).
    *
    * Esto iba con `forzar: true` siempre, y lo llaman los cuatro caminos de
    * envio —texto, flujo, respuesta rapida y plantilla de Meta—, 350 ms despues
@@ -5221,7 +5224,7 @@ export function ChatsClient({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // El unico `forzar`: lo pidio una persona pulsando el boton.
+    // Lo pidio una persona pulsando el boton: se le paga la consulta cara.
     try { await refreshSidebarData({ forzar: true }); } finally { setIsRefreshing(false); }
   };
 
@@ -5246,6 +5249,7 @@ export function ChatsClient({
   // Si el realtime no está configurado por entorno, el hook no hace nada y todo
   // sigue con el polling de fondo. Es puramente aditivo (acelerador).
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const segundaVueltaDeUnChatNuevoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sondeoTrasAvisoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Avisos pendientes de aplicar a la lista, y el reloj que los vacia.
   const avisosPendientesRef = useRef<
@@ -5702,12 +5706,30 @@ export function ChatsClient({
       realtimeRefreshTimerRef.current = setTimeout(() => {
         void refreshSidebarData();
       }, 2000);
+      // Un chat que NO esta en la lista (un cliente que escribe por primera
+      // vez): la vuelta de arriba puede traer la foto que el servidor recuerda
+      // de antes del mensaje (`MEMORIA_DE_LA_BANDEJA_MS`), y entonces el chat
+      // esperaba al reloj de la lista, hasta 20 s. Una segunda vuelta pasada
+      // esa memoria ya no puede traerla. Solo en este caso: un chat que ya
+      // esta en la lista lo pone al dia el propio aviso.
+      if (!existsInList) {
+        if (segundaVueltaDeUnChatNuevoRef.current) {
+          clearTimeout(segundaVueltaDeUnChatNuevoRef.current);
+        }
+        segundaVueltaDeUnChatNuevoRef.current = setTimeout(() => {
+          segundaVueltaDeUnChatNuevoRef.current = null;
+          void refreshSidebarData();
+        }, SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS);
+      }
     },
   });
   useEffect(() => {
     return () => {
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      if (segundaVueltaDeUnChatNuevoRef.current) {
+        clearTimeout(segundaVueltaDeUnChatNuevoRef.current);
       }
       if (sondeoTrasAvisoRef.current) {
         clearTimeout(sondeoTrasAvisoRef.current);

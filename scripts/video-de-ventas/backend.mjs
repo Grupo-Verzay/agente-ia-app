@@ -108,6 +108,16 @@ export function elAvisoEnVivo(m, fila) {
  * etapas, las etiquetas y el servicio); `embudos`, el módulo compilado de
  * `lib/embudos-db.ts`, que es el que mueve una conversación de etapa en la App.
  */
+/**
+ * La hora de la HISTORIA en la posición del embudo. `moverConversacion` sella
+ * `actualizadoEn` con `NOW()` del servidor, y el navegador corre con el reloj
+ * de la historia (días por delante): sin esto, cada tarjeta del embudo diría
+ * «hace 6 días» sobre algo que acaba de pasar.
+ */
+export async function laHoraDeLaPosicion(db, sessionId, ms) {
+    await db.$executeRaw`UPDATE "embudo_posiciones" SET "actualizadoEn" = ${new Date(ms)} WHERE "sessionId" = ${sessionId}`;
+}
+
 export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} }) {
     const cal = ctx.calendario;
     const mensajes = laConversacion(cal);
@@ -133,6 +143,7 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
         sesionId = s.id;
         // Toda conversación nueva entra en la primera etapa del embudo.
         await embudos.moverConversacion({ sessionId: sesionId, embudoId: ctx.embudoId, etapaId: ctx.etapas.Nuevo, movidoPorId: ctx.cuenta });
+        await laHoraDeLaPosicion(db, sesionId, m.en);
         return sesionId;
     }
 
@@ -184,7 +195,7 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
                 },
             });
         }
-        await db.session.update({ where: { id: sesionId }, data: { updatedAt: new Date() } });
+        await db.session.update({ where: { id: sesionId }, data: { updatedAt: new Date(m.en) } });
         // Como el webhook: primero se guarda y después se avisa. El aviso sale
         // ANTES de los efectos de la IA, que en producción llegan después.
         avisar("chat:changed", elAvisoEnVivo(m, fila));
@@ -215,6 +226,7 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
             const etapaId = ctx.etapas[efecto.etapa];
             if (!etapaId) throw new Error(`[video] el embudo no tiene la etapa «${efecto.etapa}»`);
             await embudos.moverConversacion({ sessionId: sesionId, embudoId: ctx.embudoId, etapaId, movidoPorId: ctx.cuenta });
+            await laHoraDeLaPosicion(db, sesionId, m.en);
         }
         if (efecto.etiqueta) {
             const tagId = ctx.etiquetas[efecto.etiqueta];
@@ -231,7 +243,7 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
         if (efecto.calificacion) {
             await db.session.update({
                 where: { id: sesionId },
-                data: { leadStatus: CALIFICACION[efecto.calificacion], leadStatusUpdatedAt: new Date() },
+                data: { leadStatus: CALIFICACION[efecto.calificacion], leadStatusUpdatedAt: new Date(m.en) },
             });
         }
         if (efecto.seguimientoProgramado) {
