@@ -351,6 +351,13 @@ async function capturas(p) {
     await elMenu(p).waitFor({ state: "visible", timeout: 10000 });
     await espera(p, 400);
     const cMenuNuevo = await caja(p, elMenu(p));
+    // Sin la ref del botón, Radix dejaba el menú en translate(0,-200%): FUERA
+    // de la pantalla. Una captura de un menú que no se ve no es un fallo que
+    // se note en la guía; aquí se corta.
+    const alto = p.viewportSize()?.height ?? 900;
+    if (cMenuNuevo.y < 0 || cMenuNuevo.y + cMenuNuevo.h > alto || cMenuNuevo.y < cBarra.y) {
+        throw new Error(`el menú de «Nuevo» se abrió fuera de su sitio: ${JSON.stringify(cMenuNuevo)}`);
+    }
     const cBuscador = await caja(p, zona(p, "buscador"));
     await marcar(p, [
         { c: cBuscador, n: 1 },
@@ -393,12 +400,14 @@ async function capturas(p) {
     await elCampo(venta, "Descuento").locator("input").fill("5000");
     await espera(p, 300);
     const total = unir(await caja(p, vistaPrevia.locator("div.shrink-0.text-right")), await caja(p, vistaPrevia.locator("[data-desglose-de-la-venta]")));
-    // El campo entero (rótulo y caja) con su número en la esquina derecha: en
-    // la izquierda, el número tapaba la primera letra de cada rótulo.
+    // Solo la CAJA de cada importe, con su número en el centro de arriba: con
+    // el campo entero los recuadros de dos filas se tocaban y sus números
+    // caían uno encima de otro, y el de la derecha tapaba la «E» de «Extra».
+    const laCajaDelImporte = async (rotulo) => afuera(await caja(p, elCampo(venta, rotulo).locator("input")), 3, 3);
     await marcar(p, [
-        { c: afuera(await caja(p, elCampo(venta, "Monto (base)")), 4, 2), n: 1, esquina: "derecha" },
-        { c: afuera(await caja(p, elCampo(venta, "Extra")), 4, 2), n: 2, esquina: "derecha" },
-        { c: afuera(await caja(p, elCampo(venta, "Descuento")), 4, 2), n: 3, esquina: "derecha" },
+        { c: await laCajaDelImporte("Monto (base)"), n: 1, esquina: "centro" },
+        { c: await laCajaDelImporte("Extra"), n: 2, esquina: "centro" },
+        { c: await laCajaDelImporte("Descuento"), n: 3, esquina: "centro" },
         { c: afuera(total, 4, 4), n: 4, esquina: "derecha" },
     ]);
     await guardar(p, "ventas-importes.webp", holgura(cVenta, 12, vista));
@@ -447,9 +456,10 @@ async function capturas(p) {
     const cGasto = await laCajaDeLaVentana(p, gasto);
     const camposDelGasto = ["Concepto", "Monto", "Cuenta", "Categoría", "Descripción"];
     const marcasGasto = [];
-    // Número en la esquina derecha: en la izquierda tapaba la primera letra
-    // de cada rótulo, como en Ventas.
-    for (const [i, r] of camposDelGasto.entries()) marcasGasto.push({ c: afuera(await caja(p, elCampo(gasto, r)), 4, 2), n: i + 1, esquina: "derecha" });
+    // Número en el CENTRO del borde de arriba: en la esquina izquierda tapaba
+    // la primera letra de su rótulo, y en la derecha —con dos columnas— caía en
+    // el hueco entre ellas, encima del rótulo del campo de al lado.
+    for (const [i, r] of camposDelGasto.entries()) marcasGasto.push({ c: afuera(await caja(p, elCampo(gasto, r)), 2, 1), n: i + 1, esquina: "centro" });
     await marcar(p, marcasGasto);
     await guardar(p, "gastos-nuevo.webp", holgura(cGasto, 12, vista));
     await desmarcar(p);
@@ -485,7 +495,9 @@ async function capturas(p) {
     // Los números donde no hay texto: el 1 encima de «Mes» y el 2 debajo de la
     // caja del mes. En la esquina tapaban «Todo» y «Rango».
     await marcar(p, [
-        { c: await caja(p, p.locator('[data-grupo="periodo"] button', { hasText: "Mes" })), n: 1, esquina: "centro" },
+        // Recuadro subido 8 px: con el borde pegado al botón el número tapaba
+        // la parte de arriba de «Mes», que es justo lo que se señala.
+        { c: afuera(await caja(p, p.locator('[data-grupo="periodo"] button', { hasText: "Mes" })), 3, 8), n: 1, esquina: "centro" },
         { c: await caja(p, popover.locator('input[type="month"]')), n: 2, borde: "abajo" },
         { c: afuera(await caja(p, FILTRO), 2, 2), texto: "Solo ese mes", lado: "derecha" },
     ]);
@@ -530,8 +542,9 @@ async function capturas(p) {
         const nombre = ficha.locator("input").nth(1);
         // Números y no rótulos: un rótulo en una ficha tan llena tapaba el
         // campo de al lado. El 1 va abajo, donde no hay texto.
+        // En el centro de abajo: en la esquina tapaba la «T» de «Teléfono».
         const marcasFicha = [
-            { c: await caja(p, codigoInput), n: 1, borde: "abajo" },
+            { c: await caja(p, codigoInput), n: 1, borde: "abajo", esquina: "centro" },
             { c: await caja(p, nombre), n: 2, esquina: "derecha" },
         ];
         if (cual === "clientes") {
@@ -547,9 +560,12 @@ async function capturas(p) {
         const campos = laVentana(p, "Configurar campos");
         const cCampos = await laCajaDeLaVentana(p, campos);
         const fila = campos.locator('[title="Obligatorio"]').first().locator("xpath=..");
+        // Solo los interruptores: con el grupo entero los dos recuadros se
+        // tocaban y el del 1 cortaba «Oblig.» por la mitad.
+        const interruptor = (titulo) => campos.locator(`[title="${titulo}"]`).first().locator('[role="switch"]');
         await marcar(p, [
-            { c: await caja(p, campos.locator('[title="Obligatorio"]').first()), n: 1 },
-            { c: await caja(p, campos.locator('[title="Visible"]').first()), n: 2, esquina: "derecha" },
+            { c: afuera(await caja(p, interruptor("Obligatorio")), 3, 3), n: 1 },
+            { c: afuera(await caja(p, interruptor("Visible")), 3, 3), n: 2, esquina: "derecha" },
             { c: await caja(p, campos.getByRole("button", { name: "Agregar campo" })), texto: cual === "clientes" ? "Añade los tuyos" : `Solo para cada ${singular}`, lado: "derecha" },
         ]);
         await guardar(p, `${cual}-campos.webp`, holgura(cCampos, 12, vista));
@@ -560,10 +576,13 @@ async function capturas(p) {
 
     /* --- 8. Cuentas --------------------------------------------------- */
     await abrir(p, "cuentas");
+    // El rótulo de cada columna y no la celda entera: las tres celdas van
+    // pegadas, así que sus recuadros se montaban y el 1 caía sobre el filtro.
+    const elRotulo = async (t) => afuera(await caja(p, laCabecera(p, t).getByText(t, { exact: true })), 8, 4);
     await marcar(p, [
-        { c: afuera(await caja(p, laCabecera(p, "Ventas")), 4, 2), n: 1 },
-        { c: afuera(await caja(p, laCabecera(p, "Gastos")), 4, 2), n: 2 },
-        { c: afuera(await caja(p, laCabecera(p, "Saldo")), 4, 2), n: 3 },
+        { c: await elRotulo("Ventas"), n: 1, esquina: "derecha" },
+        { c: await elRotulo("Gastos"), n: 2, esquina: "derecha" },
+        { c: await elRotulo("Saldo"), n: 3, esquina: "derecha" },
     ]);
     await guardar(p, "cuentas-lista.webp");
     await desmarcar(p);
@@ -572,8 +591,11 @@ async function capturas(p) {
     const movimientos = laVentana(p, "Movimientos de «Bancolombia»");
     const cMov = await laCajaDeLaVentana(p, movimientos);
     await marcar(p, [
-        { c: await caja(p, movimientos.locator("[data-totales-de-la-cuenta]")), n: 1 },
-        { c: await caja(p, movimientos.locator('[data-grupo="movimientos"]')), texto: "Todos, Ventas o Gastos", lado: "abajo" },
+        // El 1 a la derecha, donde la línea de totales ya no tiene texto; y el
+        // rótulo a la derecha del grupo: a la izquierda tapaba el título y la
+        // «V» de «Ventas», y debajo el tipo de la primera fila.
+        { c: await caja(p, movimientos.locator("[data-totales-de-la-cuenta]")), n: 1, esquina: "derecha" },
+        { c: await caja(p, movimientos.locator('[data-grupo="movimientos"]')), texto: "Todos, Ventas o Gastos", lado: "derecha" },
     ]);
     await guardar(p, "cuentas-movimientos.webp", holgura(cMov, 12, vista));
     await desmarcar(p);
@@ -583,10 +605,12 @@ async function capturas(p) {
     await cuenta.locator('input[placeholder^="Ej: Caja"]').fill("Daviplata");
     const cCuenta = await laCajaDeLaVentana(p, cuenta);
     const bloque = (texto) => cuenta.locator("div.space-y-1", { has: p.getByText(texto, { exact: true }) }).first();
+    // Los controles y no el bloque entero (rótulo y ayuda): con los bloques,
+    // los cuatro recuadros se tocaban unos con otros.
     await marcar(p, [
-        { c: await caja(p, bloque("Nombre")), n: 1 },
-        { c: await caja(p, bloque("Tipo")), n: 2, esquina: "derecha" },
-        { c: await caja(p, bloque("Moneda de la cuenta")), n: 3 },
+        { c: await caja(p, bloque("Nombre").locator("input")), n: 1 },
+        { c: await caja(p, bloque("Tipo").locator('button[role="combobox"]')), n: 2, esquina: "derecha" },
+        { c: await caja(p, bloque("Moneda de la cuenta").locator('button[role="combobox"]')), n: 3 },
         { c: await caja(p, cuenta.locator("div.rounded-xl", { has: p.getByText("Cuenta predeterminada", { exact: true }) }).first()), n: 4 },
     ]);
     await guardar(p, "cuentas-nueva.webp", holgura(cCuenta, 12, vista));
@@ -611,19 +635,24 @@ async function capturas(p) {
     await guardar(p, "configuracion.webp", holgura({ ...cTarjeta, h: cTarjeta.h + 120 }, 20, vista));
     await desmarcar(p);
 
-    // Con el desplegable abierto Radix pone aria-hidden en todo lo de fuera,
-    // así que el botón ya no se encuentra por su papel: se mide antes.
-    const cGuardar = await caja(p, tarjeta.getByRole("button", { name: "Guardar" }));
+    // Se ELIGE otra moneda y se enseña el resultado: con la lista abierta, el
+    // desplegable tapaba justo el botón de Guardar que se quería señalar. Y
+    // Guardar va apagado hasta que la moneda cambia, así que sin elegir otra
+    // saldría gris. NO se guarda: la demo sigue en su moneda.
     await selector.click();
     const lista = p.locator('[role="listbox"]').last();
     await lista.waitFor({ state: "visible" });
-    await espera(p, 400);
-    const cLista = await caja(p, lista);
+    await lista.getByRole("option", { name: /^USD/ }).click();
+    await lista.waitFor({ state: "hidden" });
+    const guardarMoneda = tarjeta.getByRole("button", { name: "Guardar" });
+    await guardarMoneda.waitFor({ state: "visible" });
+    if (await guardarMoneda.isDisabled()) throw new Error("Guardar sigue apagado después de elegir otra moneda");
+    await espera(p, 300);
     await marcar(p, [
-        { c: afuera(cLista, 2, 2), n: 1, esquina: "derecha" },
-        { c: cGuardar, n: 2 },
+        { c: afuera(await caja(p, selector), 2, 2), n: 1, esquina: "derecha" },
+        { c: afuera(await caja(p, guardarMoneda), 2, 2), n: 2, esquina: "derecha" },
     ]);
-    await guardar(p, "configuracion-lista.webp", holgura(unir(cTarjeta, cLista), 20, vista));
+    await guardar(p, "configuracion-lista.webp", holgura({ ...cTarjeta, h: cTarjeta.h + 40 }, 20, vista));
     await desmarcar(p);
     await cerrarTodo(p);
 
@@ -642,10 +671,15 @@ async function capturas(p) {
     await abrir(p, "ventas");
     const acciones = FILAS(p).nth(0).locator("[data-acciones-de-la-fila]");
     const cFilas = unir(await caja(p, FILAS(p).nth(0)), await caja(p, FILAS(p).nth(4)));
+    const cEditarFila = await caja(p, acciones.locator('[data-accion-de-fila="Editar"]'));
+    const cEliminarFila = await caja(p, acciones.locator('[data-accion-de-fila="Eliminar"]'));
     await marcar(p, [
         { c: cFilas, soloLuz: true },
-        { c: afuera(await caja(p, acciones.locator('[data-accion-de-fila="Editar"]')), 2, 2), n: 1 },
-        { c: afuera(await caja(p, acciones.locator('[data-accion-de-fila="Eliminar"]')), 2, 2), n: 2, esquina: "derecha" },
+        // Un recuadro para los dos y cada número en su esquina: los botones van
+        // a 8 px uno del otro, así que dos recuadros se montaban.
+        { c: unir(cEditarFila, cEliminarFila) },
+        { c: cEditarFila, n: 1, sinRecuadro: true },
+        { c: cEliminarFila, n: 2, esquina: "derecha", sinRecuadro: true },
     ], { atenuar: true });
     await guardar(p, "acciones-fila.webp", holgura({ ...cFilas, y: cFilas.y - 60, h: cFilas.h + 60 }, 16, vista));
     await desmarcar(p);
@@ -653,11 +687,14 @@ async function capturas(p) {
     const casillas = p.getByRole("checkbox", { name: "Seleccionar venta" });
     for (const i of [0, 1, 2]) await casillas.nth(i).click();
     await espera(p, 300);
+    // Se mide ANTES de abrir el menú: con él abierto, Radix deja lo de fuera en
+    // `aria-hidden` y `getByRole` ya no encuentra la casilla.
+    const cTodo = afuera(await caja(p, p.getByRole("checkbox", { name: "Seleccionar todo lo que se ve" })), 3, 3);
     await zona(p, "acciones").locator("button").first().click();
     await elMenu(p).waitFor({ state: "visible", timeout: 10000 });
     await espera(p, 400);
     await marcar(p, [
-        { c: afuera(await caja(p, p.getByRole("checkbox", { name: "Seleccionar todo lo que se ve" })), 3, 3), n: 1 },
+        { c: cTodo, n: 1 },
         { c: afuera(await caja(p, elMenu(p)), 2, 2), n: 2, esquina: "derecha" },
     ]);
     await guardar(p, "acciones-marcar.webp");

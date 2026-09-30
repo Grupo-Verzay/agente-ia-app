@@ -428,9 +428,9 @@ export const GUIA_FINANZAS: Contenido = {
                 },
                 {
                     titulo: "Guárdala",
-                    texto: "Elige la moneda en la lista y pulsa Guardar.",
+                    texto: "Elige la moneda en la lista y pulsa Guardar, que se enciende en cuanto la cambias.",
                     imagen: "configuracion-lista.webp",
-                    alt: "La lista de monedas abierta",
+                    alt: "Otra moneda elegida y el botón Guardar encendido",
                 },
                 {
                     titulo: "Cada cuenta, su moneda",

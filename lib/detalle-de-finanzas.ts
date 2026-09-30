@@ -46,8 +46,13 @@ export function laAlturaDeLaX(relleno: number): number {
  * `tailwind.config.ts` mira `lib/`. El banco comprueba que los números de
  * dentro sean los de arriba.
  */
+/**
+ * `gap-0`, y no es de adorno: `DialogContent` es una rejilla con `gap-4`, así
+ * que entre la cabecera y el cuerpo quedaban 16 px de más y la primera tarjeta
+ * salía más lejos de la raya que del borde de los lados.
+ */
 export const DIALOGO_DEL_DETALLE =
-  "sm:max-w-[980px] rounded-2xl p-0 overflow-hidden [--cerrar-arriba:26px] sm:[--cerrar-arriba:30px]";
+  "sm:max-w-[980px] gap-0 rounded-2xl p-0 overflow-hidden [--cerrar-arriba:26px] sm:[--cerrar-arriba:30px]";
 
 /** La franja de arriba: título a la izquierda, mandos a la derecha y sitio para la X. */
 export const CABECERA_DEL_DETALLE = "border-b bg-background/95 pt-4 pb-4 pl-4 pr-12 sm:pt-5 sm:pb-5 sm:pl-5";

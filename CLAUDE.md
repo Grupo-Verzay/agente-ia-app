@@ -23451,6 +23451,8 @@ Lo que se arregló al documentarlas, que no daba ningún error:
 | en los dos detalles la X de cerrar quedaba ENCIMA de Eliminar, y no se parecían (980 y 820 px) | la cabecera deja `SITIO_PARA_LA_X` (48 px, `pr-12`) y la X se baja al centro de los botones (`--cerrar-arriba`, `laAlturaDeLaX`) |
 | la columna «Concepto» de Gastos enseñaba el proveedor | `elConceptoDelGasto`; el proveedor va aparte, y el buscador encuentra los dos |
 | el código de un contacto era «cuántos hay + 1», y el borrado en bloque borraba DE VERDAD | `elSiguienteCodigo`: sigue al más alto (C-1, C-2… / P-1, P-2…), y en bloque marca `DELETED` como el de uno en uno |
+| el «Nuevo» del resumen (venta o gasto) abría su menú FUERA de la pantalla: se pulsaba y no pasaba nada | `BotonDeCrear` pasa su `ref` (`forwardRef`). Radix ancla el menú de un `Trigger asChild` con la ref del hijo; sin ella se queda en `translate(0,-200%)`. Vale para cualquier botón de la casa que se meta en un `asChild` |
+| en los detalles, 16 px de más entre la cabecera y la primera tarjeta | `gap-0` en `DIALOGO_DEL_DETALLE`: `DialogContent` es una rejilla con `gap-4` |
 
 Cuatro cosas que hay que mantener:
 
@@ -23461,8 +23463,8 @@ Cuatro cosas que hay que mantener:
    `aria-hidden`**: `getByRole` no encuentra el botón de Guardar. Se mide
    antes de abrir.
 3. **La receta comprueba que la X no tape nada** (`queLaXNoTapeNada`) al abrir
-   los dos detalles: si una cabecera vuelve a quedarse sin su sitio, la
-   generación se corta.
+   los dos detalles, y que el menú de «Nuevo» caiga dentro de la pantalla: si
+   una de las dos vuelve, la generación se corta.
 4. **Si «IA CRM» no tiene crédito**, `sintetizar-voz-desde-la-app.mjs` prueba
    las demás llaves de Panel › API keys, desde el contenedor de la App y sin
    sacar la llave de allí.
