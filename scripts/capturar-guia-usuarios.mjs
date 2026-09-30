@@ -865,7 +865,14 @@ async function video(navegador, estado) {
     await alDecir("el Pipeline", 0);
     await desplazarHasta(p, laVista(p, "pipeline"), { arriba: 90 });
     await pulsar(p, laVista(p, "pipeline"));
-    await p.waitForSelector('[data-columna-del-asesor="sin-asignar"] [data-tarjeta-del-contacto]', { timeout: 30000 });
+    await p
+        .waitForSelector('[data-columna-del-asesor="sin-asignar"] [data-tarjeta-del-contacto]', { timeout: 30000 })
+        .catch(async (e) => {
+            // Un plazo agotado a secas no dice qué había en la pantalla.
+            await p.screenshot({ path: path.join(TMP, "video-fallo.png") });
+            console.error(`[guia] el Pipeline no llegó; así estaba la pantalla: ${path.join(TMP, "video-fallo.png")}`);
+            throw e;
+        });
     await alDecir("su columna", 100);
     await mover(p, p.locator("[data-columna-del-asesor]", { hasText: "Laura Gómez" }).first());
     await alDecir("arrastras un contacto", 0);
