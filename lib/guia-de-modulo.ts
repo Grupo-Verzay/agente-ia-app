@@ -71,7 +71,6 @@ export const ICONOS_DE_SECCION = [
     "Send",
     "Tags",
     "ListChecks",
-    "Zap",
 ] as const;
 
 export type Seccion = {

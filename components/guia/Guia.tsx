@@ -119,7 +119,6 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Send,
     Tags,
     ListChecks,
-    Zap,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
