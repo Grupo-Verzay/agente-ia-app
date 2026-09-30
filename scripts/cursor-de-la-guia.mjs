@@ -22,6 +22,25 @@
  *
  * El estado queda en `data-cursor-de-la-guia` del `<html>` para que el banco
  * lo pueda leer.
+ *
+ * # Y dentro de un MARCO hay un solo cursor
+ *
+ * `addInitScript` corre en CADA documento, también en el de un `<iframe>` (el
+ * copiloto, una integración), así que cada uno pinta su propio cursor. Y un
+ * documento solo recibe los movimientos del ratón que caen sobre él: al entrar
+ * al marco, el cursor de fuera se quedaba clavado en el borde y el de dentro
+ * aparecía aparte — dos cursores en el vídeo. Ahora cada documento esconde el
+ * suyo en cuanto el puntero se va a un marco o sale de él
+ * (`data-cursor-de-la-guia-escondido`), y lo vuelve a enseñar al primer
+ * movimiento que le llega.
+ *
+ * # Y a PANTALLA COMPLETA, dentro del elemento que la ocupa
+ *
+ * El elemento a pantalla completa se pinta en la capa de arriba del todo, por
+ * encima de cualquier `z-index` del resto del documento: el cursor y el
+ * rótulo, colgados del `<body>`, se quedaban debajo y desaparecían del vídeo
+ * mientras durara. Se mudan dentro de ese elemento al entrar y vuelven al
+ * `<body>` al salir (`fullscreenchange`).
  */
 
 /** La flecha de Windows: blanca con borde negro, la punta en (0,0). */
@@ -59,8 +78,18 @@ export const CURSOR = `
     color:'#fff',font:'600 18px Poppins, Arial, sans-serif',padding:'12px 22px',borderRadius:'14px',zIndex:2147483646,
     pointerEvents:'none',opacity:'0',transition:'opacity .3s',boxShadow:'0 10px 30px rgba(0,0,0,.25)'});
   let x = -100, y = -100, forma = '';
-  const poner = () => { document.body.appendChild(cap); document.body.appendChild(c); };
+  // El puntero está en OTRO documento (un marco de dentro, o fuera de este):
+  // el cursor que se ve es el de allí, y este se esconde.
+  let enOtroSitio = false;
+  const esMarco = (el) => !!el && (el.tagName === 'IFRAME' || el.tagName === 'FRAME');
+  // A pantalla completa solo se ve el elemento que la ocupa (va en la capa
+  // de arriba del todo): colgados del <body>, el cursor y el rótulo quedarían
+  // DEBAJO y el vídeo los perdería. Viven donde se ve, y vuelven al salir.
+  const dondeSeVe = () => document.fullscreenElement || document.body;
+  const poner = () => { dondeSeVe().appendChild(cap); dondeSeVe().appendChild(c); };
   const pintar = (f) => {
+    c.style.visibility = enOtroSitio ? 'hidden' : 'visible';
+    document.documentElement.dataset.cursorDeLaGuiaEscondido = enOtroSitio ? 'si' : 'no';
     if (f !== forma) { forma = f; c.innerHTML = DIBUJOS[f]; document.documentElement.dataset.cursorDeLaGuia = f; }
     c.style.transform = 'translate(' + (x - PUNTA[f][0]) + 'px,' + (y - PUNTA[f][1]) + 'px)';
   };
@@ -83,7 +112,18 @@ export const CURSOR = `
     pintar(queForma());
   };
   if (document.body) poner(); else addEventListener('DOMContentLoaded', poner);
-  addEventListener('mousemove', (e) => { x = e.clientX; y = e.clientY; mirar(); }, true);
+  addEventListener('mousemove', (e) => { x = e.clientX; y = e.clientY; enOtroSitio = esMarco(e.target); mirar(); }, true);
+  // Se va a un marco (lo que queda debajo es un <iframe>) o sale del documento
+  // (no queda nada debajo): el cursor de aquí se esconde.
+  addEventListener('mouseover', (e) => { if (esMarco(e.target)) { enOtroSitio = true; mirar(); } }, true);
+  // Sin nada debajo solo cuenta si el punto cae FUERA de esta ventana: un nodo
+  // que se quita del DOM bajo el puntero también deja \`relatedTarget\` vacío, y
+  // eso no es salir.
+  const fueraDeLaVentana = (e) => e.clientX < 0 || e.clientY < 0 || e.clientX >= innerWidth || e.clientY >= innerHeight;
+  addEventListener('mouseout', (e) => {
+    if (esMarco(e.relatedTarget) || (!e.relatedTarget && fueraDeLaVentana(e))) { enOtroSitio = true; mirar(); }
+  }, true);
+  addEventListener('fullscreenchange', poner);
   setInterval(mirar, 120);
   window.__rotulo = (t) => { cap.textContent = t; cap.style.opacity = t ? '1' : '0'; };
   window.__cursor = true;

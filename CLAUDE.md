@@ -23413,6 +23413,142 @@ sus píxeles (`GUIA=notas`), `fin-de-la-guia` y `menu-de-la-guia` —que barren
 las cinco guías— y la guía servida a 390 y 1440. `MODO=roto` lee `24ba0b2` y
 afirma que no había guía, ni vídeo, ni miniaturas, ni marcas en la pantalla.
 
+### La sexta guía, Copiloto: la pantalla tiene DOS dueños, y la guía los separa
+
+`/guia/copiloto` documenta Herramientas › Copiloto (`/copiloto`) con el mismo
+estándar: nueve secciones —vista general, entrar por primera vez, preguntar,
+qué hacer con una respuesta, tus conversaciones, elegir la IA, adjuntar y
+dictar, fijar en Chats y pantalla completa, y tu cuenta del copiloto—, una
+miniatura con enfoque por tarjeta y el vídeo narrado con Cedar al MISMO ritmo.
+Su tarjeta sale sola en «Tutoriales del módulo» de `/copiloto`: «Aprende a
+redactar mensajes y resolver dudas con IA en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-copiloto.sh && npm run build`.
+
+Lo que la hace distinta es que dentro de la pantalla va OTRA aplicación: el
+copiloto es LibreChat v0.8.7 (`copiloto.ia-app.com`), en un `<iframe>`.
+
+> **Lo de la plataforma sale de `lib/copiloto.ts`** —los dos botones, el
+> nombre de la pestaña que se fija en Chats— y es lo mismo que pinta
+> `MainCopiloto.tsx`. **Lo de dentro son rótulos del copiloto**, que no son
+> nuestros: cada lista de `lib/guia-copiloto.ts` lleva la `etiqueta` exacta
+> que enseña, y `anotar()` guarda lo que VIO en
+> `scripts/copiloto-guia-librechat.json`. El banco exige que cada etiqueta que
+> la guía nombra estuviera ahí: si el copiloto se actualiza y un botón cambia
+> de nombre, la guía se pone en rojo.
+
+Seis cosas que hay que mantener:
+
+1. **Las capturas no se toman contra producción.** Desde aquí no se llega a
+   `copiloto.ia-app.com`, y aunque se llegara escribirían conversaciones en la
+   cuenta de alguien y cada respuesta costaría dinero. `copiloto-de-la-guia.sh`
+   levanta el MISMO LibreChat (imagen fijada, `librechat.yaml` de producción,
+   registro y entrada por correo como allí) con su Mongo y su Meilisearch, y
+   una IA de ejemplo (`ia-de-ejemplo.mjs`, `:4010`) en lugar de OpenAI y
+   DeepSeek. Lo único que se afloja es el tope de entradas: las capturas entran
+   una vez por contexto y el de producción las bloqueaba a la décima.
+2. **La página de la App y el copiloto tienen que ser del MISMO sitio**
+   (`localhost` y `localhost:3080`, nunca `127.0.0.1`): la sesión del copiloto
+   es una cookie, y entre sitios distintos el navegador no la manda dentro de
+   un marco. `preparar.mjs` deja el copiloto como al empezar —cuatro
+   conversaciones de ejemplo, cada una en su día— antes de las capturas y
+   antes del vídeo, escribiéndolas en el copiloto de verdad y tocando en su
+   base solo la fecha.
+3. **Lo guardado es lo que se LEE**: `anotar()` quita el texto que solo oye
+   un lector de pantalla, y el copiloto lo esconde de DOS formas —la clase
+   `sr-only` y un estilo en línea con el recorte a 0—. Con una sola, el
+   selector se guardaba como «OpenAIseleccionado» y la guía, que dice
+   «OpenAI», no encontraba su rótulo.
+4. **La «Guía rápida» de Chats se da por vista** en el vídeo
+   (`SIN_LA_GUIA_RAPIDA`, un `addInitScript` sobre `chat-onboarding-shown`).
+   Con el foco dentro del marco del copiloto, el Escape que la apartaba no le
+   llega, y el primer clic del vídeo en Chats se lo comía su ventana.
+5. **El cursor dibujado vive en cada documento, y hay uno solo a la vista**
+   (`cursor-de-la-guia.mjs`): cada documento esconde el suyo en cuanto el
+   puntero se va a un marco o sale de él, y a PANTALLA COMPLETA el cursor y el
+   rótulo se mudan dentro del elemento que la ocupa —colgados del `<body>`
+   quedaban debajo y el vídeo los perdía—. Vale para cualquier guía con un
+   marco dentro.
+6. **Lo que no se puede hacer aquí se hace en producción, y solo eso**: las
+   diez frases nuevas de Cedar se sintetizaron desde el contenedor de la App
+   con la llave «IA CRM» (ver *El vídeo: el cursor de VERDAD y narración*). La
+   frase de la barra de arriba es la de Leads, así que su audio ya estaba.
+
+Lo prueba `scripts/banco-guia-copiloto.sh`: lo de la plataforma contra
+`lib/copiloto.ts`, lo del copiloto contra lo que enseñó, el vídeo medido como
+el de Mis notas, las miniaturas en sus píxeles (`GUIA=copiloto`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren las seis guías— y la guía
+servida a 390 y 1440. `MODO=roto` lee `ab6b110` y afirma que no había guía, ni
+vídeo, ni miniaturas.
+
+## Copiloto: `?u=` no puede ser código, y los dos botones se miden contra el COPILOTO
+
+Documentar `/copiloto` destapó tres fallos, y ninguno se ve probando a mano con
+una pantalla grande.
+
+### 1. Una dirección que se abre en la plataforma: solo `http(s)`
+
+`/copiloto?u=javascript:alert(document.domain)` **ejecutaba ese código en la
+plataforma**: `?u=` —con el que un módulo cambia el copiloto, el de un
+reseller— iba tal cual al `src` del `<iframe>`, y un `src` con `javascript:`
+corre en el origen de quien lo pinta, con su sesión. Bastaba con que alguien
+pulsara un enlace. Lo mismo con `/canva?u=` y con una INTEGRACIÓN guardada con
+esa dirección, que además se pintaba como enlace en Integraciones y como
+pestaña en cada chat.
+
+> **Qué dirección se puede abrir lo decide `lib/url-embebible.ts`, puro, con
+> una lista BLANCA de dos: `http:` y `https:`** (y relativa, que el navegador
+> resuelve contra la página). Se decide con `new URL`, el mismo lector del
+> navegador: quita espacios y caracteres de control y los tabuladores de
+> dentro, así que `java\tscript:` se ve como lo que es.
+
+Cuatro sitios, y los cuatro pasan por ahí:
+
+| dónde | qué hace |
+| --- | --- |
+| `IframeRenderer` | pinta solo lo que pasa la regla; lo demás lo dice, no lo pinta. Y lleva `title` (el copiloto, «Copiloto de IA»; una pestaña de Chats, su nombre) |
+| `laUrlDelCopiloto` (`lib/copiloto.ts`) | `?u=` que no sea `http(s)` absoluta cae en el copiloto de la plataforma, y se dice en la consola |
+| `createUserIntegration` / `updateUserIntegration` | guardan solo una dirección absoluta `http(s)` (`comoUrlDeIntegracion`), con su motivo si no |
+| la lista de Integraciones | no enlaza una guardada antes que no pase, y abre con `noopener` |
+
+Y editar una integración **solo toca el nombre y la dirección**
+(`comoIntegracion`): el cuerpo iba tal cual a Prisma, así que se le podía
+cambiar `userId` —regalar la fila a otra cuenta— u `order` a mano.
+
+### 2. Los dos botones dependen del ANCHO del copiloto, no de la ventana
+
+«Fijar en Chats» y «Pantalla completa» flotaban siempre a 52 px del borde, y
+la cabecera del copiloto no es nuestra y cambia con su ancho: con el menú de la
+plataforma abierto, una tableta o un teléfono, **tapaban su selector de modelo
+y sus botones** —medido a 390 px: los cuatro—. Ahora son tres tamaños, con una
+consulta de CONTENEDOR sobre la caja del copiloto (`CAJA_DEL_COPILOTO`,
+`[container-type:inline-size]`):
+
+| el copiloto mide | los botones |
+| --- | --- |
+| 860 px o más | flotan, con el rótulo |
+| de 560 a 860 | flotan, solo con el icono |
+| menos de 560 | en su propia fila, encima del copiloto |
+
+Los cortes salen de medir la cabecera de la v0.8.7 y viven en `lib/copiloto.ts`
+en px y en las clases en rem; el banco comprueba que digan lo mismo. **Si el
+copiloto se actualiza, esto se vuelve a medir**: es lo único de la pantalla
+que depende de una cabecera ajena.
+
+### 3. Pantalla completa solo donde el navegador la deja
+
+En un iPhone un `<div>` no tiene `requestFullscreen`, y el botón salía y no
+hacía nada. `hayPantallaCompleta` decide si se ofrece, y un «no» del navegador
+se dice en vez de quedarse en una promesa muda.
+
+Lo prueba `scripts/banco-copiloto.sh`: las reglas y un barrido, las acciones de
+las integraciones contra Postgres, y la pantalla REAL en Chromium con el
+copiloto local dentro, midiendo si los botones tapan alguno de sus botones a
+1280/900/800/640/500/390 **con su menú abierto y cerrado** —estrechando la
+ventana desde una ancha, el copiloto lo deja abierto encima de su cabecera—.
+`MODO=roto` monta la pantalla y las acciones de `ab6b110` y afirma los fallos:
+el `javascript:` corriendo en la plataforma, los botones tapando, y la edición
+guardando `javascript:` y regalando la fila.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

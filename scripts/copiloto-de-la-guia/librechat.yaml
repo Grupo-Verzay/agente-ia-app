@@ -1,0 +1,13 @@
+version: 1.2.8
+cache: true
+endpoints:
+  custom:
+    - name: "DeepSeek"
+      apiKey: "${DEEPSEEK_API_KEY}"
+      baseURL: "http://127.0.0.1:4010/deepseek/v1"
+      models:
+        default: ["deepseek-chat", "deepseek-reasoner"]
+        fetch: false
+      titleConvo: true
+      titleModel: "deepseek-chat"
+      modelDisplayLabel: "DeepSeek"

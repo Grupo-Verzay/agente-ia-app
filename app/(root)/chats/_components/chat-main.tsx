@@ -1320,7 +1320,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         const intg = userIntegrations.find(i => i.id === chatView);
         return intg ? (
           <div className="flex-1 min-h-0 overflow-hidden">
-            <IframeRenderer url={intg.url} />
+            <IframeRenderer url={intg.url} title={intg.name} />
           </div>
         ) : null;
       })()}

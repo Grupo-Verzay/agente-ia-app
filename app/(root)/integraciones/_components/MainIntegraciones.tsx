@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import { comoUrlDeIntegracion } from '@/lib/url-embebible'
 import { Trash2, Plus, Pencil, Check, X, ExternalLink, Globe, InboxIcon, LayoutGrid, MessageSquare, Sidebar, Search, GripVertical } from 'lucide-react'
 import {
     DndContext, closestCenter, useSensor, useSensors, PointerSensor,
@@ -40,6 +41,7 @@ function IntegrationRow({
     const [isPending, startTransition] = useTransition()
 
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+    const enlace = comoUrlDeIntegracion(item.url)
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
     const handleSave = () => {
@@ -51,7 +53,8 @@ function IntegrationRow({
                 setEditing(false)
                 toast.success('Integración actualizada')
             } else {
-                toast.error('Error al actualizar')
+                // El servidor dice por qué (la dirección no es http(s), falta el nombre).
+                toast.error(res.error ?? 'Error al actualizar')
             }
         })
     }
@@ -111,15 +114,20 @@ function IntegrationRow({
                 <p className="truncate text-xs text-muted-foreground">{item.url}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-                <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                    title="Abrir en nueva pestaña"
-                >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                {/* Una integración guardada antes de validar las direcciones puede
+                    traer `javascript:`: ese enlace no se pinta (ver
+                    `lib/url-embebible.ts`). */}
+                {enlace && (
+                    <a
+                        href={enlace}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                        title="Abrir en nueva pestaña"
+                    >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                )}
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(true)} title="Editar">
                     <Pencil className="h-3.5 w-3.5" />
                 </Button>
@@ -170,7 +178,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                 setNewUrl('')
                 setShowForm(false)
             } else {
-                toast.error('Error al crear')
+                toast.error(res.error ?? 'Error al crear')
             }
         })
     }
