@@ -82,11 +82,33 @@ export function comoLoGuardaElWebhook(m, { base, segundos = {} }) {
 }
 
 /**
+ * El aviso en vivo de un mensaje recién guardado: lo que el backend emite por
+ * socket.io (`chat:changed`) en cuanto el webhook lo escribe. Con la forma de
+ * `ChatChangedPayload` (`hooks/chats/useChatsRealtime.ts`). Pura.
+ */
+export function elAvisoEnVivo(m, fila) {
+    const ts = m.en;
+    return {
+        remoteJid: CLIENTA.jid,
+        instanceName: NEGOCIO.linea,
+        message: {
+            id: idDelMensaje(m),
+            fromMe: m.de === "ia",
+            content: fila.content,
+            messageType: fila.messageType,
+            pushName: m.de === "ia" ? null : CLIENTA.nombreDeWhatsapp,
+            ts,
+        },
+        ts,
+    };
+}
+
+/**
  * El simulador. `ctx` es lo que devuelve la siembra (la cuenta, el embudo y sus
  * etapas, las etiquetas y el servicio); `embudos`, el módulo compilado de
  * `lib/embudos-db.ts`, que es el que mueve una conversación de etapa en la App.
  */
-export function elBackend({ db, embudos, ctx, base, segundos }) {
+export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} }) {
     const cal = ctx.calendario;
     const mensajes = laConversacion(cal);
     let sesionId = null;
@@ -163,6 +185,9 @@ export function elBackend({ db, embudos, ctx, base, segundos }) {
             });
         }
         await db.session.update({ where: { id: sesionId }, data: { updatedAt: new Date() } });
+        // Como el webhook: primero se guarda y después se avisa. El aviso sale
+        // ANTES de los efectos de la IA, que en producción llegan después.
+        avisar("chat:changed", elAvisoEnVivo(m, fila));
         for (const efecto of m.efectos ?? []) await aplicar(efecto, m);
         if (m.seguimiento && seguimientoId) {
             await db.seguimiento.update({ where: { id: seguimientoId }, data: { followUpStatus: "sent" } });

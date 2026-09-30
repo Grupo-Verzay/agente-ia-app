@@ -117,6 +117,7 @@ import {
   ESPERA_PARA_PONER_AL_DIA_MS,
   conLaSesionAlDia,
   esUnMensajeNuevo,
+  hayQuePedirSuFicha,
 } from "@/lib/crm-de-la-conversacion-abierta";
 import { etapaDeLaConversacionAction } from "@/actions/embudos-actions";
 import { elColorDeLaEtapa } from "@/lib/embudos";
@@ -2662,6 +2663,7 @@ export function ChatsClient({
    * estan en `lib/crm-de-la-conversacion-abierta.ts`.
    */
   const temporizadorDelCrmRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fichaPedidaRef = useRef<Record<string, number>>({});
   const ponerAlDiaLaConversacionAbierta = useCallback(async () => {
     const jid = selectedJidRef.current;
     if (!jid) return;
@@ -2669,7 +2671,17 @@ export function ChatsClient({
     setSessionRefreshSignal((n) => n + 1);
 
     const sesion = sesionAbiertaRef.current;
-    if (!sesion?.id) return;
+    if (!sesion?.id) {
+      // Una conversacion que nacio con la pantalla abierta no tiene ficha en
+      // la lista: se piden las sesiones con la consulta de la lista, como
+      // mucho una vez cada pocos segundos (`hayQuePedirSuFicha`).
+      const ahora = Date.now();
+      if (hayQuePedirSuFicha(false, fichaPedidaRef.current[jid], ahora)) {
+        fichaPedidaRef.current[jid] = ahora;
+        void refreshSidebarData({ forzar: true });
+      }
+      return;
+    }
     const r = await etapaDeLaConversacionAction(sesion.id);
     if (!r.success || !r.data) {
       console.warn("[chats] no se pudo volver a leer la etapa de la conversacion abierta", {
@@ -2688,7 +2700,7 @@ export function ChatsClient({
       { etapa: { id: etapa.id, nombre: etapa.nombre, color: elColorDeLaEtapa(etapa, posicion) } },
       "la etapa al llegar un mensaje",
     );
-  }, [aplicarEnLaSesion]);
+  }, [aplicarEnLaSesion, refreshSidebarData]);
 
   const avisarDeUnMensajeNuevo = useCallback(() => {
     if (temporizadorDelCrmRef.current) clearTimeout(temporizadorDelCrmRef.current);

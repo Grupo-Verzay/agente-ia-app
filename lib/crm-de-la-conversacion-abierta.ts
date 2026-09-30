@@ -122,3 +122,30 @@ export function conLaSesionAlDia<T extends { id?: number | null } & Partial<Reco
     }
     return { siguiente: tocadas ? siguiente : mapa, tocadas };
 }
+
+/**
+ * Cada cuánto, como mucho, se piden las sesiones de la lista por una
+ * conversación abierta que todavía NO tiene ficha en ella.
+ */
+export const ESPERA_PARA_PEDIR_SU_FICHA_MS = 15_000;
+
+/**
+ * ¿Hay que pedir las sesiones de la lista para la conversación abierta?
+ *
+ * Una conversación que NACE mientras la pantalla está abierta —un cliente que
+ * escribe por primera vez— no está en las sesiones que la lista trajo al
+ * cargar, y el reloj de sesiones va a 60 s. Hasta entonces su fila salía sin
+ * etapa ni calificación, y releer su etapa (arriba) no tenía sesión con la que
+ * hacerlo: justo la conversación que más cambia en sus primeros minutos era la
+ * que no se enteraba de nada.
+ *
+ * Se piden con la MISMA consulta de la lista —la que filtra las etiquetas por
+ * quién puede verlas—, nunca armando la fila desde la sesión de la cabecera.
+ * Solo cuando entra un mensaje en una conversación abierta SIN ficha, y como
+ * mucho una vez cada `ESPERA_PARA_PEDIR_SU_FICHA_MS` por conversación: no es un
+ * reloj nuevo.
+ */
+export function hayQuePedirSuFicha(tieneFicha: boolean, ultimaVez: number | undefined, ahora: number): boolean {
+    if (tieneFicha) return false;
+    return ultimaVez === undefined || ahora - ultimaVez >= ESPERA_PARA_PEDIR_SU_FICHA_MS;
+}

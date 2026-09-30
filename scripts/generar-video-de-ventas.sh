@@ -42,6 +42,7 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
        AUTH_RESEND_KEY=banco CRM_FOLLOW_UP_RUNNER_KEY=banco \
        S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=localhost \
        S3_PUBLIC_URL=http://localhost:9000 GEMINI_API_KEY=banco \
+       REALTIME_URL="http://localhost:$APP" REALTIME_JWT_SECRET=banco \
        NEXT_TELEMETRY_DISABLED=1
 
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
