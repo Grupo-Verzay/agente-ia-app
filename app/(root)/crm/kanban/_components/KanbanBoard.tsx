@@ -311,7 +311,7 @@ function KanbanColumn({
                         <button
                             onClick={() => setAutomationsOpen(true)}
                             className="p-0.5 rounded hover:bg-white/20 transition-colors"
-                            title="Automaciones"
+                            title="Automatizaciones"
                         >
                             <Settings2 className="h-3.5 w-3.5 text-white/80" />
                         </button>
@@ -325,7 +325,7 @@ function KanbanColumn({
                         <SheetHeader className="mb-4">
                             <SheetTitle className="flex items-center gap-2">
                                 <span className={cn('h-2.5 w-2.5 rounded-full', col.dotClass)} />
-                                Automaciones — {col.label}
+                                Automatizaciones — {col.label}
                             </SheetTitle>
                         </SheetHeader>
                         <StageAutomationsPanel userId={userId} initialStage={col.status} />

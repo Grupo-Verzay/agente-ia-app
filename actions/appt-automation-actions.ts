@@ -94,7 +94,7 @@ export async function addApptAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.apptAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     const count = await db.apptAutomationAction.count({ where: { automationId } });
     const action = await db.apptAutomationAction.create({
       data: { automationId, type: data.type, config: data.config, delayMinutes: data.delayMinutes ?? 0, order: count },
@@ -113,7 +113,7 @@ export async function updateApptAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.apptAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.apptAutomationAction.update({ where: { id: actionId }, data });
     return { success: true };
   } catch (e: any) {
@@ -128,7 +128,7 @@ export async function deleteApptAutomationAction(
   try {
     const userId = await getUserId();
     const automation = await db.apptAutomation.findFirst({ where: { id: automationId, userId } });
-    if (!automation) return { success: false, message: 'Automación no encontrada' };
+    if (!automation) return { success: false, message: 'Automatización no encontrada' };
     await db.apptAutomationAction.delete({ where: { id: actionId } });
     return { success: true };
   } catch (e: any) {

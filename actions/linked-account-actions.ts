@@ -3,8 +3,10 @@
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isAdminLike } from "@/lib/rbac";
-import { rolQueManda } from "@/lib/cuenta-que-manda";
+import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
+import { ofreceReiniciarVinculos } from "@/lib/vincular-cuentas";
+import { puertaParaVincular } from "@/lib/vincular-cuentas.server";
+import { confirmaLaLimpieza, PALABRA_PARA_LIMPIAR } from "@/lib/historial-del-equipo";
 import { cookies } from "next/headers";
 import type { Plan } from "@prisma/client";
 
@@ -248,6 +250,11 @@ export async function addLinkedAccount(
     return { success: false, message: "No puedes vincularte a tu misma cuenta." };
   }
 
+  // La misma puerta que «Vincular existente» de Usuarios: solo lo que ya se
+  // alcanza (`lib/vincular-cuentas.server.ts`).
+  const puerta = await puertaParaVincular(linked.id);
+  if (!puerta.puede) return { success: false, message: puerta.motivo };
+
   const existing = await db.$queryRaw<{ id: string }[]>`
     SELECT id
     FROM "linked_accounts"
@@ -303,10 +310,23 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
   return { success: true };
 }
 
-export async function resetAllLinkedAccounts(): Promise<Result> {
+/**
+ * Borra los vínculos de TODA la plataforma y descuelga a todos los equipos de
+ * sus cuentas. No es de una cuenta: lo hace solo el dueño de la plataforma
+ * (`esSuperAdminDeVerdad`, la persona) y tecleando la palabra de los borrados
+ * masivos. Antes bastaba con que la cuenta fuera `admin`, así que el
+ * administrador de cualquier cuenta de la casa se lo llevaba todo con un clic.
+ */
+export async function resetAllLinkedAccounts(confirmacion?: string): Promise<Result> {
   const user = await currentUser();
   if (!user) return { success: false, message: "No autorizado." };
-  if (!isAdminLike(await rolQueManda(user))) return { success: false, message: "Solo un administrador puede reiniciar los vínculos." };
+  if (!ofreceReiniciarVinculos(esSuperAdminDeVerdad(user))) {
+    console.warn("[vinculos] se pidió reiniciar los vínculos sin ser el dueño de la plataforma", { persona: user.sessionUserId ?? user.id });
+    return { success: false, message: "Solo el dueño de la plataforma puede reiniciar los vínculos." };
+  }
+  if (!confirmaLaLimpieza(confirmacion)) {
+    return { success: false, message: `Escribe ${PALABRA_PARA_LIMPIAR} para confirmar.` };
+  }
 
   try {
     await db.$transaction(async (tx) => {

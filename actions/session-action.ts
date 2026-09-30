@@ -1303,7 +1303,7 @@ export async function updateSessionLeadStatus(
     // configurado a propósito (Ajustes → flujo por estado), no de forma
     // implícita al arrastrar la tarjeta.
 
-    // Ejecutar automaciones de etapa (fire-and-forget)
+    // Ejecutar automatizaciones de etapa (fire-and-forget)
     if (leadStatus) {
       void triggerStageAutomations(sessionId, leadStatus).catch(() => undefined);
     }

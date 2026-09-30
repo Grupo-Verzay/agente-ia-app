@@ -8,7 +8,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
-import { TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
+import { MEMORIA_DE_LA_BANDEJA_MS, TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import { laTraduccionDelRaw } from '@/lib/traduccion-de-chats';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
@@ -1715,7 +1715,7 @@ function getChatTimestamp(chat: ChatData) {
  * cliente al montar, así que un mensaje que llegue dentro de esos segundos
  * aparece igual sin esperar a que caduque.
  */
-const INBOX_CACHE_TTL_MS = 10_000;
+const INBOX_CACHE_TTL_MS = MEMORIA_DE_LA_BANDEJA_MS;
 const inboxCache = new Map<string, { at: number; rows: Promise<ChatData[]> }>();
 
 

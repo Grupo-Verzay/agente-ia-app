@@ -16,6 +16,17 @@ import {
 import { cn } from "@/lib/utils";
 import type { KeywordRule } from "@/types/agentAi";
 import { useKeywordsAutosave } from "./hooks/useKeywordsAutosave";
+import { TYPE_AI_LABELS, AGREGAR_EN_LA_PESTANA, PESTANA_VACIA, ELIMINAR_EN_LA_PESTANA } from "./ai-section-labels";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     DndContext,
     closestCenter,
@@ -63,6 +74,7 @@ function SortableRule({
             <div
                 {...attributes}
                 {...listeners}
+                title="Arrastrar regla"
                 className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted touch-none"
             >
                 <GripVertical className="h-4 w-4" />
@@ -96,7 +108,7 @@ function SortableRule({
                             </Button>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="w-9 px-0">
+                                    <Button variant="outline" size="sm" className="w-9 px-0" aria-label="Más opciones de la regla" title="Más opciones de la regla">
                                         <MoreVertical className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -106,7 +118,7 @@ function SortableRule({
                                         onSelect={() => onDelete(rule.id)}
                                     >
                                         <Trash2 className="h-4 w-4" />
-                                        Eliminar
+                                        {ELIMINAR_EN_LA_PESTANA.keywords.titulo}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -124,6 +136,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState(EMPTY_FORM);
     const [kwInput, setKwInput] = useState("");
+    const [reglaAEliminar, setReglaAEliminar] = useState<string | null>(null);
 
     const { forceSave } = useKeywordsAutosave({
         promptId,
@@ -187,11 +200,11 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
         <Card className="border-muted/60">
             {/* Header */}
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
-                <CardTitle className="text-base uppercase">Palabras clave</CardTitle>
+                <CardTitle className="text-base uppercase">{TYPE_AI_LABELS.keywords}</CardTitle>
                 {rules.length === 0 && !formOpen && (
                     <Button size="sm" className="gap-2" onClick={openAdd}>
                         <Plus className="w-4 h-4" />
-                        Agregar regla
+                        {AGREGAR_EN_LA_PESTANA.keywords}
                     </Button>
                 )}
             </CardHeader>
@@ -200,7 +213,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
             <CardContent className="space-y-3">
                 {rules.length === 0 && !formOpen && (
                     <div className="text-center text-sm text-muted-foreground py-2">
-                        No has configurado ninguna regla. Crea tu primera regla con Agregar regla.
+                        {PESTANA_VACIA.keywords}
                     </div>
                 )}
 
@@ -209,7 +222,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                         <SortableContext items={ruleIds} strategy={verticalListSortingStrategy}>
                             <div className="space-y-2">
                                 {rules.map((r) => (
-                                    <SortableRule key={r.id} rule={r} onEdit={openEdit} onDelete={deleteRule} />
+                                    <SortableRule key={r.id} rule={r} onEdit={openEdit} onDelete={setReglaAEliminar} />
                                 ))}
                             </div>
                         </SortableContext>
@@ -266,6 +279,8 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                                             type="button"
                                             size="icon"
                                             className="h-9 w-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            aria-label="Añadir palabra clave"
+                                            title="Añadir palabra clave"
                                             onClick={addKw}
                                             disabled={!kwInput.trim()}
                                         >
@@ -343,7 +358,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                                     disabled={(form.keywords.length === 0 && !kwInput.trim()) || (form.action === "responder" && !form.response.trim())}
                                     onClick={saveRule}
                                 >
-                                    {editId ? "Guardar cambios" : "Agregar regla"}
+                                    {editId ? "Guardar cambios" : AGREGAR_EN_LA_PESTANA.keywords}
                                 </Button>
                             </div>
                         </div>
@@ -361,10 +376,31 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                     </div>
                     <Button size="sm" className="gap-2" onClick={openAdd}>
                         <Plus className="w-4 h-4" />
-                        Agregar regla
+                        {AGREGAR_EN_LA_PESTANA.keywords}
                     </Button>
                 </CardFooter>
             )}
+
+            <AlertDialog open={reglaAEliminar !== null} onOpenChange={(abierto) => !abierto && setReglaAEliminar(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{ELIMINAR_EN_LA_PESTANA.keywords.titulo}</AlertDialogTitle>
+                        <AlertDialogDescription>{ELIMINAR_EN_LA_PESTANA.keywords.texto}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => {
+                                if (reglaAEliminar) deleteRule(reglaAEliminar);
+                                setReglaAEliminar(null);
+                            }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }
