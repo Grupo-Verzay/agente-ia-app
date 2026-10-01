@@ -23138,6 +23138,15 @@ Entrenamiento, Creación de Flujos, Automatizaciones, y Conexión y Ajustes.
 Salen **las diez siempre**; la que no tiene guías dice «Próximamente», y al
 entrar, «Estamos trabajando en esta guía».
 
+**La portada va CENTRADA y sin subtítulo**: el título y el buscador —el
+buscador y las categorías ya dicen qué se hace aquí—, y el buscador es más
+corto que la rejilla (`max-w-xl`, 576 px) y no de lado a lado —de lado a lado
+se leía como una barra de filtros más—. En un teléfono el tope no muerde y
+ocupa el ancho. La lista de resultados cuelga de la caja del buscador, así que
+mide lo que él. El título centrado es una prop de la cabecera compartida
+(`centrada`), sin flecha; las listas de cada categoría siguen a la izquierda,
+con su flecha en el mismo píxel que en Documentación.
+
 > **Una guía cae en su categoría SOLA, por la ruta de su pantalla**: la de su
 > fila en `GUIAS_PUBLICADAS` contra las pantallas de cada grupo
 > (`CATEGORIAS_DE_AYUDA`, `lib/centro-de-ayuda.ts`, puro), por segmento y
@@ -23181,8 +23190,11 @@ Cinco cosas que hay que mantener:
 Lo prueba `scripts/banco-centro-de-ayuda.sh`: las reglas y un barrido sin
 navegador, y en Chromium sobre el CSS del build la barra, la portada, el
 buscador, una categoría con guías, otra sin ellas y la fila contra la de
-Documentación, a 1440/1280/1024/390. `MODO=roto` lee y monta la barra de
-`fd8b831` y afirma que no había «Ayuda» ni centro de ayuda.
+Documentación, a 1440/1280/1024/390 —con el TEXTO del título medido con un
+`Range`: la caja de un título a la izquierda también está centrada—.
+`MODO=roto` lee y monta la barra de `fd8b831` y afirma que no había «Ayuda»
+ni centro de ayuda, y la portada de `38be58b` y afirma el título a la
+izquierda, con su subtítulo, y el buscador de lado a lado.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
