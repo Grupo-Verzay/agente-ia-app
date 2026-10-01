@@ -18,6 +18,7 @@ export function CabeceraDeDocumentacion({
     titulo,
     subtitulo,
     volverA = { href: RUTA_DE_DOCUMENTACION, etiqueta: 'Volver a Documentación' },
+    centrada = false,
     children,
 }: {
     titulo: string;
@@ -28,9 +29,29 @@ export function CabeceraDeDocumentacion({
      * (la portada del centro de ayuda no vuelve a ningún sitio).
      */
     volverA?: { href: string; etiqueta: string } | null;
+    /**
+     * Título y subtítulo centrados. Solo la portada del centro de ayuda, que
+     * no tiene flecha ni nada a la derecha: es una pantalla de entrada, con el
+     * buscador centrado debajo, y el título a la izquierda la dejaba torcida.
+     * Centrada no lleva flecha: la flecha tiene que caer en el mismo píxel que
+     * en las demás pantallas, y una pantalla que vuelve a algún sitio no es
+     * una portada.
+     */
+    centrada?: boolean;
     /** Lo que va a la derecha del título, si la pantalla tiene algo ahí. */
     children?: ReactNode;
 }) {
+    if (centrada) {
+        return (
+            <div className="flex flex-col items-center text-center" data-cabecera-de-documentacion data-centrada>
+                <h2 className="h3-bold leading-tight text-gray-900 dark:text-white" data-titulo-de-documentacion>
+                    {titulo}
+                </h2>
+                {subtitulo ? <p className="mt-1 text-sm text-muted-foreground" data-subtitulo-de-documentacion>{subtitulo}</p> : null}
+                {children}
+            </div>
+        );
+    }
     return (
         <div className="flex items-start gap-3" data-cabecera-de-documentacion>
             {volverA ? (

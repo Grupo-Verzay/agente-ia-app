@@ -15,7 +15,9 @@
 #     las pantallas de VERDAD a 1440/1280/1024/390.
 #
 # `MODO=roto` lee y monta el código de `ANTES_REF` —pinchado a un commit, nunca
-# `origin/main`— y afirma que no había nada de esto.
+# `origin/main`— y afirma que no había nada de esto; y la portada de
+# `ANTES_DEL_CENTRADO`, y afirma el título a la izquierda y el buscador de lado
+# a lado.
 #
 # Necesita el build (`npm run build`) para el CSS.
 set -euo pipefail
@@ -28,6 +30,10 @@ MODO="${MODO:-bueno}"
 export MODO
 ANTES_REF="${ANTES_REF:-fd8b831}"
 export ANTES_REF
+# La portada antes de centrarla: el centro de ayuda ya existía, con el título
+# a la izquierda y el buscador de lado a lado.
+ANTES_DEL_CENTRADO="${ANTES_DEL_CENTRADO:-38be58b}"
+export ANTES_DEL_CENTRADO
 
 C=lib/__tests__/.compilado/centro-de-ayuda
 A=lib/__tests__/.antes/centro-de-ayuda
@@ -41,16 +47,25 @@ COMUNES=(
   --alias:@/actions/tickets-actions=./lib/__tests__/fingido/centro-de-ayuda/tickets.ts
 )
 
+# Las guías y las categorías: las de hoy en los dos modos (lo que cambia en el
+# roto es cómo se pintan, no qué llevan).
+for m in centro-de-ayuda guias-del-centro-de-ayuda tutoriales-del-modulo guia-de-modulo; do
+  npx -y esbuild "lib/$m.ts" --bundle --platform=node --format=esm --outfile="$C/$m.mjs" --log-level=warning
+done
+
 if [ "$MODO" = "roto" ]; then
+  git show "$ANTES_DEL_CENTRADO:components/ayuda/CentroDeAyuda.tsx" > "$A/CentroDeAyuda.tsx"
+  git show "$ANTES_DEL_CENTRADO:components/documentacion/CabeceraDeDocumentacion.tsx" > "$A/CabeceraDeDocumentacion.tsx"
+  node scripts/empaquetar-con-acciones-mudas.mjs \
+    lib/__tests__/centro-de-ayuda/entrada.tsx "$C/centro-antes.js" "${COMUNES[@]}" \
+    "--alias:@/components/ayuda/CentroDeAyuda=./$A/CentroDeAyuda.tsx" \
+    "--alias:@/components/documentacion/CabeceraDeDocumentacion=./$A/CabeceraDeDocumentacion.tsx"
   git show "$ANTES_REF:components/custom/Breadcrumbs.tsx" \
     | sed "s#from '\.\./ui/#from '@/components/ui/#; s#from '\./ThemeSwitcher'#from '@/components/custom/ThemeSwitcher'#" > "$A/Breadcrumbs.tsx"
   node scripts/empaquetar-con-acciones-mudas.mjs \
     lib/__tests__/fingido/barra-de-arriba/entrada.tsx "$C/barra-antes.js" \
     "${COMUNES[@]}" "--alias:@/components/custom/Breadcrumbs=./$A/Breadcrumbs.tsx"
 else
-  for m in centro-de-ayuda guias-del-centro-de-ayuda tutoriales-del-modulo guia-de-modulo; do
-    npx -y esbuild "lib/$m.ts" --bundle --platform=node --format=esm --outfile="$C/$m.mjs" --log-level=warning
-  done
   node scripts/empaquetar-con-acciones-mudas.mjs \
     lib/__tests__/centro-de-ayuda/entrada.tsx "$C/centro.js" "${COMUNES[@]}"
   node scripts/empaquetar-con-acciones-mudas.mjs \

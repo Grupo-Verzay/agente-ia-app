@@ -23,12 +23,24 @@ import {
  * TODAS las guías de cualquier categoría, y debajo las diez categorías —una
  * por cada grupo del menú lateral—, en dos columnas y siempre las diez.
  *
+ * Sin subtítulo, a propósito: el buscador y las categorías ya dicen lo que se
+ * puede hacer aquí.
+ *
+ * El título y el buscador van CENTRADOS, y el buscador es más corto que la
+ * rejilla (`ANCHO_DEL_BUSCADOR`): es una pantalla de entrada, y un buscador de
+ * lado a lado se leía como una barra de filtros más. En un teléfono el tope no
+ * llega a morder y ocupa el ancho, que es lo que hace falta ahí. La lista de
+ * resultados cuelga de la misma caja, así que mide lo que el buscador.
+ *
  * El buscador lleva directo a lo que coincide: cada resultado es un enlace a
  * la guía, o a su sección si lo que coincidió es de una. Enter abre el
  * primero (o el que se marque con las flechas). Abre en otra pestaña, igual
  * que «Ver» en las listas: la guía es una página pública sin el marco de la
  * plataforma, y así no se pierde lo que se tenía abierto.
  */
+/** El tope del buscador de la portada: 36rem (576 px), centrado. */
+const ANCHO_DEL_BUSCADOR = "mx-auto w-full max-w-xl";
+
 export function CentroDeAyuda({ guias }: { guias: GuiaDeAyuda[] }) {
     const [consulta, setConsulta] = useState("");
     const [marcado, setMarcado] = useState(0);
@@ -69,11 +81,11 @@ export function CentroDeAyuda({ guias }: { guias: GuiaDeAyuda[] }) {
         <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-centro-de-ayuda>
             <CabeceraDeDocumentacion
                 titulo="Centro de ayuda"
-                subtitulo="Busca una guía o entra por la parte de la plataforma que quieres aprender."
                 volverA={null}
+                centrada
             />
 
-            <div className="relative" data-buscador-de-ayuda>
+            <div className={`relative ${ANCHO_DEL_BUSCADOR}`} data-buscador-de-ayuda>
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
                 <Input
                     ref={entrada}
