@@ -14131,6 +14131,55 @@ Tres cosas más:
 El súper administrador de plataforma no se filtra por ninguna de las dos cosas:
 su regla sigue siendo ver y administrar todo, en cualquier cuenta.
 
+## Clientes de reseller: el nivel lo da SU LICENCIA, no un campo suelto
+
+Las cuentas de Daniel Peralta consumían licencias de **Nivel 6** y una —«Asesor
+DAYRA»— estaba en **Nivel 5**, sin poder crear usuarios (Usuarios solo existe en
+el Nivel 6). La licencia la seguía contando como suya y nada lo decía.
+
+Un cliente de reseller guarda dos datos sueltos: a qué licencia pertenece
+(`resellerSubscriptionPlanId`) y su nivel (`plan`, el que abre o cierra
+módulos). Nada los ataba, y había **cinco** sitios por donde se separaban:
+
+| dónde | qué hacía |
+| --- | --- |
+| «Editar cliente» (`updateClientData`) | guardaba el nivel del formulario. Así quedó DAYRA: la editaron desde la cuenta de Daniel y se guardó Nivel 5 |
+| crear un cliente (`createUserWithPausar`) | el campo de nivel está oculto para el reseller y llegaba con su valor por defecto (Nivel 2): el cliente nacía en otro nivel que su licencia |
+| `createClientAccount` | tomaba `data.plan` de la pantalla |
+| elegir plan para pagar (Perfil) | dejaba al cliente escoger otro nivel |
+| aprobar una suscripción | le ponía el nivel de la suscripción |
+
+> **La regla, y es una frase: si el cliente consume una licencia de un reseller
+> que EXISTE, su nivel es el de esa licencia.** Lo decide
+> `lib/nivel-de-la-licencia.ts` (puro) y lo lee `lib/nivel-de-la-licencia.server.ts`.
+> Los cinco sitios pasan por ahí. **Si se añade otro sitio que guarde el nivel
+> de una cuenta, va por esa función.** Para cambiarle el nivel a un cliente de
+> reseller se le cambia la LICENCIA, no el campo.
+
+Cinco cosas que hay que mantener:
+
+1. **Editar la ficha escribe el nivel de la licencia SIEMPRE**, también cuando
+   el formulario no manda el campo: guardar la ficha endereza a uno que se
+   hubiera quedado en otro nivel. Si se pidió otro, el aviso lo dice («El nivel
+   se quedó en Nivel 6: es el de su licencia») y la consola también.
+2. **El formulario enseña el nivel de la licencia y no deja cambiarlo**
+   (`nivelDeLaLicencia` en cada cliente de `getEnrichedClients`, una consulta
+   para toda la lista), con «Lo da su licencia de reseller.» debajo.
+3. **El editor de un solo campo no toca el nivel** (`updateClientDataByField`
+   rechaza `plan`, como `role` y `password`).
+4. **Sin licencia que EXISTA no hay nivel que heredar**: una demo, un cliente
+   sin reseller o uno con un plan que su reseller ya no tiene se editan libres.
+5. **El script de los datos solo SUBE** (`scripts/subir-clientes-a-su-licencia.mjs`;
+   sin `--aplicar` solo dice qué haría). Uno por encima no se baja —le cerraría
+   módulos que usa—: se dice, y se endereza al guardar su ficha. El 2026-10-01
+   subió a «Asesor DAYRA» de Nivel 5 a Nivel 6; Daniel tiene 8 cuentas sobre 10
+   licencias, todas en Nivel 6.
+
+Lo prueba `scripts/banco-nivel-de-la-licencia.sh`: la regla y un barrido de las
+puertas, y las acciones de verdad contra Postgres (editar pidiendo otro nivel y
+sin mandarlo, crear por las dos formas, elegir plan, aprobar y el script).
+`MODO=roto` lee y empaqueta `c902542` y afirma los fallos.
+
 ## Analíticas: una cuenta administradora es de la CASA, no un cliente
 
 `/panel/analytics` abría para una cuenta administradora —la página pregunta
