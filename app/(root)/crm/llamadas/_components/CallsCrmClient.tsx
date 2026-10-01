@@ -73,6 +73,7 @@ import { InsigniaDeLinea } from '@/components/shared/InsigniaDeLinea';
 import { laInsigniaDeLaFila } from '@/lib/agenda-de-la-familia';
 import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { abrirLlamadaAqui } from '@/components/chats/AnfitrionDeLlamada';
+import { elDestinoParaMostrar, elJidDelDestino, esDestinoLid, SIN_NUMERO_VISIBLE } from '@/lib/destino-de-la-llamada';
 import { CallDetailDialog } from './CallDetailDialog';
 import { GrupoDeOpciones } from '@/components/shared/GrupoDeOpciones';
 import { EXPORTACION_DE_CLIENTES_HABILITADA } from "@/lib/exportaciones";
@@ -278,8 +279,13 @@ export function CallsCrmClient({
   useEffect(() => { load(); }, [load]);
 
   const router = useRouter();
-  const openChat = (phone: string) =>
-    router.push(`/chats?jid=${encodeURIComponent(`${phone}@s.whatsapp.net`)}`);
+  // Por la identidad REAL del contacto: el teléfono, o su `@lid` entero. Con
+  // `${phone}@s.whatsapp.net` a secas, un contacto sin número abría la
+  // conversación de un número que no existe.
+  const openChat = (destino: string) => {
+    const jid = elJidDelDestino(destino);
+    if (jid) router.push(`/chats?jid=${encodeURIComponent(jid)}`);
+  };
 
   const [clearing, setClearing] = useState(false);
   const clearMissed = async () => {
@@ -656,10 +662,10 @@ export function CallsCrmClient({
                       call={c}
                       nombreDeLaCuenta={unificado ? nombresDeCuenta[c.cuentaId] : undefined}
                       ajena={esDeOtraCuentaDelCrm(c.cuentaId, cuentaPropia)}
-                      onCall={() => abrirLlamadaAqui({ phone: c.phone, contactName: c.contactName ?? undefined, instanceName: c.instanceName ?? undefined })}
+                      onCall={() => abrirLlamadaAqui({ phone: c.destino, contactName: c.contactName ?? undefined, instanceName: c.instanceName ?? undefined })}
                       onDisposition={(value) => applyDisposition(c.id, value)}
-                      onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
-                      onOpenChat={() => openChat(c.phone)}
+                      onCallback={() => setCallbackTarget({ phone: c.destino, name: c.contactName ?? undefined })}
+                      onOpenChat={() => openChat(c.destino)}
                       onChanged={load}
                       onDetalle={(fresca) =>
                         setData((prev) =>
@@ -795,8 +801,8 @@ function CallbackDialog({
         </DialogHeader>
         <div className="flex flex-col gap-3 py-1">
           <div className="text-sm">
-            <span className="font-medium">{contactName || `+${phone}`}</span>
-            {contactName && <span className="ml-1 text-muted-foreground">+{phone}</span>}
+            <span className="font-medium">{contactName || elDestinoParaMostrar(phone)}</span>
+            {contactName && <span className="ml-1 text-muted-foreground">{elDestinoParaMostrar(phone)}</span>}
           </div>
           <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
             Fecha y hora
@@ -960,7 +966,7 @@ function CallTableRow({
 }) {
   const resultado = elResultadoQueSeVe(call);
   const dispMeta = getDispositionMeta(resultado.valor);
-  const callable = /\d{6,}/.test(call.phone);
+  const callable = Boolean(call.destino);
   const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
   const name = cleanName(call.contactName);
@@ -987,7 +993,9 @@ function CallTableRow({
           title="Abrir chat del contacto"
           className="max-w-full cursor-pointer truncate text-left text-blue-600 transition-colors hover:text-blue-800"
         >
-          <span className="whitespace-nowrap font-medium tabular-nums">{formatPhone(call.phone)}</span>
+          <span className="whitespace-nowrap font-medium tabular-nums">
+            {esDestinoLid(call.destino) ? SIN_NUMERO_VISIBLE : formatPhone(call.phone)}
+          </span>
         </button>
       </td>
       {/* Nombre: su propia columna, como en Leads, y no colgado bajo el número.
@@ -1003,7 +1011,7 @@ function CallTableRow({
           {ajena ? (
             name ? <p className={cn('max-w-[10rem] truncate', TEXTO_DE_LA_FILA)}>{name}</p> : <span className="text-muted-foreground">—</span>
           ) : (
-            <ContactNameCell phone={call.phone} name={name} onSaved={onChanged} />
+            <ContactNameCell phone={call.destino} name={name} onSaved={onChanged} />
           )}
           {nombreDeLaCuenta !== undefined && (
             <InsigniaDeLinea {...laInsigniaDeLaFila(call.instanceName, nombreDeLaCuenta)} />

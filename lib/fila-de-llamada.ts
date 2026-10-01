@@ -13,6 +13,7 @@ import {
   laMarcaDeLaLlamada,
   type MotivoDeLaLlamada,
 } from '@/lib/transcripcion-de-la-llamada';
+import { comoDestino } from '@/lib/destino-de-la-llamada';
 
 export type CallDirection = 'incoming' | 'outgoing';
 
@@ -20,6 +21,14 @@ export interface CallRow {
   id: string;
   direction: CallDirection;
   phone: string;
+  /**
+   * A quién se llama, se abre el chat o se le pone nombre: los dígitos del
+   * teléfono, o el `D@lid` ENTERO de un contacto sin número a la vista.
+   *
+   * `phone` son los dígitos a secas, y para uno de esos contactos son su id de
+   * privacidad: volver a llamar con ellos era llamar al número de nadie.
+   */
+  destino: string;
   contactName: string | null;
   durationSecs: number;
   status: string;
@@ -102,6 +111,7 @@ export function elCallRowDesdeLaFila(r: FilaCrudaDeLlamada): CallRow {
     id: String(r.id),
     direction,
     phone,
+    destino: comoDestino(r.remoteJid),
     contactName: r.pushName ?? null,
     durationSecs: Number(callRaw.durationSecs ?? 0) || 0,
     status: String(callRaw.status ?? ''),

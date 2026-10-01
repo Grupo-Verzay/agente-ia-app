@@ -16,6 +16,7 @@ import { startBotCallAction } from "@/actions/voicebot-actions";
 import { cn } from "@/lib/utils";
 import { usePanelFlotante } from "@/hooks/usePanelFlotante";
 import { PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from "@/lib/paneles-flotantes";
+import { comoDestino } from "@/lib/destino-de-la-llamada";
 
 /**
  * El botón verde de la cabecera de Chats: ahora un menú con DOS formas de
@@ -72,23 +73,24 @@ export function MenuDeLlamada({
     const [llamandoConIa, setLlamandoConIa] = useState(false);
     const panel = usePanelFlotante("colgadoDelIcono", "menu");
 
-    // Los dígitos se resuelven aquí y no en cada opción: las dos llaman al
-    // mismo número, y con dos limpiezas una podría aceptar lo que la otra no.
-    const digitos = (datos.phone ?? "").replace(/\D/g, "");
+    // El destino se resuelve aquí y no en cada opción: las dos llaman al mismo
+    // contacto, y con dos limpiezas una podría aceptar lo que la otra no. Un
+    // `@lid` se queda entero —sus dígitos sueltos son el número de nadie—.
+    const destino = comoDestino(datos.phone);
 
     const llamar = () => {
-        if (!digitos) {
+        if (!destino) {
             toast.error("No hay número de WhatsApp para llamar.");
             return;
         }
         // Exactamente lo que hacía el botón verde: la tarjeta la sostiene el
         // anfitrión del layout, no esta cabecera, así que la llamada aguanta al
         // cambiar de conversación o de pantalla.
-        abrirLlamadaAqui({ ...datos, phone: digitos });
+        abrirLlamadaAqui({ ...datos, phone: destino });
     };
 
     const llamarConIa = async () => {
-        if (!digitos) {
+        if (!destino) {
             toast.error("No hay número de WhatsApp para llamar.");
             return;
         }
@@ -97,7 +99,7 @@ export function MenuDeLlamada({
         // La línea de la conversación abierta. Sin ella la llamada sale con el
         // número de la cuenta de quien mira y la burbuja cae en otra
         // conversación.
-        const res = await startBotCallAction(digitos, datos.instanceName ?? null);
+        const res = await startBotCallAction(destino, datos.instanceName ?? null);
         setLlamandoConIa(false);
         if (res.success) toast.success("El asistente de voz IA está llamando…");
         else toast.error(res.message ?? "No se pudo iniciar la llamada con IA.");

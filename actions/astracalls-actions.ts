@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { persistChatMessage } from '@/lib/chat-persistence';
 import { laLineaDeWhatsappDeLaCuenta } from '@/lib/linea-de-whatsapp';
 import { laCuentaDeLaLlamada, SIN_NUMERO_EN_LA_LINEA } from '@/lib/cuenta-de-la-llamada.server';
+import { elJidDelDestino, losDigitosDelDestino, paraElServidorDeLlamadas } from '@/lib/destino-de-la-llamada';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -299,13 +300,17 @@ export async function startAstraCall(
   instanceName?: string | null,
 ): Promise<{ success: boolean; sid?: string; callId?: string; message?: string }> {
   if (!configured()) return { success: false, message: 'Llamadas no configuradas.' };
+  // `+57…` o el `D@lid` ENTERO: un contacto sin número a la vista se llama por
+  // su `@lid`, nunca por sus dígitos sueltos (serían el número de nadie).
+  const destino = paraElServidorDeLlamadas(phone);
+  if (!destino) return { success: false, message: 'Número inválido.' };
   const { sid, motivo } = await sidParaLlamar(instanceName);
   if (!sid) return { success: false, message: motivo ?? 'Esta línea no tiene un número vinculado para llamar. Vincúlalo en Conexión → Llamadas.' };
   try {
     const r = await fetch(`${BASE}/api/sessions/${sid}/calls`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ phone, duration_ms: 300_000, record: false }),
+      body: JSON.stringify({ phone: destino, duration_ms: 300_000, record: false }),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => '');
@@ -393,8 +398,14 @@ export async function logOutgoingCallAction(
     const me = await currentUser();
     const userId = enLaLinea?.userId ?? (await getCallAccountUserId()) ?? me?.ownerId ?? me?.id;
     if (!userId) return { id: null };
-    const digits = (phone || '').replace(/\D/g, '');
-    if (!digits) return { id: null };
+    // La conversación del DESTINO: `57…@s.whatsapp.net` o el `D@lid` entero.
+    // Con `${digits}@s.whatsapp.net` a secas, la llamada a un contacto sin
+    // número quedaba en una conversación de un número que no existe, y al
+    // guardarla se reescribía su ficha con ese número falso — a partir de ahí
+    // tampoco se le podía escribir.
+    const remoteJid = elJidDelDestino(phone);
+    const digits = losDigitosDelDestino(phone);
+    if (!remoteJid || !digits) return { id: null };
     // Instancia para asociar la llamada: la de la conversacion si se sabe cual
     // es, y si no la línea por QR de la cuenta, con el proveedor que sea. La
     // lista escrita a mano dejaba fuera `waha` —que es como nacen hoy las
@@ -408,7 +419,6 @@ export async function logOutgoingCallAction(
       deLaCuenta?.linea?.instanceName ||
       deLaCuenta?.todas[0]?.instanceName ||
       'llamadas';
-    const remoteJid = `${digits}@s.whatsapp.net`;
     const messageId = `callout_${Date.now()}_${digits}`;
     await persistChatMessage({
       userId,

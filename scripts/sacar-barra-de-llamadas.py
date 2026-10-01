@@ -115,6 +115,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { BarraDeAcciones } from "@/components/shared/BarraDeAcciones";
 import { DialogoDeLlamar } from "@/app/(root)/crm/llamadas/_components/DialogoDeLlamar";
+import { GrupoDeOpciones } from "@/components/shared/GrupoDeOpciones";
 import { cn } from "@/lib/utils";
 '''
 

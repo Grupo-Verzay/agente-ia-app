@@ -8,6 +8,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from '@/lib/whatsapp-jid';
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-message-kinds';
+import { esTelefonoFalsoDeLid, sinTelefonosFalsosDeLid } from '@/lib/destino-de-la-llamada';
 import { MEMORIA_DE_LA_BANDEJA_MS, TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import { laTraduccionDelRaw } from '@/lib/traduccion-de-chats';
@@ -403,9 +404,13 @@ function dateToEpochSeconds(date: Date | null | undefined) {
 }
 
 function normalizeStoredRemoteJid(remoteJid: string, aliases: Array<string | null | undefined> = []) {
+  // Sin los «teléfonos» fabricados con los dígitos de un `@lid` del mismo
+  // contacto: preferirlos es lo que dejaba la conversación de un contacto sin
+  // número bajo un número que no existe. Ver `lib/destino-de-la-llamada.ts`.
+  const reales = sinTelefonosFalsosDeLid([remoteJid, ...aliases]);
   return (
-    pickExplicitWhatsAppPhoneJid([remoteJid, ...aliases]) ||
-    pickPreferredWhatsAppRemoteJid([remoteJid, ...aliases]) ||
+    pickExplicitWhatsAppPhoneJid(reales) ||
+    pickPreferredWhatsAppRemoteJid(reales) ||
     normalizeWhatsAppConversationJid(remoteJid) ||
     remoteJid.trim()
   );
@@ -848,10 +853,31 @@ export async function upsertSessionFromChatMessage(
       ],
     },
     orderBy: { updatedAt: 'desc' },
-    select: { id: true, pushName: true },
+    select: { id: true, pushName: true, remoteJid: true, remoteJidAlt: true },
   });
 
   if (existing) {
+    // **Un número fabricado no reemplaza la identidad real de la ficha.**
+    //
+    // Los candidatos de arriba cruzan a propósito `D@s.whatsapp.net` con
+    // `D@lid` (el puente de `buildWhatsAppJidCandidates`), así que un mensaje
+    // guardado bajo los dígitos de un `@lid` —la llamada a un contacto sin
+    // número se registraba así— encontraba la ficha del `@lid` y le
+    // reescribía el `remoteJid` con ese número que no existe. A partir de ahí
+    // responderle desde Chats salía con «El número +… no tiene WhatsApp».
+    //
+    // Se mira contra las identidades de la FICHA, nunca contra los candidatos:
+    // esos llevan el puente dentro y cualquier teléfono parecería falso.
+    const esFalso = esTelefonoFalsoDeLid(remoteJid, [existing.remoteJid, existing.remoteJidAlt]);
+    if (esFalso) {
+      console.warn('[chats] no se reescribe la ficha con un numero fabricado de su @lid', {
+        sessionId: existing.id,
+        instanceName: input.instanceName,
+      });
+    }
+    const identidadDeLaFicha = esFalso
+      ? { remoteJid: existing.remoteJid, remoteJidAlt: existing.remoteJidAlt }
+      : { remoteJid, remoteJidAlt };
     // Un nombre que ya vale —o el que el usuario editó a mano— NO se pisa con el
     // que traiga un mensaje posterior. El nombre se toma una vez, cuando entra el
     // lead, y a partir de ahí solo lo cambia la edición manual. Antes se
@@ -881,8 +907,7 @@ export async function upsertSessionFromChatMessage(
       await db.session.update({
         where: { id: existing.id },
         data: {
-          remoteJid,
-          remoteJidAlt,
+          ...identidadDeLaFicha,
           pushName: nombreAEscribir,
           instanceId,
           status: reabrir,
@@ -903,7 +928,7 @@ export async function upsertSessionFromChatMessage(
           .update({
             where: { id: existing.id },
             data: {
-              remoteJidAlt,
+              remoteJidAlt: identidadDeLaFicha.remoteJidAlt,
               pushName: nombreAEscribir,
               // Tambien aqui: por este camino pasan los chats con el JID
               // duplicado, y si no se reabre se quedarian resueltos para

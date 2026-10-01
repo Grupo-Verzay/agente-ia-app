@@ -10896,6 +10896,61 @@ que se cuelga igual que el real ante un `chatId` que no es solo dígitos.
 `MODO=roto` empaqueta la misma cadena con `lib/` de `c7fbb82` y afirma el
 cuelgue de 15 s.
 
+## Un contacto sin número (`@lid`) se llama y se contesta por su `@lid` ENTERO
+
+Hay contactos que entran a WhatsApp por su usuario y solo existen como
+`96366802022553@lid`. La IA les contestaba bien —responde por el `@lid` del
+aviso— y una persona no: responder desde Chats salía con **«El número
++96366802022553 no tiene WhatsApp»**, y llamar desde el CRM llamaba a ese mismo
+número que no existe.
+
+Era una cadena, y empezaba en la llamada:
+
+1. Llamar quitaba todo lo que no fuera un dígito (`replace(/\D/g, '')`) y
+   llamaba al «+96366802022553»: **los dígitos de un `@lid` son un id de
+   privacidad, no un teléfono**.
+2. La burbuja de esa llamada se guardaba bajo `96366802022553@s.whatsapp.net`.
+3. `upsertSessionFromChatMessage` buscaba la ficha con `buildWhatsAppJidCandidates`,
+   que **cruza a propósito** `D@s.whatsapp.net` con `D@lid`, encontraba la del
+   `@lid` y le **reescribía el `remoteJid`** con el número fabricado.
+4. Desde ahí, responder prefería ese «teléfono»; Waha preguntaba si existe
+   (`destinoSegunWaha`) y contestaba que no.
+
+> **El destino es el TELÉFONO real si el contacto lo tiene, y si no, su `@lid`
+> ENTERO.** Lo decide `lib/destino-de-la-llamada.ts` (puro) y pasan por ahí los
+> diez sitios que llaman o anotan una llamada: la cabecera del chat, el menú de
+> llamar, la tarjeta, el anfitrión, el CRM (tabla y registros), las tres acciones
+> del servidor y la respuesta a una llamada perdida. Al servidor de llamadas le
+> va `+57…` o `D@lid` (`paraElServidorDeLlamadas`); a la conversación, `57…@s.whatsapp.net`
+> o `D@lid` (`elJidDelDestino`).
+
+Cinco cosas que hay que mantener:
+
+1. **Un «teléfono» cuyos dígitos son los de un `@lid` del MISMO contacto es
+   falso** (`esTelefonoFalsoDeLid`): un id de privacidad y un número real no
+   coinciden dígito a dígito. Se mira contra las identidades de la FICHA, nunca
+   contra los candidatos —esos llevan el puente dentro y todo parecería falso—.
+2. **Ese número no reescribe la ficha** (`upsertSessionFromChatMessage`) ni se
+   prefiere al guardar (`normalizeStoredRemoteJid`) ni al responder
+   (`resolveSendRemoteJid` en `chats-client`, con `sinTelefonosFalsosDeLid`).
+3. **Se decide con las identidades REALES, nunca con el número que se enseña**:
+   a un agente se le enseña tapado, y con esos dígitos se llamaba a otro número.
+   Donde iría el número de un `@lid` se lee «Sin número visible».
+4. **Meta no puede llamar ni escribir a un `@lid`**: se dice, no se intenta.
+5. **El backend y el servidor de llamadas dicen lo mismo.** AstraCalls recibe el
+   `D@lid` y llama a esa identidad (`destinoDeLaLlamada`, en
+   `cmd/server/destino-de-la-llamada.go`); el asistente de voz del backend lee el
+   chat por el `@lid`, manda `enviar_whatsapp` por él (en Evolution el `number`
+   es el `@lid` entero) y deja la tarea de agendar colgada de él
+   (`laIdentidadDeLaLlamada`, en `src/modules/voicebot/telefono-de-la-llamada.ts`).
+
+Lo prueban `scripts/banco-destino-de-la-llamada.sh` aquí (la regla, un barrido de
+los diez sitios y las acciones contra Postgres), `scripts/banco-contacto-por-lid.sh`
+en `api-webhook` (el asistente de voz contra Postgres) y
+`scripts/banco-destino-de-la-llamada.sh` en `astracalls`. Los tres con `MODO=roto`
+contra un commit pinchado que afirma el fallo: la llamada al número de nadie, la
+ficha reescrita y el asistente sin chat ni a quién escribir.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto

@@ -18,6 +18,7 @@ export const RESUMEN = "- Julián pidió la cotización del plan anual.\n- Revis
 const BASE: CallRow = {
     id: "d1",
     phone: "573001112233",
+    destino: "573001112233",
     contactName: "Julián",
     direction: "outgoing",
     durationSecs: 187,

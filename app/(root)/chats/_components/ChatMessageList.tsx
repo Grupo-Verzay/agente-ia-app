@@ -115,6 +115,7 @@ interface MessageRowProps {
   message: UIBubble;
   advisorName?: string;
   callPhone?: string;
+  callPhoneVisible?: string;
   contactName?: string;
   isSearchMatch: boolean;
   isActiveSearchMatch: boolean;
@@ -137,6 +138,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   message,
   advisorName,
   callPhone,
+  callPhoneVisible,
   contactName,
   isSearchMatch,
   isActiveSearchMatch,
@@ -207,6 +209,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           messageId={message.id}
           audioSegundos={message.audioSegundos}
           callPhone={callPhone}
+          callPhoneVisible={callPhoneVisible}
           contactName={contactName}
           quotedMessage={message.quotedMessage}
           onJumpToQuoted={onJumpToMessage}
@@ -247,6 +250,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     prev.onDeleteNote !== next.onDeleteNote ||
     prev.advisorName !== next.advisorName ||
     prev.callPhone !== next.callPhone ||
+    prev.callPhoneVisible !== next.callPhoneVisible ||
     prev.contactName !== next.contactName ||
     prev.isSearchMatch !== next.isSearchMatch ||
     prev.isActiveSearchMatch !== next.isActiveSearchMatch ||
@@ -345,8 +349,14 @@ interface ChatMessageListProps {
   /** Mensaje al que se acaba de saltar desde una cita. */
   mensajeSaltado?: string | null;
   onJumpToMessage?: (messageId: string) => void;
-  /** Teléfono del contacto (solo dígitos) para el botón "devolver llamada" en burbujas de llamada */
+  /**
+   * A quién devuelve la llamada el botón de una burbuja de llamada: el destino
+   * (`lib/destino-de-la-llamada.ts`), o sea los dígitos del teléfono o el
+   * `@lid` entero de un contacto sin número a la vista.
+   */
   callPhone?: string;
+  /** El número como lo puede ver quien llama (tapado para un agente). */
+  callPhoneVisible?: string;
   contactName?: string;
   /**
    * De qué conversación es esta lista.
@@ -390,6 +400,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   mensajeSaltado,
   onJumpToMessage,
   callPhone,
+  callPhoneVisible,
   contactName,
   conversacion,
   flechaVisible = false,
@@ -613,6 +624,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               message={item.message}
               advisorName={advisorName}
               callPhone={callPhone}
+              callPhoneVisible={callPhoneVisible}
               contactName={contactName}
               isSearchMatch={searchMatchIds?.has(item.message.id) ?? false}
               isActiveSearchMatch={activeSearchMessageId === item.message.id}

@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { CrmConfirmActionDialog } from "../CrmConfirmActionDialog";
 import { getDisplayNombreFromRegistro } from "../../helpers/getDisplayNombreFromRegistro";
 import { getDisplayWhatsappFromSession } from "../../helpers/getDisplayWhatsappFromSession";
+import { elDestinoDeLaLlamada } from "@/lib/destino-de-la-llamada";
 
 export function CrmRecordActionsCell({
   registro,
@@ -39,12 +40,14 @@ export function CrmRecordActionsCell({
   const displayName = getDisplayNombreFromRegistro(registro);
   const displayWhatsapp = getDisplayWhatsappFromSession(registro.session);
 
-  // Dígitos del teléfono del lead para la llamada por WhatsApp (sin sufijos @).
-  const callDigits = (registro.session.remoteJid || "")
-    .split("@")[0]
-    .split(":")[0]
-    .replace(/\D/g, "");
-  const canCall = callDigits.length >= 6;
+  // A quién se llama: el teléfono real del lead, o su `@lid` ENTERO si entró
+  // por su usuario y no tiene número a la vista. Con los dígitos sueltos de un
+  // `@lid` se llamaba al número de nadie.
+  const destinoDeLaLlamada = elDestinoDeLaLlamada([
+    registro.session.remoteJid,
+    registro.session.remoteJidAlt,
+  ]);
+  const canCall = Boolean(destinoDeLaLlamada);
 
   const handleDeleteRegistro = async () => {
     const toastId = `crm-delete-registro-${registro.id}`;
@@ -92,7 +95,7 @@ export function CrmRecordActionsCell({
         <DropdownMenuContent align="end">
           {canCall && (
             <DropdownMenuItem
-              onSelect={() => abrirLlamadaAqui({ phone: callDigits, contactName: displayName })}
+              onSelect={() => abrirLlamadaAqui({ phone: destinoDeLaLlamada, numeroVisible: displayWhatsapp || undefined, contactName: displayName })}
             >
               <Phone className="h-4 w-4" />
               Llamar

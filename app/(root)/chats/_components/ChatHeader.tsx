@@ -36,6 +36,7 @@ import { PestanasDelChat } from './PestanasDelChat';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
 import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
+import { elDestinoDeLaLlamada } from '@/lib/destino-de-la-llamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
@@ -360,7 +361,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onSessionRefresh();
   };
 
-  const callDigits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
+  // A QUIÉN se llama: el teléfono real si el contacto lo tiene, si no su
+  // `@lid` entero (`lib/destino-de-la-llamada.ts`). Se decide con las
+  // identidades REALES y no con el número que se enseña: a un agente se le
+  // enseña tapado («+57 300 123 XXXX») y con esos dígitos se llamaba a otro
+  // número; y de un contacto sin número a la vista solo quedaban los dígitos de
+  // su `@lid`, que leídos como teléfono son el número de nadie.
+  const destinoDeLaLlamada = elDestinoDeLaLlamada([
+    session?.remoteJid,
+    session?.remoteJidAlt,
+    remoteJid,
+    ...(identidadesDelChat ?? []),
+  ]);
   // Lo que las dos formas de llamar necesitan, resuelto una vez. La LÍNEA es la
   // de la conversación abierta y viaja en las dos: `abrirLlamadaAqui` la usa
   // para el número de salida y `startBotCallAction` para la cuenta que llama y
@@ -369,7 +381,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   // layout, no de esta cabecera, así que la llamada aguanta al cambiar de
   // conversación o de pantalla.
   const datosParaLlamar = {
-    phone: callDigits,
+    phone: destinoDeLaLlamada,
+    // Lo que la tarjeta enseña: el número como lo puede ver esta persona.
+    numeroVisible: displayedWhatsapp || undefined,
     contactName: displayedContactName,
     instanceType,
     instanceName,
