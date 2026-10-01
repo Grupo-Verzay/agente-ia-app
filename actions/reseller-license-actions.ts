@@ -491,7 +491,10 @@ export async function createClientAccount(data: {
         company: data.company,
         password: hashed,
         role: "user",
-        plan: data.plan,
+        // El nivel es el de la licencia que consume, no el que mande la
+        // pantalla: con dos datos sueltos el cliente podía nacer en un nivel
+        // y contar en la licencia de otro (`lib/nivel-de-la-licencia.ts`).
+        plan: pool.subscriptionPlan.plan,
         isDemo: false,
         demoResellerId: user.id,
         resellerSubscriptionPlanId: data.subscriptionPlanId,

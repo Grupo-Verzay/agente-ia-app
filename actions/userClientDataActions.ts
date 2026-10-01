@@ -3,7 +3,7 @@
 import { sinLaClave } from '@/lib/clave-de-ia-para-el-navegador';
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
-import { IaCredit, Pausar, Prisma, User } from '@prisma/client';
+import { IaCredit, Pausar, Plan, Prisma, User } from '@prisma/client';
 import { ClientInterface } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
@@ -29,6 +29,9 @@ import { estadoDeLaSesionDeLaLinea, proveedorDeLaFila } from '@/lib/sesion-de-la
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
 import bcrypt from "bcryptjs";
+import { elNivelQueSeGuarda } from '@/lib/nivel-de-la-licencia';
+import { elNivelDeSuLicencia, losNivelesDeSusLicencias } from '@/lib/nivel-de-la-licencia.server';
+import { PLAN_LEVEL_LABELS } from '@/types/plans';
 import { borrarUnaAUna, comoListaDeIds, comoResumen, type ResumenDelBorrado } from "@/lib/borrado-en-bloque";
 
 interface ClientResponse<T = undefined> {
@@ -287,6 +290,14 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       }
     }
 
+    // El nivel que le da su licencia a cada cliente de reseller, en UNA consulta.
+    // El formulario de editar lo enseña fijo para esos clientes: su nivel no se
+    // cambia ahí, se cambia cambiando de licencia.
+    const nivelesDeLicencia = await losNivelesDeSusLicencias(users).catch((e) => {
+      console.warn("[clientes] no se pudo leer el nivel de las licencias de reseller", e);
+      return new Map<string, string>();
+    });
+
     const enrichedUsers: ClientInterface[] = await Promise.all(
       users.map(async (user): Promise<ClientInterface> => {
         // qrStatus === true significa DESCONECTADO (así lo leen la tabla, los
@@ -465,6 +476,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           credits,
           instancias: user.instancias,
           billing: user.billing ?? null,
+          nivelDeLaLicencia: (nivelesDeLicencia.get(user.id) as Plan | undefined) ?? null,
         };
       })
     );
@@ -617,7 +629,7 @@ export const updateClientDataByField = async (
     // manda estos campos por aquí (Perfil escribe datos de la ficha y el tema),
     // así que se cierran en seco: el rol se cambia en Clientes, que es donde
     // pasa por `elRolQueSePuedeGuardar`.
-    if (RESTRICTED_FIELDS.has(field) || field === 'role' || field === 'password') {
+    if (RESTRICTED_FIELDS.has(field) || field === 'role' || field === 'password' || field === 'plan') {
       console.warn('[clientes] se intentó escribir un campo protegido por el camino de un solo campo', { field });
       return { success: false, message: `El campo "${field}" no se cambia por aquí.` };
     }
@@ -673,6 +685,26 @@ export const updateClientData = async (userId: string, formData: FormData) => {
       else dataToUpdate.role = veredicto.rol;
     }
 
+    // El nivel de un cliente de reseller lo da SU LICENCIA, no el formulario
+    // (`lib/nivel-de-la-licencia.ts`). Se escribe siempre —también cuando el
+    // formulario no manda el campo, que es lo que ve un reseller—, así que
+    // guardar la ficha endereza a un cliente que se hubiera quedado en otro
+    // nivel. Lo que se pidió y no se aplicó se DICE en el aviso.
+    let nivelCorregido: string | null = null;
+    const nivelDeLaLicencia = await elNivelDeSuLicencia(userId);
+    if (nivelDeLaLicencia) {
+      const veredictoDelNivel = elNivelQueSeGuarda(dataToUpdate.plan, nivelDeLaLicencia);
+      if (veredictoDelNivel.corregido) {
+        console.warn("[clientes] se pidió un nivel distinto al de la licencia del reseller; se guarda el de la licencia", {
+          cliente: userId,
+          pedido: dataToUpdate.plan,
+          licencia: nivelDeLaLicencia,
+        });
+        nivelCorregido = nivelDeLaLicencia;
+      }
+      dataToUpdate.plan = veredictoDelNivel.plan;
+    }
+
     if (Object.keys(dataToUpdate).length === 0) {
       return { success: false, message: "No se encontraron campos válidos para actualizar." };
     }
@@ -685,6 +717,12 @@ export const updateClientData = async (userId: string, formData: FormData) => {
     // dos. Nunca lanza: la ficha ya está guardada.
     await apuntarUnaVezAlDia(me, "cliente_tocado", userId);
 
+    if (nivelCorregido) {
+      return {
+        success: true,
+        message: `Datos guardados. El nivel se quedó en ${PLAN_LEVEL_LABELS[nivelCorregido as Plan] ?? nivelCorregido}: es el de su licencia de reseller. Para cambiarlo, cambia su licencia.`,
+      };
+    }
     return { success: true, message: "Datos del cliente actualizados correctamente." };
   } catch (error) {
     console.error("Error actualizando datos del cliente desde formData:", error);
@@ -831,7 +869,7 @@ export const createUserWithPausar = async (
       id: string;
       usedLicenses: number;
       totalLicenses: number;
-      subscriptionPlan: { credits: number };
+      subscriptionPlan: { credits: number; plan: string };
     } | null = null;
     if (cuenta.role === 'reseller') {
       if (!userFields.demoResellerId) userFields.demoResellerId = cuenta.id;
@@ -858,6 +896,11 @@ export const createUserWithPausar = async (
         }
         // Etiquetar al cliente con el pool que consume (clave para contar y liberar).
         userFields.resellerSubscriptionPlanId = subscriptionPlanId;
+        // Y su nivel es el de la licencia, no el del formulario: el campo de
+        // plan está oculto para el reseller y llegaba con su valor por defecto
+        // (Nivel 2), así que el cliente nacía en otra licencia de la que
+        // consumía. Ver `lib/nivel-de-la-licencia.ts`.
+        userFields.plan = (elNivelQueSeGuarda(userFields.plan, pool.subscriptionPlan.plan).plan ?? userFields.plan) as Plan;
       }
     }
 

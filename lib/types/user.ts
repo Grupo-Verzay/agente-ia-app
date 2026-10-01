@@ -1,5 +1,5 @@
 import type { ClaveVistaDesdeElNavegador } from "@/lib/clave-de-ia-para-el-navegador";
-import { BillingStatus, IaCredit, Pausar, ServiceAccessStatus, Session, User, UserAiConfig } from "@prisma/client";
+import { BillingStatus, IaCredit, Pausar, Plan, ServiceAccessStatus, Session, User, UserAiConfig } from "@prisma/client";
 
 export interface UserWithPausar extends User {
     pausar: Pausar[]; // Array de registros Pausar
@@ -19,4 +19,10 @@ export interface ClientInterface extends User {
      * Analíticas. `null` = nunca se le configuró facturación.
      */
     billing?: { accessStatus: ServiceAccessStatus | null; billingStatus: BillingStatus | null } | null;
+    /**
+     * El nivel que le da su licencia de reseller, o `null` si no consume
+     * ninguna. Con licencia, el nivel no se elige en la ficha: es este
+     * (`lib/nivel-de-la-licencia.ts`).
+     */
+    nivelDeLaLicencia?: Plan | null;
 };

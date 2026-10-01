@@ -243,7 +243,10 @@ export const EditDialog = ({
     { id: "email",       label: "Correo",       defaultValue: user.email,         readOnly: false },
     { id: "passPlainTxt",label: "Nueva contraseña",   defaultValue: '',  readOnly: false },
     { id: "role",        label: "Rol",          defaultValue: user.role,          readOnly: false },
-    { id: "plan",        label: "Plan",         defaultValue: user.plan,          readOnly: false },
+    // Un cliente que consume una licencia de reseller no elige nivel aquí: es
+    // el de su licencia (`lib/nivel-de-la-licencia.ts`). Se enseña ese, fijo,
+    // y el servidor guarda ese mismo pase lo que pase.
+    { id: "plan",        label: "Plan",         defaultValue: user.nivelDeLaLicencia ?? user.plan, readOnly: Boolean(user.nivelDeLaLicencia) },
     { id: "creditTotal", label: "Créditos +",   defaultValue: null,               readOnly: false },
     { id: "creditUsed",  label: "Créditos -",   defaultValue: null,               readOnly: false },
     { id: "webhookUrl",  label: "Webhook",      defaultValue: user.webhookUrl,    readOnly: false },
@@ -317,6 +320,7 @@ export const EditDialog = ({
         )
       case 'plan':
         return (
+          <div className="flex flex-col gap-1">
           <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
             <SelectTrigger>
               <SelectValue placeholder={label ?? "Selecciona un plan"} />
@@ -331,6 +335,12 @@ export const EditDialog = ({
               </SelectGroup>
             </SelectContent>
           </Select>
+          {user.nivelDeLaLicencia && (
+            <span data-nivel-de-la-licencia className="text-[11px] leading-tight text-muted-foreground">
+              Lo da su licencia de reseller.
+            </span>
+          )}
+          </div>
         )
       case 'muteAgentResponses': {
         const checked = enMute;

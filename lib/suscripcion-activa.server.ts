@@ -1,9 +1,10 @@
 import "server-only";
 
-import { SubscriptionStatus } from "@prisma/client";
+import { Plan, SubscriptionStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { elPlanQueQueda, ESTADOS_PENDIENTES } from "@/lib/ciclo-pagado";
+import { elNivelDeSuLicencia } from "@/lib/nivel-de-la-licencia.server";
 
 /**
  * Activar una suscripción de /planes. **Una sola escritura para los dos
@@ -43,7 +44,10 @@ export async function activarLaSuscripcion(args: {
     // `personalizado`: ese es un acuerdo hecho a mano, y cambiárselo era la
     // mitad de cómo aprobar pisaba los créditos pactados.
     const cuenta = await db.user.findUnique({ where: { id: sub.userId }, select: { plan: true } });
-    const plan = elPlanQueQueda(cuenta?.plan ?? null, sub.subscriptionPlan.plan);
+    // Y salvo que consuma una licencia de reseller: entonces su nivel es el de
+    // esa licencia, lo apruebe quien lo apruebe (`lib/nivel-de-la-licencia.ts`).
+    const nivelDeLaLicencia = await elNivelDeSuLicencia(sub.userId);
+    const plan = (nivelDeLaLicencia as Plan | null) ?? elPlanQueQueda(cuenta?.plan ?? null, sub.subscriptionPlan.plan);
     if (plan !== cuenta?.plan) {
         await db.user.update({ where: { id: sub.userId }, data: { plan } });
     }

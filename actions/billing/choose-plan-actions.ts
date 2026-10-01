@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
+import { elNivelDeSuLicencia } from "@/lib/nivel-de-la-licencia.server";
 import {
     normalizarAsistencia,
     normalizarPlan,
@@ -139,6 +140,23 @@ export async function elegirPlanParaPagar(
 
         const plan = normalizarPlan(planSlug);
         if (!plan) return { success: false, message: "Plan no válido." };
+
+        // Un cliente que consume una licencia de un reseller no elige su
+        // nivel: se lo da esa licencia (`lib/nivel-de-la-licencia.ts`). Dejarle
+        // escoger otro aquí lo sacaba del nivel que su reseller paga —y, por
+        // debajo del Nivel 6, sin poder crear usuarios— sin que nadie lo viera.
+        const nivelDeLaLicencia = await elNivelDeSuLicencia(me.id);
+        if (nivelDeLaLicencia && nivelDeLaLicencia !== plan) {
+            console.warn("[planes] un cliente de reseller intentó elegir otro nivel que el de su licencia", {
+                cuenta: me.id,
+                pedido: plan,
+                licencia: nivelDeLaLicencia,
+            });
+            return {
+                success: false,
+                message: "Tu nivel lo da la licencia de tu proveedor. Para cambiarlo, pídeselo a él.",
+            };
+        }
 
         const resellerUserId = await resellerDeLaCuenta(me.id);
         const precio = await precioDePlanParaCuenta(
