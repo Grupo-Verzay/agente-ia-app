@@ -16,7 +16,12 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { BOTON_VER_TUTORIAL, TEXTO_DEL_BOTON, type TutorialDelModulo } from '@/lib/tutoriales-del-modulo';
+import {
+  BOTON_DE_TUTORIALES_EN_LA_BARRA,
+  BOTON_VER_TUTORIAL,
+  TEXTO_DEL_BOTON,
+  type TutorialDelModulo,
+} from '@/lib/tutoriales-del-modulo';
 import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
@@ -60,6 +65,9 @@ export const breadcrumbLabels: Record<string, string> = {
  *
  *   [menú]    [Chats 3 | Correos 12]    …    [tutoriales] [buscar] [ayuda] [soporte] [campana]
  *                ^ centrado en la columna de la lista
+ *
+ * En el teléfono (por debajo de `sm`) «Ver tutoriales» no sale: los iconos no
+ * caben y «Ayuda» ya lleva a todas las guías (`BOTON_DE_TUTORIALES_EN_LA_BARRA`).
  *
  * - **El menú (las dos flechas) va siempre de primero**, en el mismo píxel en
  *   todas las pantallas. **No hay casita**: llevaba al inicio, que ya se abre
@@ -131,14 +139,19 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
             <div ref={loDeLaDerecha} data-botones-de-la-barra className="ml-2 flex shrink-0 items-center gap-2">
               {guides.length > 0 && (
                   <Dialog>
+                    {/* En el teléfono no sale (`hidden` hasta `sm`): ahí la
+                        barra no da para ocho iconos y «Ayuda», al lado, ya
+                        lleva a todas las guías. En escritorio, igual que
+                        siempre: rojo y con su palabra. */}
                     <DialogTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-9 bg-[#FF0033] hover:bg-[#e60000] text-white font-semibold transition duration-200 uppercase"
+                        data-boton-de-tutoriales
+                        className={BOTON_DE_TUTORIALES_EN_LA_BARRA}
                       >
                         <Play className="h-4 w-4 text-white" />
-                        <span className="hidden sm:inline">Ver tutoriales</span>
+                        <span>Ver tutoriales</span>
                       </Button>
                     </DialogTrigger>
 
