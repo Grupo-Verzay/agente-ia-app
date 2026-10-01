@@ -186,6 +186,8 @@ export async function sendWahaTextAction(
         instanceType: 'waha',
         remoteJid,
         fromMe: true,
+        // Lo envía una persona desde el panel (ver `lib/chats-eliminados.ts`).
+        porUnaPersona: true,
         messageId: envio.messageId,
         messageType: `${mediatype}Message`,
         content: texto,
@@ -244,6 +246,8 @@ export async function sendWahaTextAction(
       instanceType: 'waha',
       remoteJid,
       fromMe: true,
+      // Lo envía una persona desde el panel (ver `lib/chats-eliminados.ts`).
+      porUnaPersona: true,
       messageId: envio.messageId,
       messageType: 'conversation',
       content: text,

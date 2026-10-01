@@ -28,6 +28,7 @@ import {
   SinLineaParaBorrar,
 } from "@/lib/borrado-de-chats.server";
 import { lanzarLaPurgaDeFondo } from "@/lib/purga-de-chats.server";
+import { asegurarLaTablaDeEliminados } from "@/lib/chats-eliminados-db";
 import { elUniversoDelBorrado } from "@/lib/conversaciones-para-borrar.server";
 import {
   comoTextoDelBorrado,
@@ -422,6 +423,8 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
   await unificarPorSufijoDeDispositivo(userIds);
 
   try {
+    // La consulta de abajo mira las lapidas: la tabla tiene que existir.
+    await asegurarLaTablaDeEliminados();
     const creadas = await db.$queryRaw<Array<{ remoteJid: string; instanceName: string }>>`
       INSERT INTO "Session" (
         "userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId",
@@ -491,6 +494,18 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
               regexp_replace(s."remoteJid", ':[0-9]+@', '@') = ANY (c."identidades")
               OR regexp_replace(COALESCE(s."remoteJidAlt", ''), ':[0-9]+@', '@') = ANY (c."identidades")
             )
+        )
+        -- NI la de un contacto ELIMINADO. Esta reposicion era la que volvia a
+        -- crear, cinco minutos despues, el lead que alguien acababa de borrar:
+        -- la conversacion sigue ahi y para esta consulta eso era «una
+        -- conversacion sin ficha». La lapida dice que se borro a proposito; el
+        -- lead vuelve cuando el contacto escribe (y entonces la lapida esta
+        -- revivida).
+        AND NOT EXISTS (
+          SELECT 1 FROM "chats_eliminados" e
+          WHERE e."instanceName" = c."instanceName"
+            AND e."remoteJid" = ANY (c."identidades" || ARRAY[c."canonico"])
+            AND (e."revividoEn" IS NULL OR e."revividoEn" < e."eliminadoEn")
         )
       ON CONFLICT ("userId", "instanceId", "remoteJid") DO NOTHING
       RETURNING "remoteJid", "instanceId" AS "instanceName"

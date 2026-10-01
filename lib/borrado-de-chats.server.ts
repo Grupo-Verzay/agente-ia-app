@@ -16,6 +16,12 @@ import {
   MARCAS_POR_SENTENCIA,
 } from "@/lib/borrado-de-chats";
 import type { ChatConversationPreference } from "@/types/chat";
+import { estaRevivida } from "@/lib/chats-eliminados";
+import {
+  laLapidaDelContacto,
+  ponerLapidas,
+  prepararLapidas,
+} from "@/lib/chats-eliminados-db";
 
 /**
  * Las marcas de Chats y el borrado del historial de una conversacion.
@@ -406,10 +412,19 @@ export async function hardDeleteLocalChat(
   instanceName: string | null | undefined,
   remoteJid: string,
   identidadesDeLaFila: string[] = [],
+  opciones: {
+    /**
+     * Cuando se pidio eliminar. La fase 2 del borrado en bloque pasa la hora de
+     * la marca de la fase 1: la lapida tiene que decir la MISMA hora, o un
+     * mensaje del contacto entre las dos fases dejaria de contar como «escribio
+     * despues».
+     */
+    eliminadoEn?: Date;
+  } = {},
 ) {
   await ensurePurgedAtColumn();
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
-  const deletedAt = new Date();
+  const deletedAt = opciones.eliminadoEn ?? new Date();
   const linea = normalizarLinea(instanceName);
 
   // SIN LINEA NO SE BORRA. Ni el historial, ni la marca.
@@ -495,6 +510,17 @@ export async function hardDeleteLocalChat(
   // Se pregunta ANTES de la transaccion: dentro no se hacen consultas que no
   // sean el propio borrado.
   const borradoDefinitivo = await laListaSaleDeNuestraBase(linea);
+  // Las copias de la conversacion que se guardaron bajo OTRA cuenta.
+  //
+  // La conversacion de una linea se guarda a veces bajo la cuenta de quien la
+  // mira (la bandeja une las lineas de varias cuentas), y la lista las lee
+  // todas. Borrando solo bajo `userId`, esa copia sobrevivia y en una linea de
+  // Waha -que no deja marca, ver abajo- el chat volvia a aparecer sin que
+  // nadie lo tocara. Se borran todas SOLO cuando la linea es de esta cuenta y
+  // de nadie mas: un mismo nombre de linea en dos cuentas no puede dejar que
+  // una borre el historial de la otra.
+  const laLineaEsSoloSuya = await laLineaEsSoloDe(linea, userId);
+  await prepararLapidas();
 
   await db.$transaction(async (tx) => {
     // Antes aqui se BORRABAN las marcas de las demas identidades del contacto,
@@ -507,7 +533,7 @@ export async function hardDeleteLocalChat(
 
     const sessions = await tx.session.findMany({
       where: {
-        userId,
+        ...(laLineaEsSoloSuya ? {} : { userId }),
         // Acotada SIEMPRE, por lo mismo que el filtro de los DELETE: estas
         // sesiones se borran unas lineas mas abajo, y sin acotar se borraba la
         // ficha de CRM del contacto en todas las lineas de la cuenta.
@@ -549,10 +575,15 @@ export async function hardDeleteLocalChat(
     // filtro no PUEDE faltar: si `linea` fuera vacia, la consulta no borraria
     // nada en vez de borrarlo todo.
     const deEstaLinea = Prisma.sql`AND "instanceName" = ${linea}`;
+    // La cuenta SI puede faltar, y solo ella: con la linea siempre puesta,
+    // quitar la cuenta ensancha el borrado a las copias de esa linea bajo otra
+    // cuenta, nunca a otra linea.
+    const deLaCuenta = laLineaEsSoloSuya ? Prisma.empty : Prisma.sql`AND "userId" = ${userId}`;
 
     await tx.$executeRaw`
       DELETE FROM "chat_conversations"
-      WHERE "userId" = ${userId}
+      WHERE TRUE
+        ${deLaCuenta}
         ${deEstaLinea}
         AND (
           "remoteJid" IN (${Prisma.join(candidates)})
@@ -563,7 +594,8 @@ export async function hardDeleteLocalChat(
 
     await tx.$executeRaw`
       DELETE FROM "chat_messages"
-      WHERE "userId" = ${userId}
+      WHERE TRUE
+        ${deLaCuenta}
         ${deEstaLinea}
         AND (
           "remoteJid" IN (${Prisma.join(candidates)})
@@ -573,6 +605,34 @@ export async function hardDeleteLocalChat(
     `;
 
     await purgarRastroDelContacto(tx, userId, candidates);
+
+    // Los recordatorios pendientes de ese contacto en esta linea. Uno que sale
+    // despues de eliminar le escribe a alguien que ya no esta en la bandeja.
+    // Las plantillas de la agenda y las campañas no se tocan: no son de un
+    // contacto. Los ya enviados que no se repiten son historia y se quedan.
+    await tx.$executeRaw`
+      DELETE FROM "Reminders"
+      WHERE "instanceName" = ${linea}
+        AND "remoteJid" IN (${Prisma.join(candidates)})
+        AND COALESCE("isSchedule", false) = false
+        AND COALESCE("isCampaign", false) = false
+        AND ("sentAt" IS NULL OR "repeatType" IS DISTINCT FROM 'NONE')
+    `;
+
+    // LA LAPIDA. Es lo que hace que eliminar sea definitivo: todo lo que
+    // escribe un mensaje, una conversacion o una ficha la mira antes (ver
+    // `lib/chats-eliminados.ts`), asi que el sondeo, la precarga, el historial
+    // de Waha, el eco de un seguimiento o la reposicion de fichas ya no
+    // reescriben lo que se acaba de borrar. Va bajo TODAS las identidades, las
+    // de la pantalla incluidas: una lapida de mas solo tapa a ese contacto, y
+    // se levanta en cuanto escribe.
+    await ponerLapidas(tx, {
+      instanceName: linea,
+      contactos: [paraMarcar],
+      userId,
+      alcance: "chat",
+      eliminadoEn: deletedAt,
+    });
 
     /**
      * Si la lista de esta linea sale de NUESTRA base, el chat ya se fue: no
@@ -679,15 +739,319 @@ export async function hardDeleteLocalChat(
     identidadesMarcadas: paraMarcar.length,
     completadasDesdeLaBase: Math.max(0, candidates.length - formasBase.length),
     completadasDesdeLaPantalla: Math.max(0, paraMarcar.length - candidates.length),
+    copiasDeOtrasCuentas: laLineaEsSoloSuya,
   });
 
   invalidatePersistedInboxCache();
+  programarElBarrido({
+    linea,
+    identidades: candidates,
+    userId: laLineaEsSoloSuya ? null : userId,
+    eliminadoEn: deletedAt,
+  });
 
   // El `revalidatePath("/chats")` de aqui se fue a la accion, y no es un
   // detalle de estilo: este borrado corre tambien desde el obrero de fondo y
   // desde el barrido diario, donde no hay peticion de Next y `revalidatePath`
   // revienta. Y llamarlo una vez por chat era N veces lo mismo.
   return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid, linea);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lo que se cuela mientras se borra, y eliminar solo el LEAD
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Cuanto se espera para barrer lo que se escribio a la vez que el borrado. */
+export const ESPERA_DEL_BARRIDO_MS = 5_000;
+
+export type BarridoDeLoQueSeColo = {
+  linea: string;
+  identidades: readonly string[];
+  /** `null` = la linea es solo de esa cuenta: se barren todas sus copias. */
+  userId: string | null;
+  eliminadoEn: Date;
+};
+
+/**
+ * La lapida no tapa lo que YA estaba en camino.
+ *
+ * Una vuelta del sondeo que leyo la lapida un instante antes de que el borrado
+ * la escribiera -o la precarga a mitad de guardar cincuenta mensajes- escribe
+ * igual, y una sola fila de `chat_conversations` basta para que el chat vuelva
+ * a la bandeja. Unos segundos despues se borra lo que se colo, mirando la
+ * lapida otra vez: si el contacto escribio o una persona devolvio la
+ * conversacion mientras tanto, no se toca nada.
+ */
+export async function barrerLoQueSeColo(entrada: BarridoDeLoQueSeColo): Promise<{
+  barrido: boolean;
+  mensajes: number;
+  conversaciones: number;
+  fichas: number;
+}> {
+  const nada = { barrido: false, mensajes: 0, conversaciones: 0, fichas: 0 };
+  const identidades = Array.from(new Set(entrada.identidades.filter(Boolean)));
+  if (!entrada.linea || identidades.length === 0) return nada;
+
+  const actual = await laLapidaDelContacto(entrada.linea, identidades);
+  if (!actual) return nada;
+  const { lapida } = actual;
+  // Revivida, o eliminada OTRA vez despues: esa eliminacion tiene su propio
+  // barrido.
+  if (estaRevivida(lapida)) return nada;
+  if (lapida.eliminadoEn.getTime() !== entrada.eliminadoEn.getTime()) return nada;
+
+  const deLaCuenta = entrada.userId ? Prisma.sql`AND "userId" = ${entrada.userId}` : Prisma.empty;
+  const porIdentidad = Prisma.sql`(
+    "remoteJid" IN (${Prisma.join(identidades)})
+    OR "remoteJidAlt" IN (${Prisma.join(identidades)})
+    OR "senderPn" IN (${Prisma.join(identidades)})
+  )`;
+
+  let mensajes = 0;
+  let conversaciones = 0;
+  if (lapida.historialHasta) {
+    mensajes = await db.$executeRaw`
+      DELETE FROM "chat_messages"
+      WHERE "instanceName" = ${entrada.linea}
+        ${deLaCuenta}
+        AND ${porIdentidad}
+        AND "messageTimestamp" <= ${lapida.historialHasta}
+    `;
+  }
+  // La conversacion solo sobra si sigue eliminada entera. Si una persona le
+  // escribio desde el panel, la lapida paso a «ficha» y la conversacion se
+  // queda: la acaba de abrir ella.
+  if (lapida.alcance === "chat") {
+    conversaciones = await db.$executeRaw`
+      DELETE FROM "chat_conversations"
+      WHERE "instanceName" = ${entrada.linea}
+        ${deLaCuenta}
+        AND ${porIdentidad}
+    `;
+  }
+
+  const fichas = await db.$transaction(async (tx) => {
+    const sesiones = await tx.session.findMany({
+      where: {
+        ...(entrada.userId ? { userId: entrada.userId } : {}),
+        instanceId: entrada.linea,
+        OR: [{ remoteJid: { in: identidades } }, { remoteJidAlt: { in: identidades } }],
+      },
+      select: { id: true },
+    });
+    const ids = sesiones.map((s) => s.id);
+    if (ids.length === 0) return 0;
+    await tx.financeTransaction.updateMany({ where: { sessionId: { in: ids } }, data: { sessionId: null } });
+    await tx.collabNotification.updateMany({ where: { sessionId: { in: ids } }, data: { sessionId: null } });
+    const borradas = await tx.session.deleteMany({ where: { id: { in: ids } } });
+    return borradas.count;
+  });
+
+  if (mensajes + conversaciones + fichas > 0) {
+    // Que haya algo que barrer es la señal de que algo escribio a la vez que
+    // el borrado. Se dice, para poder ver si pasa a menudo.
+    console.info("[chats] se barrio lo que se colo en un chat eliminado", {
+      linea: entrada.linea,
+      remoteJid: identidades[0],
+      mensajes,
+      conversaciones,
+      fichas,
+    });
+    invalidatePersistedInboxCache();
+  }
+  return { barrido: true, mensajes, conversaciones, fichas };
+}
+
+function programarElBarrido(entrada: BarridoDeLoQueSeColo) {
+  const reloj = setTimeout(() => {
+    barrerLoQueSeColo(entrada).catch((error) => {
+      // Es una red de seguridad: el borrado ya se hizo. Pero no es muda.
+      console.warn("[chats] no se pudo barrer lo que se colo al eliminar", {
+        linea: entrada.linea,
+        remoteJid: entrada.identidades[0],
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, ESPERA_DEL_BARRIDO_MS);
+  reloj.unref?.();
+}
+
+/** Los dos nombres con los que se guarda una linea (`seguimientos.instancia`). */
+async function losNombresDeLaLinea(linea: string): Promise<string[]> {
+  const filas = await db.instancia.findMany({
+    where: { OR: [{ instanceName: linea }, { instanceId: linea }] },
+    select: { instanceName: true, instanceId: true },
+  });
+  return Array.from(
+    new Set([linea, ...filas.flatMap((f) => [f.instanceName, f.instanceId])].filter(Boolean)),
+  ) as string[];
+}
+
+async function laLineaEsSoloDe(linea: string, userId: string): Promise<boolean> {
+  const duenos = await db.instancia.findMany({
+    where: { instanceName: linea },
+    select: { userId: true },
+  });
+  return duenos.length > 0 && duenos.every((d) => d.userId === userId);
+}
+
+export type FichaParaEliminar = {
+  id: number;
+  userId: string;
+  remoteJid: string;
+  remoteJidAlt: string | null;
+  /** La ficha guarda la LINEA aqui (su nombre, no su id). */
+  instanceId: string | null;
+};
+
+/**
+ * Eliminar el LEAD de un contacto en una linea, para siempre.
+ *
+ * Borrar la fila de `Session` no bastaba: la reposicion de fichas
+ * (`crearFichasQueFaltan`, cada cinco minutos) la volvia a crear a partir de
+ * la conversacion, que sigue ahi, y el siguiente mensaje que el sondeo
+ * reescribiera tambien. Asi que se borra la ficha bajo TODAS las identidades
+ * del contacto en esa linea y se deja la lapida de «ficha»: la conversacion
+ * sigue, el lead no vuelve hasta que el contacto escriba otra vez.
+ *
+ * Y los seguimientos pendientes de ese contacto en esa linea se van con el: un
+ * recordatorio de una cita que ya no existe no puede seguir saliendo.
+ */
+export async function eliminarLaFichaDelContacto(
+  sesion: FichaParaEliminar,
+  opciones: { eliminadoEn?: Date } = {},
+): Promise<{ fichas: number; lapidas: number; linea: string }> {
+  const linea = normalizarLinea(sesion.instanceId);
+  const eliminadoEn = opciones.eliminadoEn ?? new Date();
+
+  if (!linea) {
+    // Una ficha vieja sin linea: no hay donde poner la lapida. Se borra como
+    // antes y se dice, porque esa SI puede volver.
+    console.warn("[leads] ficha sin linea: se borra sin lapida y puede volver", {
+      sessionId: sesion.id,
+      userId: sesion.userId,
+      remoteJid: sesion.remoteJid,
+    });
+    const fichas = await db.$transaction(async (tx) => {
+      await tx.financeTransaction.updateMany({ where: { sessionId: sesion.id }, data: { sessionId: null } });
+      await tx.collabNotification.updateMany({ where: { sessionId: sesion.id }, data: { sessionId: null } });
+      return (await tx.session.deleteMany({ where: { id: sesion.id } })).count;
+    });
+    return { fichas, lapidas: 0, linea: "" };
+  }
+
+  const normalizado = normalizeWhatsAppConversationJid(sesion.remoteJid) || sesion.remoteJid;
+  const identidades = await identidadesDelContacto(sesion.userId, linea, normalizado, [
+    sesion.remoteJid,
+    ...(sesion.remoteJidAlt ? [sesion.remoteJidAlt] : []),
+  ]);
+  const [nombres, soloSuya] = await Promise.all([
+    losNombresDeLaLinea(linea),
+    laLineaEsSoloDe(linea, sesion.userId),
+  ]);
+  await prepararLapidas();
+
+  const resultado = await db.$transaction(async (tx) => {
+    const otras = await tx.session.findMany({
+      where: {
+        ...(soloSuya ? {} : { userId: sesion.userId }),
+        instanceId: linea,
+        OR: [{ remoteJid: { in: identidades } }, { remoteJidAlt: { in: identidades } }],
+      },
+      select: { id: true },
+    });
+    const ids = Array.from(new Set([sesion.id, ...otras.map((s) => s.id)]));
+    await tx.financeTransaction.updateMany({ where: { sessionId: { in: ids } }, data: { sessionId: null } });
+    await tx.collabNotification.updateMany({ where: { sessionId: { in: ids } }, data: { sessionId: null } });
+    const fichas = (await tx.session.deleteMany({ where: { id: { in: ids } } })).count;
+
+    await tx.seguimiento.deleteMany({
+      where: { instancia: { in: nombres }, remoteJid: { in: identidades } },
+    });
+
+    const lapidas = await ponerLapidas(tx, {
+      instanceName: linea,
+      contactos: [identidades],
+      userId: sesion.userId,
+      alcance: "ficha",
+      eliminadoEn,
+    });
+    return { fichas, lapidas };
+  });
+
+  console.info("[leads] lead eliminado con su lapida", {
+    sessionId: sesion.id,
+    linea,
+    remoteJid: normalizado,
+    fichas: resultado.fichas,
+    identidades: identidades.length,
+  });
+
+  programarElBarrido({ linea, identidades, userId: soloSuya ? null : sesion.userId, eliminadoEn });
+  return { ...resultado, linea };
+}
+
+/**
+ * Eliminar TODOS los leads de una cuenta, cada uno con su lapida.
+ *
+ * Va en tandas de lo que se leyo, y se repite si mientras tanto nacio otra
+ * ficha: borrar «todas» sin lapida dejaba que la reposicion de fichas las
+ * creara otra vez en cinco minutos, que es justo lo que se veia.
+ */
+export async function eliminarTodasLasFichasDeLaCuenta(userId: string): Promise<{
+  fichas: number;
+  sinLinea: number;
+}> {
+  await prepararLapidas();
+  const eliminadoEn = new Date();
+  let fichas = 0;
+  let sinLinea = 0;
+
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    const sesiones = await db.session.findMany({
+      where: { userId },
+      select: { id: true, remoteJid: true, remoteJidAlt: true, instanceId: true },
+    });
+    if (sesiones.length === 0) break;
+
+    const porLinea = new Map<string, (string | null)[][]>();
+    for (const s of sesiones) {
+      const linea = normalizarLinea(s.instanceId);
+      if (!linea) {
+        sinLinea++;
+        continue;
+      }
+      const lista = porLinea.get(linea) ?? [];
+      lista.push([s.remoteJid, s.remoteJidAlt]);
+      porLinea.set(linea, lista);
+    }
+    for (const [linea, contactos] of Array.from(porLinea.entries())) {
+      await ponerLapidas(db, { instanceName: linea, contactos, userId, alcance: "ficha", eliminadoEn });
+      const nombres = await losNombresDeLaLinea(linea);
+      const jids = contactos.flat().filter((j): j is string => Boolean(j));
+      for (let i = 0; i < jids.length; i += 1000) {
+        await db.seguimiento.deleteMany({
+          where: { instancia: { in: nombres }, remoteJid: { in: jids.slice(i, i + 1000) } },
+        });
+      }
+    }
+
+    const ids = sesiones.map((s) => s.id);
+    for (let i = 0; i < ids.length; i += 1000) {
+      const trozo = ids.slice(i, i + 1000);
+      fichas += await db.$transaction(async (tx) => {
+        await tx.financeTransaction.updateMany({ where: { sessionId: { in: trozo } }, data: { sessionId: null } });
+        await tx.collabNotification.updateMany({ where: { sessionId: { in: trozo } }, data: { sessionId: null } });
+        return (await tx.session.deleteMany({ where: { id: { in: trozo } } })).count;
+      });
+    }
+  }
+
+  if (sinLinea > 0) {
+    console.warn("[leads] fichas sin linea borradas sin lapida: pueden volver", { userId, sinLinea });
+  }
+  console.info("[leads] todos los leads eliminados con su lapida", { userId, fichas });
+  return { fichas, sinLinea };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -808,15 +1172,15 @@ export async function marcarEnBloque(
   remoteJids: string[],
   data: MarcaEnBloque,
   identidadesPorJid: Record<string, string[]> = {},
-): Promise<{ marcas: ChatConversationPreference[]; filas: number }> {
+): Promise<{ marcas: ChatConversationPreference[]; filas: number; contactos: string[][] }> {
   const linea = normalizarLinea(instanceName);
   const pedidos = Array.from(
     new Set(remoteJids.map((jid) => normalizePreferenceRemoteJid(jid)).filter(Boolean)),
   );
-  if (pedidos.length === 0) return { marcas: [], filas: 0 };
+  if (pedidos.length === 0) return { marcas: [], filas: 0, contactos: [] };
 
   const columnas = COLUMNAS_DE_MARCA.filter((c) => data[c] !== undefined);
-  if (columnas.length === 0) return { marcas: [], filas: 0 };
+  if (columnas.length === 0) return { marcas: [], filas: 0, contactos: [] };
 
   await ensurePurgedAtColumn();
   const grupos = await identidadesDeEstosChats(userId, linea, pedidos);
@@ -825,11 +1189,19 @@ export async function marcarEnBloque(
   // puede salir de dos filas, y `ON CONFLICT` no puede tocar la misma fila dos
   // veces en una sentencia.
   const todas = new Set<string>();
+  // Y las mismas, agrupadas por contacto: la lapida del borrado las necesita
+  // asi, una por contacto.
+  const contactos: string[][] = [];
   for (const jid of pedidos) {
+    const delContacto: string[] = [];
     for (const identidad of identidadesParaMarcar(jid, grupos, identidadesPorJid[jid] ?? [])) {
       const normalizada = normalizePreferenceRemoteJid(identidad);
-      if (normalizada) todas.add(normalizada);
+      if (normalizada) {
+        todas.add(normalizada);
+        delContacto.push(normalizada);
+      }
     }
+    contactos.push(delContacto);
   }
 
   const set = Prisma.join(
@@ -876,7 +1248,7 @@ export async function marcarEnBloque(
     },
   });
 
-  return { marcas: filas.map((fila) => mapPreference(fila)), filas: lista.length };
+  return { marcas: filas.map((fila) => mapPreference(fila)), filas: lista.length, contactos };
 }
 
 /**
@@ -893,12 +1265,21 @@ export async function marcarEnBloque(
  * puede situar esconderia al contacto en toda la cuenta. Quien llama lo cuenta y
  * lo dice.
  */
+/** La hora con la que quedo la marca (la base pone `NOW()`), o ahora. */
+function laHoraDeLaMarca(marcas: ChatConversationPreference[]): Date {
+  for (const marca of marcas) {
+    const t = marca.deletedAt ? new Date(marca.deletedAt) : null;
+    if (t && Number.isFinite(t.getTime())) return t;
+  }
+  return new Date();
+}
+
 export async function marcarChatsComoBorrados(
   userId: string,
   instanceName: string | null | undefined,
   remoteJids: string[],
   identidadesPorJid: Record<string, string[]> = {},
-): Promise<{ marcas: ChatConversationPreference[]; filas: number }> {
+): Promise<{ marcas: ChatConversationPreference[]; filas: number; contactos: string[][] }> {
   const linea = normalizarLinea(instanceName);
   if (!linea) {
     console.warn("[chats] borrado en bloque rechazado: no se sabe de que linea son", {
@@ -916,11 +1297,25 @@ export async function marcarChatsComoBorrados(
     identidadesPorJid,
   );
 
+  // La lapida va ya en la fase 1, y no al purgar: entre las dos fases el
+  // sondeo y la precarga siguen escribiendo, y en una linea de Waha -que no
+  // deja marca al purgar- la conversacion volveria en cuanto la fase 2 la
+  // borrase. La hora es la de la marca: la fase 2 repite la lapida con ella.
+  await prepararLapidas();
+  const lapidas = await ponerLapidas(db, {
+    instanceName: linea,
+    contactos: salida.contactos,
+    userId,
+    alcance: "chat",
+    eliminadoEn: laHoraDeLaMarca(salida.marcas),
+  });
+
   console.info("[chats] marcas de borrado guardadas en bloque", {
     userId,
     linea,
     conversaciones: salida.marcas.length,
     filas: salida.filas,
+    lapidas,
   });
 
   return salida;

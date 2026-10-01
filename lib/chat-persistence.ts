@@ -11,6 +11,12 @@ import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from '@/lib/whatsapp-mes
 import { MEMORIA_DE_LA_BANDEJA_MS, TOPE_DE_LA_BANDEJA, VENTANA_DE_CANDIDATOS } from '@/lib/bandeja';
 import { segundosDeLaNota } from '@/lib/transcripcion-de-voz';
 import { laTraduccionDelRaw } from '@/lib/traduccion-de-chats';
+import { queHacerConElMensaje, type QueHacerConElMensaje } from '@/lib/chats-eliminados';
+import {
+  devolverLaConversacion,
+  laLapidaDelContacto,
+  revivirElContacto,
+} from '@/lib/chats-eliminados-db';
 import type { ChatData, EvolutionMessage, LastMessage, MessageContent } from '@/actions/chat-actions';
 
 type PersistedChatMessageRow = {
@@ -85,6 +91,12 @@ export type PersistChatMessageInput = {
    * ninguna. Ver `persistEvolutionMessages`.
    */
   puedeReabrir?: boolean;
+  /**
+   * Lo escribió una PERSONA desde el panel (no la IA, un flujo, un aviso ni
+   * el sondeo). Solo cuenta para un contacto eliminado: si una persona le
+   * escribe, la conversación vuelve a verse (ver `lib/chats-eliminados.ts`).
+   */
+  porUnaPersona?: boolean;
 };
 
 let ensureTablePromise: Promise<void> | null = null;
@@ -747,7 +759,10 @@ function avisarLineaSinDueno(instanceName: string | null | undefined, mirando: s
   });
 }
 
-export async function upsertSessionFromChatMessage(input: PersistChatMessageInput) {
+export async function upsertSessionFromChatMessage(
+  input: PersistChatMessageInput,
+  opciones: { crearFicha?: boolean } = {},
+) {
   // UN GRUPO SI TIENE FICHA, y el CRM no la mira.
   //
   // En #700 esto devolvia antes de crearla, para no dejar leads falsos. El
@@ -911,6 +926,10 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   // sesiones fantasma duplicadas del propio número. Si la sesión ya existe, el
   // bloque anterior la actualiza; si no existe, no la creamos desde un saliente.
   if (input.fromMe) return;
+
+  // Y un lead que alguien ELIMINÓ no se crea otra vez por un mensaje que no
+  // es novedad del contacto: lo decide la lápida (ver `persistChatMessage`).
+  if (opciones.crearFicha === false) return;
 
   // Creación idempotente: el índice único (userId, instanceId, remoteJid) impide
   // duplicados; ON CONFLICT DO NOTHING absorbe cualquier carrera concurrente.
@@ -1239,6 +1258,85 @@ export async function eliminarMensajeDelTodo(params: {
   }
 }
 
+/** Un aviso por contacto y rato: el sondeo repite los mismos mensajes. */
+const AVISO_DE_ELIMINADO_MS = 5 * 60 * 1000;
+const ultimoAvisoDeEliminado = new Map<string, number>();
+
+function avisarQueNoSeReescribe(linea: string, jid: string, alcance: string) {
+  const llave = `${linea}::${jid}`;
+  const ahora = Date.now();
+  if (ahora - (ultimoAvisoDeEliminado.get(llave) ?? 0) < AVISO_DE_ELIMINADO_MS) return;
+  ultimoAvisoDeEliminado.set(llave, ahora);
+  if (ultimoAvisoDeEliminado.size > 5000) ultimoAvisoDeEliminado.clear();
+  console.info('[chats] no se reescribe un chat eliminado', { linea, remoteJid: jid, alcance });
+}
+
+/**
+ * Lo que dice la lápida del contacto, y lo que se hace en el momento: revivir
+ * si el contacto escribió, devolver la conversación si le escribió una
+ * persona. Si la lápida no se puede leer se guarda como siempre —perder un
+ * mensaje de verdad es peor—, y se dice.
+ */
+async function queHacerSegunLaLapida(
+  input: PersistChatMessageInput,
+  normalizedRemoteJid: string,
+  remoteJidAlt: string | null,
+  horaReal: Date | null,
+): Promise<QueHacerConElMensaje> {
+  const todo: QueHacerConElMensaje = { mensaje: true, conversacion: true, ficha: true, accion: 'nada' };
+  const identidades = buildWhatsAppJidCandidates(normalizedRemoteJid, [
+    input.remoteJid,
+    remoteJidAlt,
+    input.senderPn,
+  ]);
+  let encontrada: Awaited<ReturnType<typeof laLapidaDelContacto>> = null;
+  try {
+    encontrada = await laLapidaDelContacto(input.instanceName, identidades);
+  } catch (error) {
+    console.warn('[chats] no se pudo leer si el chat estaba eliminado; se guarda como siempre', {
+      linea: input.instanceName,
+      remoteJid: normalizedRemoteJid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return todo;
+  }
+  if (!encontrada) return todo;
+
+  const decision = queHacerConElMensaje(encontrada.lapida, {
+    hora: horaReal,
+    esHistorial: input.puedeReabrir === false,
+    fromMe: input.fromMe,
+    porUnaPersona: input.porUnaPersona === true,
+  });
+
+  try {
+    if (decision.accion === 'revivir') {
+      await revivirElContacto(input.instanceName, encontrada.grupos);
+      console.info('[chats] el contacto volvio a escribir: el chat eliminado vuelve', {
+        linea: input.instanceName,
+        remoteJid: normalizedRemoteJid,
+      });
+    } else if (decision.accion === 'devolver-la-conversacion') {
+      await devolverLaConversacion(input.instanceName, encontrada.grupos);
+      console.info('[chats] una persona escribio a un chat eliminado: la conversacion vuelve', {
+        linea: input.instanceName,
+        remoteJid: normalizedRemoteJid,
+      });
+    }
+  } catch (error) {
+    console.warn('[chats] no se pudo apuntar que el chat eliminado vuelve', {
+      linea: input.instanceName,
+      remoteJid: normalizedRemoteJid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (!decision.mensaje || !decision.conversacion || !decision.ficha) {
+    avisarQueNoSeReescribe(input.instanceName, normalizedRemoteJid, encontrada.lapida.alcance);
+  }
+  return decision;
+}
+
 export async function persistChatMessage(input: PersistChatMessageInput) {
   if (!input.userId || !input.instanceName || !input.remoteJid) return;
   if (
@@ -1329,13 +1427,22 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     return;
   }
 
-  await upsertSessionFromChatMessage({
-    ...input,
-    remoteJid: normalizedRemoteJid,
-    remoteJidAlt,
-    messageId,
-    messageTimestamp,
-  });
+  // ¿Es un contacto que alguien ELIMINÓ? Lo eliminado no se reescribe solo:
+  // el sondeo, la precarga, la importación de historial y los ecos vuelven a
+  // traer los mensajes viejos, y sin esta pregunta el chat o el lead volvían.
+  const queHacer = await queHacerSegunLaLapida(input, normalizedRemoteJid, remoteJidAlt, horaReal);
+  if (!queHacer.mensaje) return;
+
+  await upsertSessionFromChatMessage(
+    {
+      ...input,
+      remoteJid: normalizedRemoteJid,
+      remoteJidAlt,
+      messageId,
+      messageTimestamp,
+    },
+    { crearFicha: queHacer.ficha },
+  );
 
   await db.$executeRaw`
     INSERT INTO "chat_messages" (
@@ -1401,6 +1508,10 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       END,
       "updatedAt" = NOW()
   `;
+
+  // Un envío automático a un chat eliminado queda escrito, pero no lo devuelve
+  // a la bandeja.
+  if (!queHacer.conversacion) return;
 
   await db.$executeRaw`
     INSERT INTO "chat_conversations" (

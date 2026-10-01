@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { DIAS_EN_LA_PAPELERA } from "@/lib/papelera-de-embudos";
 import { lasQueLesTocaElBorradoEnFirme, olvidarDeLaPapelera } from "@/lib/embudos-db";
+import { ponerLapidas, prepararLapidas } from "@/lib/chats-eliminados-db";
 
 /**
  * El borrado en firme de lo que se vació de la columna de Perdido.
@@ -105,7 +106,24 @@ export async function runPapeleraDeEmbudos(opciones?: { limite?: number }): Prom
  * fila de la papelera se va igual.
  */
 async function borrarLaFichaEnFirme(sessionId: number): Promise<void> {
+    await prepararLapidas();
     await db.$transaction(async (tx) => {
+        // La lapida de «ficha»: la conversacion se queda y, sin ella, la
+        // reposicion de fichas volveria a crear este lead cinco minutos despues
+        // de borrarlo en firme. Vuelve si el contacto escribe otra vez.
+        const ficha = await tx.session.findUnique({
+            where: { id: sessionId },
+            select: { userId: true, remoteJid: true, remoteJidAlt: true, instanceId: true },
+        });
+        if (ficha?.instanceId) {
+            await ponerLapidas(tx, {
+                instanceName: ficha.instanceId,
+                contactos: [[ficha.remoteJid, ficha.remoteJidAlt]],
+                userId: ficha.userId,
+                alcance: "ficha",
+                eliminadoEn: new Date(),
+            });
+        }
         await tx.financeTransaction.updateMany({ where: { sessionId }, data: { sessionId: null } });
         await tx.collabNotification.updateMany({ where: { sessionId }, data: { sessionId: null } });
         await tx.session.deleteMany({ where: { id: sessionId } });

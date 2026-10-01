@@ -37,6 +37,7 @@ import { autoSyncContactIfEnabled } from './google-sheets-actions';
 import { currentUser } from '@/lib/auth';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { anadirEtiquetasALaSesion, registrarLaSesion } from '@/lib/leads-sin-puerta.server';
+import { eliminarLaFichaDelContacto, eliminarTodasLasFichasDeLaCuenta } from '@/lib/borrado-de-chats.server';
 import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
 import {
@@ -701,8 +702,17 @@ export async function deleteSession(
       };
     }
 
-    await db.session.delete({
-      where: { id: sessionId }
+    // Borrar la fila a secas no era eliminar: la reposicion de fichas la
+    // volvia a crear a partir de la conversacion a los cinco minutos, y el
+    // sondeo del chat abierto tambien. Se borra bajo todas las identidades del
+    // contacto en su linea y se deja la lapida (ver
+    // `eliminarLaFichaDelContacto`).
+    await eliminarLaFichaDelContacto({
+      id: session.id,
+      userId: session.userId,
+      remoteJid: session.remoteJid,
+      remoteJidAlt: session.remoteJidAlt,
+      instanceId: session.instanceId,
     });
 
     return {
@@ -846,9 +856,9 @@ export async function deleteAllSessions(userId: string): Promise<SessionsListRes
     // Verifica que el usuario de la sesión tenga permiso sobre este userId
     // (evita que un tenant borre las sesiones de otro — IDOR).
     await assertCanAccessTargetUser(userId);
-    await db.session.deleteMany({
-      where: { userId },
-    })
+    // Cada lead con su lapida: sin ella la reposicion de fichas los volvia a
+    // crear todos en cinco minutos.
+    await eliminarTodasLasFichasDeLaCuenta(userId);
 
     return {
       success: true,
