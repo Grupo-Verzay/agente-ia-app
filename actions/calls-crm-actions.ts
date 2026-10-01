@@ -13,6 +13,7 @@ import { elCallRowDesdeLaFila, type CallRow, type CallDirection } from '@/lib/fi
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import { elTopeDelCrm } from '@/lib/crm-de-la-familia';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
+import { elDestinoParaMostrar, elJidDelDestino, esDestinoLid } from '@/lib/destino-de-la-llamada';
 
 export type { CallRow, CallDirection };
 
@@ -366,16 +367,17 @@ export async function scheduleCallbackAction(input: {
   if (!me?.id) return { success: false, message: 'No autorizado.' };
   const ownerId = me.ownerId ?? me.id;
 
-  const digits = (input.phone || '').replace(/\D/g, '');
-  if (!digits) return { success: false, message: 'Número inválido.' };
+  // El contacto por su identidad REAL: el teléfono, o su `@lid` entero si no
+  // tiene número a la vista (sus dígitos sueltos son el número de nadie).
+  const contactJid = elJidDelDestino(input.phone);
+  if (!contactJid) return { success: false, message: 'Número inválido.' };
 
   const due = new Date(input.dueDate);
   if (isNaN(due.getTime())) return { success: false, message: 'Fecha inválida.' };
 
-  const contactJid = `${digits}@s.whatsapp.net`;
   const baseTitle = input.note?.trim()
     ? input.note.trim()
-    : `Volver a llamar a ${input.contactName?.trim() || `+${digits}`}`;
+    : `Volver a llamar a ${input.contactName?.trim() || (esDestinoLid(contactJid) ? 'este contacto' : elDestinoParaMostrar(contactJid))}`;
 
   try {
     // Intentar enlazar con la sesión/lead por remoteJid (no es obligatorio).
@@ -465,9 +467,11 @@ export async function setCallContactNameAction(input: {
   const ownerId = me?.ownerId ?? me?.id;
   if (!ownerId) return { success: false, message: 'No autorizado.' };
 
-  const digits = (input.phone || '').replace(/\D/g, '');
-  if (!digits) return { success: false, message: 'Número inválido.' };
-  const remoteJid = `${digits}@s.whatsapp.net`;
+  // `57…@s.whatsapp.net`, o el `D@lid` entero de un contacto sin número. Con
+  // `${digits}@s.whatsapp.net` a secas, ponerle nombre a uno de esos no
+  // encontraba su ficha y CREABA otra, con un número que no existe.
+  const remoteJid = elJidDelDestino(input.phone);
+  if (!remoteJid) return { success: false, message: 'Número inválido.' };
 
   const nombre = (input.name ?? '').trim().slice(0, 120) || null;
 
@@ -481,7 +485,7 @@ export async function setCallContactNameAction(input: {
     const idsDelEquipo = equipo.map((u) => u.id);
 
     const actualizadas = await db.session.updateMany({
-      where: { userId: { in: idsDelEquipo }, remoteJid },
+      where: { userId: { in: idsDelEquipo }, OR: [{ remoteJid }, { remoteJidAlt: remoteJid }] },
       data: { customName: nombre },
     });
     if (actualizadas.count > 0) return { success: true, name: nombre };

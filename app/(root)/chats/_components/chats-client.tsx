@@ -86,6 +86,11 @@ import {
   isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
+import {
+  elDestinoDeLaLlamada,
+  esTelefonoFalsoDeLid,
+  sinTelefonosFalsosDeLid,
+} from "@/lib/destino-de-la-llamada";
 import type {
   CriterioDeBorrado,
   CuantasParaBorrar,
@@ -652,24 +657,37 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
   return laSesionDelChat(chat, sessions);
 }
 
+/**
+ * A quién se le escribe. Se prefiere el TELÉFONO real del contacto, y si no lo
+ * tiene, su `@lid`.
+ *
+ * **Lo que no se prefiere nunca es un «teléfono» fabricado con los dígitos de su
+ * `@lid`** (`sinTelefonosFalsosDeLid`). Una llamada a un contacto sin número
+ * dejaba su conversación bajo `96366802022553@s.whatsapp.net`; desde ahí esta
+ * función lo veía como «el teléfono» y lo prefería, y WhatsApp contestaba que
+ * ese número no tiene WhatsApp. La IA, que contesta por el `@lid` que trae el
+ * aviso, seguía funcionando: por eso parecía que solo fallaban las personas.
+ */
 function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
   const selected = selectedJid.trim();
   if (!selected) return selected;
 
-  const hasLid =
-    selected.toLowerCase().endsWith("@lid") ||
-    contact?.remoteJid?.toLowerCase().endsWith("@lid") ||
-    contact?.aliases?.some((alias) => alias.toLowerCase().endsWith("@lid"));
-
-  if (!hasLid && !contact?.senderPn) return selected;
-
-  return pickPreferredWhatsAppRemoteJid([
+  const identidades = [
     contact?.senderPn,
     contact?.remoteJidAlt,
     ...(contact?.aliases ?? []),
     contact?.remoteJid,
     selected,
-  ]) || selected;
+  ];
+  const hasLid = identidades.some((valor) => valor?.toLowerCase().endsWith("@lid"));
+
+  if (!hasLid && !contact?.senderPn) return selected;
+
+  const reales = sinTelefonosFalsosDeLid(identidades);
+  return (
+    pickPreferredWhatsAppRemoteJid(reales) ||
+    (esTelefonoFalsoDeLid(selected, identidades) ? elDestinoDeLaLlamada(identidades) : selected)
+  );
 }
 
 /**

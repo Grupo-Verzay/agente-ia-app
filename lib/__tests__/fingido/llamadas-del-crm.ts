@@ -13,6 +13,8 @@
 export type CallRow = {
     id: string;
     phone: string;
+    /** A quién se llama: los dígitos del teléfono o el `D@lid` entero. */
+    destino: string;
     contactName: string | null;
     direction: "outgoing" | "incoming";
     durationSecs: number;
@@ -64,6 +66,7 @@ export const LLAMADAS: CallRow[] = [
     {
         id: "c1",
         phone: "573216031493",
+        destino: "573216031493",
         contactName: "Marta Restrepo Villegas",
         direction: "outgoing",
         durationSecs: 187,
@@ -88,6 +91,7 @@ export const LLAMADAS: CallRow[] = [
     {
         id: "c2",
         phone: "573001112233",
+        destino: "573001112233",
         contactName: null,
         direction: "incoming",
         durationSecs: 0,
@@ -102,6 +106,7 @@ export const LLAMADAS: CallRow[] = [
     {
         id: "c3",
         phone: "573154445566",
+        destino: "573154445566",
         contactName: "Julián Ospina",
         direction: "outgoing",
         durationSecs: 64,

@@ -88,6 +88,7 @@ npx esbuild "$ENTRY" --bundle --format=esm \
   --outfile=lib/__tests__/.compilado/harness-detalle-de-llamada.js \
   --alias:@="$(pwd)" \
   --alias:@/actions/calls-crm-actions=./lib/__tests__/fingido/detalle-de-llamada.ts \
+  --alias:@/actions/calls-recording-actions=./lib/__tests__/fingido/acciones-de-llamadas-mudas.ts \
   --loader:.tsx=tsx --jsx=automatic \
   --define:process.env.NODE_ENV='"production"' --log-level=error
 

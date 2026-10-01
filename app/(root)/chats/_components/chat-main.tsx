@@ -17,6 +17,7 @@ import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import { seSugiereConLaBarra } from '@/lib/respuestas-rapidas';
+import { elDestinoDeLaLlamada } from '@/lib/destino-de-la-llamada';
 import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import type { EtapaDeLaFila } from '@/lib/embudos';
@@ -1467,7 +1468,16 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         activeSearchMessageId={activeSearchMessageId}
         mensajeSaltado={mensajeSaltado}
         onJumpToMessage={irAlMensajeCitado}
-        callPhone={(displayedWhatsapp || '').replace(/\D/g, '')}
+        // El DESTINO real, no el número que se enseña: tapado para un agente y,
+        // de un contacto sin número a la vista, su `@lid` entero
+        // (`lib/destino-de-la-llamada.ts`).
+        callPhone={elDestinoDeLaLlamada([
+          session?.remoteJid,
+          session?.remoteJidAlt,
+          info?.remoteJid,
+          ...(info?.remoteJidAliases ?? []),
+        ])}
+        callPhoneVisible={displayedWhatsapp || undefined}
         contactName={displayedContactName}
         conversacion={conversacionDeLasNotas}
       />

@@ -3,16 +3,25 @@
 import { useEffect, useState } from "react";
 
 import { CallDialog } from "@/app/(root)/chats/_components/CallDialog";
+import { comoDestino } from "@/lib/destino-de-la-llamada";
 
 /**
  * Lo que hace falta para colocar una llamada de WhatsApp.
  *
- * El número va en dígitos, como lo espera `CallDialog`. Lo demás es opcional:
- * el nombre para la tarjeta, y la línea por la que sale —si no se pasa, la
- * tarjeta resuelve la de la cuenta que se está gestionando—.
+ * `phone` es el DESTINO (`lib/destino-de-la-llamada.ts`): los dígitos del
+ * teléfono, o el `D@lid` entero cuando el contacto no tiene número a la vista.
+ * Lo demás es opcional: el nombre para la tarjeta, el número tal como lo puede
+ * ver quien llama, y la línea por la que sale —si no se pasa, la tarjeta
+ * resuelve la de la cuenta que se está gestionando—.
  */
 export interface DatosDeLaLlamada {
     phone: string;
+    /**
+     * El número como se le enseña a quien llama: tapado para un agente
+     * (`telefonoParaMostrar`). Se llama siempre al destino real; esto solo
+     * decide lo que pinta la tarjeta.
+     */
+    numeroVisible?: string;
     contactName?: string;
     instanceType?: string;
     instanceName?: string;
@@ -66,10 +75,13 @@ export function AnfitrionDeLlamada() {
     useEffect(() => {
         const alAbrir = (e: Event) => {
             const d = (e as CustomEvent<DatosDeLaLlamada>).detail;
-            const phone = (d?.phone ?? "").replace(/\D/g, "");
+            // Un `@lid` se queda entero: sus dígitos sueltos son el número de
+            // nadie (ver `lib/destino-de-la-llamada.ts`).
+            const phone = comoDestino(d?.phone);
             if (!phone) return;
             setLlamada((prev) => ({
                 phone,
+                numeroVisible: d?.numeroVisible,
                 contactName: d?.contactName,
                 instanceType: d?.instanceType,
                 instanceName: d?.instanceName,
@@ -88,6 +100,7 @@ export function AnfitrionDeLlamada() {
             open
             onClose={() => setLlamada(null)}
             phone={llamada.phone}
+            numeroVisible={llamada.numeroVisible}
             contactName={llamada.contactName}
             instanceType={llamada.instanceType}
             instanceName={llamada.instanceName}

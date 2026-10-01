@@ -14,6 +14,7 @@ import { esperarYProcesarLaGrabacion } from '@/lib/grabacion-de-llamada.server';
 import { laCuentaDeLaLlamada, SIN_NUMERO_EN_LA_LINEA } from '@/lib/cuenta-de-la-llamada.server';
 import { laLlaveDelCandado, YA_HAY_UNA_LLAMADA_EN_CURSO } from '@/lib/llamada-en-curso';
 import { yaHayUnaLlamadaEnCurso } from '@/lib/llamada-en-curso.server';
+import { comoDestino, esDestinoLid, losDigitosDelDestino } from '@/lib/destino-de-la-llamada';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const ASTRA_KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -152,8 +153,15 @@ export async function startBotCallAction(
   if (!me?.id) return { success: false, message: 'No autorizado.' };
   if (!ASTRA_BASE || !ASTRA_KEY) return { success: false, message: 'Llamadas no configuradas.' };
 
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length < 6) return { success: false, message: 'Número inválido.' };
+  // **El destino es el teléfono real o el `@lid` ENTERO** (`comoDestino`). Un
+  // contacto que entra por su usuario no tiene número: llega como
+  // `96366802022553@lid`, y con `replace(/\D/g, '')` se llamaba al
+  // «+96366802022553», un número que no existe. Los dígitos solo sirven para
+  // el candado y para encontrar su fila; al servidor de llamadas viaja el
+  // `@lid` tal cual, que es como WhatsApp sabe a quién sonarle.
+  const destino = comoDestino(phone);
+  const digits = losDigitosDelDestino(destino);
+  if (!destino) return { success: false, message: 'Número inválido.' };
 
   // **La llamada es de la cuenta DUEÑA de la conversación**, no de quien mira
   // (`laCuentaDeLaLlamada`). El servidor de llamadas identifica la cuenta por
@@ -194,7 +202,7 @@ export async function startBotCallAction(
     const r = await fetch(`${ASTRA_BASE}/api/sessions/${sid}/calls/bot`, {
       method: 'POST',
       headers: { 'X-API-Key': ASTRA_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: digits }),
+      body: JSON.stringify({ phone: esDestinoLid(destino) ? destino : digits }),
     });
     if (!r.ok) {
       const t = await r.json().catch(() => ({} as { error?: string; reason?: string }));
@@ -236,7 +244,7 @@ export async function startBotCallAction(
     // quien preguntarle por el audio.
     const callId = elIdDeLaLlamada(await r.json().catch(() => null));
     const { id: filaDeLaLlamada, userId: cuentaDeLaFila } = await logOutgoingCallAction(
-      digits,
+      destino,
       0,
       false,
       undefined,

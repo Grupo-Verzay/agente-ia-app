@@ -9,6 +9,7 @@ import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { persistChatMessage } from '@/lib/chat-persistence';
 import { laLineaDeWhatsappDeLaCuenta, porQueNoHayLineaQr } from '@/lib/linea-de-whatsapp';
 import { sendWahaText } from '@/lib/waha';
+import { elJidDelDestino, esDestinoLid, losDigitosDelDestino } from '@/lib/destino-de-la-llamada';
 
 /**
  * Resuelve la cuenta a la que pertenecen las llamadas del usuario actual.
@@ -89,8 +90,13 @@ export async function sendMissedOutgoingCallReply(
     const userId = await resolveCallAccountId();
     if (!userId) return { sent: false };
 
-    const digits = (phone || '').replace(/\D/g, '');
-    if (!digits) return { sent: false };
+    // El destino es el teléfono real o el `@lid` ENTERO: un contacto que entra
+    // por su usuario no tiene número, y sus dígitos sueltos son el número de
+    // nadie («El número +… no tiene WhatsApp»).
+    const remoteJid = elJidDelDestino(phone);
+    const digits = losDigitosDelDestino(phone);
+    const porSuLid = esDestinoLid(remoteJid);
+    if (!remoteJid || !digits) return { sent: false };
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -142,12 +148,11 @@ export async function sendMissedOutgoingCallReply(
     const instanceName = inst?.instanceName;
     if (!instanceName) return { sent: false, message: porQueNoHayLineaQr([]) };
 
-    const remoteJid = `${digits}@s.whatsapp.net`;
     const channel = (inst?.instanceType ?? '').toLowerCase();
 
     // WhatsApp Mensajería (Waha): su propia primitiva, no la de Evolution.
     if (channel === 'waha') {
-      const r = await sendWahaText({ session: instanceName, chatId: `${digits}@c.us`, text });
+      const r = await sendWahaText({ session: instanceName, chatId: porSuLid ? remoteJid : `${digits}@c.us`, text });
       if (!r.ok) return { sent: false, message: r.message };
       if (r.messageId) {
         await persistChatMessage({
@@ -168,6 +173,11 @@ export async function sendMissedOutgoingCallReply(
     // Canales oficiales/unificados (Meta Cloud API): se envía por el backend,
     // que respeta la ventana de 24h de Meta y persiste en el panel.
     if (channel === 'meta') {
+      // La API oficial de Meta solo escribe a números: un `@lid` no tiene a
+      // quién entregarse. Se dice en vez de mandarlo al número de nadie.
+      if (porSuLid) {
+        return { sent: false, message: 'Este contacto no tiene número visible: escríbele desde una línea por QR.' };
+      }
       const res = await sendChannelTextAction(instanceName, remoteJid, { kind: 'text', text });
       return { sent: !!res?.success, message: res?.success ? undefined : res?.message };
     }

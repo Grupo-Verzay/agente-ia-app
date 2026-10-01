@@ -17,6 +17,7 @@ import {
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
 import { endMetaWhatsAppCall, elEstadoDeLaLlamadaMeta, startMetaWhatsAppCall, getPreferredCallInstance } from '@/actions/meta-calls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
+import { elDestinoParaMostrar, esDestinoLid, paraElServidorDeLlamadas } from '@/lib/destino-de-la-llamada';
 import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
 import { processCallRecordingAction, processMetaCallRecordingAction } from '@/actions/calls-recording-actions';
 import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
@@ -25,8 +26,14 @@ import { toast } from 'sonner';
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Solo dígitos del número, ej. "573001234567" */
+  /**
+   * El DESTINO (`lib/destino-de-la-llamada.ts`): los dígitos del teléfono
+   * («573001234567») o, si el contacto no tiene número a la vista, su `@lid`
+   * entero («96366802022553@lid»). Nunca los dígitos de un `@lid` sueltos.
+   */
   phone: string;
+  /** El número como lo puede ver quien llama (tapado para un agente). */
+  numeroVisible?: string;
   contactName?: string;
   instanceType?: string;
   instanceName?: string;
@@ -72,7 +79,11 @@ const CADA_CUANTO_SE_PREGUNTA_A_META_MS = 3_000;
  * siguiente que se añada) es **el audio**, y el parte del proveedor va encima
  * para ponerle nombre.
  */
-export function CallDialog({ open, onClose, phone, contactName, instanceType, instanceName }: Props) {
+export function CallDialog({ open, onClose, phone, numeroVisible, contactName, instanceType, instanceName }: Props) {
+  // Lo que se pinta donde va el número: el que ve quien llama, o el destino
+  // (`+57…`, o «Sin número visible» para un `@lid`: sus dígitos no son un
+  // teléfono y enseñarlos con un «+» delante es enseñar el número de nadie).
+  const numeroQueSeVe = numeroVisible || elDestinoParaMostrar(phone);
   const [state, setState] = useState<CallState>('connecting');
   const [seconds, setSeconds] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
@@ -639,6 +650,15 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     }
     metaInstanceRef.current = effName;
 
+    // La Cloud API de Meta solo llama a TELÉFONOS: un contacto que entra por
+    // su usuario (`@lid`) no tiene número al que sonarle por ahí. Se dice en
+    // vez de mandarle a Meta los dígitos del id, que son el número de nadie.
+    if (effType === 'meta' && esDestinoLid(phone)) {
+      setErrorMsg('Este contacto no tiene número visible y esta línea solo llama a números. Llámalo desde una línea por QR.');
+      setState('error');
+      return;
+    }
+
     // 1) Crear la llamada en AstraCalls
     if (effType === 'meta') {
       try {
@@ -748,7 +768,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     // llama no la paso- y despues se tiraba. Asi que desde una burbuja o desde
     // el CRM se llamaba siempre con el numero de la cuenta propia aunque la
     // conversacion fuera de otra linea.
-    const started = await startAstraCall(`+${phone}`, effName);
+    // Un `@lid` viaja ENTERO: el servidor de llamadas llama por él. Con el
+    // `+` delante de sus dígitos se llamaba a un número que no existe.
+    const started = await startAstraCall(paraElServidorDeLlamadas(phone), effName);
     if (!started.success || !started.sid || !started.callId) {
       if (cancelledRef.current) { hangup(); return; }
       setErrorMsg(started.message || 'No se pudo iniciar la llamada.');
@@ -915,7 +937,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         <PastillaDeLlamada
           asa={asa}
           segundos={seconds}
-          conQuien={contactName || `+${phone}`}
+          conQuien={contactName || numeroQueSeVe}
           // Mientras no se hable no hay nada que contar: un «00:00» se lee como
           // una llamada conectada de la que no se oye nada.
           rotulo={
@@ -953,8 +975,8 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
             </div>
 
             <div className="text-center">
-              <p className="text-base font-semibold capitalize">{contactName || `+${phone}`}</p>
-              <p className="text-xs text-muted-foreground">+{phone}</p>
+              <p className="text-base font-semibold capitalize">{contactName || numeroQueSeVe}</p>
+              <p className="text-xs text-muted-foreground">{numeroQueSeVe}</p>
             </div>
 
             <div className="min-h-[20px] text-sm">

@@ -120,8 +120,10 @@ interface MessageBubbleProps {
   messageId?: string;
   /** Lo que dura la nota de voz. De ahí sale el precio que enseña el botón. */
   audioSegundos?: number;
-  /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
+  /** A quién devuelve la llamada: el destino (dígitos o `@lid` entero). */
   callPhone?: string;
+  /** El número como lo puede ver quien llama (tapado para un agente). */
+  callPhoneVisible?: string;
   /** Nombre del contacto: el de la cabecera. Lo usan la llamada y la cita. */
   contactName?: string;
   quotedMessage?: UIBubble['quotedMessage'];
@@ -162,6 +164,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   messageId,
   audioSegundos,
   callPhone,
+  callPhoneVisible,
   contactName,
   quotedMessage,
   onJumpToQuoted,
@@ -346,6 +349,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               onClick={() =>
                 abrirLlamadaAqui({
                   phone: callPhone,
+                  numeroVisible: callPhoneVisible,
                   contactName,
                   instanceName: laConversacion?.instanceName,
                   instanceType: laConversacion?.instanceType,
