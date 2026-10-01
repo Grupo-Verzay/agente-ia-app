@@ -22824,6 +22824,16 @@ todas las pantallas y se lee así:
    cerrado. Con palabras el número va detrás; solo con iconos, en la esquina de
    la pestaña, para no ensancharla. Por eso una pestaña con palabra pide 116 px
    (`PESTANA_CON_PALABRA_PX`): cabe «Correos 99+».
+8. **En el teléfono (por debajo de `sm`, 640 px) «Ver tutoriales» no sale.**
+   Allí la barra son ocho iconos en 360 px y no caben: el selector acababa
+   encima del botón rojo. «Ayuda», al lado, ya lleva a todas las guías. Es
+   `hidden sm:inline-flex` (`BOTON_DE_TUTORIALES_EN_LA_BARRA`,
+   `lib/tutoriales-del-modulo.ts`), así que no ocupa sitio y el selector gana
+   ese ancho; desde 640 el botón es el de siempre, píxel por píxel. Las guías
+   lo siguen nombrando: sus capturas son de escritorio. Lo prueba
+   `scripts/banco-tutoriales-en-el-movil.sh` (la barra real, con «Soporte»
+   pintado, a 320..600 y 640..1440; `MODO=roto` contra `4af691d` afirma el
+   botón encima del selector).
 
 Lo prueba `scripts/banco-barra-de-arriba.sh`: la regla sin navegador (incluido
 que el centro con casita y sin casita es el mismo) y la `Breadcrumbs` real en

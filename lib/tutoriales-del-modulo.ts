@@ -56,6 +56,27 @@ export const BOTON_VER_TUTORIAL =
 export const TEXTO_DEL_BOTON = "Ver tutorial";
 
 /**
+ * Desde qué ancho de pantalla sale «Ver tutoriales» en la barra de arriba:
+ * `sm` (640 px), el MISMO corte con el que esa barra deja los botones solo con
+ * su icono. **En el teléfono no sale.**
+ *
+ * Allí la barra son ocho iconos en 360 px y no caben: el selector Chats ⇄
+ * Correos acababa encima del botón rojo. Y no se pierde nada, porque «Ayuda»
+ * (el centro de ayuda, `/ayuda`) está al lado y lleva a todas las guías, las
+ * de esta pantalla incluidas. En escritorio y en tableta no cambia nada.
+ */
+export const ANCHO_DESDE_EL_QUE_SALEN_LOS_TUTORIALES_PX = 640;
+
+/**
+ * El botón «Ver tutoriales» de la barra: rojo, con su palabra. `hidden` hasta
+ * `sm` y `inline-flex` desde ahí (el `inline-flex` de `Button` lo pisa el
+ * `hidden`, que va después). Con `display: none` no ocupa sitio, así que el
+ * selector Chats ⇄ Correos —que mide lo que hay a la derecha— gana ese ancho.
+ */
+export const BOTON_DE_TUTORIALES_EN_LA_BARRA =
+    "hidden sm:inline-flex h-9 bg-[#FF0033] hover:bg-[#e60000] text-white font-semibold transition duration-200 uppercase";
+
+/**
  * La descripción de una tarjeta: **«Aprende a [acción concreta] en la
  * plataforma»**, con un beneficio para el cliente, y como mucho
  * `TOPE_DE_LA_DESCRIPCION` caracteres para que quepa en UNA línea de la
