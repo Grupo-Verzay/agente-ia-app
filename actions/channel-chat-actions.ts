@@ -171,7 +171,7 @@ export async function sendChannelTextAction(
   try {
     const puerta = await laLineaDelCanalAlcanza(instanceName, 'texto');
     if (!puerta.ok) return { success: false, message: puerta.message, remoteJid };
-    return await enviarPorCanal(instanceName, remoteJid, payload);
+    return await enviarPorCanal(instanceName, remoteJid, payload, { porUnaPersona: true });
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar.', remoteJid };
   }
@@ -205,7 +205,7 @@ export async function sendMetaTemplate(
   try {
     const puerta = await laLineaDelCanalAlcanza(instanceName, 'plantilla');
     if (!puerta.ok) return { success: false, message: puerta.message, remoteJid };
-    return await enviarPlantillaMeta(instanceName, remoteJid, template, params);
+    return await enviarPlantillaMeta(instanceName, remoteJid, template, params, { porUnaPersona: true });
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar la plantilla.', remoteJid };
   }

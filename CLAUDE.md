@@ -918,6 +918,79 @@ todas las identidades. `MODO=roto` apunta el borrado a un commit **pinchado** �
 `origin/main`, que deja de servir en cuanto esto se fusione— y **afirma el fallo**:
 el «Transaction API error» y la pantalla mintiendo con varios cientos ya borrados.
 
+## Chats: eliminar deja una LÁPIDA, y nada reescribe lo eliminado
+
+Se eliminaba un chat o un lead y al rato volvía a salir, sin que nadie lo
+tocara. No era el borrado: el borrado quitaba las filas bien. Era que **varios
+sitios las volvían a escribir solos**, y ninguno preguntaba si ese contacto se
+había eliminado:
+
+| quién lo reescribía | qué volvía |
+| --- | --- |
+| `crearFichasQueFaltan`, cada 5 min al abrir la bandeja | el **lead**: veía «una conversación sin ficha» y la creaba |
+| el sondeo del chat abierto, la precarga y el refresco | la conversación entera, con los mensajes que Evolution sigue teniendo |
+| el relleno de historial de Waha | la línea vacía parecía «recién escaneada» y se rellenaba |
+| el eco de un seguimiento, la IA o una campaña que salió después | la conversación, por un mensaje que nadie escribió |
+| el motor (`persistMessage`, `registerSession`) | lo mismo, por un eco o un reintento del proveedor que llega tarde |
+| `hardDeleteLocalChat` | borraba solo bajo una cuenta; la copia de la conversación guardada bajo la cuenta de quien miraba sobrevivía |
+
+> **Eliminar deja una lápida** (`chats_eliminados`, tabla de la App, una fila
+> por línea e identidad del contacto, todas con el mismo `grupo`), y **todo lo
+> que escribe un mensaje, una conversación o una ficha la mira antes**. Lo
+> decide `queHacerConElMensaje` (`lib/chats-eliminados.ts`, pura), **copiada
+> byte a byte en el motor** (`api-webhook/src/modules/webhook/utils/chats-eliminados.ts`):
+> los dos escriben las mismas tablas y tienen que decidir lo mismo. Si se toca
+> una, se copia a la otra; los dos bancos las comparan.
+
+La regla, con las dos clases de lápida:
+
+| llega… | chat eliminado (`alcance: chat`) | solo el lead (`alcance: ficha`) |
+| --- | --- | --- |
+| algo de ANTES de eliminar (eco, reintento, historial) | no se escribe nada | el mensaje sí; la ficha no se crea |
+| un envío automático después (IA, seguimiento) | el mensaje se guarda; ni conversación ni ficha | se guarda; la ficha no |
+| una persona escribe desde el panel o el teléfono | vuelve la **conversación**, el lead no | igual |
+| **el contacto escribe después** | **revive**: vuelve todo | revive |
+
+Siete cosas que hay que mantener:
+
+1. **Solo el CONTACTO devuelve lo eliminado.** Es la regla que ya tenía la
+   marca de borrado de la bandeja (*solo un mensaje del contacto posterior a la
+   marca lo revive*), ahora en todo lo que escribe.
+2. **El historial que se borró con el chat no vuelve nunca** (`historialHasta`),
+   ni después de revivir. Y un mensaje de historial sin hora se trata como
+   viejo: es el lado seguro.
+3. **Una fila por cada identidad** (`remoteJid`, `remoteJidAlt`, `senderPn`,
+   el `@lid` y las de la pantalla): el proveedor devuelve al contacto por la
+   que quiera. Se pregunta por todas, y revivir levanta el grupo entero —y las
+   marcas de borrado de la bandeja—.
+4. **Si la lápida no se puede leer, se guarda como siempre**, y se dice.
+   Perder un mensaje de verdad es peor que dejar pasar uno de más. Sin la
+   tabla (nadie eliminó nunca nada) no es un error.
+5. **Lo que ya estaba en camino se barre**: una vuelta del sondeo que leyó la
+   lápida un instante antes del borrado escribe igual. Cinco segundos después
+   (`ESPERA_DEL_BARRIDO_MS`) `barrerLoQueSeColo` lo quita, mirando la lápida
+   otra vez: si el contacto escribió mientras tanto, no toca nada.
+6. **El borrado se ensancha a las copias de otra cuenta solo si la línea es de
+   esa cuenta y de nadie más** (`laLineaEsSoloDe`): un mismo nombre de línea
+   en dos cuentas no puede dejar que una borre el historial de la otra.
+7. **Todos los caminos que eliminan dejan su lápida con LA hora de la
+   eliminación**: uno a uno, en bloque (la fase 1 la pone y la purga de fondo
+   la repite con la hora de la marca), eliminar un lead (`deleteSession`,
+   «eliminar todos») y la papelera de Embudos. Y se llevan los recordatorios
+   pendientes de ese contacto en esa línea: uno que sale después escribe a
+   alguien que ya no está.
+
+**Si se añade otro sitio que escriba mensajes, conversaciones o fichas, va por
+la lápida.** Uno que no pregunte es por donde el chat vuelve, y desde fuera eso
+no se parece a un fallo: se parece a que eliminar no funciona.
+
+Lo prueban `scripts/banco-chats-eliminados.sh` aquí —eliminar uno a uno, en
+bloque y un lead contra Postgres, con el sondeo, el historial, los envíos
+automáticos y la reposición de fichas reescribiendo después— y el del mismo
+nombre en `api-webhook` —`persistMessage`, `registerSession` y la orquestación
+de verdad—. Los dos con `MODO=roto` pinchado a un commit (`4af691d` aquí,
+`4358bfa` allí) que AFIRMA que el chat y el lead volvían.
+
 ## Un grupo TIENE ficha, y toda consulta de CRM la excluye
 
 Los grupos entran en la bandeja y su barra de arriba —etiquetas, asignar

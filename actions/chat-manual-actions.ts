@@ -44,6 +44,7 @@ import {
 import { mensajeDeWahaParaGuardar } from "@/lib/waha-historial";
 import { canonicalToWahaJid, wahaJidToCanonical } from "@/lib/waha-jid";
 import { TOPE_DE_LA_BANDEJA } from "@/lib/bandeja";
+import { laLineaTieneEliminados } from "@/lib/chats-eliminados-db";
 import {
   bajarElAudioDeLaNota,
   guardarLaTranscripcion,
@@ -297,6 +298,10 @@ async function persistOutgoingHistory(params: {
         remoteJid,
         messageId: extractSentMessageId(sentData),
         fromMe: true,
+        // Todo lo que pasa por aqui sale de un boton del panel —escribir, un
+        // flujo, una respuesta rapida—: lo envia una persona. Cuenta para un
+        // contacto eliminado (ver `lib/chats-eliminados.ts`).
+        porUnaPersona: true,
         messageType: payload.kind === "text" ? "conversation" : `${payload.mediatype}Message`,
         content: historyEntry.content,
         mediaUrl: payload.kind === "media" ? payload.mediaUrl : null,
@@ -1368,7 +1373,11 @@ async function laLineaYaTieneHistorial(userId: string, instanceName: string): Pr
       where: { userId, instanceName },
       select: { id: true },
     });
-    return !!fila;
+    if (fila) return true;
+    // Sin mensajes, pero con chats ELIMINADOS: no es una linea recien
+    // escaneada, es una linea que alguien vacio. Rellenarla traeria de vuelta
+    // de Waha justo lo que se acaba de borrar.
+    return await laLineaTieneEliminados(instanceName);
   } catch (error) {
     // Si no se puede comprobar, NO se rellena: equivocarse hacia el lado de no
     // escribir es barato; hacia el otro son 300 escrituras de mas por vuelta.

@@ -95,9 +95,12 @@ const dormir = (ms: number) => new Promise<void>((listo) => setTimeout(listo, ms
  * Preguntarlo antes de cada purga cuesta una consulta por el indice unico y
  * ahorra repetir la transaccion entera cuatro veces.
  */
-async function sigueSinPurgar(fila: ChatPorPurgar): Promise<boolean> {
-  const filas = await db.$queryRaw<{ n: bigint }[]>`
-    SELECT 1 AS n
+async function sigueSinPurgar(fila: ChatPorPurgar): Promise<Date | null> {
+  // Devuelve la HORA de la marca, no un si o un no: la lapida que deja la purga
+  // tiene que decir la misma hora que la marca de la fase 1, o un mensaje del
+  // contacto entre las dos fases dejaria de contar como «escribio despues».
+  const filas = await db.$queryRaw<{ deletedAt: Date }[]>`
+    SELECT "deletedAt"
     FROM "ChatConversationPreference"
     WHERE "userId" = ${fila.userId}
       AND "instanceName" = ${fila.instanceName}
@@ -106,7 +109,7 @@ async function sigueSinPurgar(fila: ChatPorPurgar): Promise<boolean> {
       AND "purgedAt" IS NULL
     LIMIT 1
   `;
-  return filas.length > 0;
+  return filas[0]?.deletedAt ?? null;
 }
 
 /**
@@ -149,11 +152,12 @@ export async function purgarEstosChats(filas: ChatPorPurgar[]): Promise<ResumenD
   for (const fila of filas) {
     resumen.intentadas += 1;
     try {
-      if (!(await sigueSinPurgar(fila))) {
+      const eliminadoEn = await sigueSinPurgar(fila);
+      if (!eliminadoEn) {
         resumen.saltadas += 1;
         continue;
       }
-      await hardDeleteLocalChat(fila.userId, fila.instanceName, fila.remoteJid);
+      await hardDeleteLocalChat(fila.userId, fila.instanceName, fila.remoteJid, [], { eliminadoEn });
       // Red de seguridad: si la purga no dejo nada sellado —porque nuestras
       // tablas ya no cruzan esa identidad con ninguna otra—, se sella aqui. Sin
       // esto la fila reaparece en la cola cada vuelta.

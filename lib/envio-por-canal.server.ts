@@ -109,6 +109,9 @@ export async function enviarPorCanal(
   instanceName: string,
   remoteJid: string,
   payload: ChannelOutgoingPayload,
+  // Lo envía una persona desde el panel (no el despachador de avisos). Solo
+  // cuenta para un contacto eliminado: ver `lib/chats-eliminados.ts`.
+  opciones: { porUnaPersona?: boolean } = {},
 ): Promise<SendMessageResult> {
   try {
     // El asesor interviene: la IA se calla antes de que salga el mensaje, no
@@ -148,6 +151,7 @@ export async function enviarPorCanal(
           instanceType: owner.instanceType ?? undefined,
           remoteJid,
           fromMe: true,
+          porUnaPersona: opciones.porUnaPersona === true,
           messageType: `${String(payload.mediatype ?? 'media')}Message`,
           content: String(payload.caption ?? payload.fileName ?? mediaFallbackLabel(payload)),
           mediaUrl: typeof publicUrl === 'string' ? publicUrl : (typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null),
@@ -192,6 +196,7 @@ export async function enviarPorCanal(
         instanceType: owner.instanceType ?? undefined,
         remoteJid,
         fromMe: true,
+        porUnaPersona: opciones.porUnaPersona === true,
         messageType: 'conversation',
         content: text,
         messageTimestamp: new Date(),
@@ -243,6 +248,7 @@ export async function enviarPlantillaMeta(
   remoteJid: string,
   template: MetaTemplateOption,
   params: string[],
+  opciones: { porUnaPersona?: boolean } = {},
 ): Promise<SendMessageResult> {
   try {
     const res = await fetch(
@@ -272,6 +278,7 @@ export async function enviarPlantillaMeta(
         instanceType: owner.instanceType ?? 'meta',
         remoteJid,
         fromMe: true,
+        porUnaPersona: opciones.porUnaPersona === true,
         messageType: 'conversation',
         content: renderTemplateBody(template.bodyText, params) || `[Plantilla: ${template.name}]`,
         messageTimestamp: new Date(),

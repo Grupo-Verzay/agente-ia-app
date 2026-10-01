@@ -31,4 +31,8 @@ export {
   isChatDeletedByPreference,
 } from "@/app/(root)/chats/_components/chat-sidebar.utils";
 
+// La fase 2 del borrado en bloque, para esperarla en vez de adivinar cuando
+// termina la de fondo.
+export { purgarEstosChats } from "@/lib/purga-de-chats.server";
+
 export { db } from "@/lib/db";
