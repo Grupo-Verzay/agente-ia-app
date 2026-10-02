@@ -27,6 +27,7 @@
     "mis-datos",
     "notas",
     "productos",
+    "recordatorios",
     "respuestas-rapidas",
     "reuniones",
     "usuarios"
@@ -50,6 +51,7 @@
     "mis-datos": "50fe5890b139a2a3",
     "notas": "41e4940eaecbf3e4",
     "productos": "5315deee9999d628",
+    "recordatorios": "16b8272a13b3bbb3",
     "respuestas-rapidas": "7d51a6cb82dc17a0",
     "reuniones": "50f3db09ebb776b2",
     "usuarios": "9c9cee2fa53e3678"

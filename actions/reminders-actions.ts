@@ -10,6 +10,7 @@ import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server"
 import { sinLaClaveDeLaFila } from "@/lib/clave-del-servidor"
 import { laHoraParaElMotor } from "@/lib/zona-de-la-cuenta"
 import { laZonaHorariaDeLaCuenta } from "@/lib/zona-de-la-cuenta.server"
+import { elMensajeDelRecordatorio } from "@/lib/repeticion-del-recordatorio"
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —que
@@ -133,7 +134,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     instancia: reminderData.instanceName ?? "",
                     apikey,
                     remoteJid: reminderData.remoteJid ?? "",
-                    mensaje:   baseMsg,
+                    mensaje:   elMensajeDelRecordatorio(baseMsg, reminderData.pushName),
                     tipo:      seguimientoTipo,
                     media:     media ?? null,
                     nameFile:  nameFile ?? null,
@@ -687,7 +688,9 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
                 where: { idNodo: `reminder-${id}`, followUpStatus: "pending" },
                 data: {
                     time: laHoraDelSeguimiento(data.time, zona),
-                    ...(data.description || data.title ? { mensaje: data.description || data.title } : {}),
+                    ...(data.description || data.title
+                        ? { mensaje: elMensajeDelRecordatorio(data.description || data.title, updated.pushName) }
+                        : {}),
                 },
             })
         }
