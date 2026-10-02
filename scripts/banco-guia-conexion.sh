@@ -3,15 +3,13 @@
 # Mismo estándar que las demás guías, y las mismas piezas:
 #
 #   1. `lib/__tests__/guia-conexion.test.mjs`: la guía documenta EXACTAMENTE
-#      las pestañas, las cifras, las vistas, los estados, los mandos de un
-#      periodo, el enlace, los pasos de la reserva, los tipos de pregunta, los
-#      ajustes y Google Calendar (leídos del código), lo que se arregló en la
-#      pantalla, cada captura existe, es pública y no indexable, y el código de
+#      las ocho pestañas y las tarjetas de cada una (leídas del código), lo
+#      que se arregló en la pantalla, cada captura existe, es pública y no indexable, y el código de
 #      sus dos páginas es el de Leads con otro nombre, letra por letra.
 #   2. `lib/__tests__/video-guia-conexion.test.mjs`: la narración (Cedar, a
 #      ritmo de conversación, la frase de la barra de arriba igual que en
 #      Leads), el guion (cada acción en la palabra que la nombra, la grabadora
-#      propia, no cancela ni reserva nada) y el vídeo publicado, medido.
+#      propia, no guarda, no cambia de plan ni cierra la sesión) y el vídeo publicado, medido.
 #   3. `lib/__tests__/miniaturas-guia-leads.test.mjs` con
 #      `GUIA=conexion`: cada tarjeta de Secciones con su enfoque,
 #      medido en los píxeles.
