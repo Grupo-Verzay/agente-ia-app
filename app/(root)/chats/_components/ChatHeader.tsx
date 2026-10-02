@@ -36,7 +36,7 @@ import { PestanasDelChat } from './PestanasDelChat';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
 import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
-import { elDestinoDeLaLlamada } from '@/lib/destino-de-la-llamada';
+import { elDestinoDeLaLlamada, sinElPuenteDeLosCandidatos } from '@/lib/destino-de-la-llamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
@@ -367,12 +367,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   // enseña tapado («+57 300 123 XXXX») y con esos dígitos se llamaba a otro
   // número; y de un contacto sin número a la vista solo quedaban los dígitos de
   // su `@lid`, que leídos como teléfono son el número de nadie.
-  const destinoDeLaLlamada = elDestinoDeLaLlamada([
-    session?.remoteJid,
-    session?.remoteJidAlt,
-    remoteJid,
-    ...(identidadesDelChat ?? []),
-  ]);
+  // `identidadesDelChat` viene expandido con el puente `D@lid`: sin quitarlo,
+  // a un contacto con número se le llamaba a un `@lid` que no existe.
+  const destinoDeLaLlamada = elDestinoDeLaLlamada(
+    sinElPuenteDeLosCandidatos(
+      [session?.remoteJid, session?.remoteJidAlt, remoteJid],
+      identidadesDelChat ?? [],
+    ),
+  );
   // Lo que las dos formas de llamar necesitan, resuelto una vez. La LÍNEA es la
   // de la conversación abierta y viaja en las dos: `abrirLlamadaAqui` la usa
   // para el número de salida y `startBotCallAction` para la cuenta que llama y

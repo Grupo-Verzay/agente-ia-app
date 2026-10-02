@@ -79,4 +79,20 @@ else
   empaquetar "$PWD" "$SALIDA"
 fi
 
-node --test --test-concurrency=1 lib/__tests__/destino-de-la-llamada.test.mjs "$@"
+# El puente `@lid` que expande `buildWhatsAppJidCandidates`: la regla de hoy y
+# la de ANTES_PUENTE, compiladas de su propio árbol.
+ANTES_PUENTE="${ANTES_PUENTE:-a390032}"
+export ANTES_PUENTE
+PUENTE=$PWD/lib/__tests__/.compilado/puente
+rm -rf "$PUENTE"
+npx esbuild lib/destino-de-la-llamada.ts lib/whatsapp-jid.ts --bundle --platform=node \
+  --format=esm --outdir="$PUENTE/ahora" --log-level=error
+VIEJO=$PWD/lib/__tests__/.antes/puente
+git worktree remove --force "$VIEJO" 2>/dev/null || rm -rf "$VIEJO"
+git worktree add --detach "$VIEJO" "$ANTES_PUENTE" >/dev/null 2>&1
+(cd "$VIEJO" && npx esbuild lib/destino-de-la-llamada.ts --bundle --platform=node \
+  --format=esm --outdir="$PUENTE/antes" --log-level=error)
+git worktree remove --force "$VIEJO"
+
+node --test --test-concurrency=1 lib/__tests__/destino-de-la-llamada.test.mjs \
+  lib/__tests__/puente-del-lid.test.mjs "$@"

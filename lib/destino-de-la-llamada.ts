@@ -1,4 +1,11 @@
-import { extractWhatsAppDigits, isGroupJid, isBroadcastJid, isLidJid, sinSufijoDeDispositivo } from "@/lib/whatsapp-jid";
+import {
+  extractWhatsAppDigits,
+  isGroupJid,
+  isBroadcastJid,
+  isLidJid,
+  pickPreferredWhatsAppRemoteJid,
+  sinSufijoDeDispositivo,
+} from "@/lib/whatsapp-jid";
 
 /**
  * A QUIÉN se le habla —por mensaje o por llamada— cuando el contacto puede no
@@ -105,6 +112,47 @@ export function sinTelefonosFalsosDeLid<T extends string | null | undefined>(ide
 }
 
 /**
+ * Las identidades con las que se DECIDE el destino, sin el PUENTE de los
+ * candidatos.
+ *
+ * `buildWhatsAppJidCandidates` añade a propósito `D@lid` a cada teléfono `D`:
+ * sirve para BUSCAR una fila guardada bajo cualquiera de las dos formas, pero
+ * ese `D@lid` no existe. Pasado como identidad a `sinTelefonosFalsosDeLid`,
+ * hacía que el teléfono REAL pareciera fabricado de «su» `@lid` y se tirara:
+ * responder a mano, el recordatorio de una cita escrito desde el chat o llamar
+ * desde Chats salían hacia `D@lid`, un contacto que no existe («Esta persona
+ * ya no está en WhatsApp»). Fue el 2026-10-02, con 17 conversaciones así.
+ *
+ * - `observadas`: lo que de verdad trae la fila o la ficha (`remoteJid`,
+ *   `remoteJidAlt`, `senderPn`, la llave del último mensaje). Todo cuenta.
+ * - `candidatos`: listas YA expandidas (`aliases`, `getChatIdentityCandidates`).
+ *   De ahí se cae cualquier `D@lid` cuyo `D` sea un teléfono de la lista, salvo
+ *   que ese mismo `@lid` venga también entre las observadas.
+ *
+ * Al revés no hace falta nada: el puente nunca fabrica un teléfono de un
+ * `@lid`, así que un teléfono que aparezca en los candidatos salió de un dato.
+ */
+export function sinElPuenteDeLosCandidatos(
+  observadas: ReadonlyArray<string | null | undefined>,
+  candidatos: ReadonlyArray<string | null | undefined> = [],
+): string[] {
+  const vistas = observadas.map((v) => limpio(v)).filter(Boolean);
+  const lidsVistos = new Set(vistas.map((v) => elLidDe(v)).filter(Boolean));
+  const telefonos = new Set(
+    [...vistas, ...candidatos].map((v) => losDigitosDelTelefono(v)).filter(Boolean),
+  );
+  const deLosCandidatos = candidatos
+    .map((v) => limpio(v))
+    .filter(Boolean)
+    .filter((v) => {
+      const lid = elLidDe(v);
+      if (!lid || lidsVistos.has(lid)) return true;
+      return !telefonos.has(lid.slice(0, -SUFIJO_LID.length));
+    });
+  return Array.from(new Set([...vistas, ...deLosCandidatos]));
+}
+
+/**
  * El destino de una llamada a partir de TODAS las identidades conocidas del
  * contacto (la ficha, la conversación, sus alias): los dígitos del teléfono
  * real si lo tiene, si no su `D@lid`, y "" si no hay ninguno de los dos.
@@ -167,4 +215,54 @@ export function elDestinoParaMostrar(destino?: string | null): string {
   const d = comoDestino(destino);
   if (!d) return "";
   return esDestinoLid(d) ? SIN_NUMERO_VISIBLE : `+${d}`;
+}
+
+/** Lo que se lee de un chat de la bandeja para decidir a quién se le responde. */
+export type ContactoParaResponder = {
+  remoteJid?: string | null;
+  remoteJidAlt?: string | null;
+  senderPn?: string | null;
+  aliases?: ReadonlyArray<string | null | undefined> | null;
+  lastMessage?: {
+    senderPn?: string | null;
+    key?: { remoteJid?: string | null; remoteJidAlt?: string | null; senderPn?: string | null } | null;
+  } | null;
+};
+
+/**
+ * A quién se le ESCRIBE desde la conversación abierta: el teléfono real si lo
+ * tiene, si no su `@lid` entero. Lo usan los envíos de Chats (texto, adjunto,
+ * nota de voz, respuesta rápida, reenviar).
+ *
+ * Nunca un «teléfono» fabricado con los dígitos de su `@lid`
+ * (`sinTelefonosFalsosDeLid`), y nunca un `@lid` fabricado con los dígitos de
+ * su teléfono: los `aliases` vienen expandidos con ese puente y se decide sin
+ * él (`sinElPuenteDeLosCandidatos`). Con el puente dentro, el teléfono real se
+ * tiraba por «falso» y el mensaje salía a `D@lid`, un contacto que no existe.
+ */
+export function elJidParaResponder(selectedJid: string, contacto?: ContactoParaResponder | null): string {
+  const selected = selectedJid.trim();
+  if (!selected) return selected;
+
+  const identidades = sinElPuenteDeLosCandidatos(
+    [
+      contacto?.senderPn,
+      contacto?.remoteJidAlt,
+      contacto?.remoteJid,
+      contacto?.lastMessage?.key?.remoteJid,
+      contacto?.lastMessage?.key?.remoteJidAlt,
+      contacto?.lastMessage?.key?.senderPn,
+      contacto?.lastMessage?.senderPn,
+      selected,
+    ],
+    contacto?.aliases ?? [],
+  );
+  const hayLid = identidades.some((valor) => isLidJid(valor));
+  if (!hayLid && !contacto?.senderPn) return selected;
+
+  const reales = sinTelefonosFalsosDeLid(identidades);
+  return (
+    pickPreferredWhatsAppRemoteJid(reales) ||
+    (esTelefonoFalsoDeLid(selected, identidades) ? elDestinoDeLaLlamada(identidades) : selected)
+  );
 }

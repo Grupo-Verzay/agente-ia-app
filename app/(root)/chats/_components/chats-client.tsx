@@ -88,8 +88,7 @@ import {
 } from "@/lib/whatsapp-jid";
 import {
   elDestinoDeLaLlamada,
-  esTelefonoFalsoDeLid,
-  sinTelefonosFalsosDeLid,
+  elJidParaResponder,
 } from "@/lib/destino-de-la-llamada";
 import type {
   CriterioDeBorrado,
@@ -678,25 +677,7 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
  * aviso, seguía funcionando: por eso parecía que solo fallaban las personas.
  */
 function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
-  const selected = selectedJid.trim();
-  if (!selected) return selected;
-
-  const identidades = [
-    contact?.senderPn,
-    contact?.remoteJidAlt,
-    ...(contact?.aliases ?? []),
-    contact?.remoteJid,
-    selected,
-  ];
-  const hasLid = identidades.some((valor) => valor?.toLowerCase().endsWith("@lid"));
-
-  if (!hasLid && !contact?.senderPn) return selected;
-
-  const reales = sinTelefonosFalsosDeLid(identidades);
-  return (
-    pickPreferredWhatsAppRemoteJid(reales) ||
-    (esTelefonoFalsoDeLid(selected, identidades) ? elDestinoDeLaLlamada(identidades) : selected)
-  );
+  return elJidParaResponder(selectedJid, contact);
 }
 
 /**

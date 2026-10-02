@@ -10974,6 +10974,34 @@ en `api-webhook` (el asistente de voz contra Postgres) y
 contra un commit pinchado que afirma el fallo: la llamada al número de nadie, la
 ficha reescrita y el asistente sin chat ni a quién escribir.
 
+### Y el `@lid` de PUENTE no es una identidad: se decide sin él
+
+El arreglo de arriba destapó su reverso el 2026-10-02: un recordatorio de cita
+—«tu sesión empieza…»— le llegó a «Usuario desconocido» en vez de a Reinaldo,
+y salieron así 17 conversaciones fantasma (`<teléfono>@lid`, ninguna con un
+solo mensaje del contacto) en cuatro cuentas. No era el recordatorio: lo mandó
+la persona desde Chats, y Chats eligió `584242917888@lid`.
+
+`buildWhatsAppJidCandidates` le pega a todo teléfono un `D@lid` **para
+BUSCAR** (las filas viejas guardadas así), y de ahí salen `contact.aliases`,
+`getChatIdentityCandidates` e `info.remoteJidAliases`. Con ese puente dentro,
+`sinTelefonosFalsosDeLid` veía el teléfono real como «los dígitos de un
+`@lid`» y lo tiraba: el mensaje y la llamada salían a `D@lid`, que no es nadie.
+
+> **Lo que decide a quién se escribe o se llama mira las identidades
+> OBSERVADAS; los candidatos pasan por `sinElPuenteDeLosCandidatos`**, que
+> quita todo `@lid` cuyos dígitos sean un teléfono conocido y que nadie haya
+> visto. Responder es `elJidParaResponder` (`lib/destino-de-la-llamada.ts`);
+> llamar desde la cabecera y desde la ficha, `elDestinoDeLaLlamada` sobre esa
+> misma lista. **Si se añade otro sitio que decida un destino con candidatos,
+> va igual.**
+
+Lo prueba `lib/__tests__/puente-del-lid.test.mjs`, dentro de
+`scripts/banco-destino-de-la-llamada.sh`, con los `aliases` armados por la
+función de verdad; `MODO=roto` corre la decisión de `a390032` y afirma el envío
+a `D@lid`. Las 17 conversaciones fantasma **no se borraron**: alguna puede
+tener una cita colgada de su ficha.
+
 ## Chats: buscar la fila por TODAS las identidades
 
 El aviso de tiempo real trae **una** de las identidades del contacto
