@@ -55,6 +55,7 @@ function ActionRow({
             variant="outline"
             role="option"
             aria-selected={activa}
+            data-accion={action.type}
             disabled={locked}
             onClick={() => onPick(action)}
             onMouseEnter={onHover}
@@ -104,6 +105,10 @@ export function InlineAddNode({
     // poner un nodo sin soltar el teclado.
     const [activa, setActiva] = useState(0);
     const listaRef = useRef<HTMLDivElement>(null);
+    // Si la resaltada la movió el ratón, no se desplaza la lista: ya está bajo
+    // el cursor. Desplazarla al pasar por una fila a medio ver corría la lista
+    // debajo del ratón y el clic caía en la fila de al lado.
+    const porRaton = useRef(false);
 
     const consulta = normalizar(busqueda.trim());
 
@@ -141,6 +146,10 @@ export function InlineAddNode({
 
     // Que la resaltada nunca se quede fuera de la parte visible del panel.
     useEffect(() => {
+        if (porRaton.current) {
+            porRaton.current = false;
+            return;
+        }
         listaRef.current
             ?.querySelector('[aria-selected="true"]')
             ?.scrollIntoView({ block: 'nearest' });
@@ -172,6 +181,12 @@ export function InlineAddNode({
     };
 
     const indiceDe = (action: Action) => visibles.findIndex((a) => a.type === action.type);
+    const alPasar = (action: Action) => {
+        const i = indiceDe(action);
+        if (i === activa) return;
+        porRaton.current = true;
+        setActiva(i);
+    };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -182,6 +197,7 @@ export function InlineAddNode({
                         onClick={(e) => e.stopPropagation()}
                         className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90"
                         title="Agregar acción"
+                        data-agregar-accion
                     >
                         <Plus className="h-5 w-5" strokeWidth={3} />
                     </button>
@@ -194,6 +210,7 @@ export function InlineAddNode({
                 sideOffset={12}
                 collisionPadding={16}
                 onClick={(e) => e.stopPropagation()}
+                data-panel-de-acciones
                 // El alto fijo no cabía cerca del borde de arriba del lienzo y el
                 // panel se salía: el encabezado y el buscador quedaban por encima
                 // de la pantalla. Con el alto disponible que publica Radix se
@@ -253,7 +270,7 @@ export function InlineAddNode({
                                     key={action.type}
                                     action={action}
                                     onPick={pick}
-                                    onHover={() => setActiva(indiceDe(action))}
+                                    onHover={() => alPasar(action)}
                                     activa={visibles[activa]?.type === action.type}
                                     locked={isLocked(action)}
                                 />
@@ -265,7 +282,7 @@ export function InlineAddNode({
                                     key={action.type}
                                     action={action}
                                     onPick={pick}
-                                    onHover={() => setActiva(indiceDe(action))}
+                                    onHover={() => alPasar(action)}
                                     activa={visibles[activa]?.type === action.type}
                                     locked={isLocked(action)}
                                 />
@@ -277,7 +294,7 @@ export function InlineAddNode({
                                     key={action.type}
                                     action={action}
                                     onPick={pick}
-                                    onHover={() => setActiva(indiceDe(action))}
+                                    onHover={() => alPasar(action)}
                                     activa={visibles[activa]?.type === action.type}
                                     locked={isLocked(action)}
                                 />
@@ -289,7 +306,7 @@ export function InlineAddNode({
                                     key={action.type}
                                     action={action}
                                     onPick={pick}
-                                    onHover={() => setActiva(indiceDe(action))}
+                                    onHover={() => alPasar(action)}
                                     activa={visibles[activa]?.type === action.type}
                                     seguimiento
                                     locked={isLocked(action)}

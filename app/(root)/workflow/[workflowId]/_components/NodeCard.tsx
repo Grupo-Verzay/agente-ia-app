@@ -597,7 +597,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   };
   return (
     <div className="flex items-center justify-center p-1">
-      <Card className="shadow-md border-border rounded-2xl min-w-[300px] max-w-[300px] transition-all duration-300 hover:shadow-lg">
+      <Card data-nodo-de-flujo={nodeType} className="shadow-md border-border rounded-2xl min-w-[300px] max-w-[300px] transition-all duration-300 hover:shadow-lg">
         <CardHeader className="relative flex items-center p-3">
           {/* HANDLE WORKFLOW */}
           {targetHandle}
@@ -650,7 +650,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
                 <Tooltip>
                   <TooltipTrigger className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold">?</TooltipTrigger>
                   <TooltipContent>
-                    <p>Seguimiento solo si no responden</p>
+                    <p>Solo se envía si el cliente no ha respondido</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

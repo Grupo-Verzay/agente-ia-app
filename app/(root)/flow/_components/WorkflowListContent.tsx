@@ -2,13 +2,21 @@
 
 import { useMemo, useState } from 'react';
 import { IntentTrigger, Workflow } from '@prisma/client';
-import { Search } from 'lucide-react';
+import { Bot, Brain, GitBranch, HomeIcon, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { PastillasDeMetricas, type Metrica } from '@/components/shared/PastillasDeMetricas';
 import CreateWorflowDialog from './CreateWorflowDialog';
 import FollowUpWindowDialog from './FollowUpWindowDialog';
 import type { RepeticionesDeFlujo } from '@/lib/repeticiones-de-flujo';
+import {
+    TIPOS_DE_FLUJO,
+    alPulsarUnTipo,
+    losConteosPorTipo,
+    pasaElFiltro,
+    porQueNoSePuedeOrdenar,
+    type TipoDeFlujo,
+} from '@/lib/flujos-de-la-lista';
 import { SortableWorkflowList } from './SortableWorkflowList';
 
 interface WorkflowListContentProps {
@@ -17,20 +25,45 @@ interface WorkflowListContentProps {
     isPro: boolean;
     triggers?: IntentTrigger[];
     repeticiones?: Record<string, RepeticionesDeFlujo>;
-    /** Las cifras del resumen, que se pintan en la barra. */
-    metricas?: Metrica[];
+    /** Si la barra lleva las cuatro pastillas de tipo (que filtran la lista). */
+    conPastillas?: boolean;
 }
 
-export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], metricas = [], repeticiones = {} }: WorkflowListContentProps) => {
-    const [search, setSearch] = useState('');
-    const filteredWorkflows = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return workflows;
+const ICONO_DEL_TIPO: Record<TipoDeFlujo, JSX.Element> = {
+    inicio: <HomeIcon />,
+    ia: <Brain />,
+    flujo: <GitBranch />,
+    chatbot: <Bot />,
+};
 
-        return workflows.filter(workflow =>
-            `${workflow.name} ${workflow.description ?? ''}`.toLowerCase().includes(query)
-        );
-    }, [search, workflows]);
+export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], conPastillas = false, repeticiones = {} }: WorkflowListContentProps) => {
+    const [search, setSearch] = useState('');
+    const [tipo, setTipo] = useState<TipoDeFlujo | null>(null);
+
+    const conDisparadorDeIa = useMemo(() => new Set(triggers.map(t => t.workflowId)), [triggers]);
+    const conteos = useMemo(() => losConteosPorTipo(workflows, conDisparadorDeIa), [workflows, conDisparadorDeIa]);
+
+    const filteredWorkflows = useMemo(
+        () => workflows.filter(workflow => pasaElFiltro(workflow, search, tipo, conDisparadorDeIa)),
+        [search, tipo, workflows, conDisparadorDeIa],
+    );
+
+    // Las pastillas SON el filtro por tipo: pulsarla deja solo ese tipo, y
+    // pulsarla otra vez lo quita. Una cifra que no filtra nada no se pinta.
+    const metricas: Metrica[] = conPastillas
+        ? TIPOS_DE_FLUJO.map(t => ({
+              clave: t.clave,
+              icono: ICONO_DEL_TIPO[t.clave],
+              etiqueta: t.nombre,
+              valor: conteos[t.clave],
+              color: t.color,
+              ayuda: t.ayuda,
+              activa: tipo === t.clave,
+              alPulsar: () => setTipo(actual => alPulsarUnTipo(actual, t.clave)),
+          }))
+        : [];
+
+    const motivoSinOrdenar = porQueNoSePuedeOrdenar(search, tipo);
 
     return (
         <>
@@ -39,7 +72,7 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], m
                 <div className="relative w-56 sm:w-72">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Buscar flujo..."
+                        placeholder="Buscar flujo o palabra clave..."
                         className="pl-8 text-sm"
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
@@ -53,19 +86,31 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [], m
                      de él. */
                   <FollowUpWindowDialog />
               }
-              right={<CreateWorflowDialog triggerText="Crear flujo" isPro={isPro} />}
+              right={<CreateWorflowDialog triggerText="Nuevo" isPro={isPro} />}
             >
-                {/* Sin filtro por tipo de flujo en esta lista: no son pulsables. */}
-                <PastillasDeMetricas metricas={metricas} />
+                <span data-pastillas-de-flujos className="contents">
+                    <PastillasDeMetricas metricas={metricas} />
+                </span>
             </ModuleToolbar>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div data-lista-de-flujos className="min-h-0 flex-1 overflow-y-auto pr-1">
                 {filteredWorkflows.length === 0 ? (
                     <p className="mt-8 text-center text-sm text-muted-foreground">
                         No se encontraron flujos.
                     </p>
                 ) : (
-                    <SortableWorkflowList workflows={filteredWorkflows} userId={userId} triggers={triggers} repeticiones={repeticiones} />
+                    <SortableWorkflowList
+                        workflows={filteredWorkflows}
+                        userId={userId}
+                        triggers={triggers}
+                        repeticiones={repeticiones}
+                        motivoSinOrdenar={motivoSinOrdenar}
+                    />
+                )}
+                {motivoSinOrdenar && filteredWorkflows.length > 0 && (
+                    <p data-aviso-de-orden className="mt-3 text-center text-xs text-muted-foreground">
+                        {motivoSinOrdenar}
+                    </p>
                 )}
             </div>
         </>

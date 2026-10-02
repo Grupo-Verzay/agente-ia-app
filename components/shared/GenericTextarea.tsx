@@ -25,7 +25,7 @@ export const GenericTextarea = ({ isEditing, message, handleSave, setIsEditing, 
                         rows={3}
                         autoFocus
                         disabled={isPending}
-                        className="w-full p-3 border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[120px]"
+                        className="w-full p-2 border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[120px]"
                     />
                 ) : (
                     <div
