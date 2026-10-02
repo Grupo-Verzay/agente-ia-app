@@ -8,6 +8,13 @@ import { z } from "zod"
  */
 export const sanitizeInstanceNameInput = (val: string): string =>
     val
+        // La tilde se quita y la LETRA se queda: sin esto «Café de la Montaña»
+        // salía «CAF_DE_LA_MONTAA», porque la «é» y la «ñ» no pasan el filtro
+        // de abajo. Es la misma regla que el enlace del catálogo y los slugs.
+        // Solo cambia el nombre que se PROPONE: el de una línea ya creada vive
+        // en su fila y no se recalcula.
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toUpperCase()
         .replace(/\s/g, '_')           // espacio → guion_bajo (uno a uno)
         .replace(/[^A-Z0-9_\-]/g, '')  // elimina chars no permitidos
