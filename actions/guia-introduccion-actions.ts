@@ -25,6 +25,7 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
+import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
@@ -89,6 +90,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
         descripcion: GUIA_RECORDATORIOS.descripcion,
     },
     conexion: { titulo: GUIA_CONEXION.titulo, subtitulo: GUIA_CONEXION.subtitulo, descripcion: GUIA_CONEXION.descripcion },
+    campanas: { titulo: GUIA_CAMPANAS.titulo, subtitulo: GUIA_CAMPANAS.subtitulo, descripcion: GUIA_CAMPANAS.descripcion },
     chats: { titulo: GUIA_CHATS.titulo, subtitulo: GUIA_CHATS.subtitulo, descripcion: GUIA_CHATS.descripcion },
 };
 
