@@ -127,6 +127,15 @@ import {
   hayQuePedirSuFicha,
 } from "@/lib/crm-de-la-conversacion-abierta";
 import { etapaDeLaConversacionAction } from "@/actions/embudos-actions";
+import { laFilaDeLaSesionAction } from "@/actions/session-action";
+import {
+  ESPERA_PARA_LEER_LA_FILA_MS,
+  EVENTO_FILA_DE_CHAT,
+  avisarDeLasNotasDeLaFila,
+  avisarQueCambioLaFila,
+  elCambioDeLaFila,
+  type AvisoDeLaFila,
+} from "@/lib/fila-de-chats-al-dia";
 import { elColorDeLaEtapa } from "@/lib/embudos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type { UIBubble } from "./chat-message-types";
@@ -2670,6 +2679,56 @@ export function ChatsClient({
   );
 
   /**
+   * Lo que se cambia desde la conversación abierta —recordatorio, cita,
+   * etiqueta, nota, flujo, macro— se pinta en SU fila al momento.
+   *
+   * Quien cambia algo avisa con el id de la sesión
+   * (`avisarQueCambioLaFila`); aquí se vuelve a leer ESA fila con la misma
+   * consulta que la bandeja y se aplica por el id en todas sus llaves. Los
+   * avisos de la misma sesión que llegan juntos se agrupan en una lectura.
+   * Ver `lib/fila-de-chats-al-dia.ts`.
+   */
+  const filasPendientesRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => {
+    const pendientes = filasPendientesRef.current;
+    const alCambiar = (evento: Event) => {
+      const aviso = (evento as CustomEvent<AvisoDeLaFila>).detail;
+      if (!aviso || typeof aviso.sessionId !== "number") return;
+      const { sessionId, porQue } = aviso;
+      const antes = pendientes.get(sessionId);
+      if (antes) clearTimeout(antes);
+      pendientes.set(
+        sessionId,
+        setTimeout(() => {
+          pendientes.delete(sessionId);
+          void laFilaDeLaSesionAction(sessionId)
+            .then((r) => {
+              if (!r.success || !r.data) {
+                console.warn("[chats] no se pudo poner al dia la fila tras un cambio", {
+                  sessionId,
+                  porQue,
+                  motivo: r.message,
+                });
+                return;
+              }
+              aplicarEnLaSesion(sessionId, r.data.remoteJid, elCambioDeLaFila(r.data), porQue);
+              avisarDeLasNotasDeLaFila(sessionId, r.data.tieneNotas);
+            })
+            .catch((error) => {
+              console.warn("[chats] no se pudo poner al dia la fila tras un cambio", { sessionId, porQue, error });
+            });
+        }, ESPERA_PARA_LEER_LA_FILA_MS),
+      );
+    };
+    window.addEventListener(EVENTO_FILA_DE_CHAT, alCambiar);
+    return () => {
+      window.removeEventListener(EVENTO_FILA_DE_CHAT, alCambiar);
+      for (const t of pendientes.values()) clearTimeout(t);
+      pendientes.clear();
+    };
+  }, [aplicarEnLaSesion]);
+
+  /**
    * El interruptor de la IA de una conversacion, pintado al momento.
    *
    * Es el quinto hermano de la regla de siempre: lo que actualiza una sesion en
@@ -2910,22 +2969,26 @@ export function ChatsClient({
     });
   }, []);
 
+  /**
+   * Las etiquetas que se acaban de poner desde la cabecera, pintadas al
+   * momento en la fila.
+   *
+   * Buscaba `previous[remoteJid]`, o sea la llave GLOBAL, y la fila lee la de
+   * SU línea (`linea::numero`): el contador de etiquetas de la lista no se
+   * movía hasta el reloj de sesiones. Es el mismo fallo que ya se arregló en el
+   * estado del lead y la etapa: se busca por el id de la sesión. Cuando el
+   * servidor confirma, el combobox avisa y se lee la fila de verdad.
+   */
   const handleSessionTagsChange = useCallback(
-    (remoteJid: string, selectedIds: number[]) => {
-      setChatSessions((previous) => {
-        const currentSession = previous[remoteJid];
-        if (!currentSession) return previous;
-
-        return {
-          ...previous,
-          [remoteJid]: {
-            ...currentSession,
-            tags: allTags.filter((tag) => selectedIds.includes(tag.id)),
-          },
-        };
-      });
+    (remoteJid: string, selectedIds: number[], sessionId?: number) => {
+      aplicarEnLaSesion(
+        sessionId,
+        remoteJid,
+        { tags: allTags.filter((tag) => selectedIds.includes(tag.id)) },
+        "las etiquetas de la conversacion",
+      );
     },
-    [allTags],
+    [allTags, aplicarEnLaSesion],
   );
 
   const pollAndCompareMessages = useCallback(
@@ -4096,6 +4159,9 @@ export function ChatsClient({
       window.setTimeout(() => {
         void pollAndCompareMessages(selectedJid, currentContact?.aliases);
         void refreshSidebarData();
+        // Un flujo o una respuesta deja seguimientos y su marca de flujo en la
+        // ficha: la fila los pinta sin esperar al reloj de sesiones.
+        avisarQueCambioLaFila(sesionAbiertaRef.current?.id, "lo que se envio desde la conversacion");
       }, 350);
 
       return result;
@@ -4129,6 +4195,9 @@ export function ChatsClient({
       window.setTimeout(() => {
         void pollAndCompareMessages(selectedJid, currentContact?.aliases);
         void refreshSidebarData();
+        // Un flujo o una respuesta deja seguimientos y su marca de flujo en la
+        // ficha: la fila los pinta sin esperar al reloj de sesiones.
+        avisarQueCambioLaFila(sesionAbiertaRef.current?.id, "lo que se envio desde la conversacion");
       }, 350);
 
       return result;

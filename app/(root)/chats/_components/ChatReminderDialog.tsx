@@ -8,6 +8,7 @@ import { PANEL_DEL_RECORDATORIO } from '@/lib/panel-lateral';
 import { ReminderForm } from '@/app/(root)/reminders/_components/ReminderForm';
 import { getReminderFormDeps, getRemindersByRemoteJid } from '@/actions/reminders-actions';
 import { readBadgeCount, writeBadgeCount } from './chat-badge-cache';
+import { avisarQueCambioLaFila } from '@/lib/fila-de-chats-al-dia';
 import type { Session, Workflow } from '@prisma/client';
 
 // Sin la clave del servidor: el recordatorio la pone en el servidor al guardarse.
@@ -172,6 +173,8 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
               onSuccess={() => {
                 setOpen(false);
                 void refreshCount();
+                // La campanita de la FILA de la lista, no solo la de aquí.
+                avisarQueCambioLaFila(session.id, 'el recordatorio');
               }}
             />
           )}
