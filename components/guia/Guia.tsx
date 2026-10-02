@@ -75,7 +75,6 @@ import {
     Zap,
     List,
     Kanban,
-    CalendarClock,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";

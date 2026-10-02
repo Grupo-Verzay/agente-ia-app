@@ -245,6 +245,8 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/workflow",
         contenido: GUIA_FLUJOS,
         tarjeta: "Aprende a crear flujos automáticos para tus chats en la plataforma",
+    },
+    {
         modulo: "recordatorios",
         ruta: "/reminders",
         contenido: GUIA_RECORDATORIOS,
