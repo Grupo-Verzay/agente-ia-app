@@ -38,6 +38,7 @@ import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
+import { GUIA_TAREAS } from "@/lib/guia-tareas";
 import { GUIA_ETIQUETAS } from "@/lib/guia-etiquetas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
 
@@ -279,6 +280,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/chats",
         contenido: GUIA_CHATS,
         tarjeta: "Aprende a atender todas tus conversaciones de WhatsApp en la plataforma",
+    },
+    {
+        modulo: "tareas",
+        ruta: "/tareas",
+        contenido: GUIA_TAREAS,
+        tarjeta: "Aprende a organizar y completar tus tareas en la plataforma",
     },
 ];
 

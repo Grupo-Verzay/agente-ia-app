@@ -13,8 +13,8 @@
     "agente-ia",
     "ai-imagenes",
     "catalogo",
-    "conexion",
     "chats",
+    "conexion",
     "copiloto",
     "diagramas",
     "etiquetas",
@@ -32,6 +32,7 @@
     "recordatorios",
     "respuestas-rapidas",
     "reuniones",
+    "tareas",
     "usuarios"
   ],
   "imagenes": {
@@ -39,8 +40,8 @@
     "agente-ia": "fd701d1078140040",
     "ai-imagenes": "09f86177fb994970",
     "catalogo": "50f3db09ebb776b2",
-    "conexion": "2bb5173fe8523636",
     "chats": "85de3561f78c1b88",
+    "conexion": "2bb5173fe8523636",
     "copiloto": "64d60dfbb183ec84",
     "diagramas": "50f3db09ebb776b2",
     "etiquetas": "fdf3290b6ba0073f",
@@ -58,6 +59,7 @@
     "recordatorios": "16b8272a13b3bbb3",
     "respuestas-rapidas": "7d51a6cb82dc17a0",
     "reuniones": "50f3db09ebb776b2",
+    "tareas": "5a141afe1036665a",
     "usuarios": "9c9cee2fa53e3678"
   }
 }
