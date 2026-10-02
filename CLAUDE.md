@@ -23383,6 +23383,23 @@ Documentación, a 1440/1280/1024/390 —con el TEXTO del título medido con un
 ni centro de ayuda, y la portada de `38be58b` y afirma el título a la
 izquierda, con su subtítulo, y el buscador de lado a lado.
 
+### «Tutoriales» de la landing: el MISMO centro de ayuda, con otra puerta
+
+El menú de la landing lleva «Tutoriales» entre «Funciones» y «Precios» (barra,
+menú del teléfono y pie), y abre `/tutoriales`: pública, sin sesión y sin
+indexar. **No es una copia**: `app/tutoriales` pinta `CentroDeAyuda` y
+`GuiasDeLaCategoria` con `lasGuiasDelCentroDeAyuda()`, igual que `/ayuda`, así
+que una guía publicada sale en los dos a la vez. Lo único propio es el marco
+(sin el menú de la plataforma) y la prop `raiz` (`RUTA_PUBLICA_DE_TUTORIALES`):
+las categorías llevan a `/tutoriales/<slug>`, porque `/ayuda` manda al login.
+Ni una guía ni una categoría escrita a mano en `app/tutoriales`.
+
+Lo prueba `scripts/banco-tutoriales-publicos.sh`: el código (el menú en sus
+tres sitios, el middleware, la misma fuente) y la página servida sin sesión a
+1440 y 390 —desde el menú, las diez categorías con los números de la fuente,
+el buscador, una categoría y su guía—. `MODO=roto` lee `3992838` y afirma que
+no había nada de esto.
+
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
 `CabeceraDeLaGuia` es UNA fila de 56 px en rejilla simétrica
