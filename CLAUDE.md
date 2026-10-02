@@ -24839,7 +24839,41 @@ Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
 «Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
 por nombre hasta la que conteste.
 
-### La decimoséptima guía, Productos: y documentarla destapó productos que nacían agotados
+### La decimoséptima guía, Llamadas: llamar, el historial y sus ventanas, sin llamar a nadie
+
+`/guia/llamadas` documenta Bandeja › Llamadas (`/crm/llamadas`) con el estándar
+de las anteriores: ocho secciones —vista general, llamar (tú o el asistente con
+IA), el historial y sus filtros, abrir el chat desde una llamada, el resultado y
+el nombre, agendar un callback, el detalle (grabación, Resumen IA y
+transcripción) y el mensaje al no contestar—, una miniatura con enfoque por
+tarjeta y el vídeo de minuto y medio con la voz Cedar y el MISMO ritmo. Su
+tarjeta sale sola en «Tutoriales del módulo» de `/crm/llamadas`. Ninguna pieza
+propia: contenido en `lib/guia-llamadas.ts`, semilla
+`sembrar-guia-llamadas.mjs`, receta `capturar-guia-llamadas.mjs` y narración
+`narracion-guia-llamadas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-llamadas.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo llaman a nadie**: señalan «Llamar» y «Llamar
+   IA» y los dejan sin pulsar; el vídeo cancela el callback y el mensaje al no
+   contestar. La grabación de ejemplo es un audio de la caché de Cedar servido
+   por la receta (`ctx.route`), y los números y nombres son de ejemplo.
+2. **El contenido se compara con el código**: las direcciones, las columnas,
+   los resultados, los dos botones de la ventana de llamar en su orden, el «⋯»
+   de la fila y el de la barra, y las tres partes del detalle en su orden
+   (`guia-llamadas.test.mjs`). Una opción nueva sin su nombre la pone en rojo.
+3. **El paso a Chats y la vuelta son CORTES** (`sinGrabarLaEspera`): la carga
+   de la conversación no sale en el vídeo.
+4. **Con un menú de Radix abierto lo de fuera es `aria-hidden`**: la receta
+   mide los tres puntos de la fila y de la barra ANTES de abrirlos.
+
+Lo prueba `scripts/banco-guia-llamadas.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=llamadas`, `fin-de-la-guia`, `menu-de-la-guia`
+y la guía servida a 390 y 1440); `MODO=roto` contra `2c7b35e` afirma que no
+había guía.
+
+### La decimoctava guía, Productos: y documentarla destapó productos que nacían agotados
 
 `/guia/productos` documenta Entrenamiento › Productos (`/products`) con el
 mismo estándar: diez secciones —vista general, buscar, las cifras, ver el
