@@ -153,12 +153,14 @@ export function enfocar(zona, { tope = 1.6 } = {}) {
  * hora de la historia, la duración de las notas y los archivos servidos por el
  * estudio (`/__estudio/medios/…`). Puro: el banco comprueba que cada tipo sale
  * con lo que su burbuja necesita. `segundos` son los que midió `medios.mjs`.
+ * `separadores` dice dónde empieza un día (el del vídeo de ventas por defecto;
+ * el corte de YouTube, que arranca de noche, tiene uno más).
  */
-export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
+export function elMensajeDelEstudio(m, { segundos = {}, separadores = SEPARADORES } = {}) {
     const medio = m.medio ? MEDIOS[m.medio] : null;
     const url = (archivo) => `/__estudio/medios/${archivo}`;
     const base = { id: m.id, de: m.de, tipo: m.tipo, texto: m.texto ?? "", hora: laHora(m.en), ts: m.en };
-    if (SEPARADORES[m.id]) base.separador = SEPARADORES[m.id];
+    if (separadores[m.id]) base.separador = separadores[m.id];
     switch (m.tipo) {
         case "nota":
             return { ...base, url: url(medio.archivo), duracion: comoDuracion(segundos[m.medio] ?? 0) };
@@ -255,6 +257,7 @@ const I = {
     tresPuntos: '<svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="5.5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="18.5" r="1.8" fill="currentColor"/></svg>',
     nuevoChat: '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 20l1-4.2L15.8 5a2 2 0 012.8 0l.4.4a2 2 0 010 2.8L8.2 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
     reloj: '<svg viewBox="0 0 24 24" width="34" height="34"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 7v5.2l3.4 2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
+    luna: '<svg viewBox="0 0 24 24" width="34" height="34"><path d="M20 14.6A8.5 8.5 0 019.4 4a8.5 8.5 0 1010.6 10.6z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
     calendario: '<svg viewBox="0 0 24 24" width="34" height="34"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
     senal: '<svg viewBox="0 0 20 12" width="18" height="11"><rect x="0" y="8" width="3.2" height="4" rx="1" fill="currentColor"/><rect x="5.3" y="5.5" width="3.2" height="6.5" rx="1" fill="currentColor"/><rect x="10.6" y="3" width="3.2" height="9" rx="1" fill="currentColor"/><rect x="15.9" y="0" width="3.2" height="12" rx="1" fill="currentColor"/></svg>',
     wifi: '<svg viewBox="0 0 16 12" width="16" height="12"><path d="M8 11.5l2.2-2.6a3 3 0 00-4.4 0zM3.4 6.2a6.6 6.6 0 019.2 0l1.4-1.6a8.8 8.8 0 00-12 0zM.4 2.8a11 11 0 0115.2 0" fill="currentColor"/></svg>',
@@ -519,6 +522,18 @@ body::before {
   opacity: 0; transform: translateY(18px); transition: opacity .7s, transform .9s cubic-bezier(.2,.8,.2,1); }
 #montaje .cierreMontaje.sale { opacity: 1; transform: none; }
 #montaje .cierreMontaje span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Los CORTES del gancho (corte de YouTube): sin título grande ni cierre animado,
+   los cinco chats a la vez y, en cada corte, uno solo en grande. Todo de golpe:
+   un corte no es un fundido. */
+#montaje.cortes, #montaje.cortes .mini { transition: none; }
+#montaje.cortes .titulo, #montaje.cortes .cierreMontaje { display: none; }
+#montaje.cortes .tarjetas { top: 150px; }
+/* Los que no se ven, sin display none: al volver a mostrarse, una burbuja
+   repetiría su animación de entrada y el mensaje parecería llegar otra vez. */
+#montaje.cortes.solo .mini:not(.elegida) { position: absolute; visibility: hidden; }
+/* 1,3 y no más: con el nombre del negocio y su línea debajo, sin que los pise el subtítulo. */
+#montaje.cortes.solo .mini.elegida { zoom: 1.3; }
+#montaje.cortes.solo .tarjetas { top: 26px; }
 .escribiendo { align-self: flex-start; background: #fff; border-radius: 9px; border-top-left-radius: 2px; padding: 10px 12px; display: flex; gap: 4px; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
 .escribiendo i { width: 7px; height: 7px; border-radius: 50%; background: #9aa5ab; animation: puntito 1.1s infinite; }
 .escribiendo i:nth-child(2) { animation-delay: .15s; } .escribiendo i:nth-child(3) { animation-delay: .3s; }
@@ -624,6 +639,20 @@ body::before {
 #lineas .asesor .escribe i:nth-child(3) { animation-delay: .36s; }
 @keyframes punto { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 #subtitulo .quien { color: #7cc4ff; font-weight: 700; margin-right: 6px; }
+/* Las líneas «en vivo» (corte de YouTube): cada asesor manda y vuelve a escribir. */
+#lineas .asesor .enviado { display: none; padding: 6px 11px; border-radius: 14px 14px 4px 14px; background: #d9fdd3; color: #1daa61; font-size: 15px; font-weight: 800; letter-spacing: -1px; }
+#lineas .asesor.envio .escribe { display: none; }
+#lineas .asesor.envio .enviado { display: inline-block; }
+#lineas .asesor { border-radius: 14px; }
+#lineas .asesor.envio { background: rgba(57,224,139,.10); }
+#lineas .cabLinea .enVivo { width: 10px; height: 10px; border-radius: 50%; background: #39e08b; box-shadow: 0 0 10px rgba(57,224,139,.8); animation: latido 1.4s infinite; }
+@keyframes latido { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+/* Juntar: las tres líneas se encogen hacia el centro, donde aparece la marca. */
+#lineas .columnas { transition: transform .9s cubic-bezier(.65,0,.3,1), opacity .55s ease .25s; }
+#lineas.junta .columnas { transform: scale(.5); opacity: 0; }
+/* El cierre puede salir con solo el logo y el nombre, y el lema después. */
+#cierre .lema, #cierre .aviso { transition: opacity .6s, transform .7s cubic-bezier(.2,.8,.2,1); }
+#cierre.sinLema .lema, #cierre.sinLema .aviso { opacity: 0; transform: translateY(14px); }
 
 /* ---------- lo que va encima ---------- */
 #capacidad { position: absolute; left: 64px; top: 34px; display: flex; align-items: center; gap: 14px; opacity: 0; transform: translateX(-20px); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
@@ -798,10 +827,22 @@ function programa(DATOS) {
         }
     }
 
-    function separador(texto) {
+    // Un día nuevo: el «Hoy» de antes pasa a «Ayer», y el «Ayer» de antes al
+    // nombre de su día («Lunes»), como en WhatsApp. Una sola pasada: cada
+    // separador cambia según lo que decía, no según lo que acaba de cambiar.
+    const elDiaDe = (ts) => {
+        const d = new Date(ts).toLocaleDateString("es-CO", { weekday: "long", timeZone: DATOS.zona });
+        return d.charAt(0).toUpperCase() + d.slice(1);
+    };
+    function separador(texto, ts) {
         for (const donde of ["tel", "web"]) {
-            for (const s of muros[donde].querySelectorAll(".sep")) if (s.textContent === "Hoy") s.textContent = "Ayer";
-            muros[donde].appendChild(el("div", "sep", esc(texto)));
+            for (const s of muros[donde].querySelectorAll(".sep")) {
+                if (s.textContent === "Ayer" && s.dataset.ts) s.textContent = elDiaDe(Number(s.dataset.ts));
+                else if (s.textContent === "Hoy") s.textContent = "Ayer";
+            }
+            const nuevo = el("div", "sep", esc(texto));
+            if (ts) nuevo.dataset.ts = String(ts);
+            muros[donde].appendChild(nuevo);
         }
     }
 
@@ -884,7 +925,7 @@ function programa(DATOS) {
             pintarReloj();
         }
         if (m.de === "cliente") sinLeer += 1;
-        if (m.separador) separador(m.separador);
+        if (m.separador) separador(m.separador, m.ts);
         for (const donde of ["tel", "web"]) muros[donde].appendChild(burbuja(m, donde));
         subirFila(m);
         if (m.de === "ia") sinLeer = 0;
@@ -913,10 +954,10 @@ function programa(DATOS) {
     const pantallas = { tel: $("#tel"), web: $("#web"), portatil: $("#portatil"), sheets: $("#sheets") };
     const etiquetas = { tel: $("#etTel"), web: $("#etWeb"), portatil: $("#etPortatil"), sheets: $("#etSheets") };
     const TAM = DATOS.tamanos;
-    function plano(p, { ms } = {}) {
+    function plano(p, { ms, fundido = 700 } = {}) {
         for (const k of Object.keys(pantallas)) {
             const e = pantallas[k];
-            if (ms != null) e.style.transitionDuration = `${ms}ms, 700ms`;
+            if (ms != null) e.style.transitionDuration = `${ms}ms, ${fundido}ms`;
             const pos = p[k];
             if (pos) {
                 e.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${pos.s})`;
@@ -974,13 +1015,96 @@ function programa(DATOS) {
     function resumen() {
         document.querySelectorAll("#resumen .pildora").forEach((p, i) => setTimeout(() => p.classList.add("sale"), 120 + i * 110));
     }
-    /** Multiagente: las tres líneas en cascada, y en cada una sus asesores atendiendo. */
-    function lineas() {
+    /**
+     * Multiagente: las tres líneas en cascada, y en cada una sus asesores
+     * atendiendo. Con `vivo`, además trabajan: cada asesor manda (✓✓), suma un
+     * chat y vuelve a escribir, a su ritmo — sale del índice, no del azar, para
+     * que dos grabaciones se vean igual.
+     */
+    function lineas({ vivo = false } = {}) {
         document.querySelectorAll("#lineas .linea").forEach((l, i) => {
             setTimeout(() => l.classList.add("sale"), 100 + i * 260);
             l.querySelectorAll(".asesor").forEach((a, j) => setTimeout(() => a.classList.add("sale"), 380 + i * 260 + j * 120));
+            if (!vivo) return;
+            const cab = l.querySelector(".cabLinea");
+            if (!cab.querySelector(".enVivo")) cab.insertBefore(el("span", "enVivo"), cab.querySelector(".badge"));
+            l.querySelectorAll(".asesor").forEach((a, j) => {
+                if (!a.querySelector(".enviado")) a.appendChild(el("span", "enviado", "✓✓"));
+                const span = a.querySelector(".quien span");
+                let chats = Number.parseInt(span.textContent, 10) || 0;
+                const n = i * 7 + j * 5;
+                const ciclo = 1700 + (n % 5) * 260;
+                const arranque = 700 + i * 260 + j * 120 + (n % 4) * 220;
+                const manda = () => {
+                    a.classList.add("envio");
+                    chats += 1;
+                    span.textContent = `${chats} chats`;
+                    setTimeout(() => a.classList.remove("envio"), 800);
+                };
+                setTimeout(() => {
+                    manda();
+                    setInterval(manda, ciclo);
+                }, arranque);
+            });
         });
     }
+    /** Las tres líneas se juntan en el centro: es donde aparece la marca. */
+    function juntarLineas() {
+        $("#lineas").classList.add("junta");
+    }
+    /** El cierre con solo el logo y el nombre (`false`) o con su lema debajo. */
+    function cierreConLema(si) {
+        $("#cierre").classList.toggle("sinLema", !si);
+    }
+
+    /* ---------- los cortes del gancho (corte de YouTube) ---------- */
+    const cortes = (() => {
+        const minis = () => [...document.querySelectorAll(".mini")];
+        const respondidas = new Set();
+        const pintar = (i, m) => {
+            minis()[i].querySelector(".muro").appendChild(burbuja(m, "mini"));
+            if (m.tipo === "nota") setTimeout(() => reproducirNota(m.id, 1600, 1), 200);
+        };
+        /** Los cinco chats a la vez, y a cada uno le llega su mensaje, sin contestar. */
+        function entrar() {
+            $("#montaje").classList.add("cortes");
+            for (const m of minis()) m.classList.add("sale");
+            DATOS.montaje.forEach((n, i) => {
+                for (const m of n.mensajes) if (m.de !== "ia") setTimeout(() => pintar(i, m), 120 + i * 170);
+            });
+        }
+        function responder(i, { escribiendo = true } = {}) {
+            if (respondidas.has(i)) return;
+            respondidas.add(i);
+            const muro = minis()[i].querySelector(".muro");
+            const respuestas = DATOS.montaje[i].mensajes.filter((m) => m.de === "ia");
+            if (!escribiendo) {
+                for (const m of respuestas) pintar(i, m);
+                return;
+            }
+            const escr = el("div", "escribiendo", "<i></i><i></i><i></i>");
+            setTimeout(() => muro.appendChild(escr), 60);
+            setTimeout(() => {
+                escr.remove();
+                for (const m of respuestas) pintar(i, m);
+            }, 360);
+        }
+        /** Un corte: uno solo en grande, y ahí mismo la respuesta al instante. */
+        function solo(i) {
+            const mt = $("#montaje");
+            mt.classList.add("solo");
+            minis().forEach((m, j) => m.classList.toggle("elegida", j === i));
+            responder(i);
+        }
+        /** De vuelta a los cinco, ya todos contestados. */
+        function todas() {
+            const mt = $("#montaje");
+            mt.classList.remove("solo");
+            for (const m of minis()) m.classList.remove("elegida");
+            DATOS.montaje.forEach((_, i) => responder(i, { escribiendo: false }));
+        }
+        return { entrar, solo, todas };
+    })();
 
     /* ---------- el montaje ---------- */
     // Cuándo sale el último mensaje de las tarjetas: el cierre del arranque no
@@ -1125,6 +1249,9 @@ function programa(DATOS) {
         llamada,
         resumen,
         lineas,
+        juntarLineas,
+        cierreConLema,
+        cortes,
         cursor: { mover: moverCursor, forma, clic, esconder: () => cursor.classList.remove("sale") },
         listo: true,
     };
@@ -1154,12 +1281,14 @@ export function laPaginaDelEstudio(datos) {
         )
         .join("");
     const celda = (v) => `<td>${e(v)}</td>`;
+    // La fecha de una fila sale del calendario de la historia (`losDiasDeLaHoja`) cuando viene.
+    const conElDia = (fila, dia) => (dia ? [dia, ...fila.slice(1)] : fila);
     const letras = ["", "A", "B", "C", "D", "E"].slice(0, LA_HOJA.columnas.length + 1);
     const hojaHtml =
         `<table><tr>${letras.map((l) => `<th>${l}</th>`).join("")}</tr>` +
         `<tr class="titulos"><td class="n">1</td>${LA_HOJA.columnas.map(celda).join("")}</tr>` +
-        LA_HOJA.filas.map((f, i) => `<tr><td class="n">${i + 2}</td>${f.map(celda).join("")}</tr>`).join("") +
-        `<tr class="laura"><td class="n">${LA_HOJA.filas.length + 2}</td>${LA_HOJA.laura.map(celda).join("")}</tr>` +
+        LA_HOJA.filas.map((f, i) => `<tr><td class="n">${i + 2}</td>${conElDia(f, datos.diasDeLaHoja?.filas[i]).map(celda).join("")}</tr>`).join("") +
+        `<tr class="laura"><td class="n">${LA_HOJA.filas.length + 2}</td>${conElDia(LA_HOJA.laura, datos.diasDeLaHoja?.laura).map(celda).join("")}</tr>` +
         Array.from({ length: 6 }, (_, i) => `<tr><td class="n">${LA_HOJA.filas.length + 3 + i}</td>${LA_HOJA.columnas.map(() => "<td></td>").join("")}</tr>`).join("") +
         `</table>`;
     const pildoras = CAPACIDADES.map((c, i) => `<div class="pildora"><span class="num">${i + 1}</span><b>${e(c.titulo)}</b></div>`).join("");

@@ -1,0 +1,202 @@
+{
+  "voz": "cedar",
+  "modelo": "gpt-4o-mini-tts",
+  "frases": {
+    "gancho": "37e623eb87a214a09c8bcd33",
+    "noche": "2a457545522089cdd1f96d08",
+    "texto": "1233b9bdd07ce3d77911b838",
+    "voz": "fb9362ff6017113128e3c8c7",
+    "sheets": "b3236429bddcd07eb2bfd499",
+    "medios": "11f8a5a493ebe6975b649b19",
+    "seguimiento": "f9214b1414310089d086d837",
+    "cita": "140a27d378ab08220c9b4550",
+    "asesor": "9504646b7c570e3960e7ae8a",
+    "unDia": "740b574b3c1328abd5c00616",
+    "crece": "23ff95517d5ff000006f03fb",
+    "llamado": "bd6a50fabdc5e8fe35cd2226"
+  },
+  "duracionMs": 149082,
+  "titulo": "Mientras tú dormías, esto pasó con un cliente",
+  "descripcion": "Son las nueve de la noche, la clínica está cerrada y Laura escribe por WhatsApp. Esto es lo que pasa con ella hasta que confirma su cita, sin que nadie del equipo toque nada: la IA le responde al instante, la escucha y le contesta con voz, le manda el PDF y el video, le insiste, la llama, le agenda la cita y le recuerda un día antes.\n\nVerzay — Responde, vende, agenda y hace seguimiento. 24/7.\n\n💬 Escríbenos por WhatsApp: https://wa.me/573233612620?text=Hola%2C%20vi%20el%20video%20de%20Verzay%20en%20YouTube%20y%20quiero%20verlo%20funcionando%20en%20mi%20negocio.\n📅 Agenda una cita: https://verzay.com/agendar-una-reunion\n\nDemostración con datos de ejemplo. El panel es la plataforma real; el celular, WhatsApp Web, la hoja de cálculo, la llamada y el esquema de las líneas del equipo son recreaciones fieles, y las respuestas de la IA siguen un guion.",
+  "gancho": {
+    "negocios": [
+      "tienda",
+      "clinica",
+      "cursos",
+      "consultoria",
+      "viajes"
+    ],
+    "cincoContestadosMs": 7658
+  },
+  "llamada": {
+    "desdeMs": 71691,
+    "lineas": 7
+  },
+  "lineasMs": 134056,
+  "marcaMs": 140330,
+  "respiroAntesDeLasLineasMs": 2000,
+  "colocados": [
+    {
+      "clase": "narracion",
+      "texto": "Cada minuto sin respuesta es una venta que se enfría. Tiendas, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp, responde al instante.",
+      "inicioMs": 303,
+      "finMs": 12043
+    },
+    {
+      "clase": "narracion",
+      "texto": "Son las nueve de la noche. En la clínica ya no hay nadie despierto. Pero Laura sí está escribiendo.",
+      "inicioMs": 12077,
+      "finMs": 19137
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M01",
+      "inicioMs": 18050,
+      "finMs": 18320
+    },
+    {
+      "clase": "narracion",
+      "texto": "La IA responde al instante, le da el precio, y sin que nadie lo haga a mano, su ficha ya está completa.",
+      "inicioMs": 19391,
+      "finMs": 26331
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M03",
+      "inicioMs": 27490,
+      "finMs": 27760
+    },
+    {
+      "clase": "nota",
+      "texto": "nota clienta",
+      "inicioMs": 27715,
+      "finMs": 31415
+    },
+    {
+      "clase": "narracion",
+      "texto": "Si Laura prefiere mandar un audio, la IA lo escucha y le contesta también con voz.",
+      "inicioMs": 31622,
+      "finMs": 38162
+    },
+    {
+      "clase": "nota",
+      "texto": "nota ia",
+      "inicioMs": 38377,
+      "finMs": 42537
+    },
+    {
+      "clase": "narracion",
+      "texto": "Todo lo que Laura cuenta queda guardado también en tu hoja de cálculo, sin que nadie lo escriba.",
+      "inicioMs": 43237,
+      "finMs": 49277
+    },
+    {
+      "clase": "narracion",
+      "texto": "Le manda el PDF, el video, entiende la foto que ella envía, y como ya está interesada, queda marcada como cliente caliente, sin que nadie la etiquete a mano.",
+      "inicioMs": 50212,
+      "finMs": 60692
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M07",
+      "inicioMs": 51628,
+      "finMs": 51898
+    },
+    {
+      "clase": "narracion",
+      "texto": "Si Laura se queda callada, la IA no la deja ir: insiste con texto, y si hace falta, hasta la llama.",
+      "inicioMs": 61430,
+      "finMs": 68240
+    },
+    {
+      "clase": "tono",
+      "texto": "tono de llamada",
+      "inicioMs": 68788,
+      "finMs": 71488
+    },
+    {
+      "clase": "llamada",
+      "texto": "¡Hola, Laura! Te habla Sofía, de Clínica Sonríe. Anoche nos escribiste por el blanqueamiento dental. ¿Tienes un minuto?",
+      "inicioMs": 72045,
+      "finMs": 79665
+    },
+    {
+      "clase": "llamada",
+      "texto": "¡Hola, Sofía! Sí, claro, cuéntame.",
+      "inicioMs": 80016,
+      "finMs": 82986
+    },
+    {
+      "clase": "llamada",
+      "texto": "Te llamo por tu valoración gratis. Esta semana tengo cupos el jueves a las diez o a las once y media de la mañana, y el viernes en la tarde. ¿Cuál te queda mejor?",
+      "inicioMs": 83338,
+      "finMs": 91978
+    },
+    {
+      "clase": "llamada",
+      "texto": "El jueves a las diez me queda perfecto.",
+      "inicioMs": 92329,
+      "finMs": 95009
+    },
+    {
+      "clase": "llamada",
+      "texto": "¡Listo! Te dejo agendada el jueves a las diez. Ahora te llega la confirmación por WhatsApp, y un día antes te mando un recordatorio.",
+      "inicioMs": 95360,
+      "finMs": 103070
+    },
+    {
+      "clase": "llamada",
+      "texto": "¡Súper! Muchas gracias, Sofía.",
+      "inicioMs": 103420,
+      "finMs": 105540
+    },
+    {
+      "clase": "llamada",
+      "texto": "Gracias a ti, Laura. ¡Que tengas una linda tarde!",
+      "inicioMs": 105896,
+      "finMs": 109406
+    },
+    {
+      "clase": "narracion",
+      "texto": "La cita queda en el calendario, y un día antes, el recordatorio sale solo. Laura confirma, y tú lo sabes al instante.",
+      "inicioMs": 110892,
+      "finMs": 118752
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M14",
+      "inicioMs": 115640,
+      "finMs": 115910
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M15",
+      "inicioMs": 119679,
+      "finMs": 119949
+    },
+    {
+      "clase": "narracion",
+      "texto": "Y si en algún momento Laura necesita hablar con una persona, la IA la pasa directo con tu equipo.",
+      "inicioMs": 119689,
+      "finMs": 126189
+    },
+    {
+      "clase": "narracion",
+      "texto": "Esto no fue un tutorial, fue un día cualquiera para un cliente real.",
+      "inicioMs": 127855,
+      "finMs": 132045
+    },
+    {
+      "clase": "narracion",
+      "texto": "Y si tu negocio crece, Verzay crece contigo: varias líneas, varios asesores, un solo panel.",
+      "inicioMs": 134563,
+      "finMs": 141133
+    },
+    {
+      "clase": "narracion",
+      "texto": "Escríbenos por WhatsApp o agenda una cita. Los enlaces están en la descripción.",
+      "inicioMs": 141956,
+      "finMs": 147576
+    }
+  ]
+}

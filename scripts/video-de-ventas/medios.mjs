@@ -328,9 +328,10 @@ export function duracionDeLaNota(ruta) {
     return Math.max(1, Math.round(Number(s.trim())));
 }
 
-export async function generarLosMedios(dir, { chromium, ahora = Date.now() } = {}) {
+export async function generarLosMedios(dir, { chromium, ahora = Date.now(), calendario } = {}) {
     mkdirSync(dir, { recursive: true });
-    const cal = elCalendario(ahora);
+    // El calendario lo puede traer quien graba (el corte de YouTube va de noche); sin él, el de siempre.
+    const cal = calendario ?? elCalendario(ahora);
     const navegador = await chromium.launch();
     try {
         await foto(navegador, laPromo(), path.join(dir, MEDIOS.promoDeInstagram.archivo), { ancho: 1080, alto: 1080 });

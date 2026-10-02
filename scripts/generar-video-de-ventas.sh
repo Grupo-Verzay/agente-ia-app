@@ -9,6 +9,10 @@
 #       SOLO_SERVIR=1 scripts/generar-video-de-ventas.sh   (la App sembrada, sin grabar)
 #       ENSAYO=1 scripts/generar-video-de-ventas.sh        (graba, pero deja el vídeo en el directorio de trabajo)
 #
+# El vídeo de YouTube (`generar-video-de-youtube.sh`) usa este mismo arranque
+# con otro grabador (`GRABADOR`) y otro directorio de trabajo: la App, la
+# semilla y el estudio son los mismos.
+#
 # Después hay que volver a construir: `next start` solo sirve lo que había en
 # `public/` al construir.
 set -euo pipefail
@@ -22,6 +26,7 @@ PGDIR=/tmp/pgguia
 PORT=55491
 APP="${APP:-3940}"
 export TRABAJO="${TRABAJO:-/tmp/video-de-ventas}"
+GRABADOR="${GRABADOR:-scripts/grabar-video-de-ventas.mjs}"
 
 [ -d .next/static/css ] || { echo "No hay build ('npm run build')." >&2; exit 1; }
 command -v ffmpeg >/dev/null || { echo "Falta ffmpeg (apt-get install -y ffmpeg)." >&2; exit 1; }
@@ -82,4 +87,4 @@ if [ "${SOLO_SERVIR:-}" = "1" ]; then
   exit 0
 fi
 
-BASE="http://localhost:$APP" node scripts/grabar-video-de-ventas.mjs
+BASE="http://localhost:$APP" node "$GRABADOR"

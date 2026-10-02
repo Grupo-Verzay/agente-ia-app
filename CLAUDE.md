@@ -25443,6 +25443,45 @@ La síntesis de la narración usa «IA CRM» por defecto; si OpenAI contesta 429
 pide con otra llave de la misma tabla: `NOMBRE_LLAVE="Agente IA" node
 scripts/sintetizar-en-el-contenedor.mjs scripts/video-de-ventas/narracion.mjs`.
 
+### El corte de YouTube: la MISMA grabación, contada de noche
+
+`public/demo/verzay-youtube.mp4` («Mientras tú dormías, esto pasó con un
+cliente», el vídeo de apertura del canal) no es otro vídeo: es la historia de
+`/demo` con otro guion. Se graba con `npm run build &&
+scripts/generar-video-de-youtube.sh` (y volver a construir); `ENSAYO=1` no
+publica.
+
+> **El rodaje es UNO** (`scripts/video-de-ventas/rodaje.mjs`): el estudio, la
+> App de verdad, el backend, el tiempo real, la grabadora y `decir`/`alDecir`
+> los usan los dos guiones (`grabar-video-de-ventas.mjs` y
+> `grabar-video-de-youtube.mjs`). Lo único propio del de YouTube es su guion,
+> su narración (`scripts/video-de-youtube/narracion.mjs`, con su propia caché
+> de voz) y la llamada entera.
+
+Cinco cosas que hay que mantener:
+
+1. **De noche es una opción del calendario, no otra historia**
+   (`elCalendario(ahora, { deNoche: true })`): Laura escribe el LUNES a las
+   nueve de la noche, la IA insiste a las dos horas y la llama el martes por la
+   tarde; la cita, el recordatorio y los cupos son los de siempre. Lo que
+   dependía del día —los de la hoja de cálculo— sale de `losDiasDeLaHoja`.
+2. **Arranca con cortes de los cinco chats, sin portada ni marca**: el logo
+   sale solo al final, después del respiro de dos segundos entre el embudo y
+   las varias líneas (`RESPIRO_ANTES_DE_LAS_LINEAS_MS`).
+3. **La llamada va entera y sin narración encima** (`LA_LLAMADA_COMPLETA`), con
+   las mismas voces que la corta de `/demo`; una captura durante la llamada se
+   descuenta de su espera, o el hueco entre frases pasa del segundo.
+4. **Ningún rato mudo mientras se abre algo**: la frase empieza en cuanto llega
+   el mensaje y la pantalla se abre mientras suena. Sin eso el primer corte
+   tenía seis segundos sin voz.
+5. **La descripción va con el vídeo** (`DESCRIPCION_DE_YOUTUBE`, en el `.json`):
+   el WhatsApp y la reunión son los de `/demo`, y el mensaje ya escrito dice que
+   viene de YouTube.
+
+Lo prueba `scripts/banco-video-de-youtube.sh` (el guion, la noche, el grabador y
+el vídeo publicado medido con ffmpeg); `MODO=roto` lee `7a0d1ac` y afirma que
+no había corte de YouTube.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

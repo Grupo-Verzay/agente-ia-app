@@ -192,18 +192,30 @@ export function laHora(ms) {
  * conversación es un MARTES por la mañana —así la cita del jueves cae dos días
  * después y el recordatorio el miércoles—, el primer martes que llegue
  * después de hoy: nada de la historia queda en el pasado del servidor, donde
- * una cita ya vencida no saldría como pendiente.
+ * una cita ya vencida no saldría como pendiente. Con `deNoche` empieza la
+ * noche anterior (lunes, 9:00 p. m.); sin él, todo sigue exactamente igual.
  */
-export function elCalendario(ahora = Date.now()) {
-    let dia = medianoche(ahora) + 86_400_000;
+export function elCalendario(ahora = Date.now(), { deNoche = false } = {}) {
+    // De noche se busca el martes desde PASADO mañana: así el lunes de la
+    // historia es, como pronto, mañana, y su noche nunca queda en el pasado.
+    let dia = medianoche(ahora) + (deNoche ? 2 : 1) * 86_400_000;
     while (new Date(dia + DESFASE_MS + 12 * 3_600_000).getUTCDay() !== 2) dia += 86_400_000;
     const martes = dia;
+    const lunes = martes - 86_400_000;
     const miercoles = martes + 86_400_000;
     const jueves = martes + 2 * 86_400_000;
     const viernes = martes + 3 * 86_400_000;
+    // De NOCHE (el corte de YouTube, «Mientras tú dormías»): Laura escribe el
+    // LUNES a las nueve, con la clínica cerrada; la IA insiste dos horas después
+    // y la llama al día siguiente por la tarde. Lo demás —el recordatorio del
+    // miércoles, la cita del jueves y los cupos— es la misma semana.
+    const inicio = deNoche ? aLas(lunes, 21, 0) : aLas(martes, 9, 40);
     return {
-        inicio: aLas(martes, 9, 40),
-        seguimiento: aLas(martes, 11, 46),
+        inicio,
+        // La mañana del martes, sea la historia de día o de noche: de ella
+        // cuelgan las demás citas de la agenda, para que nunca caigan de madrugada.
+        referencia: aLas(martes, 9, 40),
+        seguimiento: deNoche ? inicio + 126 * 60_000 : aLas(martes, 11, 46),
         llamada: aLas(martes, 15, 30),
         recordatorio: aLas(miercoles, 10, 0),
         cita: aLas(jueves, 10, 0),
@@ -512,6 +524,23 @@ export const LA_HOJA = Object.freeze({
     ],
     laura: ["Mar", "Laura Gómez", "+57 300 ••• 1188", "Blanqueamiento dental", "Sí · hasta 6 cuotas"],
 });
+
+/**
+ * El día de cada fila de la hoja, contado desde que escribe Laura: los dos
+ * primeros pacientes son de la víspera y los demás, de su mismo día. Sale del
+ * calendario y no de `LA_HOJA`: de día Laura escribe un martes y de noche un
+ * lunes, y una fila «Mar» junto a un chat del lunes se lee como un error.
+ * Con el calendario de día da exactamente los días escritos en `LA_HOJA`.
+ */
+export function losDiasDeLaHoja(inicio) {
+    const corto = (ms) => {
+        const d = DIAS[new Date(ms + DESFASE_MS).getUTCDay()].slice(0, 3);
+        return d[0].toUpperCase() + d.slice(1);
+    };
+    const hoy = corto(inicio);
+    const ayer = corto(inicio - 86_400_000);
+    return { filas: [ayer, ayer, hoy, hoy], laura: hoy };
+}
 
 /** El lema de la tarjeta de la marca: lo único que dice, debajo de «Verzay». */
 export const LEMA_DE_LA_MARCA = Object.freeze({ antes: "Inteligencia artificial que ", resaltado: "atiende, vende y agenda", despues: " por WhatsApp" });

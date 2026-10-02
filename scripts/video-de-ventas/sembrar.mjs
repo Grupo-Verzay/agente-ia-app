@@ -30,8 +30,9 @@ import {
 } from "./historia.mjs";
 
 /** Lo que el estudio necesita saber de la cuenta sembrada. */
-export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
-    const cal = elCalendario(ahora);
+export async function sembrarLaClinica({ db, embudos, ahora = Date.now(), calendario }) {
+    // El MISMO calendario que los medios y el estudio: el corte de YouTube lo trae de noche.
+    const cal = calendario ?? elCalendario(ahora);
 
     const marco = await sembrarElMarco(db, {
         path: "/chats",
@@ -213,9 +214,12 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
     const sesionDe = async (nombre) =>
         db.session.findFirstOrThrow({ where: { userId: dueno.id, customName: nombre } });
     const DIA = 86_400_000;
+    // De la mañana del martes (`referencia`), no de cuando escribe Laura: con
+    // la historia de noche saldrían citas de madrugada.
+    const manana = cal.referencia ?? cal.inicio;
     const citas = [
-        { quien: "Carlos Ramírez", inicio: cal.inicio - DIA + 4.33 * 3_600_000, estado: "ATENDIDA" },
-        { quien: "Pedro Castaño", inicio: cal.inicio + DIA + 6.33 * 3_600_000, estado: "PENDIENTE" },
+        { quien: "Carlos Ramírez", inicio: manana - DIA + 4.33 * 3_600_000, estado: "ATENDIDA" },
+        { quien: "Pedro Castaño", inicio: manana + DIA + 6.33 * 3_600_000, estado: "PENDIENTE" },
         { quien: "Julián Torres", inicio: cal.cita - 1.5 * 3_600_000, estado: "CONFIRMADA" },
         { quien: "Mariana Ruiz", inicio: cal.cita + 3 * DIA - 1 * 3_600_000, estado: "PENDIENTE" },
     ];
@@ -245,7 +249,7 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
             summary TEXT NOT NULL, metrics JSONB, sent_at TIMESTAMP(3),
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT NOW())`);
     await db.$executeRawUnsafe(`DELETE FROM weekly_reports WHERE "userId" = $1`, dueno.id);
-    const finDeSemana = cal.inicio - DIA;
+    const finDeSemana = manana - DIA;
     const inicioDeSemana = finDeSemana - 7 * DIA;
     const metricas = {
         periodStart: new Date(inicioDeSemana).toISOString(),
