@@ -259,6 +259,8 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/reminders",
         contenido: GUIA_RECORDATORIOS,
         tarjeta: "Aprende a programar recordatorios por WhatsApp en la plataforma",
+    },
+    {
         modulo: "etiquetas",
         ruta: "/tags",
         contenido: GUIA_ETIQUETAS,
