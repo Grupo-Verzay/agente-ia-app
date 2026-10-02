@@ -20,7 +20,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { elInventarioQueSeLee, estaAgotado } from "@/lib/productos";
 import { ProductForm } from "./ProductForm";
 import { deleteProduct, reorderProducts } from "@/actions/products-actions";
 import { Trash2, Loader2, GripVertical } from "lucide-react";
@@ -46,11 +48,13 @@ function SortableProductRow({
         <tr
             ref={setNodeRef}
             style={style}
+            data-fila-de-producto={product.title}
             className={cn("border-t transition-colors hover:bg-muted/40", isDragging && "relative z-10 bg-background opacity-80 shadow-sm")}
         >
             <td className="w-10 px-2 py-3 align-middle">
                 <button
                     type="button"
+                    data-asa-de-producto
                     aria-label={`Mover ${product.title}`}
                     title="Arrastra para ordenar"
                     className="flex h-8 w-7 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted active:cursor-grabbing"
@@ -82,10 +86,18 @@ export const ProductTable = ({
     const handleDelete = async () => {
         if (!deleteTarget) return;
         setIsDeleting(true);
-        await deleteProduct(deleteTarget.id, userId);
-        setIsDeleting(false);
-        setDeleteTarget(null);
-        router.refresh();
+        try {
+            await deleteProduct(deleteTarget.id, userId);
+            toast.success("Producto eliminado");
+            setDeleteTarget(null);
+            router.refresh();
+        } catch (error) {
+            // Antes, un fallo dejaba el diálogo en «Eliminando…» para siempre.
+            console.warn("[productos] no se pudo eliminar", error);
+            toast.error("No se pudo eliminar el producto.");
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     const columns = useMemo<ColumnDef<ProductType>[]>(() => [
@@ -110,10 +122,10 @@ export const ProductTable = ({
             accessorKey: "stock",
             cell: ({ getValue }) => {
                 const v = getValue() as number;
-                if (v < 0) return <span className="text-muted-foreground text-xs">Sin límite</span>;
+                if (v < 0) return <span className="text-muted-foreground text-xs">{elInventarioQueSeLee(v)}</span>;
                 return (
-                    <span className={v === 0 ? 'text-destructive font-medium' : ''}>
-                        {v}
+                    <span className={estaAgotado(v) ? 'text-destructive font-medium' : ''}>
+                        {elInventarioQueSeLee(v)}
                     </span>
                 );
             },
@@ -165,6 +177,9 @@ export const ProductTable = ({
                         variant="destructive"
                         size="icon"
                         className="h-8 w-8"
+                        title="Eliminar producto"
+                        aria-label={`Eliminar ${row.original.title}`}
+                        data-eliminar-producto
                         onClick={() => setDeleteTarget(row.original)}
                     >
                         <Trash2 className="h-4 w-4" />
@@ -207,7 +222,7 @@ export const ProductTable = ({
                 <p className="text-sm text-muted-foreground">
                     ¿Seguro que quieres eliminar <span className="font-semibold text-foreground">&quot;{deleteTarget?.title}&quot;</span>? Esta acción no se puede deshacer.
                 </p>
-                <div className="flex justify-between gap-2 pt-2">
+                <DialogFooter className="pt-2">
                     <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
                         Cancelar
                     </Button>
@@ -215,11 +230,11 @@ export const ProductTable = ({
                         {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Eliminar
                     </Button>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
 
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border">
+        <Card data-tabla-de-productos className="flex min-h-0 flex-1 flex-col overflow-hidden border-border">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="w-full flex-1 overflow-auto">
                     <table className="w-full text-sm">

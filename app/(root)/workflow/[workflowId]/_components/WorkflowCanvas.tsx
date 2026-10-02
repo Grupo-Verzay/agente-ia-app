@@ -56,6 +56,18 @@ function snapMultiple(v: number, step: number) {
   return Math.round(v / step) * step;
 }
 
+/**
+ * Lo que dicen los botones del lienzo al pasar el ratón. React Flow los trae en
+ * inglés —«Zoom In», «Fit View»—; es lo mismo que hace Diagramas.
+ */
+export const ETIQUETAS_DEL_LIENZO_DEL_FLUJO = {
+  'controls.ariaLabel': 'Controles del lienzo',
+  'controls.zoomIn.ariaLabel': 'Acercar',
+  'controls.zoomOut.ariaLabel': 'Alejar',
+  'controls.fitView.ariaLabel': 'Ver todo el flujo',
+  'controls.interactive.ariaLabel': 'Bloquear o desbloquear el lienzo',
+} as const;
+
 export function WorkflowCanvas({
   nodesDB,
   workflowId,
@@ -594,7 +606,7 @@ export function WorkflowCanvas({
 
   return (
     <WorkflowAddNodeProvider value={addNodeFromSource}>
-    <div ref={wrapperRef} className="relative w-full h-full max-h-[93vh]">
+    <div ref={wrapperRef} data-lienzo-de-flujo className="relative w-full h-full max-h-[93vh]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -619,6 +631,7 @@ export function WorkflowCanvas({
         fitViewOptions={{ padding: 0.28 }}
         colorMode={isDark ? 'dark' : 'light'}
         minZoom={0.05}
+        ariaLabelConfig={ETIQUETAS_DEL_LIENZO_DEL_FLUJO}
       >
         <Background />
         <Controls fitViewOptions={{ padding: 0.28 }} />
@@ -631,6 +644,7 @@ export function WorkflowCanvas({
             size="sm"
             className="h-8 gap-2 bg-background/80 shadow-sm backdrop-blur"
             title="Ordenar el flujo en carriles horizontales"
+            data-boton-ordenar
           >
             <LayoutGrid className="h-4 w-4" />
             <span className="text-xs font-medium">Ordenar</span>

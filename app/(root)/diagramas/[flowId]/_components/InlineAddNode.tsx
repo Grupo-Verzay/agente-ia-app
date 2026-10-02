@@ -88,6 +88,9 @@ export function InlineAddNode({
     // poder poner un nodo sin soltar el teclado.
     const [activa, setActiva] = useState(0);
     const listaRef = useRef<HTMLDivElement>(null);
+    // Si la resaltada la movió el ratón, no se desplaza la lista: ya está bajo
+    // el cursor, y desplazarla corría la fila de al lado debajo del clic.
+    const porRaton = useRef(false);
 
     const consulta = normalizar(busqueda.trim());
 
@@ -118,6 +121,10 @@ export function InlineAddNode({
 
     // Que la resaltada nunca se quede fuera de la parte visible del panel.
     useEffect(() => {
+        if (porRaton.current) {
+            porRaton.current = false;
+            return;
+        }
         listaRef.current
             ?.querySelector('[aria-selected="true"]')
             ?.scrollIntoView({ block: 'nearest' });
@@ -148,6 +155,12 @@ export function InlineAddNode({
     };
 
     const indiceDe = (action: DiagramaAction) => visibles.findIndex((a) => a.type === action.type);
+    const alPasar = (action: DiagramaAction) => {
+        const i = indiceDe(action);
+        if (i === activa) return;
+        porRaton.current = true;
+        setActiva(i);
+    };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -225,7 +238,7 @@ export function InlineAddNode({
                                         action={action}
                                         activa={indiceDe(action) === activa}
                                         onPick={pick}
-                                        onHover={() => setActiva(indiceDe(action))}
+                                        onHover={() => alPasar(action)}
                                     />
                                 ))}
 
@@ -236,7 +249,7 @@ export function InlineAddNode({
                                         action={action}
                                         activa={indiceDe(action) === activa}
                                         onPick={pick}
-                                        onHover={() => setActiva(indiceDe(action))}
+                                        onHover={() => alPasar(action)}
                                     />
                                 ))}
                             </div>

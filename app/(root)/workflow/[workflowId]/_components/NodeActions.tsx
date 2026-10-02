@@ -28,8 +28,7 @@ export function NodeActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost">
-            <span className="sr-only">Abrir menú</span>
+          <Button variant="ghost" aria-label="Más acciones del nodo" data-mas-del-nodo>
             <MoreHorizontal className="h-4 w-4 m-0" />
           </Button>
         </DropdownMenuTrigger>

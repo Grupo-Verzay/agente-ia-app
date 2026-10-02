@@ -59,7 +59,11 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                    fila: van pegados al azul, no metidos dentro de él. */
                 <>
                     {limitInfo && limitInfo.limit !== null && (
-                        <span className={`flex shrink-0 items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
+                        <span
+                            data-cupo-del-plan
+                            title={limitInfo.reached ? "Llegaste al tope de productos de tu plan" : "Productos que tienes / los que permite tu plan"}
+                            className={`flex shrink-0 items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}
+                        >
                             <Package className="h-4 w-4" />
                             {limitInfo.current}/{limitInfo.limit}
                         </span>
@@ -70,6 +74,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                         className="h-10 w-10 shrink-0"
                         title="Ver catálogo"
                         aria-label="Ver catálogo"
+                        data-ver-catalogo
                         onClick={() => window.open(`/catalogo/${userId}`, '_blank')}
                     >
                         <ExternalLink className="h-4 w-4" />
@@ -94,7 +99,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
             <ProductTable data={data} userId={userId} />
 
             {pages > 1 && (
-                <div className="flex shrink-0 items-center justify-between gap-2 px-1 pb-1">
+                <div data-pie-de-productos className="flex shrink-0 items-center justify-between gap-2 px-1 pb-1">
                     <span className="text-xs text-muted-foreground">
                         {total} producto{total !== 1 ? 's' : ''} · Página {page} de {pages}
                     </span>
@@ -103,6 +108,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                             variant="outline"
                             size="icon"
                             className="h-8 w-8"
+                            aria-label="Página anterior"
                             disabled={page <= 1}
                             onClick={() => goToPage(page - 1)}
                         >
@@ -112,6 +118,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                             variant="outline"
                             size="icon"
                             className="h-8 w-8"
+                            aria-label="Página siguiente"
                             disabled={page >= pages}
                             onClick={() => goToPage(page + 1)}
                         >

@@ -295,11 +295,13 @@ export const WorkflowCard = ({
     };
 
     return (
-        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+        <Card data-tarjeta-de-flujo className="rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
             <CardContent className="flex flex-1 flex-col gap-2 p-3">
                 <div className="flex flex-1 gap-2 items-center justify-between">
                 <div className="flex flex-1 gap-4 justify-center items-center">
                     <div
+                        data-abrir-flujo
+                        title="Abrir el editor"
                         className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
                         onClick={() => router.push(editorPath)}
                     >
@@ -429,7 +431,7 @@ export const WorkflowCard = ({
                                             : "border-blue-200 bg-blue-50 text-blue-700"
                                             }`}
                                     >
-                                        {workflow.isPro ? "Avanzado" : "Basico"}
+                                        {workflow.isPro ? "Avanzado" : "Básico"}
                                     </Badge>
                                     {resumenRepeticiones && (
                                         <Badge
@@ -472,7 +474,7 @@ export const WorkflowCard = ({
 
                 {/* Sección disparador IA */}
                 {localTrigger && (
-                    <div className="pt-2 border-t border-border">
+                    <div data-disparador-de-ia className="pt-2 border-t border-border">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                                 <Switch
