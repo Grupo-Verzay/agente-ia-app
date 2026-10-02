@@ -1,16 +1,9 @@
 import { ApiKey, Instancia, Reminders, Session, User, Workflow } from "@prisma/client";
 import { z } from "zod";
+import { REPETICIONES } from "@/lib/repeticion-del-recordatorio";
 import { UserWithApiKeys } from "./schema";
 
-export const repeatTypes = [
-    { value: "NONE", label: "No se repite" },
-    { value: "DAILY", label: "Cada dia" },
-    { value: "WEEKLY", label: "Cada semana" },
-    { value: "MONTHLY", label: "Cada mes" },
-    { value: "YEARLY", label: "Cada ano" },
-    { value: "WEEKDAYS", label: "Dias laborables (L-V)" },
-    { value: "EVERYDAY", label: "Todos los dias" }
-] as const;
+export const repeatTypes = REPETICIONES;
 
 export const reminderSchema = z.object({
     title: z.string({
@@ -25,7 +18,7 @@ export const reminderSchema = z.object({
         invalid_type_error: "Selecciona una fecha y hora validas.",
     }).min(1),
 
-    repeatType: z.enum(repeatTypes.map(r => r.value) as [string, ...string[]], { errorMap: () => ({ message: "Selecciona un tipo de repeticion valido." }) }).optional(),
+    repeatType: z.enum(repeatTypes.map(r => r.value) as [string, ...string[]], { errorMap: () => ({ message: "Selecciona un tipo de repetición válido." }) }).optional(),
 
     repeatEvery: z.coerce.number()
         .min(1, { message: "Debe ser un numero mayor a 0." })

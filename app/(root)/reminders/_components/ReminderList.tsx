@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import TooltipWrapper from "@/components/TooltipWrapper"
 import { fmtPhone } from "@/lib/whatsapp-jid"
-import { ReminderListInterface, repeatTypes } from "@/schema/reminder"
+import { ReminderListInterface } from "@/schema/reminder"
+import { elNombreDeLaRepeticion, laHoraDelEnvio } from "@/lib/repeticion-del-recordatorio"
 import { cancelReminderPendingDeliveries, resumeReminderCanceledDeliveries, retryReminderFailedDeliveries } from "@/actions/reminders-actions"
 import { openDeleteDialog, openEditDialog } from "@/stores"
 import { toast } from "sonner"
@@ -70,9 +71,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
     const isRecurring = Boolean(reminder.repeatType && reminder.repeatType !== "NONE")
     const isSent = Boolean(reminder.sentAt)
     const phone = fmtPhone(reminder.remoteJid)
-    const repeatLabel = isRecurring
-        ? repeatTypes.find(type => type.value === reminder.repeatType)?.label ?? "Recurrente"
-        : "Unico"
+    const repeatLabel = elNombreDeLaRepeticion(reminder.repeatType)
     const mainStatus = getMainStatus(deliverySummary)
     const StatusIcon = mainStatus ? statusConfig[mainStatus].Icon : null
     const statusText = deliverySummary ? `${deliverySummary.sent}/${deliverySummary.total} enviados` : "Sin historial"
@@ -99,6 +98,8 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
         return (
             <button
                 type="button"
+                data-zona="estado"
+                title="Ver el historial de envíos"
                 onClick={() => setHistoryOpen(true)}
                 className={`inline-flex items-center justify-center gap-1 rounded-md font-medium ${statusConfig[mainStatus].className} ${small ? "h-6 px-2 text-[11px]" : "h-7 px-2 text-xs"}`}
             >
@@ -110,25 +111,30 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
 
     return (
         <>
-            <Card className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+            <Card className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md" data-recordatorio={reminder.id}>
                 {compact ? (
                     <CardContent className="flex flex-col gap-1 p-2.5">
                         <div className="flex items-center gap-2">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
                                 <BellRing className="h-4 w-4" />
                             </div>
-                            <h3 className="app-item-title flex-1 truncate text-foreground uppercase">{reminder.title}</h3>
+                            {/* El título va solo en su fila y PARTE en líneas: en una
+                                columna del tablero, con las pastillas al lado, se
+                                quedaba en «REPOR…» y no se sabía qué recordatorio era. */}
+                            <h3 className="app-item-title min-w-0 flex-1 break-words text-foreground uppercase">{reminder.title}</h3>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 pl-10">
                             {hasMedia && (
-                                <Badge className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
+                                <Badge data-zona="media" className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
                                     <FileIcon className="h-3 w-3" />
                                     Media
                                 </Badge>
                             )}
-                            <Badge className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
-                                {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : "Unico"}
+                            <Badge data-zona="repeticion" className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                                {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : repeatLabel}
                             </Badge>
                             {isSent && (
-                                <Badge className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 shrink-0 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                <Badge data-zona="enviado" className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 shrink-0 dark:bg-emerald-900/40 dark:text-emerald-300">
                                     <CheckCircle2 className="h-3 w-3" />
                                     Enviado
                                 </Badge>
@@ -142,7 +148,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                                     <span className="truncate">{reminder.pushName}</span>
                                 </span>
                                 <TooltipWrapper content="Editar">
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)}>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label="Editar recordatorio" data-boton="editar">
                                         <Pencil className="h-3 w-3" />
                                     </Button>
                                 </TooltipWrapper>
@@ -162,7 +168,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                                 {formatReminderTime(reminder.time)}
                             </span>
                             <TooltipWrapper content="Eliminar">
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label="Eliminar recordatorio" data-boton="eliminar">
                                     <Trash2 className="h-3 w-3" />
                                 </Button>
                             </TooltipWrapper>
@@ -185,26 +191,26 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <BellRing className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="app-item-title truncate text-foreground uppercase">{reminder.title}</h3>
+                            <h3 className="app-item-title truncate text-foreground uppercase" data-zona="titulo">{reminder.title}</h3>
                             <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
                                 {reminder.pushName && (
-                                    <span className="flex items-center gap-1">
+                                    <span className="flex items-center gap-1" data-zona="contacto">
                                         <User className="h-3 w-3 shrink-0" />
                                         <span className="max-w-[180px] truncate">{reminder.pushName}</span>
                                     </span>
                                 )}
                                 {phone && (
-                                    <button type="button" onClick={goToChat} className="flex items-center gap-1 text-blue-600 hover:underline">
+                                    <button type="button" onClick={goToChat} data-zona="telefono" title="Abrir su chat" className="flex items-center gap-1 text-blue-600 hover:underline">
                                         <Phone className="h-3 w-3 shrink-0" />
                                         <span className="whitespace-nowrap">{phone}</span>
                                     </button>
                                 )}
-                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                <span className="flex items-center gap-1 whitespace-nowrap" data-zona="hora">
                                     <CalendarDaysIcon className="h-3 w-3 shrink-0" />
                                     {formatReminderTime(reminder.time)}
                                 </span>
                                 {workflow?.name && (
-                                    <span className="mt-0.5 flex items-center gap-1">
+                                    <span className="mt-0.5 flex items-center gap-1" data-zona="flujo">
                                         <GitBranch className="h-3 w-3 shrink-0" />
                                         <span className="max-w-[120px] truncate">{workflow.name}</span>
                                     </span>
@@ -212,31 +218,31 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                            <Badge className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
-                                {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : "Unico"}
+                            <Badge data-zona="repeticion" className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                                {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : repeatLabel}
                             </Badge>
                             {isSent && (
-                                <Badge className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                <Badge data-zona="enviado" className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                                     <CheckCircle2 className="h-3 w-3" />
                                     Enviado
                                 </Badge>
                             )}
                             {hasMedia && (
-                                <Badge className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
+                                <Badge data-zona="media" className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
                                     <FileIcon className="h-3 w-3" />
                                     Media
                                 </Badge>
                             )}
                             <StatusButton />
                             <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
-                            <div className="flex items-center gap-0.5">
+                            <div className="flex items-center gap-0.5" data-zona="mandos">
                                 <TooltipWrapper content="Editar">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label="Editar recordatorio" data-boton="editar">
                                         <Pencil className="h-3.5 w-3.5" />
                                     </Button>
                                 </TooltipWrapper>
                                 <TooltipWrapper content="Eliminar">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label="Eliminar recordatorio" data-boton="eliminar">
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                 </TooltipWrapper>
@@ -247,12 +253,12 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
             </Card>
 
             <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl" data-historial-de-envios="">
                     <DialogHeader>
-                        <DialogTitle>Historial de envios</DialogTitle>
+                        <DialogTitle>Historial de envíos</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2" data-zona="mandos-del-historial">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -282,7 +288,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-4 gap-2" data-zona="cifras-del-historial">
                             <div className="rounded-md border bg-muted/20 p-2 text-center">
                                 <p className="text-xs text-muted-foreground">Total</p>
                                 <p className="text-lg font-semibold">{deliverySummary?.total ?? 0}</p>
@@ -301,9 +307,9 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             </div>
                         </div>
 
-                        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1" data-zona="envios">
                             {deliverySummary?.items.length ? deliverySummary.items.map((item) => (
-                                <div key={item.id} className="rounded-md border p-3">
+                                <div key={item.id} className="rounded-md border p-3" data-envio={item.id}>
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-medium">{fmtPhone(item.remoteJid) || item.remoteJid || "Sin contacto"}</p>
@@ -320,14 +326,14 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                                         </Badge>
                                     </div>
                                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                        <span>{item.time || "Sin fecha"}</span>
+                                        <span>{laHoraDelEnvio(item.time)}</span>
                                         <span>Intentos {item.followUpAttempt}/{item.followUpMaxAttempts}</span>
                                         {item.errorReason && <span className="text-red-600">{item.errorReason}</span>}
                                     </div>
                                 </div>
                             )) : (
                                 <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-                                    Sin historial de envio.
+                                    Sin historial de envío.
                                 </div>
                             )}
                         </div>

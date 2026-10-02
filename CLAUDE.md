@@ -24963,6 +24963,43 @@ lista contra el código, el vídeo medido como el de Finanzas, las miniaturas en
 sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
 servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
 que las pastillas no filtraban y que la pantalla no exponía sus marcas.
+### La vigésima guía, Recordatorios: lo que se arregló al documentarla
+
+`/guia/recordatorios` documenta Automatizaciones › Recordatorios (`/reminders`)
+con el estándar de las demás: nueve secciones —vista general, la lista, el
+tablero Kanban, crear, adjunto y nota de voz, fecha y repetición, el flujo, el
+historial de envíos, y editar y eliminar—, una miniatura con enfoque por
+tarjeta y el vídeo narrado con Cedar al MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/reminders`: «Aprende a programar recordatorios por
+WhatsApp en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-recordatorios.sh && npm run build`.
+
+No trae ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Dos cosas de la receta:
+
+1. **Sin bucket, `/api/upload` lo contesta la propia receta** (`ctx.route`,
+   con `archivos.ejemplo.co`): elegir el archivo, su vista previa, guardarlo y
+   la marca «Media» de la tarjeta son de verdad. La nota de voz se graba con el
+   micrófono de mentira de Chromium.
+2. **Las capturas crean un recordatorio**, así que antes del vídeo se vuelve a
+   sembrar; y las ventanas de eliminar se CANCELAN, en las capturas y en el
+   vídeo.
+
+Lo que se arregló en la pantalla, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| **«Hola @client_name» le llegaba al cliente con la arroba dentro**: un recordatorio de un contacto lo entrega el seguimiento que se escribe al crearlo, y ese camino manda el texto tal cual | `elMensajeDelRecordatorio` (`lib/repeticion-del-recordatorio.ts`) lo cambia por el nombre al crear y al editar, con la regla del motor («Cliente» si no lo hay o es «Desconocido») |
+| la hora del historial salía en crudo, `2026-10-02T14:30:00.000Z` | `laHoraDelEnvio`: `dd/MM/yyyy HH:mm` en la zona de quien mira; el reloj de pared viejo se queda como está |
+| «Cada dia» y «Todos los dias» —lo mismo para el motor— salían las dos, y «Repetir cada N» no lo lee el motor | una lista, `REPETICIONES`, con sus tildes; «Todos los días» solo se ofrece si ya la tiene, y «cada N» se quitó |
+| el buscador de flujos buscaba por el ID: escribir el nombre no encontraba nada | `value` lleva el nombre (`SelectWorkflowBox`) |
+
+Lo prueba `scripts/banco-guia-recordatorios.sh`: el contenido contra el código
+(vistas, cifras, columnas, archivos, repeticiones, campos, partes de un
+recordatorio, historial, el «⋯»), los arreglos, el vídeo medido como el de Mis
+macros, las miniaturas en sus píxeles (`GUIA=recordatorios`), `fin-de-la-guia`
+y `menu-de-la-guia` y la guía servida a 390 y 1440. `MODO=roto` contra
+`ab6b110` afirma que no había guía y que el `@client_name` llegaba tal cual.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 

@@ -10,7 +10,8 @@ import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 
-import { formValuesReminderSchema, ReminderInterface, reminderSchema, repeatTypes } from "@/schema/reminder"
+import { formValuesReminderSchema, ReminderInterface, reminderSchema } from "@/schema/reminder"
+import { lasRepeticionesQueSeOfrecen } from "@/lib/repeticion-del-recordatorio"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -56,8 +57,6 @@ const MEDIA_OPTIONS = [
     { type: "audio", label: "Audio", accept: "audio/*", Icon: FileAudio, iconClass: "text-emerald-600" },
     { type: "document", label: "Doc.", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf", Icon: FileText, iconClass: "text-amber-600" },
 ] as const;
-
-const REPEAT_EVERY_OPTIONS = Array.from({ length: 365 }, (_, index) => index + 1);
 
 function formatFileSize(bytes: number) {
     if (!bytes) return "0 KB";
@@ -114,7 +113,6 @@ export const ReminderForm = ({
             description: "",
             time: "",
             repeatType: "NONE",
-            repeatEvery: 1,
             userId: userId,
             remoteJid: "",
             instanceName: "",
@@ -332,7 +330,7 @@ export const ReminderForm = ({
 
                 <div className={cn("flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto", enPanel ? "px-4 py-4" : "px-1 pb-1 pt-1")}>
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5" data-campo="titulo">
                     <Label className="text-sm font-semibold">Título</Label>
                     <Input
                         placeholder="Ej: Recordatorio cita"
@@ -342,7 +340,7 @@ export const ReminderForm = ({
                     {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                 </div>
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5" data-campo="mensaje">
                     <Label className="text-sm font-semibold">Mensaje</Label>
                     {(() => {
                         const { ref: rhfRef, ...descRest } = register("description");
@@ -373,7 +371,7 @@ export const ReminderForm = ({
                     </div>
                 )}
 
-                <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
+                <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3" data-campo="archivo">
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -441,11 +439,13 @@ export const ReminderForm = ({
                     )}
                 </div>
                 {!isSchedule ? (
+                    <div data-campo="fecha">
                     <DateTimePicker
                         isSchedule={false}
                         value={watch("time")}
                         onChange={handleTimeChange}
                     />
+                    </div>
                 ) : (
                     <TimeInput
                         className="text-xs text-muted-foreground"
@@ -456,53 +456,29 @@ export const ReminderForm = ({
 
                 {errors.time && <p className="text-xs text-red-500">{errors.time.message}</p>}
 
+                {/* «Repetir cada N» se fue: el motor nunca lo leyó y un «cada 3
+                    días» salía todos los días. Ver `lib/repeticion-del-recordatorio.ts`. */}
                 {!isSchedule &&
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-sm font-semibold">Repetición</Label>
-                            <Controller
-                                control={control}
-                                name="repeatType"
-                                render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <SelectTrigger className="text-sm">
-                                            <SelectValue placeholder="Seleccionar" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {repeatTypes.map((rt) => (
-                                                <SelectItem key={rt.value} value={rt.value}>
-                                                    {rt.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-sm font-semibold">Repetir cada</Label>
-                            <Controller
-                                control={control}
-                                name="repeatEvery"
-                                render={({ field }) => (
-                                    <Select
-                                        value={String(field.value || 1)}
-                                        onValueChange={(value) => field.onChange(Number(value))}
-                                    >
-                                        <SelectTrigger className="text-sm [&>span]:flex-1 [&>span]:text-center">
-                                            <SelectValue placeholder="1" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[260px]">
-                                            {REPEAT_EVERY_OPTIONS.map((value) => (
-                                                <SelectItem key={value} value={String(value)} className="justify-center pl-8 pr-8 text-center">
-                                                    {value}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
+                    <div className="flex flex-col gap-1.5" data-campo="repeticion">
+                        <Label className="text-sm font-semibold">Repetición</Label>
+                        <Controller
+                            control={control}
+                            name="repeatType"
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger className="text-sm">
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {lasRepeticionesQueSeOfrecen(field.value).map((rt) => (
+                                            <SelectItem key={rt.value} value={rt.value}>
+                                                {rt.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
                 }
 
@@ -520,7 +496,7 @@ export const ReminderForm = ({
                                 <div className="rounded-lg border border-border bg-muted/10 px-3 py-3">
                                     <div className="flex items-center gap-2">
                                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
-                                            Pausa entre envios
+                                            Pausa entre envíos
                                         </p>
                                         <div className="ml-auto flex items-center justify-end gap-2">
                                             <span className="text-[10px] text-muted-foreground shrink-0">mín</span>
@@ -571,7 +547,9 @@ export const ReminderForm = ({
                                 </div>
                             </div>
                             :
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-campo="contacto-y-flujo">
+                                <div className="flex min-w-0 flex-col gap-1.5" data-campo="contacto">
+                                <Label className="text-sm font-semibold">Contacto</Label>
                                 <SelectComboBox
                                     leads={leads}
                                     onSelect={(lead) => {
@@ -583,13 +561,17 @@ export const ReminderForm = ({
                                     onLeadCreated={() => setCreateLead(true)}
                                     initialValue={initialLeadValue}
                                 />
+                                </div>
 
                                 {workflows &&
+                                    <div className="flex min-w-0 flex-col gap-1.5" data-campo="flujo">
+                                    <Label className="text-sm font-semibold">Flujo (opcional)</Label>
                                     <SelectWorkflowBox
                                         workflows={workflows}
                                         onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}
                                         initialValue={initialWorkflowId}
-                                    />}
+                                    />
+                                    </div>}
                             </div>)}
 
                     </>
