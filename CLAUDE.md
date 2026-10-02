@@ -23418,7 +23418,29 @@ aparte (`/tutoriales`) cuyo logo llevaba a «/», o sea al login sin sesión.
 `lasGuiasDelCentroDeAyuda()`, igual que `/ayuda`, con dos props propias:
 `alElegirCategoria` / `alVolver` (cambian de vista en vez de navegar) e
 `incrustado` (sin cabecera ni scroll propio). Va bajo la clase `dark` para tomar
-los colores de la landing. Las guías siguen abriendo en otra pestaña.
+los colores de la landing.
+
+**Y la GUÍA también se abre dentro** (`#tutoriales/<categoria>/<modulo>[/<seccion>]`):
+«Ver» de una fila y un resultado del buscador ya no sacan a `/guia/<modulo>`
+—otra página, otro diseño, sin la barra de la landing—. La pinta
+`GuiaEnLaLanding` con las MISMAS piezas de `components/guia/Guia.tsx` (vídeo,
+introducción, `CuadriculaDeSecciones` y `ArticuloDeLaSeccion`), que aceptan
+callbacks opcionales (`alAbrir`, `alAbrirSeccion`, `alVerElVideo`): con ellos
+pintan un botón que cambia de vista; sin ellos, el `Link` de siempre, así
+`/guia/*` no cambia. Cinco cosas:
+
+- **El contenido se pide al abrir** (`laGuiaPublicaAction`, pública a propósito,
+  solo de lo que está en `GUIAS_PUBLICADAS`): las diecinueve guías son cientos
+  de KB que la landing no puede llevar a cuestas. Se recuerda por módulo, y un
+  fallo dice «Reintentar».
+- **Va en su recuadro CLARO** dentro de la sección oscura: sus capturas lo son.
+- **«Ir al vídeo» baja sin tocar el ancla**: `#demostracion` pisaría la de los
+  tutoriales y la vista se perdería.
+- **La flecha vuelve a SU categoría** («Volver a <categoría>»), y un ancla rota
+  cae en lo más cercano que exista (`laVistaDelAncla`: sección → índice de la
+  guía → categoría → portada).
+- `/guia/<modulo>` sigue existiendo: las tarjetas de «Ver tutoriales» del panel
+  y los enlaces ya repartidos llevan ahí.
 
 Cuatro cosas que hay que mantener:
 
@@ -23433,9 +23455,11 @@ Cuatro cosas que hay que mantener:
 
 Lo prueba `scripts/banco-tutoriales-publicos.sh` (con build): el código y la
 página servida sin sesión a 1440 y 390 —se navega sin salir de `/inicio`, la
-barra sigue arriba, el logo vuelve arriba, las direcciones viejas redirigen—.
+barra sigue arriba, el logo vuelve arriba, las direcciones viejas redirigen,
+«Ver» abre la guía y una sección con sus capturas sin salir, «Siguiente», la
+flecha a la categoría, el enlace directo a una sección y el buscador—.
 `MODO=roto` lee `ffe0583` y afirma la página aparte y el logo que no llevaba al
-inicio.
+inicio, y `2114b64` (`ANTES_GUIA_REF`) para afirmar que «Ver» abría otra pestaña.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
