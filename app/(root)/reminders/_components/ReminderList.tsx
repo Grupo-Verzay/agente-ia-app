@@ -29,12 +29,16 @@ import {
 
 const formatReminderTime = (time: string | null | undefined): string => {
     if (!time) return ""
-    const match = time.match(/^(hours|minutes)-(\d+)$/)
+    // Las cuatro unidades que entiende `TimeInput` (y el motor). Sin «days»,
+    // un recordatorio de un día antes se pintaba como «days-1».
+    const match = time.match(/^(seconds|minutes|hours|days)-(\d+)$/)
     if (match) {
         const [, unit, numStr] = match
         const n = Number(numStr)
         if (n === 0) return "Al momento"
+        if (unit === "days") return n === 1 ? "1 día antes" : `${n} días antes`
         if (unit === "hours") return n === 1 ? "1 hora antes" : `${n} horas antes`
+        if (unit === "seconds") return n === 1 ? "1 segundo antes" : `${n} segundos antes`
         return n === 1 ? "1 minuto antes" : `${n} minutos antes`
     }
     return time
@@ -110,7 +114,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
 
     return (
         <>
-            <Card className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+            <Card data-recordatorio className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
                 {compact ? (
                     <CardContent className="flex flex-col gap-1 p-2.5">
                         <div className="flex items-center gap-2">

@@ -31,19 +31,24 @@ import { AppointmentStatus } from '@prisma/client';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { elCrmVaUnificado, nombresDeLasCuentas } from '@/lib/crm-de-la-familia';
 import type { CuentasDelCrm } from '@/lib/cuentas-del-crm';
+import { PESTANAS_DE_LA_AGENDA, type PestanaDeLaAgenda } from '@/lib/pantalla-de-agenda';
 
-type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'form' | 'registros' | 'settings';
+type TabValue = PestanaDeLaAgenda;
 
-const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { value: 'dashboard',    label: 'Dashboard',      Icon: LayoutDashboard },
-    { value: 'availability', label: 'Disponibilidad', Icon: CalendarDays },
-    { value: 'kanban',       label: 'Kanban',         Icon: Kanban },
-    { value: 'services',     label: 'Servicios',      Icon: Wrench },
-    { value: 'reminders',    label: 'Recordatorios',  Icon: Bell },
-    { value: 'form',         label: 'Formulario',     Icon: ClipboardList },
-    { value: 'registros',    label: 'Registros',      Icon: Inbox },
-    { value: 'settings',     label: 'Ajustes',        Icon: Settings2 },
-];
+// Los nombres salen de `lib/pantalla-de-agenda.ts`, que la guía pública lee
+// también: con los rótulos escritos aquí, la guía nombraría pestañas que ya no
+// existen sin que nadie lo notara.
+const ICONOS_DE_LAS_PESTANAS: Record<TabValue, React.ComponentType<{ className?: string }>> = {
+    dashboard: LayoutDashboard,
+    availability: CalendarDays,
+    kanban: Kanban,
+    services: Wrench,
+    reminders: Bell,
+    form: ClipboardList,
+    registros: Inbox,
+    settings: Settings2,
+};
+const TABS = PESTANAS_DE_LA_AGENDA.map(({ value, label }) => ({ value, label, Icon: ICONOS_DE_LAS_PESTANAS[value] }));
 
 const STATUS_META: Record<AppointmentStatus, { label: string; color: string }> = {
     PENDIENTE:   { label: 'Pendiente',   color: '#EAB308' },
@@ -129,11 +134,13 @@ export const MainSchedule = ({
                 como pastillas: aquí no hay filtro por estado de cita, así que
                 no se pintan como pulsables. */}
             <div className="flex shrink-0 items-center justify-between gap-2">
-                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto" data-pestanas-de-agenda>
                     {TABS.map(({ value, label, Icon }) => (
                         <button
                             key={value}
                             type="button"
+                            data-pestana-de-agenda={value}
+                            aria-pressed={tab === value}
                             onClick={() => setTab(value)}
                             className={[
                                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
@@ -280,7 +287,7 @@ export const MainSchedule = ({
                 {tab === 'settings' && (
                     <div className="h-full overflow-y-auto pb-4">
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            <div className="h-full rounded-xl border bg-card shadow-sm p-6">
+                            <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="reunion">
                                 <UpdateMeetingDuration
                                     userId={userId}
                                     meetingDuration={user.meetingDuration ?? 60}
@@ -288,7 +295,7 @@ export const MainSchedule = ({
                                     minNoticeMinutes={user.minNoticeMinutes ?? 0}
                                 />
                             </div>
-                            <div className="h-full rounded-xl border bg-card shadow-sm p-6">
+                            <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="google-calendar">
                                 <GoogleCalendarSettings userId={userId} />
                             </div>
                         </div>

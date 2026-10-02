@@ -3,26 +3,37 @@
 import { Button } from "@/components/ui/button";
 import { Copy, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { elEnlaceDeReserva } from "@/lib/pantalla-de-agenda";
 
 interface Props {
     userId: string;
 }
 
 export const ShareScheduleLinkButton = ({ userId }: Props) => {
-    const baseUrl = "https://agente.ia-app.com/schedule";
-    const scheduleUrl = `${baseUrl}/${userId}`;
+    // El dominio de la página abierta, no uno escrito a mano: desde el
+    // dominio de un reseller el enlace tiene que ser el suyo. Se lee al montar
+    // (en el servidor no hay `window`, y las dos salidas no coincidirían).
+    const [origen, setOrigen] = useState("");
+    useEffect(() => { setOrigen(window.location.origin); }, []);
+    const scheduleUrl = elEnlaceDeReserva(origen, userId);
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(scheduleUrl);
-        setCopied(true);
-        toast.success("Enlace copiado al portapapeles.");
-        setTimeout(() => setCopied(false), 1500);
+        // Sin HTTPS el portapapeles lanza: se dice qué hacer en vez de fallar callado.
+        try {
+            await navigator.clipboard.writeText(scheduleUrl);
+            setCopied(true);
+            toast.success("Enlace copiado al portapapeles.");
+            setTimeout(() => setCopied(false), 1500);
+        } catch (error) {
+            console.warn("[agenda] no se pudo copiar el enlace de reserva", error);
+            toast.error(`No se pudo copiar. Cópialo a mano: ${scheduleUrl}`);
+        }
     };
 
     return (
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto" data-enlace-de-reserva={scheduleUrl}>
             <Button
                 className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => window.open(scheduleUrl, "_blank")}
