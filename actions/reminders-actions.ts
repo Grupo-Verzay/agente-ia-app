@@ -11,6 +11,7 @@ import { sinLaClaveDeLaFila } from "@/lib/clave-del-servidor"
 import { laHoraParaElMotor } from "@/lib/zona-de-la-cuenta"
 import { laZonaHorariaDeLaCuenta } from "@/lib/zona-de-la-cuenta.server"
 import { elMensajeDelRecordatorio } from "@/lib/repeticion-del-recordatorio"
+import { desdeCuandoSeReprograma, elMensajeDeLaCampana, elPlanDeLaEdicion, elTelefonoDelJid, esUnaCampana, LA_CAMPANA_NO_SE_REPITE, lasHorasEscalonadas, laPausa, losRetrasos } from "@/lib/campanas"
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —que
@@ -43,9 +44,6 @@ async function laCuentaDelRecordatorio(id: string) {
 
 // ─── Helpers de campaña ───────────────────────────────────────────────────────
 
-function randomBetween(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
 
 /**
  * La hora del recordatorio para el motor: el reloj de pared que eligió la
@@ -58,14 +56,6 @@ function randomBetween(min: number, max: number): number {
  */
 function laHoraDelSeguimiento(timeStr: string, zona: string, segundosDeMas = 0): string {
     return laHoraParaElMotor(timeStr, zona, segundosDeMas);
-}
-
-function applyVariables(message: string, name: string, phone: string): string {
-    const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
-    return message
-        .replace(/\{\{nombre\}\}/gi, name || phone)
-        .replace(/\{\{telefono\}\}/gi, phone)
-        .replace(/\{\{fecha\}\}/gi, today);
 }
 
 /**
@@ -94,12 +84,20 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         }
     }
 
-    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, ...reminderData } = parse.data
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, esCampana, ...reminderData } = parse.data
 
     const jids    = (reminderData.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
     const names   = (reminderData.pushName  ?? '').split(',').map(s => s.trim());
     const baseMsg = reminderData.description || reminderData.title;
-    const isCampaign = jids.length > 1;
+    // Lo dice la pantalla desde la que se crea: una campaña de UN contacto se
+    // guardaba como recordatorio y desaparecía de Campañas.
+    const isCampaign = esUnaCampana(esCampana, jids.length);
+    // Una campaña sale una vez: la repetición no la sabe repetir el motor
+    // (repetía el texto crudo, sin variables, sin archivo y sin pausa).
+    if (isCampaign) reminderData.repeatType = LA_CAMPANA_NO_SE_REPITE;
+    if (isCampaign && jids.length === 0) {
+        return { success: false, message: "Elige al menos un contacto para la campaña." }
+    }
     const seguimientoTipo = media ? `seguimiento-${mediaType ?? "image"}` : "text";
 
     try {
@@ -150,18 +148,11 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             };
         }
 
-        // Campaña — N Seguimientos individuales con delay escalonado y variables resueltas
-        const minDelay = Math.max(30, campaignMinDelay ?? 30);
-        const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
-        let cumulativeDelay = 0;
+        // Campaña — N Seguimientos individuales con la pausa y variables resueltas
+        const retrasos = losRetrasos(jids.length, laPausa(campaignMinDelay, campaignMaxDelay));
 
         for (let i = 0; i < jids.length; i++) {
             const jid   = jids[i];
-            const name  = names[i] ?? '';
-            const phone = jid.replace(/@.*/, '');
-
-            cumulativeDelay += randomBetween(minDelay, maxDelay);
-
             await db.seguimiento.create({
                 data: {
                     idNodo:    `camping-${reminder.id}-${i + 1}`,
@@ -169,11 +160,11 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     instancia: reminderData.instanceName ?? "",
                     apikey,
                     remoteJid: jid,
-                    mensaje:   applyVariables(baseMsg, name, phone),
+                    mensaje:   elMensajeDeLaCampana(baseMsg, names[i] ?? '', elTelefonoDelJid(jid)),
                     tipo:      seguimientoTipo,
                     media:     media ?? null,
                     nameFile:  nameFile ?? null,
-                    time:      laHoraDelSeguimiento(reminderData.time ?? '', zona, cumulativeDelay),
+                    time:      laHoraDelSeguimiento(reminderData.time ?? '', zona, retrasos[i]),
                     workflowId: reminderData.workflowId ?? null,
                 },
             });
@@ -420,6 +411,33 @@ function reminderSeguimientoWhere(reminderId: string) {
     };
 }
 
+/**
+ * Vuelve a poner en `pending` los envíos de esos estados, ESCALONADOS desde
+ * ahora con la pausa (`lasHorasEscalonadas`). Antes se les ponía a todos la
+ * misma hora y salían de golpe: justo lo que la pausa existe para evitar.
+ */
+async function volverAProgramar(
+    reminderId: string,
+    estados: string[],
+    extra: { followUpAttempt?: number },
+): Promise<{ count: number }> {
+    const filas = await db.seguimiento.findMany({
+        where: { ...reminderSeguimientoWhere(reminderId), followUpStatus: { in: estados } },
+        orderBy: { id: "asc" },
+        select: { id: true },
+    });
+    const horas = lasHorasEscalonadas(filas.length, new Date());
+    let count = 0;
+    for (let i = 0; i < filas.length; i++) {
+        const r = await db.seguimiento.updateMany({
+            where: { id: filas[i].id, followUpStatus: { in: estados } },
+            data: { followUpStatus: "pending", errorReason: null, time: horas[i], ...extra },
+        });
+        count += r.count;
+    }
+    return { count };
+}
+
 export async function retryReminderFailedDeliveries(reminderId: string): Promise<ReminderResponse> {
     if (!reminderId) return { success: false, message: "ID obligatorio." };
 
@@ -428,18 +446,7 @@ export async function retryReminderFailedDeliveries(reminderId: string): Promise
             return { success: false, message: "No autorizado." };
         }
 
-        const result = await db.seguimiento.updateMany({
-            where: {
-                ...reminderSeguimientoWhere(reminderId),
-                followUpStatus: { in: ["failed", "error"] },
-            },
-            data: {
-                followUpStatus: "pending",
-                followUpAttempt: 0,
-                errorReason: null,
-                time: new Date().toISOString(),
-            },
-        });
+        const result = await volverAProgramar(reminderId, ["failed", "error"], { followUpAttempt: 0 });
 
         return {
             success: true,
@@ -494,17 +501,7 @@ export async function resumeReminderCanceledDeliveries(reminderId: string): Prom
             return { success: false, message: "No autorizado." };
         }
 
-        const result = await db.seguimiento.updateMany({
-            where: {
-                ...reminderSeguimientoWhere(reminderId),
-                followUpStatus: "canceled",
-            },
-            data: {
-                followUpStatus: "pending",
-                errorReason: null,
-                time: new Date().toISOString(),
-            },
-        });
+        const result = await volverAProgramar(reminderId, ["canceled", "cancelled"], {});
 
         return {
             success: true,
@@ -531,6 +528,10 @@ export async function deleteAllReminders(userId: string, isCampaign: boolean): P
         const cuenta = await laCuentaDeLaAccion(userId)
         if (!cuenta) return { success: false, message: "No autorizado." }
 
+        // Con sus envíos: sin esto, lo pendiente seguía saliendo después de
+        // «Eliminar todos».
+        const ids = (await db.reminders.findMany({ where: { userId: cuenta, isCampaign }, select: { id: true } })).map((r) => r.id)
+        for (const id of ids) await db.seguimiento.deleteMany({ where: reminderSeguimientoWhere(id) })
         await db.reminders.deleteMany({ where: { userId: cuenta, isCampaign } })
         return { success: true, message: "Todos los registros eliminados correctamente." }
     } catch (error) {
@@ -556,8 +557,10 @@ export async function deleteReminder(id: string): Promise<ReminderResponse> {
         }
 
         await db.reminders.delete({ where: { id } });
-        // Eliminar también el Seguimiento programado asociado a este recordatorio
-        await db.seguimiento.deleteMany({ where: { idNodo: `reminder-${id}` } });
+        // Eliminar también sus envíos programados. Con `reminder-<id>` a secas
+        // se quedaban los `camping-<id>-<n>` de una campaña: se borraba y sus
+        // mensajes seguían saliendo.
+        await db.seguimiento.deleteMany({ where: reminderSeguimientoWhere(id) });
 
         return {
             success: true,
@@ -662,7 +665,7 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
     }
 
     // `apikey` y `serverUrl` se descartan: los del navegador no deciden nada.
-    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, userId: _userId, apikey: _apikey, serverUrl: _serverUrl, ...data } = parse.data
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, esCampana: _esCampana, userId: _userId, apikey: _apikey, serverUrl: _serverUrl, ...data } = parse.data
 
     try {
         const cuenta = await laCuentaDelRecordatorio(id)
@@ -671,6 +674,8 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
         }
 
         const servidor = await laClaveDelServidorDeLaCuenta(cuenta)
+        const antes = await db.reminders.findUnique({ where: { id }, select: { isCampaign: true } })
+        if (antes?.isCampaign) data.repeatType = LA_CAMPANA_NO_SE_REPITE
         const updated = await db.reminders.update({
             where: { id },
             data: {
@@ -695,9 +700,46 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
             })
         }
 
+        // Una campaña: lo que todavía no salió (pendiente o pausado) se vuelve a
+        // programar con la hora, el mensaje y los contactos nuevos. Antes se
+        // quedaba con lo de antes y editar no cambiaba lo que salía.
+        if (updated.isCampaign) {
+            const zona = await laZonaHorariaDeLaCuenta(cuenta)
+            const existentes = await db.seguimiento.findMany({
+                where: reminderSeguimientoWhere(id),
+                select: { id: true, idNodo: true, remoteJid: true, followUpStatus: true, tipo: true, media: true, nameFile: true },
+            })
+            const jids = (updated.remoteJid ?? '').split(',').map((j) => j.trim()).filter(Boolean)
+            const nombres = (updated.pushName ?? '').split(',').map((n) => n.trim())
+            const plan = elPlanDeLaEdicion(id, existentes, jids.map((jid, i) => ({ jid, nombre: nombres[i] ?? '' })))
+            const modelo = existentes[0]
+            const retrasos = losRetrasos(plan.crear.length, laPausa(campaignMinDelay, campaignMaxDelay))
+            const baseMsg = updated.description || updated.title
+            const desde = desdeCuandoSeReprograma(laHoraDelSeguimiento(updated.time ?? '', zona), new Date())
+            await db.$transaction([
+                db.seguimiento.deleteMany({ where: { id: { in: plan.borrar } } }),
+                ...plan.crear.map((c, i) => db.seguimiento.create({
+                    data: {
+                        idNodo: `camping-${id}-${c.numero}`,
+                        serverurl: servidor?.url ?? "",
+                        instancia: updated.instanceName ?? "",
+                        apikey: servidor?.key ?? "",
+                        remoteJid: c.jid,
+                        mensaje: elMensajeDeLaCampana(baseMsg, c.nombre, elTelefonoDelJid(c.jid)),
+                        tipo: media ? `seguimiento-${mediaType ?? "image"}` : (modelo?.tipo ?? "text"),
+                        media: media ?? modelo?.media ?? null,
+                        nameFile: nameFile ?? modelo?.nameFile ?? null,
+                        time: new Date(desde.getTime() + retrasos[i] * 1000).toISOString(),
+                        workflowId: updated.workflowId ?? null,
+                        ...(c.pausado ? { followUpStatus: "canceled", errorReason: "Cancelado manualmente" } : {}),
+                    },
+                })),
+            ])
+        }
+
         return {
             success: true,
-            message: "Recordatorio actualizado correctamente.",
+            message: updated.isCampaign ? "Campaña actualizada correctamente." : "Recordatorio actualizado correctamente.",
             data: sinLaClaveDeLaFila(updated),
         }
     } catch (error) {

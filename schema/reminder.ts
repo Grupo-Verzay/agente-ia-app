@@ -48,6 +48,9 @@ export const reminderSchema = z.object({
 
     nameFile: z.string().optional(),
 
+    /** Se crea desde Campañas: es campaña aunque lleve un solo contacto. */
+    esCampana: z.boolean().optional(),
+
     campaignMinDelay: z.coerce.number()
         .min(30, { message: "El minimo debe ser de al menos 30 segundos." })
         .max(600, { message: "El minimo no puede superar 600 segundos." })
