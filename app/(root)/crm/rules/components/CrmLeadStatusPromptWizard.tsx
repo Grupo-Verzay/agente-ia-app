@@ -44,12 +44,12 @@ const STEPS: CrmWizardStep[] = [
   {
     id: "definitions",
     title: "Definiciones",
-    description: "Ajusta como entiende la IA cada estado comercial.",
+    description: "Ajusta cómo entiende la IA cada estado comercial.",
   },
   {
     id: "criteria",
     title: "Criterios",
-    description: "Especifica como decide entre frio, tibio, caliente o cierre.",
+    description: "Especifica cómo decide entre frío, tibio, caliente o cierre.",
   },
   {
     id: "preview",
@@ -156,7 +156,7 @@ export function CrmLeadStatusPromptWizard({
   if (currentStep === "base") {
     content = (
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] [&>*]:min-w-0">
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="identidad" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Identidad y salida</CardTitle>
           </CardHeader>
@@ -194,7 +194,7 @@ export function CrmLeadStatusPromptWizard({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="guardrails" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Guardrails</CardTitle>
           </CardHeader>
@@ -226,7 +226,7 @@ export function CrmLeadStatusPromptWizard({
                 }
               />
               <p className="text-sm text-muted-foreground">
-                Cada linea adicional se agrega como una regla nueva del prompt.
+                Cada línea adicional se agrega como una regla nueva del prompt.
               </p>
             </div>
           </CardContent>
@@ -239,7 +239,7 @@ export function CrmLeadStatusPromptWizard({
     content = (
       <div className="grid min-w-0 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
         {CRM_PROMPT_LEAD_STATUS_ORDER.map((status) => (
-          <Card key={status} className="border-border/70">
+          <Card key={status} data-zona="definicion" data-estado={status} className="border-border/70">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">
@@ -265,17 +265,17 @@ export function CrmLeadStatusPromptWizard({
 
   if (currentStep === "criteria") {
     const criteriaFields = [
-      { key: "discardedRule", label: "Cuando debe ser DESCARTADO" },
-      { key: "finalizedRule", label: "Cuando debe ser FINALIZADO" },
-      { key: "hotRule", label: "Cuando debe ser CALIENTE" },
-      { key: "warmRule", label: "Cuando debe ser TIBIO" },
-      { key: "coldRule", label: "Cuando debe ser FRIO" },
+      { key: "discardedRule", label: "Cuándo debe ser DESCARTADO" },
+      { key: "finalizedRule", label: "Cuándo debe ser FINALIZADO" },
+      { key: "hotRule", label: "Cuándo debe ser CALIENTE" },
+      { key: "warmRule", label: "Cuándo debe ser TIBIO" },
+      { key: "coldRule", label: "Cuándo debe ser FRIO" },
     ] as const;
 
     content = (
       <div className="grid min-w-0 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
         {criteriaFields.map((field) => (
-          <Card key={field.key} className="border-border/70">
+          <Card key={field.key} data-zona="criterio" data-criterio={field.key} className="border-border/70">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{field.label}</CardTitle>
             </CardHeader>
@@ -297,14 +297,14 @@ export function CrmLeadStatusPromptWizard({
   if (currentStep === "preview") {
     content = (
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] [&>*]:min-w-0">
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="resumen" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Resumen publicado</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
               <p className="font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Ultima actualizacion
+                Última actualización
               </p>
               <p className="mt-2 text-sm font-medium">
                 {formatTimestamp(record.updatedAt)}
@@ -312,7 +312,7 @@ export function CrmLeadStatusPromptWizard({
             </div>
 
             <div className="space-y-2">
-              <Label>Keyword de validacion</Label>
+              <Label>Palabra de validación</Label>
               <Input
                 readOnly
                 value={CRM_PROMPT_LEAD_STATUS_ORDER.join(", ")}
@@ -331,7 +331,7 @@ export function CrmLeadStatusPromptWizard({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="prompt-generado" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Prompt generado</CardTitle>
           </CardHeader>
@@ -351,12 +351,12 @@ export function CrmLeadStatusPromptWizard({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
       <div className="min-w-0 shrink-0 space-y-4">
-        <div className="flex flex-row items-center gap-2 text-sm">
+        <div data-zona="explicacion" className="flex flex-row items-center gap-2 text-sm">
           <Tooltip delayDuration={120}>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Informacion sobre Lead status IA"
+                aria-label="Información sobre Lead status IA"
                 className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Badge
@@ -369,12 +369,12 @@ export function CrmLeadStatusPromptWizard({
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-72 sm:hidden">
-              Clasifica cada lead segun el criterio comercial definido por el
+              Clasifica cada lead según el criterio comercial definido por el
               cliente.
             </TooltipContent>
           </Tooltip>
           <span className="hidden text-sm text-muted-foreground sm:inline">
-            Clasifica cada lead segun el criterio comercial definido por el
+            Clasifica cada lead según el criterio comercial definido por el
             cliente.
           </span>
         </div>
@@ -386,7 +386,7 @@ export function CrmLeadStatusPromptWizard({
         />
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1">
+      <div data-zona="contenido" className="min-h-0 min-w-0 flex-1">
         <ScrollArea className="h-full min-w-0 pr-4">
           <div className="min-w-0 space-y-4">
             {content}
@@ -394,7 +394,7 @@ export function CrmLeadStatusPromptWizard({
         </ScrollArea>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 py-2">
+      <div data-zona="pie" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 py-2">
         <div className="flex gap-2">
           <Button
             type="button"
@@ -436,7 +436,7 @@ export function CrmLeadStatusPromptWizard({
             disabled={isSaving}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Defaults actuales
+            Restaurar valores de fábrica
           </Button>
           <Button
             type="button"
@@ -448,7 +448,7 @@ export function CrmLeadStatusPromptWizard({
             ) : (
               <Save className="mr-2 h-4 w-4" />
             )}
-            Guardar clasificacion
+            Guardar clasificación
           </Button>
         </div>
       </div>

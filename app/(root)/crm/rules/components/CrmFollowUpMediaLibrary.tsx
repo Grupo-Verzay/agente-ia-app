@@ -172,9 +172,9 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
     const isFormDisabled = disabled || uploading || atLimit;
 
     return (
-        <div className="space-y-4">
+        <div data-zona="biblioteca" className="space-y-4">
             {/* Formulario */}
-            <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-3">
+            <div data-zona="agregar-archivo" className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                     <div>
                         <p className="text-sm font-medium">Agregar archivo</p>
@@ -196,9 +196,9 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                             <UploadCloud className="h-8 w-8 text-destructive" />
                         </div>
                         <div className="space-y-1">
-                            <p className="text-base font-bold text-destructive">Límite alcanzado — 8/8</p>
+                            <p className="text-base font-bold text-destructive">Límite alcanzado — {MAX_MEDIA_PER_STATUS}/{MAX_MEDIA_PER_STATUS}</p>
                             <p className="text-sm text-muted-foreground">
-                                Eliminá un archivo de la biblioteca para poder subir uno nuevo.
+                                Elimina un archivo de la biblioteca para poder subir uno nuevo.
                             </p>
                         </div>
                     </div>
@@ -291,7 +291,7 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                     </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-3">
+                <div data-zona="archivos" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {items.map((item) => {
                         const bgMap: Record<string, string> = {
                             image:    "bg-blue-50 dark:bg-blue-950/30",
@@ -312,7 +312,7 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                             document: "bg-orange-500/80 text-white",
                         };
                         return (
-                            <div key={item.id} className="group relative flex h-[220px] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg">
+                            <div key={item.id} data-archivo={item.id} className="group relative flex h-[220px] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg">
                                 {/* Preview — altura fija siempre */}
                                 {item.mediaType === "image" ? (
                                     <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0">
@@ -357,6 +357,8 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                                     type="button"
                                     disabled={deletingId === item.id}
                                     onClick={() => handleDelete(item.id)}
+                                    aria-label={`Eliminar ${item.name}`}
+                                    title="Eliminar archivo"
                                     className="absolute right-2 top-2 rounded-full bg-rose-500/80 p-1.5 text-white shadow backdrop-blur-sm hover:bg-rose-600/90 disabled:cursor-not-allowed"
                                 >
                                     {deletingId === item.id
