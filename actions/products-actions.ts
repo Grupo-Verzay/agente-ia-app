@@ -7,6 +7,7 @@ import { z } from "zod";
 import { listParams, productSchema } from "@/lib/validators/product";
 import { db } from "@/lib/db"; // tu prisma client
 import { Prisma, Plan } from "@prisma/client";
+import { dondeBusca, elOrdenCompleto } from "@/lib/productos";
 
 const PLAN_PRODUCT_LIMITS: Record<Plan, number | null> = {
     lite:           0,
@@ -35,7 +36,8 @@ export async function listProducts(raw: z.input<typeof listParams>) {
     const where: Prisma.ProductWhereInput = {
         userId,
         ...(onlyActive ? { isActive: true } : {}),
-        ...(q ? { title: { contains: q, mode: Prisma.QueryMode.insensitive } } : {}),
+        // El buscador mira el nombre, el código y la categoría (`dondeBusca`).
+        ...(q?.trim() ? { OR: dondeBusca(q.trim()) } : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -69,15 +71,17 @@ export async function reorderProducts(userIdPedido: string, orderedIds: string[]
         return { ok: true };
     }
 
-    const products = await db.product.findMany({
-        where: { userId, id: { in: orderedIds } },
+    // La lista ENTERA en su orden de siempre: lo arrastrado se coloca en los
+    // sitios que ya ocupaba (`elOrdenCompleto`), y lo demás no se mueve.
+    const todos = await db.product.findMany({
+        where: { userId },
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
         select: { id: true },
     });
-    const allowed = new Set(products.map((p) => p.id));
-    const cleanIds = orderedIds.filter((id) => allowed.has(id));
+    const completo = elOrdenCompleto(todos.map((p) => p.id), orderedIds);
 
     await db.$transaction(
-        cleanIds.map((id, index) =>
+        completo.map((id, index) =>
             db.product.updateMany({
                 where: { id, userId },
                 data: { order: index },
@@ -224,6 +228,8 @@ export async function deleteProduct(id: string, userIdPedido: string) {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     await db.product.deleteMany({ where: { id, userId } });
     revalidatePath("/products");
+    // Sin esto el catálogo público seguía enseñando el producto borrado.
+    revalidatePath("/catalogo", "layout");
     return { ok: true };
 }
 
@@ -242,7 +248,9 @@ export async function getProductStats(userIdPedido: string) {
         getProductLimit(userId),
         db.product.count({ where: { userId } }),
         db.product.count({ where: { userId, isActive: true } }),
-        db.product.count({ where: { userId, stock: { lte: 0 } } }),
+        // Sin stock es CERO. El -1 es «sin límite» (`SIN_LIMITE`): con `lte: 0`
+        // la pastilla contaba como agotados justo los que nunca se agotan.
+        db.product.count({ where: { userId, stock: 0 } }),
     ]);
 
     return {
@@ -253,10 +261,16 @@ export async function getProductStats(userIdPedido: string) {
     };
 }
 
-export async function checkIfSkuExists(sku: string, userIdPedido: string) {
+/**
+ * Si el código ya lo tiene OTRO producto de la cuenta. `exceptoId` es el que se
+ * está editando: sin él, abrir un producto con código decía «Este código ya
+ * está registrado» sobre su propio código.
+ */
+export async function checkIfSkuExists(sku: string, userIdPedido: string, exceptoId?: string) {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
     const existingProduct = await db.product.findFirst({
-        where: { sku, userId },
+        where: { sku: sku.trim(), userId, ...(exceptoId ? { NOT: { id: exceptoId } } : {}) },
+        select: { id: true },
     });
     return existingProduct !== null;
 }

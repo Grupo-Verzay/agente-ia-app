@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,7 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { ProductFormInterface, productSchema, type ProductInput } from "@/lib/validators/product";
 import { createProduct, updateProduct, checkIfSkuExists } from "@/actions/products-actions";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BotonDeCrear } from "@/components/shared/BarraDeAcciones";
+import { elInventarioAlAbrir, porQueNoSeGuardaElProducto } from "@/lib/productos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,14 +61,14 @@ export const ProductForm = ({
     useEffect(() => {
         const checkSku = async (sku: string | null | undefined) => {
             if (sku && sku.trim() !== "") {
-                const isDuplicate = await checkIfSkuExists(sku, userId);
+                const isDuplicate = await checkIfSkuExists(sku, userId, product?.id);
                 setIsSkuDuplicate(isDuplicate);
             } else {
                 setIsSkuDuplicate(false);
             }
         };
         void checkSku(sku);
-    }, [sku, userId]);
+    }, [sku, userId, product?.id]);
 
     useEffect(() => {
         if (!open) return;
@@ -78,7 +80,10 @@ export const ProductForm = ({
             price: product?.price != null ? Number(product.price) : 0,
             comparePrice: product?.comparePrice != null ? Number(product.comparePrice) : null,
             sku: product?.sku ?? "",
-            stock: product?.stock ?? 0,
+            // El MISMO valor con el que nace el interruptor de inventario: con
+            // un 0 aquí, un producto nuevo se guardaba agotado mientras la
+            // pantalla decía «Sin límite».
+            stock: elInventarioAlAbrir(product?.stock),
             isActive: product?.isActive ?? true,
             images: (product?.images ?? []) as string[],
             userId,
@@ -89,7 +94,7 @@ export const ProductForm = ({
         setPriceDisplay(initialPrice > 0 ? initialPrice.toLocaleString('es-CO') : '');
         const initialCompare = product?.comparePrice != null ? Number(product.comparePrice) : 0;
         setComparePriceDisplay(initialCompare > 0 ? initialCompare.toLocaleString('es-CO') : '');
-        const initialStock = product?.stock ?? -1;
+        const initialStock = elInventarioAlAbrir(product?.stock);
         const tracking = initialStock >= 0;
         setTrackStock(tracking);
         setStockDisplay(tracking ? String(initialStock) : '');
@@ -136,6 +141,10 @@ export const ProductForm = ({
     };
 
     const onSubmit = form.handleSubmit(async (values) => {
+        if (isSkuDuplicate) {
+            toast.error("Ese código ya lo tiene otro producto: cámbialo para guardar.");
+            return;
+        }
         setIsSaving(true);
         try {
             if (values.id) {
@@ -152,7 +161,12 @@ export const ProductForm = ({
         } finally {
             setIsSaving(false);
         }
+    }, (errores) => {
+        // Sin esto, Guardar con un campo que no vale no hacía NADA: ni se
+        // guardaba ni decía por qué.
+        toast.error(porQueNoSeGuardaElProducto(errores));
     });
+    const errores = form.formState.errors;
 
     const Trigger =
         variant === "icon" ? (
@@ -160,18 +174,21 @@ export const ProductForm = ({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
+                title="Editar producto"
+                aria-label={`Editar ${product?.title ?? "producto"}`}
+                data-editar-producto
                 onClick={() => setOpen(true)}
             >
                 <Pencil className="h-4 w-4" />
             </Button>
         ) : (
-            <Button
+            <BotonDeCrear
                 onClick={() => setOpen(true)}
                 disabled={disabled}
-                title={disabled ? "Límite de productos alcanzado para tu plan" : undefined}
+                title={disabled ? "Límite de productos alcanzado para tu plan" : "Nuevo"}
             >
-               + Agregar
-            </Button>
+                Nuevo
+            </BotonDeCrear>
         );
 
     return (
@@ -183,11 +200,11 @@ export const ProductForm = ({
             }
         }}>
             <DialogTrigger asChild>{Trigger}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg flex flex-col overflow-hidden">
+            <DialogContent data-formulario-del-producto className="sm:max-w-lg flex flex-col overflow-hidden">
                 <DialogHeader>
                     <div className="flex items-center justify-between pr-6">
                         <DialogTitle>{product?.id ? "Editar producto" : "Nuevo producto"}</DialogTitle>
-                        <div className="flex items-center gap-2">
+                        <div data-campo="Activo" className="flex items-center gap-2">
                             <Switch
                                 id="isActive"
                                 checked={form.watch("isActive")}
@@ -203,7 +220,7 @@ export const ProductForm = ({
                     <div className="flex flex-col gap-3 flex-1 overflow-y-auto px-1">
 
                         {/* Imágenes — hasta 4 */}
-                        <div className="flex flex-col gap-2 shrink-0">
+                        <div data-campo="Fotos" className="flex flex-col gap-2 shrink-0">
                             <div className="flex gap-2 justify-center">
                                 {(form.watch('images') ?? []).map((url, i) => (
                                     <div key={i} className="relative group w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-gray-100">
@@ -211,6 +228,7 @@ export const ProductForm = ({
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors" />
                                         <button
                                             type="button"
+                                            aria-label={`Quitar la foto ${i + 1}`}
                                             onClick={() => handleImageRemove(i)}
                                             className="absolute top-1 right-1 rounded-full bg-destructive p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow"
                                         >
@@ -250,14 +268,15 @@ export const ProductForm = ({
                         </div>
 
                         {/* Nombre */}
-                        <div className="flex flex-col gap-1.5">
+                        <div data-campo="Nombre" className="flex flex-col gap-1.5">
                             <Label className="text-sm font-semibold">Nombre</Label>
-                            <Input {...form.register("title")} placeholder="Ej: Zapatilla deportiva" />
+                            <Input {...form.register("title")} placeholder="Ej: Zapatilla deportiva" aria-invalid={!!errores.title} />
+                            {errores.title && <p className="text-xs text-destructive">{errores.title.message}</p>}
                         </div>
 
                         {/* Precio — Precio anterior */}
                         <div className="flex gap-3">
-                            <div className="flex w-full flex-col gap-1.5">
+                            <div data-campo="Precio" className="flex w-full flex-col gap-1.5">
                                 <Label className="text-sm font-semibold">Precio</Label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
@@ -275,7 +294,7 @@ export const ProductForm = ({
                                     />
                                 </div>
                             </div>
-                            <div className="flex w-full flex-col gap-1.5">
+                            <div data-campo="Precio antes" className="flex w-full flex-col gap-1.5">
                                 <Label className="text-sm font-semibold">
                                     Precio antes{' '}
                                     <span className="font-normal text-muted-foreground">(opcional)</span>
@@ -301,11 +320,12 @@ export const ProductForm = ({
 
                         {/* Categoría — Código */}
                         <div className="flex gap-3">
-                            <div className="flex w-full flex-col gap-1.5">
+                            <div data-campo="Categoría" className="flex w-full flex-col gap-1.5">
                                 <Label className="text-sm font-semibold">Categoría</Label>
-                                <Input {...form.register("category")} placeholder="Ej: Zapatos" />
+                                <Input {...form.register("category")} placeholder="Ej: Zapatos" aria-invalid={!!errores.category} />
+                                {errores.category && <p className="text-xs text-destructive">{errores.category.message}</p>}
                             </div>
-                            <div className="flex w-full flex-col gap-1.5">
+                            <div data-campo="Código" className="flex w-full flex-col gap-1.5">
                                 <Label className="text-sm font-semibold">Código</Label>
                                 <Input {...form.register("sku")} placeholder="Ej: SAD005" />
                                 {isSkuDuplicate && (
@@ -315,7 +335,7 @@ export const ProductForm = ({
                         </div>
 
                         {/* Inventario */}
-                        <div className="flex flex-col gap-1.5">
+                        <div data-campo="Inventario" className="flex flex-col gap-1.5">
                             <Label className="text-sm font-semibold">Inventario</Label>
                             <div className="flex gap-3 items-center">
                                 <div className="w-full">
@@ -337,6 +357,7 @@ export const ProductForm = ({
                                         {trackStock ? 'Controlado' : 'Sin límite'}
                                     </span>
                                     <Switch
+                                        aria-label="Controlar el inventario"
                                         checked={trackStock}
                                         onCheckedChange={(v) => {
                                             setTrackStock(v);
@@ -354,7 +375,7 @@ export const ProductForm = ({
                         </div>
 
                         {/* Etiquetas */}
-                        <div className="flex flex-col gap-1.5">
+                        <div data-campo="Etiquetas" className="flex flex-col gap-1.5">
                             <Label className="text-sm font-semibold">
                                 Etiquetas{' '}
                                 <span className="font-normal text-muted-foreground">(opcional)</span>
@@ -384,6 +405,7 @@ export const ProductForm = ({
                                 />
                                 <button
                                     type="button"
+                                    aria-label="Agregar etiqueta"
                                     onClick={() => {
                                         const tag = tagInput.trim().toLowerCase();
                                         const current = form.getValues('tags') ?? [];
@@ -421,15 +443,16 @@ export const ProductForm = ({
                         </div>
 
                         {/* Descripción */}
-                        <div className="flex flex-col gap-1.5">
+                        <div data-campo="Descripción" className="flex flex-col gap-1.5">
                             <Label className="text-sm font-semibold">Descripción</Label>
                             <Textarea rows={5} className="resize-none" {...form.register("description")} placeholder={"Características del producto:\n- Marca\n- Material\n- Talla\n- Color"} />
                         </div>
 
                     </div>
 
-                        {/* Acciones */}
-                        <div className="flex justify-between gap-2 pt-3 mt-2 shrink-0">
+                        {/* Acciones: los dos botones son hijos DIRECTOS del pie, que
+                            los reparte (`justify-between`). */}
+                        <DialogFooter data-pie-del-producto className="pt-3 mt-2 shrink-0">
                             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                                 Cancelar
                             </Button>
@@ -437,7 +460,7 @@ export const ProductForm = ({
                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Guardar
                             </Button>
-                        </div>
+                        </DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>

@@ -24839,7 +24839,80 @@ Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
 «Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
 por nombre hasta la que conteste.
 
-### La decimoséptima guía, Crear flujos: la lista Y su editor, y las pastillas ahora filtran
+### La decimoséptima guía, Llamadas: llamar, el historial y sus ventanas, sin llamar a nadie
+
+`/guia/llamadas` documenta Bandeja › Llamadas (`/crm/llamadas`) con el estándar
+de las anteriores: ocho secciones —vista general, llamar (tú o el asistente con
+IA), el historial y sus filtros, abrir el chat desde una llamada, el resultado y
+el nombre, agendar un callback, el detalle (grabación, Resumen IA y
+transcripción) y el mensaje al no contestar—, una miniatura con enfoque por
+tarjeta y el vídeo de minuto y medio con la voz Cedar y el MISMO ritmo. Su
+tarjeta sale sola en «Tutoriales del módulo» de `/crm/llamadas`. Ninguna pieza
+propia: contenido en `lib/guia-llamadas.ts`, semilla
+`sembrar-guia-llamadas.mjs`, receta `capturar-guia-llamadas.mjs` y narración
+`narracion-guia-llamadas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-llamadas.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo llaman a nadie**: señalan «Llamar» y «Llamar
+   IA» y los dejan sin pulsar; el vídeo cancela el callback y el mensaje al no
+   contestar. La grabación de ejemplo es un audio de la caché de Cedar servido
+   por la receta (`ctx.route`), y los números y nombres son de ejemplo.
+2. **El contenido se compara con el código**: las direcciones, las columnas,
+   los resultados, los dos botones de la ventana de llamar en su orden, el «⋯»
+   de la fila y el de la barra, y las tres partes del detalle en su orden
+   (`guia-llamadas.test.mjs`). Una opción nueva sin su nombre la pone en rojo.
+3. **El paso a Chats y la vuelta son CORTES** (`sinGrabarLaEspera`): la carga
+   de la conversación no sale en el vídeo.
+4. **Con un menú de Radix abierto lo de fuera es `aria-hidden`**: la receta
+   mide los tres puntos de la fila y de la barra ANTES de abrirlos.
+
+Lo prueba `scripts/banco-guia-llamadas.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=llamadas`, `fin-de-la-guia`, `menu-de-la-guia`
+y la guía servida a 390 y 1440); `MODO=roto` contra `2c7b35e` afirma que no
+había guía.
+
+### La decimoctava guía, Productos: y documentarla destapó productos que nacían agotados
+
+`/guia/productos` documenta Entrenamiento › Productos (`/products`) con el
+mismo estándar: diez secciones —vista general, buscar, las cifras, ver el
+catálogo, crear, fotos, precio, categoría y código, inventario, y editar,
+ordenar y eliminar—, una miniatura con enfoque por tarjeta y el vídeo con la
+voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/products` (`GUIAS_PUBLICADAS`). Ninguna pieza propia: contenido con
+`laGuiaDe` (`lib/guia-productos.ts`), semilla sobre `sembrarElMarco`, receta
+sobre el taller (las fotos del catálogo las sirve `imagenes-guia-catalogo.mjs`).
+Se regenera con `npm run build && scripts/generar-guia-productos.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla (las reglas, puras, en
+`lib/productos.ts`):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el interruptor de inventario nacía en «Sin límite» y el formulario en 0: un producto nuevo se guardaba **agotado** y en el catálogo perdía su botón de WhatsApp | los dos nacen de `elInventarioAlAbrir` (sin límite si es nuevo) |
+| «Sin stock» contaba los de inventario sin límite (`stock <= 0` incluye el -1) | cuenta CERO unidades (`estaAgotado`) |
+| Guardar con la categoría vacía no hacía nada | el campo enseña su error y sale `porQueNoSeGuardaElProducto` |
+| abrir un producto con código decía «Este código ya está registrado» sobre el suyo | `checkIfSkuExists` excluye el que se edita; y un código repetido no se guarda |
+| el buscador solo miraba el nombre | nombre, código y categoría (`dondeBusca`) |
+| arrastrar en la página 2 (o con una búsqueda) escribía `0..n` sobre ese trozo y lo subía por delante de la página 1 | `elOrdenCompleto`: lo movido se coloca en los sitios que ya ocupaba |
+| borrar un producto lo dejaba en el catálogo público | se revalida `/catalogo` |
+| el botón de crear decía «+ Agregar» y el pie del formulario era un `div` a mano | `BotonDeCrear` («Nuevo») y `DialogFooter` |
+
+Y de la receta, lo que vale para las siguientes: **una marca con rótulo solo
+donde hay hueco**. En un formulario de dos columnas cada rótulo cae sobre el
+campo de al lado; ahí va solo el recuadro y lo explica el texto de la guía. Y
+antes de cada foto se suelta el foco (`sinFoco`): al cerrar un diálogo el foco
+vuelve al lápiz de la fila y su anillo se lee como otra marca.
+
+Lo prueba `scripts/banco-guia-productos.sh`: el contenido contra la pantalla
+(columnas, cifras y campos leídos del código), las reglas, el vídeo, las
+miniaturas en sus píxeles (`GUIA=productos`), `fin-de-la-guia` y
+`menu-de-la-guia` —que barren todas las guías— y la guía servida a 390 y 1440.
+`MODO=roto` lee `7767f6f` y afirma que no había guía y los fallos del
+formulario y de la cifra.
+
+### La decimonovena guía, Crear flujos: la lista Y su editor, y las pastillas ahora filtran
 
 `/guia/flujos` documenta Creación de Flujos (`/workflow`) **y su editor** con
 el estándar de las anteriores: diez secciones —vista general, los cuatro
