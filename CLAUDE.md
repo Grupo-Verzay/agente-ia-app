@@ -23406,22 +23406,36 @@ Documentación, a 1440/1280/1024/390 —con el TEXTO del título medido con un
 ni centro de ayuda, y la portada de `38be58b` y afirma el título a la
 izquierda, con su subtítulo, y el buscador de lado a lado.
 
-### «Tutoriales» de la landing: el MISMO centro de ayuda, con otra puerta
+### «Tutoriales» de la landing: una sección ANCLADA, como Preguntas frecuentes
 
 El menú de la landing lleva «Tutoriales» entre «Funciones» y «Precios» (barra,
-menú del teléfono y pie), y abre `/tutoriales`: pública, sin sesión y sin
-indexar. **No es una copia**: `app/tutoriales` pinta `CentroDeAyuda` y
-`GuiasDeLaCategoria` con `lasGuiasDelCentroDeAyuda()`, igual que `/ayuda`, así
-que una guía publicada sale en los dos a la vez. Lo único propio es el marco
-(sin el menú de la plataforma) y la prop `raiz` (`RUTA_PUBLICA_DE_TUTORIALES`):
-las categorías llevan a `/tutoriales/<slug>`, porque `/ayuda` manda al login.
-Ni una guía ni una categoría escrita a mano en `app/tutoriales`.
+menú del teléfono y pie) y baja a la sección `#tutoriales` de la MISMA página:
+las categorías y su lista de guías cambian de vista ahí dentro
+(`TutorialesDeLaLanding`), con la barra de arriba fija. Antes abría una página
+aparte (`/tutoriales`) cuyo logo llevaba a «/», o sea al login sin sesión.
 
-Lo prueba `scripts/banco-tutoriales-publicos.sh`: el código (el menú en sus
-tres sitios, el middleware, la misma fuente) y la página servida sin sesión a
-1440 y 390 —desde el menú, las diez categorías con los números de la fuente,
-el buscador, una categoría y su guía—. `MODO=roto` lee `3992838` y afirma que
-no había nada de esto.
+**No es una copia**: pinta `CentroDeAyuda` y `GuiasDeLaCategoria` con
+`lasGuiasDelCentroDeAyuda()`, igual que `/ayuda`, con dos props propias:
+`alElegirCategoria` / `alVolver` (cambian de vista en vez de navegar) e
+`incrustado` (sin cabecera ni scroll propio). Va bajo la clase `dark` para tomar
+los colores de la landing. Las guías siguen abriendo en otra pestaña.
+
+Cuatro cosas que hay que mantener:
+
+1. **La vista vive en el ancla** (`#tutoriales/<slug>`, `lib/tutoriales-de-la-landing.ts`,
+   puro), escrita con `replaceState`. Un ancla de categoría no es el `id` de
+   nada, así que al cambiar (cargando o sin recargar) la sección baja sola.
+2. **El logo lleva al principio de la landing** (`#inicio`, el `id` de su raíz),
+   en la barra y en el pie, y deja la dirección limpia.
+3. **`/tutoriales` y `/tutoriales/<slug>` redirigen** a `/inicio#tutoriales[/slug]`
+   (`elEnlaceDeTutoriales`); siguen sin pedir sesión en el middleware.
+4. Ni una guía ni una categoría escrita a mano en la landing.
+
+Lo prueba `scripts/banco-tutoriales-publicos.sh` (con build): el código y la
+página servida sin sesión a 1440 y 390 —se navega sin salir de `/inicio`, la
+barra sigue arriba, el logo vuelve arriba, las direcciones viejas redirigen—.
+`MODO=roto` lee `ffe0583` y afirma la página aparte y el logo que no llevaba al
+inicio.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 

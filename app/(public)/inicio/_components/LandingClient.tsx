@@ -15,6 +15,9 @@ import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { PlanDetailModal } from "./PlanDetailModal";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
+import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
+import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
+import { ANCLA_DEL_INICIO } from "@/lib/tutoriales-de-la-landing";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -180,6 +183,8 @@ type AssistanceType = "IA" | "HUMANO";
 /* ─── Componente principal ────────────────────────────────────────────────── */
 
 interface LandingClientProps {
+  /** Las guías de la sección Tutoriales (`lasGuiasDelCentroDeAyuda`, del servidor). */
+  guiasDeAyuda?: GuiaDeAyuda[];
   whatsappNumber?: string | null;
   meetingUrl?: string | null;
   primaryColor?: string | null;
@@ -206,7 +211,7 @@ interface LandingClientProps {
   embed?: boolean;
 }
 
-export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showFreeTrial = true, showBillingMonthly = true, showBillingQuarterly = true, showBillingYearly = true, embed = false }: LandingClientProps = {}) {
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showFreeTrial = true, showBillingMonthly = true, showBillingQuarterly = true, showBillingYearly = true, embed = false, guiasDeAyuda }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
@@ -225,6 +230,20 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
   const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>(defaultPeriod);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // El logo lleva SIEMPRE al principio de la landing, esté donde esté: sube
+  // hasta arriba y quita el ancla (#faq, #tutoriales/…) de la dirección, para
+  // que una recarga no vuelva a bajar a la sección de antes.
+  const volverAlInicio = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    document.getElementById(ANCLA_DEL_INICIO)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    try {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+    } catch {
+      // Sin historial: ya subió, que es lo que importa.
+    }
+  };
   const [openFaq, setOpenFaq]               = useState<number | null>(null);
   const [modalPlan, setModalPlan]           = useState<{ plan: SubscriptionPlanItem; checkoutUrl: string | null } | null>(null);
 
@@ -257,7 +276,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   const heroSub = subheadline ?? "Transforma tus mensajes en un sistema automático de ventas y atención al cliente — desde el primer día, sin programación.";
 
   return (
-    <div className="min-h-full text-white" style={bg ? { backgroundColor: bg } : undefined}>
+    <div id={ANCLA_DEL_INICIO} className="min-h-full text-white" style={bg ? { backgroundColor: bg } : undefined}>
       {brand && (
         <style>{`
           .brand-btn { background-color: ${brand} !important; }
@@ -270,7 +289,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {!embed && (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
-          <div className="flex items-center gap-2">
+          <a
+            href={`#${ANCLA_DEL_INICIO}`}
+            onClick={volverAlInicio}
+            aria-label="Ir al inicio"
+            data-logo-de-la-landing
+            className="flex items-center gap-2"
+          >
             {logoUrl ? (
               <img src={logoUrl} alt="Agente IA" className="h-8 max-w-[120px] object-contain" />
             ) : (
@@ -281,10 +306,10 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 <span className="text-lg font-bold text-white">Agente IA</span>
               </>
             )}
-          </div>
+          </a>
           <nav className="hidden items-center gap-7 sm:flex">
-            {[["#how","Cómo funciona"],["#features","Funciones"],["/tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
-              .filter(([href]) => href !== "#pricing" || showPricing)
+            {[["#how","Cómo funciona"],["#features","Funciones"],["#tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => (href !== "#pricing" || showPricing) && (href !== "#tutoriales" || guiasDeAyuda))
               .map(([href,label]) => (
               <a key={href} href={href} className="text-sm text-slate-400 transition-colors hover:text-white">{label}</a>
             ))}
@@ -305,8 +330,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
         </div>
         {mobileMenuOpen && (
           <div className="space-y-3 border-t border-white/10 px-4 py-3 sm:hidden">
-            {[["#features","Funciones"],["/tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
-              .filter(([href]) => href !== "#pricing" || showPricing)
+            {[["#features","Funciones"],["#tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
+              .filter(([href]) => (href !== "#pricing" || showPricing) && (href !== "#tutoriales" || guiasDeAyuda))
               .map(([href,label]) => (
               <a key={href} href={href} className="block text-sm text-slate-300" onClick={() => setMobileMenuOpen(false)}>{label}</a>
             ))}
@@ -648,6 +673,19 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
         </div>
       </section>
 
+      {/* ══ TUTORIALES ═════════════════════════════════════════════════════ */}
+      {guiasDeAyuda && (
+      <section id="tutoriales" className="py-6">
+        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold text-white sm:text-3xl">Tutoriales</h2>
+            <p className="mt-2 text-slate-400">Guías paso a paso de la plataforma, con su vídeo.</p>
+          </div>
+          <TutorialesDeLaLanding guias={guiasDeAyuda} />
+        </div>
+      </section>
+      )}
+
       {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
       {showPricing && (
       <section id="pricing" className="py-6 bg-white/[0.02]">
@@ -841,7 +879,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {!embed && (
       <footer className="border-t border-white/10 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-8 sm:flex-row sm:justify-between sm:px-12 lg:px-16">
-          <div className="flex items-center gap-2">
+          <a
+            href={`#${ANCLA_DEL_INICIO}`}
+            onClick={volverAlInicio}
+            aria-label="Ir al inicio"
+            data-logo-del-pie
+            className="flex items-center gap-2"
+          >
             {logoUrl ? (
               <img src={logoUrl} alt="Agente IA" className="h-7 max-w-[100px] object-contain" />
             ) : (
@@ -852,11 +896,11 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 <span className="font-semibold text-white">Agente IA</span>
               </>
             )}
-          </div>
+          </a>
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
-            <Link href="/tutoriales" className="transition-colors hover:text-slate-300">Tutoriales</Link>
+            <a href="#tutoriales" className="transition-colors hover:text-slate-300">Tutoriales</a>
             {showPricing && <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>}
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             <Link href="/documentacion" className="transition-colors hover:text-slate-300">Documentación</Link>

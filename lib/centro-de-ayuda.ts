@@ -165,13 +165,6 @@ export const CATEGORIAS_DE_AYUDA: readonly CategoriaDeAyuda[] = [
 
 export const RUTA_DEL_CENTRO_DE_AYUDA = "/ayuda";
 
-/**
- * La MISMA ayuda con otra puerta: «Tutoriales» del menú de la landing, para
- * quien todavía no tiene cuenta. Pinta los mismos componentes con las mismas
- * guías (`lasGuiasDelCentroDeAyuda`); lo único que cambia es la raíz de sus
- * enlaces, para que una categoría abierta desde fuera no mande al login.
- */
-export const RUTA_PUBLICA_DE_TUTORIALES = "/tutoriales";
 
 /** Lo que se enseña cuando una categoría no tiene ninguna guía todavía. */
 export const SIN_GUIAS_TODAVIA = "Estamos trabajando en esta guía";

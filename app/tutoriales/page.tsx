@@ -1,8 +1,12 @@
-import { CentroDeAyuda } from "@/components/ayuda/CentroDeAyuda";
-import { RUTA_PUBLICA_DE_TUTORIALES } from "@/lib/centro-de-ayuda";
-import { lasGuiasDelCentroDeAyuda } from "@/lib/guias-del-centro-de-ayuda";
+import { redirect } from "next/navigation";
 
-/** La portada pública de tutoriales: el centro de ayuda de `/ayuda`, sin cuenta. */
+import { elEnlaceDeTutoriales } from "@/lib/tutoriales-de-la-landing";
+
+/**
+ * `/tutoriales` ya no es una página aparte: los tutoriales son una sección de
+ * la landing (`/inicio#tutoriales`). Esta dirección se queda para no romper
+ * los enlaces que ya circulan, y lleva allí.
+ */
 export default function TutorialesPage() {
-    return <CentroDeAyuda guias={lasGuiasDelCentroDeAyuda()} raiz={RUTA_PUBLICA_DE_TUTORIALES} titulo="Tutoriales" />;
+    redirect(elEnlaceDeTutoriales());
 }

@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# «Tutoriales» en el menú de la landing: la vista pública del centro de ayuda.
+# «Tutoriales» como sección anclada DENTRO de la landing (/inicio#tutoriales).
 #
 #  1. Sin navegador (`tutoriales-publicos.test.mjs`), en los dos modos: el menú
-#     de la landing en sus tres sitios, la ruta abierta en el middleware, y que
-#     las páginas pintan los MISMOS componentes con la MISMA fuente que /ayuda.
-#     `MODO=roto` lee `ANTES_REF` (pinchado a un commit) y afirma que no había
-#     nada de esto.
+#     lleva a #tutoriales en sus tres sitios, el logo al inicio, la sección pinta
+#     los MISMOS componentes con la MISMA fuente que /ayuda, y /tutoriales
+#     redirige. `MODO=roto` lee `ANTES_REF` (pinchado a un commit) y afirma el
+#     fallo: página aparte y logo que no llevaba al inicio.
 #  2. La página SERVIDA y sin sesión (`probar-tutoriales-publicos.mjs`), a 1440
-#     y 390: se llega desde el menú, las diez categorías con los números de la
-#     fuente, el buscador, una categoría y su guía. Solo en modo bueno: el
-#     «antes» no tenía página que servir.
+#     y 390: se navega por categorías sin salir de /inicio, la barra sigue
+#     arriba, el logo vuelve al principio y las direcciones viejas redirigen.
 #
 # Necesita el build (`npm run build`) para la segunda mitad.
 set -euo pipefail
@@ -19,18 +18,18 @@ B=/usr/lib/postgresql/16/bin
 export PATH="$B:/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
-export ANTES_REF="${ANTES_REF:-3992838}"
+export ANTES_REF="${ANTES_REF:-ffe0583}"
 
 C=lib/__tests__/.compilado/tutoriales-publicos
 mkdir -p "$C"
-for m in centro-de-ayuda guias-del-centro-de-ayuda; do
+for m in centro-de-ayuda guias-del-centro-de-ayuda tutoriales-de-la-landing; do
   npx -y esbuild "lib/$m.ts" --bundle --platform=node --format=esm --outfile="$C/$m.mjs" --log-level=warning
 done
 
 echo "── el código, con el cambio ──"
 MODO=bueno node --test lib/__tests__/tutoriales-publicos.test.mjs
 echo
-echo "── el código de ANTES ($ANTES_REF): tiene que afirmar que no había nada ──"
+echo "── el código de ANTES ($ANTES_REF): tiene que afirmar el fallo ──"
 MODO=roto node --test lib/__tests__/tutoriales-publicos.test.mjs
 
 if [ "${MODO:-bueno}" = "roto" ] || [ "${1:-}" = "--solo-puro" ]; then exit 0; fi
@@ -59,11 +58,17 @@ export AUTH_SECRET=banco AUTH_TRUST_HOST=true NEXTAUTH_URL="http://localhost:$AP
        S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=http://localhost \
        S3_PUBLIC_URL=http://localhost GEMINI_API_KEY=banco
 
-npx next start -p "$APPPORT" > /tmp/banco-tutoriales-next.log 2>&1 &
+# Un servidor de una vuelta anterior serviría el build VIEJO (y este no
+# arrancaría: puerto ocupado) y las pruebas medirían otra cosa. Se dice.
+if curl -s -o /dev/null --max-time 2 "http://localhost:$APPPORT/"; then
+  echo "El puerto $APPPORT ya está ocupado (¿un 'next start' de otra vuelta?). Ciérralo y vuelve a correr." >&2
+  exit 1
+fi
+setsid npx next start -p "$APPPORT" > /tmp/banco-tutoriales-next.log 2>&1 &
 SERVIDOR=$!
-trap 'kill $SERVIDOR 2>/dev/null || true' EXIT
+trap 'kill -- -$SERVIDOR 2>/dev/null || kill $SERVIDOR 2>/dev/null || true' EXIT
 for _ in $(seq 1 40); do
-  if curl -fs -o /dev/null "http://localhost:$APPPORT/tutoriales"; then break; fi
+  if curl -fs -o /dev/null "http://localhost:$APPPORT/inicio"; then break; fi
   sleep 1
 done
 

@@ -14,6 +14,10 @@ import { ArrowLeft } from 'lucide-react';
  */
 export const RUTA_DE_DOCUMENTACION = '/documentation';
 
+/** La flecha de volver, sea enlace o botón: la misma caja en las dos. */
+const CLASE_DE_LA_FLECHA =
+    'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground';
+
 export function CabeceraDeDocumentacion({
     titulo,
     subtitulo,
@@ -26,9 +30,11 @@ export function CabeceraDeDocumentacion({
     /**
      * A dónde lleva la flecha. Por defecto, la portada de Documentación; el
      * centro de ayuda la usa para volver a sus categorías. `null`: sin flecha
-     * (la portada del centro de ayuda no vuelve a ningún sitio).
+     * (la portada del centro de ayuda no vuelve a ningún sitio). Con
+     * `alPulsar` es un botón y no un enlace: los tutoriales de la landing
+     * cambian de vista dentro de la misma página, sin navegar.
      */
-    volverA?: { href: string; etiqueta: string } | null;
+    volverA?: { href: string; etiqueta: string } | { alPulsar: () => void; etiqueta: string } | null;
     /**
      * Título y subtítulo centrados. Solo la portada del centro de ayuda, que
      * no tiene flecha ni nada a la derecha: es una pantalla de entrada, con el
@@ -54,13 +60,24 @@ export function CabeceraDeDocumentacion({
     }
     return (
         <div className="flex items-start gap-3" data-cabecera-de-documentacion>
-            {volverA ? (
+            {volverA && "alPulsar" in volverA ? (
+                <button
+                    type="button"
+                    onClick={volverA.alPulsar}
+                    aria-label={volverA.etiqueta}
+                    title={volverA.etiqueta}
+                    data-volver-a-documentacion
+                    className={CLASE_DE_LA_FLECHA}
+                >
+                    <ArrowLeft className="h-4 w-4" aria-hidden />
+                </button>
+            ) : volverA ? (
                 <Link
                     href={volverA.href}
                     aria-label={volverA.etiqueta}
                     title={volverA.etiqueta}
                     data-volver-a-documentacion
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className={CLASE_DE_LA_FLECHA}
                 >
                     <ArrowLeft className="h-4 w-4" aria-hidden />
                 </Link>

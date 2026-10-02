@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LandingClient } from "./_components/LandingClient";
 import { getSiteConfig } from "@/actions/admin/site-config-actions";
+import { lasGuiasDelCentroDeAyuda } from "@/lib/guias-del-centro-de-ayuda";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default async function InicioPage({
       showBillingMonthly={config.showBillingMonthly}
       showBillingQuarterly={config.showBillingQuarterly}
       showBillingYearly={config.showBillingYearly}
+      guiasDeAyuda={lasGuiasDelCentroDeAyuda()}
     />
   );
 }

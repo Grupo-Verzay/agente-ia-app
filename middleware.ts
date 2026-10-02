@@ -196,9 +196,9 @@ export default auth((req) => {
     // `X-Robots-Tag`).
     currentPath === "/demo" ||
     currentPath.startsWith("/demo/") ||
-    // Tutoriales públicos (/tutoriales): «Tutoriales» del menú de la landing.
-    // Es el centro de ayuda del panel con otra puerta, para quien todavía no
-    // tiene cuenta: las mismas guías, sin leer nada de la base y sin indexar.
+    // /tutoriales y /tutoriales/<categoria>: direcciones viejas que redirigen
+    // a la sección de tutoriales de la landing (/inicio#tutoriales). Sin
+    // sesión, para que un enlace que ya circula no acabe en el login.
     currentPath === "/tutoriales" ||
     currentPath.startsWith("/tutoriales/");
 

@@ -31,21 +31,34 @@ export function GuiasDeLaCategoria({
     categoria,
     guias,
     raiz = RUTA_DEL_CENTRO_DE_AYUDA,
+    alVolver,
+    incrustado = false,
 }: {
     categoria: CategoriaDeAyuda;
     guias: GuiaDeAyuda[];
-    /** A dónde vuelve la flecha: `/ayuda` en el panel, `/tutoriales` en la landing. */
+    /** A dónde vuelve la flecha: `/ayuda` en el panel. */
     raiz?: string;
+    /** La landing: la flecha vuelve a las categorías sin navegar. */
+    alVolver?: () => void;
+    /** Dentro de una sección de la landing: sin relleno y con el alto de su contenido. */
+    incrustado?: boolean;
 }) {
     const [consulta, setConsulta] = useState("");
     const queSeVen = guias.filter((g) => pasaElFiltroDeLaCategoria(g, consulta));
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-guias-de-la-categoria={categoria.slug}>
+        <div
+            className={incrustado ? "flex flex-col gap-4" : "flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4"}
+            data-guias-de-la-categoria={categoria.slug}
+        >
             <CabeceraDeDocumentacion
                 titulo={categoria.nombre}
                 subtitulo={lasPantallasEnUnaFrase(categoria)}
-                volverA={{ href: raiz, etiqueta: raiz === RUTA_DEL_CENTRO_DE_AYUDA ? "Volver al centro de ayuda" : "Volver a tutoriales" }}
+                volverA={
+                    alVolver
+                        ? { alPulsar: alVolver, etiqueta: "Volver a tutoriales" }
+                        : { href: raiz, etiqueta: "Volver al centro de ayuda" }
+                }
             />
 
             {guias.length > 0 ? (
@@ -65,7 +78,7 @@ export function GuiasDeLaCategoria({
                 />
             ) : null}
 
-            <div className="min-h-0 flex-1 overflow-auto py-1">
+            <div className={incrustado ? "py-1" : "min-h-0 flex-1 overflow-auto py-1"}>
                 {guias.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 py-16 text-center" data-sin-guias-todavia>
                         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
