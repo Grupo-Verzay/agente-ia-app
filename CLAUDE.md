@@ -25083,6 +25083,71 @@ vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=agenda`),
 servida a 390 y 1440. `MODO=roto` lee `2c7b35e` y afirma que no había guía, ni
 marcas en la pantalla, y el enlace escrito a mano.
 
+### La vigesimoprimera guía, Chats: la pantalla más completa, y la llamada que caía en otro chat
+
+`/guia/chats` documenta Bandeja › Chats (`/chats`) con el estándar de las
+anteriores: la lista con sus filtros y pastillas, la selección múltiple, la
+cabecera (presencia, llamar, asesor, recordatorio, cita, etapa, etiquetas, IA
+encendida o pausada), el menú de Acciones, los mensajes (responder, reenviar,
+reaccionar, traducir, editar, transcribir), la barra de escribir (respuestas
+rápidas, adjuntos, nota interna, macros, firma, plantillas de Meta), la ficha
+del contacto y la llamada en curso; con una miniatura con enfoque por tarjeta y
+el vídeo con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales
+del módulo» de `/chats`. Ninguna pieza propia salvo el doble
+`fingido-guia-chats.mjs` (AstraCalls y las plantillas de Meta, cargado dentro
+de `next start` como el Gemini de AI Imágenes). Se regenera con
+`npm run build && scripts/generar-guia-chats.sh && npm run build`.
+
+Cinco cosas que hay que mantener:
+
+1. **Nadie recibe nada**: la llamada se contesta con un audio de mentira que el
+   navegador de las capturas reconoce (`RESPUESTA_DE_AUDIO`), y «el cliente
+   colgó» se finge parando los bytes (`window.__guiaColgo`): colgar desde la
+   tarjeta la CIERRA y la pregunta «¿Cómo resultó la llamada?» no sale.
+2. **Las respuestas rápidas se escriben con «/» y una letra** (`/h`): con la
+   barra sola no se sugiere nada.
+3. **`abrirMenu` devuelve un localizador PEREZOSO** (`.last()` de lo visible):
+   al pasar el ratón por un submenú pasa a ser el submenú. Las cajas se miden
+   antes de pasar por encima.
+4. **Una base recién hecha necesita `chat_messages.editedAt` ANTES de
+   servir** (`generar-guia.sh`). La App la añade al usarla, y si otra conexión
+   ya preparó un `SELECT *` revienta para siempre con «cached plan must not
+   change result type»: la conversación sale vacía sin un error a la vista.
+   En producción la columna existe hace tiempo.
+5. **La ficha se fotografía cuando no queda nada «Cargando»**: llega en varias
+   consultas.
+
+Y tres del vídeo, que solo se ven grabándolo:
+
+- **Filtrar y seleccionar cierran la conversación abierta**: antes de hablar
+  de la cabecera se vuelve a abrir, sin grabar la carga (`sinGrabarLaEspera`).
+- **«Traducir» no sale en un mensaje en español** (`seOfreceTraducir`): el
+  vídeo señala Reenviar; la captura de traducir usa la conversación en inglés.
+- **«Plegar» solo existe con la llamada CONECTADA**, y la tarjeta tarda la
+  gracia del audio en preguntar cómo fue: el cliente «cuelga» en cuanto
+  conecta, y lo que quede de esa espera se corta, o el vídeo acaba mudo.
+
+#### Y documentarla destapó que una llamada desde el chat podía ir a NADIE
+
+Con un contacto abierto por su número, llamar desde la cabecera de Chats salía
+hacia `D@lid` —un id inventado con los mismos dígitos— y la burbuja de la
+llamada caía en una conversación aparte, «Contacto Sin Número». La causa:
+`identidadesDelChat` (y `remoteJidAliases`) traen los CANDIDATOS de
+`buildWhatsAppJidCandidates`, que fabrica el `@lid` a propósito; mezclados con
+las identidades reales, `sinTelefonosFalsosDeLid` veía el `@lid` fabricado y
+descartaba el teléfono de verdad como «falso».
+
+> **El destino de una llamada se decide con las identidades REALES**
+> (`elDestinoDeLaConversacion`, `lib/destino-de-la-llamada.ts`): los
+> candidatos solo entran si con las reales no sale nada. La usan la cabecera y
+> `chat-main`. Si otro sitio llama con lo que trae la conversación, va por ahí.
+
+Lo prueban `scripts/banco-guia-chats.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=chats`, `fin-de-la-guia`, `menu-de-la-guia` y
+la guía servida a 390 y 1440) y `scripts/banco-destino-de-la-llamada.sh`
+(caso A5: el teléfono real gana a un `@lid` fabricado). `MODO=roto` contra un
+commit pinchado afirma que no había guía y que la llamada iba al `@lid`.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

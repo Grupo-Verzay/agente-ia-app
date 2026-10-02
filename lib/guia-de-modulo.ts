@@ -92,6 +92,8 @@ export const ICONOS_DE_SECCION = [
     "Wallet",
     "Phone",
     "CalendarClock",
+    "PanelTop",
+    "Contact",
 ] as const;
 
 export type Seccion = {

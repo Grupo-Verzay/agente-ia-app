@@ -73,6 +73,8 @@ import {
     Wallet,
     Phone,
     CalendarClock,
+    PanelTop,
+    Contact,
     Zap,
 } from "lucide-react";
 
@@ -161,6 +163,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Wallet,
     Phone,
     CalendarClock,
+    PanelTop,
+    Contact,
 };
 
 /**
