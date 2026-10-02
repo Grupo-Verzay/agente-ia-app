@@ -56,7 +56,7 @@ export const PESTANAS_DEL_EDITOR = [
 
 /** Lo que ofrece «Agregar acción» de un bloque, grupo por grupo (`FunctionSelector.tsx`). */
 export const ACCIONES_DE_UN_PASO = ["Ejecutar flujo", "Notificar asesor", "Leer Google Sheets"] as const;
-export const TEXTOS_DE_UN_PASO = ["Agregar respuesta", "Agregar nota interna"] as const;
+export const TEXTOS_DE_UN_PASO = ["Agregar caso", "Agregar respuesta", "Agregar transición", "Agregar nota interna"] as const;
 
 /** Los dos modos del paso de bienvenida (`TrainingBuilder.tsx`). */
 export const MODOS_DE_BIENVENIDA = ["obligatoria", "inteligente"] as const;
@@ -263,7 +263,7 @@ export const GUIA_AGENTE_IA: Contenido = {
             pasos: [
                 {
                     titulo: "Agregar acción",
-                    texto: "Acciones: Ejecutar flujo, Notificar asesor y Leer Google Sheets. Texto: Agregar respuesta y Agregar nota interna.",
+                    texto: "Acciones: Ejecutar flujo, Notificar asesor y Leer Google Sheets. Conversación: Agregar caso, Agregar respuesta, Agregar transición y Agregar nota interna.",
                     imagen: "elementos-menu.webp",
                     alt: "El menú Agregar acción abierto con sus dos grupos",
                 },

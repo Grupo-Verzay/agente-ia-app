@@ -65,6 +65,8 @@ export const PromptElementSchema = z.union([
             "enrutamiento",
             "leer_google_sheets",
             "nota_interna",
+            "caso",
+            "transicion",
         ]),
         subtype: z
             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
@@ -78,6 +80,11 @@ export const PromptElementSchema = z.union([
         nota: z.string().nullable().optional(),
         /** La hoja que lee `leer_google_sheets`. Se guarda tal cual se pegó. */
         sheetUrl: z.string().nullable().optional(),
+        /** «Agregar caso»: cuándo aplica y qué se responde. */
+        escenario: z.string().nullable().optional(),
+        respuesta: z.string().nullable().optional(),
+        /** «Agregar transición»: el `id` del paso destino; `null` = el siguiente. */
+        destino: z.string().nullable().optional(),
         rules: z.array(z.object({
             id: z.string(),
             keywords: z.string().default(""),
@@ -552,6 +559,19 @@ export type ElementFunction =
         kind: "function";
         fn: "nota_interna";
         nota: string | null;
+    }
+    | {
+        id: string;
+        kind: "function";
+        fn: "caso";
+        escenario: string | null;
+        respuesta: string | null;
+    }
+    | {
+        id: string;
+        kind: "function";
+        fn: "transicion";
+        destino: string | null;
     };
 
 export type RoutingRule = {
@@ -769,6 +789,10 @@ export type PropsActionSteeps = {
     updateRoutingRules?: (stepId: string, elId: string, rules: RoutingRule[]) => void;
     updateSheetUrl?: (stepId: string, elId: string, url: string) => void;
     updateNotaInterna?: (stepId: string, elId: string, nota: string) => void;
+    updateCaso?: (stepId: string, elId: string, cambio: { escenario?: string; respuesta?: string }) => void;
+    updateTransicion?: (stepId: string, elId: string, destino: string | null) => void;
+    /** Qué caso es dentro de su paso (1, 2…), para su título. */
+    numeroDeCaso?: number;
 };
 
 export type ElementoLeerGoogleSheets = {
