@@ -30,6 +30,7 @@ import type {
     DataSubtype,
     StepTraining,
 } from "@/types/agentAi";
+import { esCaso } from "@/lib/casos-y-transicion-del-paso";
 import { buildProductsMarkdown } from "./helpers/actionsBuilders";
 import {
     AlertDialog,
@@ -128,7 +129,8 @@ export const ProductBuilder = ({
     initialItems,
     flows = [],
     notificationNumber,
-    registerSaveHandler
+    registerSaveHandler,
+    pasosDelInicio = [],
 }: ProductBuilderProps) => {
     // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<ProductItemType[]>(
@@ -184,7 +186,7 @@ export const ProductBuilder = ({
         }
     }, [autosaveStatus]);
 
-    const prompt = useMemo(() => buildProductsMarkdown({ steps: items as any }), [items]);
+    const prompt = useMemo(() => buildProductsMarkdown({ steps: items as any }, pasosDelInicio), [items, pasosDelInicio]);
 
     useEffect(() => {
         const first = items[0];
@@ -300,6 +302,38 @@ export const ProductBuilder = ({
                             e.id === elId && e.kind === "function" && e.fn === "nota_interna"
                                 ? { ...e, nota }
                                 : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    // «Agregar caso» y «Agregar transición»: como en Inicio
+    // (`lib/casos-y-transicion-del-paso`); la transición va a un paso de Inicio.
+    const updateCaso = (productId: string, elId: string, cambio: { escenario?: string; respuesta?: string }) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === productId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "caso" ? { ...e, ...cambio } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateTransicion = (productId: string, elId: string, destino: string | null) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === productId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "transicion" ? { ...e, destino } : e
                         ),
                     }
                     : s
@@ -613,6 +647,10 @@ export const ProductBuilder = ({
                                                                                                             onSubtypeChange={onSubtypeChange}
                                                                                                             updateSheetUrl={updateSheetUrl}
                                                                                                             updateNotaInterna={updateNotaInterna}
+                                                                                                            updateCaso={updateCaso}
+                                                                                                            updateTransicion={updateTransicion}
+                                                                                                            numeroDeCaso={(step.elements ?? []).filter(esCaso).findIndex((c) => c.id === el.id) + 1}
+                                                                                                            pasosDelInicio={pasosDelInicio}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>
@@ -633,6 +671,7 @@ export const ProductBuilder = ({
                                                                             step={step}
                                                                             setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                             notificationNumber={notificationNumber ?? ""}
+                                                                            conCasosYTransicion
                                                                         />
                                                                     </div>
                                                                 </div>

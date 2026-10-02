@@ -13,6 +13,8 @@ cd "$(dirname "$0")/.."
 
 export MODO="${MODO:-bueno}"
 export ANTES_REF="${ANTES_REF:-83159ac}"
+# Antes de llevar caso y transición a Preguntas, Productos y Extras (#1100 fusionado).
+export ANTES_FUERA_REF="${ANTES_FUERA_REF:-8958372}"
 OUT=lib/__tests__/.compilado/casos-y-transicion
 mkdir -p "$OUT"
 H='app/(root)/ai/_components/helpers'
@@ -31,7 +33,9 @@ if [ "$MODO" = "bueno" ]; then
   pack "$H/buildSectionedPrompt.ts" "$OUT/sectioned.mjs"
   pack types/agentAi.ts "$OUT/tipos.mjs"
   pack lib/orden-de-elementos.ts "$OUT/orden.mjs"
+  pack "$H/actionsBuilders.ts" "$OUT/pestanas.mjs"
+  pack "$H/composePromptFromSections.ts" "$OUT/componer.mjs"
 fi
 
-echo "── Casos y transición (MODO=$MODO, antes=$ANTES_REF) ──"
+echo "── Casos y transición (MODO=$MODO, antes=$ANTES_REF, fuera=$ANTES_FUERA_REF) ──"
 NODE_PATH="$PWD/node_modules" node --test lib/__tests__/casos-y-transicion.test.mjs "$@"

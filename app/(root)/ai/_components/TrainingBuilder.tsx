@@ -195,6 +195,7 @@ export function TrainingBuilder({
   onVersionChange,
   initialSteps,
   registerSaveHandler,
+  onPasosChange,
 }: TrainingBuilderProps) {
   // Compute initial state once (handles auto-init for new agents where initialSteps === undefined)
   const _initOnce = useRef<StepTraining[] | null>(null);
@@ -293,6 +294,17 @@ export function TrainingBuilder({
 
   /* -------------------- Construcción del trainingPrompt -------------------- */
   const trainingPrompt = useMemo(() => buildTrainingMarkdown({ steps: steps as any }), [steps]);
+
+  /* --------- Los pasos, a Preguntas, Productos y Extras (sus transiciones) --------- */
+  const pasosParaFuera = useMemo(
+    () => steps.map((s) => ({ id: s.id, title: s.title })),
+    // Solo cambian con el id o el título: no repintar las otras pestañas por cada tecla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [steps.map((s) => `${s.id}\u0000${s.title ?? ""}`).join("\u0001")]
+  );
+  useEffect(() => {
+    onPasosChange?.(pasosParaFuera);
+  }, [pasosParaFuera, onPasosChange]);
 
   /* --------- Propagar cambios: onChange (compat) + values.training --------- */
   useEffect(() => {

@@ -41,7 +41,20 @@
  * Igual que la plantilla «Ejecutar paso» (ruta por defecto `N+1`). En el
  * último paso no hay siguiente, así que sin destino no se escribe nada:
  * mandar al modelo a un paso que no existe es peor que no decir nada.
+ *
+ * ## Fuera de Inicio, la transición va a un paso de INICIO
+ *
+ * En Preguntas, Productos y Extras `current_step` sigue siendo un paso del
+ * flujo de Inicio, así que el destino se busca en `pasosDelInicio` y NO hay
+ * «siguiente»: una pregunta no tiene paso N+1. Sin destino, o con uno que ya
+ * no existe en Inicio, no se escribe nada.
  */
+
+/** Cómo se resuelve la transición: entre los pasos del bloque, o en Inicio. */
+export type OpcionesDeLaTransicion = {
+    /** Los pasos de Inicio, cuando el bloque NO es un paso de Inicio. */
+    pasosDelInicio?: ReadonlyArray<unknown>;
+};
 
 export type ElementoCaso = {
     id: string;
@@ -134,6 +147,22 @@ export function elPasoDeDestino(
     return indice + 1 < pasos.length ? indice + 2 : null;
 }
 
+/** El número del paso de Inicio al que se pasa, o `null` (sin «siguiente»). */
+export function elPasoDelInicio(pasosDelInicio: ReadonlyArray<unknown>, destino?: string | null): number | null {
+    if (!destino) return null;
+    const i = pasosDelInicio.findIndex((p) => (p as { id?: unknown } | null)?.id === destino);
+    return i === -1 ? null : i + 1;
+}
+
+function elDestino(
+    pasos: ReadonlyArray<unknown>,
+    indice: number,
+    destino: string | null | undefined,
+    op?: OpcionesDeLaTransicion,
+): number | null {
+    return op?.pasosDelInicio ? elPasoDelInicio(op.pasosDelInicio, destino) : elPasoDeDestino(pasos, indice, destino);
+}
+
 export function lineaDeTransicion(paso: number): string {
     return `➡️ TRANSICIÓN: Completados los datos de este paso → \`current_step = ${paso}\`. Esperar respuesta del cliente antes de ejecutar el paso siguiente.`;
 }
@@ -143,10 +172,11 @@ export function escribeCasosOTransicion(
     elementos: ReadonlyArray<unknown>,
     pasos: ReadonlyArray<unknown>,
     indice: number,
+    op?: OpcionesDeLaTransicion,
 ): boolean {
     if (tablaDeCasos(elementos.filter(esCaso)) !== null) return true;
     const t = (elementos as ReadonlyArray<unknown>).find(esTransicion);
-    return !!t && elPasoDeDestino(pasos, indice, t.destino) !== null;
+    return !!t && elDestino(pasos, indice, t.destino, op) !== null;
 }
 
 /**
@@ -160,6 +190,7 @@ export function lineasDelPaso<E>(
     pasos: ReadonlyArray<unknown>,
     indice: number,
     normal: (el: E, k: number) => string[],
+    op?: OpcionesDeLaTransicion,
 ): string[] {
     const out: string[] = [];
     const tabla = tablaDeCasos((elementos as ReadonlyArray<unknown>).filter(esCaso));
@@ -179,7 +210,7 @@ export function lineasDelPaso<E>(
 
     const t = (elementos as ReadonlyArray<unknown>).find(esTransicion);
     if (t) {
-        const destino = elPasoDeDestino(pasos, indice, t.destino);
+        const destino = elDestino(pasos, indice, t.destino, op);
         if (destino !== null) out.push(lineaDeTransicion(destino));
     }
     return out;

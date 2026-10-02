@@ -42,6 +42,7 @@ import type {
     StepTraining,
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
+import { esCaso } from "@/lib/casos-y-transicion-del-paso";
 import { buildExtrasMarkdown } from "./helpers/actionsBuilders";
 
 import {
@@ -136,6 +137,7 @@ export function ExtraInfoBuilder({
     flows = [],
     notificationNumber,
     registerSaveHandler,
+    pasosDelInicio = [],
 }: ExtraInfoBuilderProps & { flows?: Workflow[] }) {
     /* ====== Estado: pasos (antes "items") ====== */
     const [items, setItems] = useState<ExtraItemType[]>(
@@ -196,7 +198,7 @@ export function ExtraInfoBuilder({
     }, [autosaveStatus]);
 
     /* ====== PREVIEW (markdown) ====== */
-    const prompt = useMemo(() => buildExtrasMarkdown({ steps: items } as any), [items]);
+    const prompt = useMemo(() => buildExtrasMarkdown({ steps: items } as any, pasosDelInicio), [items, pasosDelInicio]);
 
     /* ====== SYNC con padre (values.more) y compat onChange ====== */
     useEffect(() => {
@@ -361,6 +363,38 @@ export function ExtraInfoBuilder({
                             e.id === elId && e.kind === "function" && e.fn === "nota_interna"
                                 ? { ...e, nota }
                                 : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    // «Agregar caso» y «Agregar transición»: como en Inicio
+    // (`lib/casos-y-transicion-del-paso`); la transición va a un paso de Inicio.
+    const updateCaso = (extraId: string, elId: string, cambio: { escenario?: string; respuesta?: string }) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === extraId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "caso" ? { ...e, ...cambio } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateTransicion = (extraId: string, elId: string, destino: string | null) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === extraId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "transicion" ? { ...e, destino } : e
                         ),
                     }
                     : s
@@ -657,6 +691,10 @@ export function ExtraInfoBuilder({
                                                                                                             onSubtypeChange={onSubtypeChange}
                                                                                                             updateSheetUrl={updateSheetUrl}
                                                                                                             updateNotaInterna={updateNotaInterna}
+                                                                                                            updateCaso={updateCaso}
+                                                                                                            updateTransicion={updateTransicion}
+                                                                                                            numeroDeCaso={(step.elements ?? []).filter(esCaso).findIndex((c) => c.id === el.id) + 1}
+                                                                                                            pasosDelInicio={pasosDelInicio}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>
@@ -677,6 +715,7 @@ export function ExtraInfoBuilder({
                                                                                 step={step}
                                                                                 setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                                 notificationNumber={notificationNumber ?? ""}
+                                                                                conCasosYTransicion
                                                                             />
                                                                         </div>
                                                                     </div>

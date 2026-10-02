@@ -453,6 +453,8 @@ export interface TrainingBuilderProps {
     onConflict?: (serverState: any) => void;
     initialSteps?: Array<any>; // steps desde BD (sections.training.steps)
     registerSaveHandler?: (fn: () => Promise<void>) => void;
+    /** Avisa de los pasos de Inicio: Preguntas, Productos y Extras eligen de aquí el destino de una transición. */
+    onPasosChange?: (pasos: Array<{ id: string; title?: string }>) => void;
 }
 
 export interface FreeformAgentPromptBuilderProps {
@@ -648,6 +650,8 @@ export type FqaBuilderProps = {
     onConflict?: (serverState: any) => void;
     initialItems?: Array<any>; // ← sections.faq.items desde BD
     registerSaveHandler?: (fn: () => Promise<void>) => void;
+    /** Los pasos de Inicio: el destino de una «transición» de esta pestaña. */
+    pasosDelInicio?: ReadonlyArray<{ id: string; title?: string }>;
 };
 
 export type ProductItemType = {
@@ -670,6 +674,8 @@ export interface ProductBuilderProps {
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
     initialItems?: Array<any>;
+    /** Los pasos de Inicio: el destino de una «transición» de esta pestaña. */
+    pasosDelInicio?: ReadonlyArray<{ id: string; title?: string }>;
 }
 
 export type ExtraItemType = {
@@ -698,6 +704,8 @@ export interface ExtraInfoBuilderProps {
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
     initialExtras?: { items?: Array<any> };
+    /** Los pasos de Inicio: el destino de una «transición» de esta pestaña. */
+    pasosDelInicio?: ReadonlyArray<{ id: string; title?: string }>;
 }
 
 export interface FunctionSelectorInterface {
@@ -793,6 +801,11 @@ export type PropsActionSteeps = {
     updateTransicion?: (stepId: string, elId: string, destino: string | null) => void;
     /** Qué caso es dentro de su paso (1, 2…), para su título. */
     numeroDeCaso?: number;
+    /**
+     * Fuera de Inicio, la transición va a un paso de INICIO: estos son los que
+     * ofrece, y sin elegir ninguno no se escribe nada (no hay «siguiente»).
+     */
+    pasosDelInicio?: ReadonlyArray<{ id: string; title?: string }>;
 };
 
 export type ElementoLeerGoogleSheets = {
@@ -877,6 +890,11 @@ export type DraftLike = {
 };
 
 export type BuildCfg = {
+    /**
+     * Los pasos de Inicio, cuando lo que se arma NO es Inicio (Preguntas,
+     * Productos, Extras): ahí una transición va a un paso de Inicio.
+     */
+    pasosDelInicio?: ReadonlyArray<unknown>;
     /** Prefijo del encabezado por sección */
     sectionPrefix?: string; // Ej: "Paso", "Extra", "Producto", "Pregunta"
     /** Separador entre secciones */
@@ -963,6 +981,8 @@ export type FirmaOpts = {
 };
 
 export type PromptBuildConfig = {
+    /** Ver `BuildCfg.pasosDelInicio`. */
+    pasosDelInicio?: ReadonlyArray<unknown>;
     /** Mensaje cuando no hay items */
     emptyMessage: string;
     /** Texto del encabezado por sección (recibe índice base 1) */

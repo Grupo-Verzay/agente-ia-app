@@ -74,6 +74,11 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
     const [showTemplates, setShowTemplates] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
     const [showVoice, setShowVoice] = useState(false);
+    // Los pasos de Inicio, EN VIVO: Preguntas, Productos y Extras eligen de
+    // aquí el destino de una transición. Los mantiene Inicio al editarse.
+    const [pasosDelInicio, setPasosDelInicio] = useState<Array<{ id: string; title?: string }>>(
+        () => (sections?.training?.steps ?? []) as Array<{ id: string; title?: string }>
+    );
 
     // Con los pasos ENDEREZADOS, igual que los pinta cada builder al abrirse
     // (`laSeccionEnOrden`): de este texto sale la foto de «lo guardado», y sin
@@ -81,14 +86,16 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(laSeccionEnOrden(TrainingDraftSchema.parse(sections.training)))
         : "";
+    // Preguntas, Productos y Extras: una transición va a un paso de Inicio.
+    const pasosGuardadosDelInicio = sections?.training?.steps ?? [];
     const faqMd = sections?.faq
-        ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(sections.faq)))
+        ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(sections.faq)), pasosGuardadosDelInicio)
         : "";
     const productsMd = sections?.products
-        ? buildProductsMarkdown(laSeccionEnOrden(ProductsDraftSchema.parse(sections.products)))
+        ? buildProductsMarkdown(laSeccionEnOrden(ProductsDraftSchema.parse(sections.products)), pasosGuardadosDelInicio)
         : "";
     const extrasMd = sections?.extras
-        ? buildExtrasMarkdown(laSeccionEnOrden(ExtrasDraftSchema.parse(sections.extras)))
+        ? buildExtrasMarkdown(laSeccionEnOrden(ExtrasDraftSchema.parse(sections.extras)), pasosGuardadosDelInicio)
         : "";
     const managementMd = sections?.management
         ? buildManagementMarkdown(laSeccionEnOrden(ManagementDraftSchema.parse(sections.management)))
@@ -437,17 +444,20 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                                 laSeccionEnOrden(TrainingDraftSchema.parse(serverSections.training))
                                             )
                                             : "";
+                                        const pasosDelInicioDelServidor = serverSections.training?.steps ?? [];
                                         const nextFaqMd = serverSections.faq
-                                            ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(serverSections.faq)))
+                                            ? buildFaqMarkdown(laSeccionEnOrden(FaqDraftSchema.parse(serverSections.faq)), pasosDelInicioDelServidor)
                                             : "";
                                         const nextProductsMd = serverSections.products
                                             ? buildProductsMarkdown(
-                                                laSeccionEnOrden(ProductsDraftSchema.parse(serverSections.products))
+                                                laSeccionEnOrden(ProductsDraftSchema.parse(serverSections.products)),
+                                                pasosDelInicioDelServidor
                                             )
                                             : "";
                                         const nextExtrasMd = serverSections.extras
                                             ? buildExtrasMarkdown(
-                                                laSeccionEnOrden(ExtrasDraftSchema.parse(serverSections.extras))
+                                                laSeccionEnOrden(ExtrasDraftSchema.parse(serverSections.extras)),
+                                                pasosDelInicioDelServidor
                                             )
                                             : "";
                                         const nextManagementMd = serverSections.management
@@ -617,6 +627,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                     setValues((prev) => ({ ...prev, training: prev.training }));
                                 }}
                                 initialSteps={sections?.training?.steps}
+                                onPasosChange={setPasosDelInicio}
                                 registerSaveHandler={(fn) => registerSaveHandler("training", fn)}
                             />
                         </TabsContent>
@@ -634,6 +645,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                     setValues((prev) => ({ ...prev, faq: prev.faq }));
                                 }}
                                 initialItems={sections?.faq?.steps}
+                                pasosDelInicio={pasosDelInicio}
                                 registerSaveHandler={(fn) => registerSaveHandler("faq", fn)}
                             />
                         </TabsContent>
@@ -651,6 +663,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                     setValues((prev) => ({ ...prev, products: prev.products }));
                                 }}
                                 initialItems={sections?.products?.steps}
+                                pasosDelInicio={pasosDelInicio}
                                 registerSaveHandler={(fn) => registerSaveHandler("products", fn)}
                             />
                         </TabsContent>
@@ -670,6 +683,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                 initialExtras={{
                                     items: sections?.extras?.steps ?? [],
                                 }}
+                                pasosDelInicio={pasosDelInicio}
                                 registerSaveHandler={(fn) => registerSaveHandler("more", fn)}
                             />
                         </TabsContent>

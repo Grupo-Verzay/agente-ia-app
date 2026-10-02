@@ -3,7 +3,7 @@ import { envolverLaNotaInterna } from "@/lib/nota-interna-de-paso";
 import { lineasDelPaso } from "@/lib/casos-y-transicion-del-paso";
 
 // Helper genérico para construir markdown de Steps (Extras, FAQ, Products, Training)
-const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix">> & { sectionPrefix: string } = {
+const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix" | "pasosDelInicio">> & { sectionPrefix: string } = {
     sectionPrefix: "Paso",
     joinSeparator: "\n\n---\n\n",
     flowBehaviorText: flowBehaviorText,
@@ -185,6 +185,8 @@ export function buildSectionedMarkdown(
         typeof elementsLabel === "function" ? elementsLabel(n) : (elementsLabel ?? "ELEMENTOS:");
 
     const steps: Step[] = Array.isArray(src) ? src : (src?.steps ?? []);
+    // Fuera de Inicio, una transición va a un paso de Inicio.
+    const transicion = { pasosDelInicio: cfg?.pasosDelInicio };
 
     const blocks: string[] = [];
 
@@ -216,7 +218,7 @@ export function buildSectionedMarkdown(
                 // `lib/casos-y-transicion-del-paso`, el mismo que usa el otro
                 // constructor.
                 body.push(...lineasDelPaso(els, steps, idx, (el, k) =>
-                    renderElement(el as AnyElement, flowBehaviorText, k)));
+                    renderElement(el as AnyElement, flowBehaviorText, k), transicion));
             }
             return [head, ...body].filter(Boolean).join("\n\n");
         }
@@ -238,7 +240,7 @@ export function buildSectionedMarkdown(
                 // `lib/casos-y-transicion-del-paso`, el mismo que usa el otro
                 // constructor.
                 body.push(...lineasDelPaso(mgmtEls, steps, idx, (el, k) =>
-                    renderElement(el as AnyElement, flowBehaviorText, k)));
+                    renderElement(el as AnyElement, flowBehaviorText, k), transicion));
             }
             return [head, ...body.filter(Boolean)].join("\n\n");
         }
@@ -255,7 +257,7 @@ export function buildSectionedMarkdown(
         if (els.length > 0) {
             body.push(`#### ${resolveElementsLabel(n)}`);
             body.push(...lineasDelPaso(els, steps, idx, (el, k) =>
-                renderElement(el as AnyElement, flowBehaviorText, k)));
+                renderElement(el as AnyElement, flowBehaviorText, k), transicion));
         }
         return [head, ...body.filter(Boolean)].join("\n\n");
     });

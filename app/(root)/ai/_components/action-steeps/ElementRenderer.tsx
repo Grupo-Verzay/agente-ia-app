@@ -47,6 +47,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     updateCaso,
     updateTransicion,
     numeroDeCaso,
+    pasosDelInicio,
 }) => {
     if (el.kind === "text") {
         return (
@@ -147,9 +148,10 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
         return (
             <TransicionCard
                 pasos={pasosParaLaTransicion(
-                    (steps ?? []).map((s) => ({ id: s.id, titulo: s.title })),
+                    (pasosDelInicio ?? steps ?? []).map((s) => ({ id: s.id, titulo: s.title })),
                     stepId,
                 )}
+                fueraDeInicio={!!pasosDelInicio}
                 destino={(el as { destino?: string | null }).destino ?? null}
                 onChange={(id) => updateTransicion?.(stepId, el.id, id)}
                 onRemove={() => removeElement(stepId, el.id)}

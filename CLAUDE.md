@@ -3058,9 +3058,28 @@ Cuatro cosas que hay que mantener:
 4. **El esquema Zod los conoce** (`escenario`, `respuesta`, `destino`): sin eso
    guardar el prompt falla en todas sus secciones.
 
+### Y en Preguntas, Productos y Extras: la transición va a un paso de INICIO
+
+Las tres pestañas ofrecen el mismo menú y las mismas tarjetas. Lo único que
+cambia es la transición: `current_step` es siempre un paso del flujo de Inicio,
+así que el destino se elige entre los pasos de Inicio (`pasosDelInicio`) y **no
+hay «siguiente»** —una pregunta no tiene paso N+1—: sin destino, o con uno que
+ya no existe, no se escribe nada. Lo resuelve `elPasoDelInicio`.
+
+Tres cosas que hay que mantener:
+
+1. **El prompt de verdad lo arma `composePromptFromSections`**, que le pasa a las
+   tres los `training.steps`; la foto de «lo guardado» y el conflicto de
+   `MainAi` hacen lo mismo, o el botón Guardar saldría verde sin cambios.
+2. **En pantalla los pasos llegan EN VIVO** desde Inicio (`onPasosChange` →
+   estado de `MainAi`), solo cuando cambia un id o un título.
+3. **Gestión no lo lleva**: su menú solo captura datos, no tiene grupo de
+   conversación.
+
 Lo prueba `scripts/banco-casos-y-transicion.sh` (los dos constructores
-empaquetados, el esquema, el orden y el menú); `MODO=roto` corre el constructor
-de `83159ac` y afirma que no existían.
+empaquetados, el esquema, el orden, el menú y las tres pestañas); `MODO=roto`
+corre el constructor de `83159ac` y lee las pestañas de `8958372`, y afirma que
+no existían.
 
 ## Agente: una prohibición que no viaja en el prompt no existe
 

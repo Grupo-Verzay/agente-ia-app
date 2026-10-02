@@ -4,6 +4,8 @@ import { buildSectionedMarkdown } from "./markdownBuilder";
 import { buildMotorFromTrainingSteps } from "./buildMotor";
 import { ExtrasDraftSchema, FaqDraftSchema, flowBehaviorText, ProductsDraftSchema, TrainingDraftSchema, ManagementDraftSchema, KeywordsDraftSchema } from "@/types/agentAi";
 
+// Preguntas, Productos y Extras reciben los pasos de Inicio: ahí una
+// «Agregar transición» va a un paso de Inicio (`lib/casos-y-transicion-del-paso`).
 // FAQ: título + label + mainMessage como respuesta directa
 const FAQ_CFG = { sectionPrefix: "PREGUNTA", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:`, elementsLabel: (n: number) => `ELEMENTOS DE LA PREGUNTA ${n}:` };
 // Productos: título + label + mainMessage (ficha técnica)
@@ -15,16 +17,16 @@ const MGMT_CFG = { sectionPrefix: "GESTIÓN", joinSeparator: "\n\n---\n\n", flow
 // Inicio/Training: modo completo (mainMessage + elementos numerados)
 const FULL_CFG = { sectionPrefix: "PASO", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`, elementsLabel: (n: number) => `ELEMENTOS DEL PASO ${n}:` };
 
-export function buildExtrasMarkdown(extras: z.infer<typeof ExtrasDraftSchema>): string {
-    return buildSectionedMarkdown(extras, EXTRAS_CFG);
+export function buildExtrasMarkdown(extras: z.infer<typeof ExtrasDraftSchema>, pasosDelInicio: ReadonlyArray<unknown> = []): string {
+    return buildSectionedMarkdown(extras, { ...EXTRAS_CFG, pasosDelInicio });
 }
 
-export function buildFaqMarkdown(faq: z.infer<typeof FaqDraftSchema>): string {
-    return buildSectionedMarkdown(faq, FAQ_CFG);
+export function buildFaqMarkdown(faq: z.infer<typeof FaqDraftSchema>, pasosDelInicio: ReadonlyArray<unknown> = []): string {
+    return buildSectionedMarkdown(faq, { ...FAQ_CFG, pasosDelInicio });
 }
 
-export function buildProductsMarkdown(products: z.infer<typeof ProductsDraftSchema>): string {
-    return buildSectionedMarkdown(products, PRODUCTS_CFG);
+export function buildProductsMarkdown(products: z.infer<typeof ProductsDraftSchema>, pasosDelInicio: ReadonlyArray<unknown> = []): string {
+    return buildSectionedMarkdown(products, { ...PRODUCTS_CFG, pasosDelInicio });
 }
 
 export function buildTrainingMarkdown(training: z.infer<typeof TrainingDraftSchema>): string {
