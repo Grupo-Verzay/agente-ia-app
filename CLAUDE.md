@@ -25158,6 +25158,54 @@ miniaturas (`GUIA=etiquetas`), `fin-de-la-guia` y `menu-de-la-guia`, y la guía
 servida. `MODO=roto` contra `7767f6f` afirma que no había guía y los fallos de
 la pantalla.
 
+### La vigesimotercera guía, Conexión y Ajustes: una pantalla, ocho pestañas, un apartado por pestaña
+
+`/guia/conexion` documenta Conexión y Ajustes (`/profile`) con el estándar de
+las anteriores: una sección de vista general y **una por pestaña** —Conexión,
+Integraciones, Preferencias, Comportamiento, Herramientas, Cuenta, Seguridad y
+Apariencia—, una miniatura con enfoque por tarjeta y el vídeo narrado con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/profile` (`GUIAS_PUBLICADAS`): «Aprende a conectar tus canales y ajustar tu
+cuenta en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-conexion.sh && npm run build`.
+
+> **Los nombres y el orden de las pestañas salen de `PESTANAS_DEL_PERFIL`
+> (`lib/pantalla-de-perfil.ts`)**, que leen la pantalla, la guía y el banco. Con
+> los nombres escritos en dos sitios, una pestaña renombrada seguiría saliendo
+> con el nombre viejo en la guía y nadie lo notaría.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el monto del plan decía «250.000 COP COP/mes» | `elMontoAlMes` |
+| el interruptor de Google Maps nacía apagado aunque la cuenta tuviera su enlace (se calculaba antes de que llegara el usuario) | sin tocar, manda lo guardado (`tieneEnlaceDeMaps`) |
+| el nombre de línea propuesto quitaba la letra con tilde («CAF_DE_LA_MONTAA») | se quita la tilde y la letra se queda (`sanitizeInstanceNameInput`); las líneas ya creadas no se tocan |
+| el proveedor de IA decía «OpenIA» | «OpenAI» |
+| los rótulos del menú de opciones del plan solo salían al pasar el ratón (en un táctil nunca), y cada opción era un botón dentro de un enlace | se ven con el menú abierto, y el botón es un `span` |
+| la licencia y los créditos de la cabecera usaban `xs:`, que no existe en este Tailwind | `sm:` |
+
+Tres cosas que hay que mantener:
+
+1. **La pantalla expone marcas para la receta** (`data-tira-del-perfil`,
+   `data-ficha-del-perfil`, `data-pestanas-del-perfil`,
+   `data-pestana-del-perfil`, `data-panel-del-perfil`, `data-acciones-del-plan`)
+   y las recetas no usan coordenadas. Una tarjeta se busca por su título EXACTO
+   dentro del panel de su pestaña.
+2. **Ni las capturas ni el vídeo guardan, cambian de plan ni cierran la
+   sesión**: señalan los botones y no los pulsan. Las conexiones de los canales
+   son de ejemplo (`fingido-guia-conexion.mjs`), con el número y la clave de IA
+   de mentira (`•••• AbCd`).
+3. **La tarjeta de «Modo Dueño por WhatsApp» se llama así**, entera: una receta
+   que la busque por «Modo dueño» se queda esperando.
+
+Lo prueba `scripts/banco-guia-conexion.sh`: las pestañas y las tarjetas contra
+el código, los arreglos de la pantalla, el vídeo medido como los demás, las
+miniaturas en sus píxeles (`GUIA=conexion`), `fin-de-la-guia` y
+`menu-de-la-guia` —que barren todas las guías— y la guía servida a 390 y 1440.
+`MODO=roto` lee `de0cd9d` y afirma que no había guía, ni marcas en la pantalla,
+y el «COP COP/mes».
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

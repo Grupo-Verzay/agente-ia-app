@@ -577,7 +577,7 @@ async function video(navegador, estado) {
     await alDecir("dentro de Entrenamiento", 600);
     await mover(p, entrenamiento);
 
-    const [, , , buscarTodo, , soporte, campana] = lasPartesDeArriba(p);
+    const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
     await decir("barraDeArriba");
     await pulsar(p, flechas);
     await alDecir("el buscador general");

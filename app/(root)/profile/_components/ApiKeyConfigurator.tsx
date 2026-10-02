@@ -309,7 +309,7 @@ export function ApiKeyConfigurator({
     };
 
     const fmtProvider = (name: string) =>
-        ({ openai: 'OpenIA', google: 'Google' } as Record<string, string>)[name.toLowerCase()] ?? name;
+        ({ openai: 'OpenAI', google: 'Google' } as Record<string, string>)[name.toLowerCase()] ?? name;
 
     // Etiquetas
     const providerLabel =

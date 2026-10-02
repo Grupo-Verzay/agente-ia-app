@@ -69,6 +69,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ENLACE_DE_MAPS_POR_DEFECTO, PESTANAS_DEL_PERFIL, tieneEnlaceDeMaps, type PestanaDelPerfil } from "@/lib/pantalla-de-perfil";
 import { optimizeFile } from "../../workflow/[workflowId]/helpers";
 import { SafeImage } from "@/components/custom/SafeImage";
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox";
@@ -400,21 +401,22 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
         }
     };
 
-    const DEFAULT_MAPS_URL = 'https://maps.google.com/?q=0,0';
-    const [mapsEnabled, setMapsEnabled] = useState<boolean>(
-        !!(user?.mapsUrl as string) && (user?.mapsUrl as string) !== DEFAULT_MAPS_URL
-    );
+    // `null` = nadie lo ha tocado: manda lo guardado. El usuario llega DESPUÉS
+    // del primer pintado, así que calcularlo en el `useState` lo dejaba apagado
+    // para siempre: una cuenta con su enlace guardado veía el interruptor
+    // apagado y el enlace escondido.
+    const [mapsTocado, setMapsEnabled] = useState<boolean | null>(null);
+    const mapsEnabled = mapsTocado ?? tieneEnlaceDeMaps(user?.mapsUrl as string | undefined);
 
     const handleMapsToggle = async (enabled: boolean) => {
         setMapsEnabled(enabled);
         if (!enabled) {
-            handleChange("mapsUrl", DEFAULT_MAPS_URL);
-            await updateClientDataByField(userId, "mapsUrl", DEFAULT_MAPS_URL);
+            handleChange("mapsUrl", ENLACE_DE_MAPS_POR_DEFECTO);
+            await updateClientDataByField(userId, "mapsUrl", ENLACE_DE_MAPS_POR_DEFECTO);
         }
     };
 
     const [activeTab, setActiveTab] = useState(autoOpenApiKey ? 'integraciones' : 'conexion');
-    const [showMoreTabs, setShowMoreTabs] = useState(false);
     if (!user) return null;
 
     const isMuted = user.muteAgentResponses ?? false;
@@ -424,27 +426,29 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     // (los usuarios normales heredan el branding de su reseller).
     const canSeeBrandingExtras = user.role === Role.super_admin || isReseller;
 
-    const primaryTabs = [
-        { value: 'conexion', label: 'Conexión', icon: Wifi },
-        { value: 'integraciones', label: 'Integraciones', icon: Zap },
-        { value: 'preferencias', label: 'Preferencias', icon: Settings2 },
-    ];
-
-    const secondaryTabs = [
-        { value: 'comportamiento', label: 'Comportamiento', icon: Timer },
-        { value: 'herramientas', label: 'Herramientas', icon: Database },
-        { value: 'cuenta', label: 'Cuenta', icon: CreditCard },
-        { value: 'seguridad', label: 'Seguridad', icon: ShieldCheck },
-        ...(canSeeApariencia ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
-    ];
-
-    const tabs = [...primaryTabs, ...secondaryTabs];
+    // Los nombres y el orden salen de `PESTANAS_DEL_PERFIL`, que es lo mismo
+    // que nombra la guía pública (`/guia/conexion`); aquí solo se pone el icono.
+    const ICONO_DE_LA_PESTANA: Record<PestanaDelPerfil, React.ElementType> = {
+        conexion: Wifi,
+        integraciones: Zap,
+        preferencias: Settings2,
+        comportamiento: Timer,
+        herramientas: Database,
+        cuenta: CreditCard,
+        seguridad: ShieldCheck,
+        apariencia: Palette,
+    };
+    const tabs = PESTANAS_DEL_PERFIL.filter((t) => t.value !== 'apariencia' || canSeeApariencia).map((t) => ({
+        value: t.value as string,
+        label: t.label as string,
+        icon: ICONO_DE_LA_PESTANA[t.value],
+    }));
 
     return (
         <div className="flex flex-col h-full gap-0">
 
             {/* ── PROFILE STRIP ─────────────────────────────────────────── */}
-            <Card className="border-border rounded-xl shrink-0 mb-4">
+            <Card data-tira-del-perfil className="border-border rounded-xl shrink-0 mb-4">
                 <CardContent className="p-3 sm:p-4">
                     <Input id="avatar" type="file" accept="image/*" ref={fileRef} onChange={handleImageUpload} className="hidden" />
                     <Input id="favicon" type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" ref={faviconRef} onChange={handleFaviconUpload} className="hidden" />
@@ -460,14 +464,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             )}
                         </div>
                         {/* Name + role */}
-                        <div className="flex-1 min-w-0">
+                        <div data-ficha-del-perfil="nombre" className="flex-1 min-w-0">
                             <p className="text-sm font-semibold truncate">{user.name}</p>
                             <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role as string] ?? user.role}</p>
                         </div>
                         {/* Quick stats */}
                         <div className="flex items-center gap-3 sm:gap-5 shrink-0">
                             {headerDaysRemaining !== null && (
-                                <div className="text-center hidden xs:block">
+                                <div data-ficha-del-perfil="licencia" className="text-center hidden sm:block">
                                     <p className={`text-sm font-bold leading-none ${headerDaysRemaining <= 7 ? 'text-destructive' : headerDaysRemaining <= 30 ? 'text-amber-500' : 'text-foreground'}`}>
                                         {headerDaysRemaining}d
                                     </p>
@@ -475,7 +479,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                 </div>
                             )}
                             {headerCredits !== null && (
-                                <div className="text-center hidden xs:block">
+                                <div data-ficha-del-perfil="creditos" className="text-center hidden sm:block">
                                     {creditosIlimitados ? (
                                         <p className="text-sm font-bold leading-none text-green-600">∞</p>
                                     ) : (
@@ -489,6 +493,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             <Button
                                 size="sm"
                                 variant="outline"
+                                data-ficha-del-perfil="cuenta"
                                 className="h-7 text-xs px-2 shrink-0"
                                 onClick={() => setActiveTab('cuenta')}
                             >
@@ -496,8 +501,8 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                 <span className="hidden sm:inline">Cuenta</span>
                             </Button>
                             {isMuted
-                                ? <BotOff className="w-4 h-4 text-destructive shrink-0" />
-                                : <Bot className="w-4 h-4 text-green-500 shrink-0" />
+                                ? <BotOff data-ficha-del-perfil="agente" aria-label="Agente apagado" className="w-4 h-4 text-destructive shrink-0" />
+                                : <Bot data-ficha-del-perfil="agente" aria-label="Agente encendido" className="w-4 h-4 text-green-500 shrink-0" />
                             }
                         </div>
                     </div>
@@ -519,11 +524,12 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                 onValueChange={setActiveTab}
             >
                 {/* Tab nav */}
-                <TabsList className="w-full h-auto bg-transparent p-0 rounded-none border-b border-border justify-start gap-0 shrink-0 overflow-x-auto">
+                <TabsList data-pestanas-del-perfil className="w-full h-auto bg-transparent p-0 rounded-none border-b border-border justify-start gap-0 shrink-0 overflow-x-auto">
                     {tabs.map(({ value, label, icon: Icon }) => (
                         <TabsTrigger
                             key={value}
                             value={value}
+                            data-pestana-del-perfil={value}
                             className="
                                 relative flex items-center gap-1.5 px-3 py-2.5 h-auto text-xs sm:text-sm
                                 font-medium rounded-none border-b-2 border-transparent -mb-px
@@ -563,7 +569,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                 >
 
                     {/* ── Tab: Conexión ─────────────────────────── */}
-                    <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="conexion" data-panel-del-perfil="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Canal de comunicación</SectionTitle>
                             {/* `items-start`, y NUNCA `auto-rows-fr`: con las filas
@@ -719,7 +725,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     </TabsContent>
 
                     {/* ── Tab: Integraciones ────────────────────── */}
-                    <TabsContent value="integraciones" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="integraciones" data-panel-del-perfil="integraciones" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <Card className="border-border flex flex-col">
@@ -766,7 +772,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     </TabsContent>
 
                     {/* ── Tab: Preferencias ────────────────────── */}
-                    <TabsContent value="preferencias" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="preferencias" data-panel-del-perfil="preferencias" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
                                 <Card className="border-border flex flex-1 flex-col">
@@ -850,7 +856,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     </TabsContent>
 
                     {/* ── Tab: Comportamiento ───────────────────── */}
-                    <TabsContent value="comportamiento" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="comportamiento" data-panel-del-perfil="comportamiento" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             {/* Estado del agente */}
                             <Card className="border-border mb-4">
@@ -1038,7 +1044,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     </TabsContent>
 
                     {/* ── Tab: Seguridad ───────────────────────── */}
-                    <TabsContent value="seguridad" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="seguridad" data-panel-del-perfil="seguridad" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                                 <ChangeEmailCard currentEmail={user.email ?? ""} />
@@ -1048,14 +1054,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     </TabsContent>
 
                     {/* ── Tab: Herramientas ────────────────────── */}
-                    <TabsContent value="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="herramientas" data-panel-del-perfil="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <MyToolsManagement userId={userId} />
                         </TabPanel>
                     </TabsContent>
 
                     {/* ── Tab: Cuenta (Plan + Créditos + Sesiones) ────────── */}
-                    <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                    <TabsContent value="cuenta" data-panel-del-perfil="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Plan y facturación</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -1070,7 +1076,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
 
                     {/* ── Tab: Apariencia ─────── */}
                     {canSeeApariencia && (
-                        <TabsContent value="apariencia" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                        <TabsContent value="apariencia" data-panel-del-perfil="apariencia" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                             <TabPanel>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <Card className="border-border flex flex-col">

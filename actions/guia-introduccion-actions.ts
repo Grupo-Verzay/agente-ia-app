@@ -25,6 +25,7 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
+import { GUIA_CONEXION } from "@/lib/guia-conexion";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -86,6 +87,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
         subtitulo: GUIA_RECORDATORIOS.subtitulo,
         descripcion: GUIA_RECORDATORIOS.descripcion,
     },
+    conexion: { titulo: GUIA_CONEXION.titulo, subtitulo: GUIA_CONEXION.subtitulo, descripcion: GUIA_CONEXION.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

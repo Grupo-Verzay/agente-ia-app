@@ -46,15 +46,17 @@ export function PlanSpeedDial() {
                         onClick={() => setOpen(false)}
                         className="flex items-center gap-2 group"
                     >
-                        <span className="bg-background border border-border text-foreground text-xs font-medium px-3 py-1.5 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {/* El rótulo se ve con el menú abierto: solo al pasar el ratón, en un
+                            táctil no se leía nunca qué hace cada botón. */}
+                        <span className="bg-background border border-border text-foreground text-xs font-medium px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
                             {label}
                         </span>
-                        <button className={cn(
+                        <span className={cn(
                             'w-10 h-10 rounded-full flex items-center justify-center text-white shadow-md transition-transform hover:scale-110',
                             color
                         )}>
                             <Icon className="h-4 w-4" />
-                        </button>
+                        </span>
                     </a>
                 ))}
             </div>
@@ -67,6 +69,9 @@ export function PlanSpeedDial() {
                     open ? 'bg-muted-foreground hover:bg-muted-foreground/80 rotate-90' : 'bg-primary hover:bg-primary/90'
                 )}
                 title="Opciones del plan"
+                aria-label="Opciones del plan"
+                aria-expanded={open}
+                data-acciones-del-plan
             >
                 {open ? <X className="h-5 w-5" /> : <Settings2 className="h-5 w-5" />}
             </button>
