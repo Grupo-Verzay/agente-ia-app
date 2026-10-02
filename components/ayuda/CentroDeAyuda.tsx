@@ -42,16 +42,33 @@ import {
 /** El tope del buscador de la portada: 36rem (576 px), centrado. */
 const ANCHO_DEL_BUSCADOR = "mx-auto w-full max-w-xl";
 
+/** La tarjeta de una categoría, sea enlace (panel) o botón (landing). */
+const CLASE_DE_LA_CATEGORIA =
+    "group flex h-full w-full items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/30";
+
 export function CentroDeAyuda({
     guias,
     raiz = RUTA_DEL_CENTRO_DE_AYUDA,
     titulo = "Centro de ayuda",
+    alElegirCategoria,
+    incrustado = false,
 }: {
     guias: GuiaDeAyuda[];
     /** «Tutoriales» en la landing, que es el nombre del menú por el que se llega. */
     titulo?: string;
-    /** De dónde cuelgan las categorías: `/ayuda` en el panel, `/tutoriales` en la landing. */
+    /** De dónde cuelgan las categorías: `/ayuda` en el panel. */
     raiz?: string;
+    /**
+     * La landing: pulsar una categoría NO navega, cambia de vista dentro de la
+     * misma página (`TutorialesDeLaLanding`). Sin esto, cada una es un enlace.
+     */
+    alElegirCategoria?: (slug: string) => void;
+    /**
+     * Dentro de una sección de la landing: sin título propio (lo pone la
+     * sección), sin relleno y con el alto de su contenido. En el panel la
+     * pantalla ocupa el hueco y se desplaza por dentro.
+     */
+    incrustado?: boolean;
 }) {
     const [consulta, setConsulta] = useState("");
     const [marcado, setMarcado] = useState(0);
@@ -89,12 +106,17 @@ export function CentroDeAyuda({
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-centro-de-ayuda>
-            <CabeceraDeDocumentacion
-                titulo={titulo}
-                volverA={null}
-                centrada
-            />
+        <div
+            className={incrustado ? "flex flex-col gap-4" : "flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4"}
+            data-centro-de-ayuda
+        >
+            {incrustado ? null : (
+                <CabeceraDeDocumentacion
+                    titulo={titulo}
+                    volverA={null}
+                    centrada
+                />
+            )}
 
             <div className={`relative ${ANCHO_DEL_BUSCADOR}`} data-buscador-de-ayuda>
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -173,18 +195,13 @@ export function CentroDeAyuda({
                 ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto py-1">
+            <div className={incrustado ? "py-1" : "min-h-0 flex-1 overflow-auto py-1"}>
                 <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2" data-categorias-de-ayuda>
                     {CATEGORIAS_DE_AYUDA.map((c) => {
                         const n = cuantas[c.slug] ?? 0;
                         const pantallas = lasPantallasEnUnaFrase(c);
-                        return (
-                            <Link
-                                key={c.slug}
-                                href={elEnlaceDeLaCategoria(c.slug, raiz)}
-                                data-categoria-de-ayuda={c.slug}
-                                className="group flex h-full items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/30"
-                            >
+                        const dentro = (
+                            <>
                                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                                     <IconoDeCategoria nombre={c.icono} className="h-6 w-6" />
                                 </span>
@@ -209,6 +226,26 @@ export function CentroDeAyuda({
                                     </span>
                                 </span>
                                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                            </>
+                        );
+                        return alElegirCategoria ? (
+                            <button
+                                key={c.slug}
+                                type="button"
+                                onClick={() => alElegirCategoria(c.slug)}
+                                data-categoria-de-ayuda={c.slug}
+                                className={`${CLASE_DE_LA_CATEGORIA} text-left`}
+                            >
+                                {dentro}
+                            </button>
+                        ) : (
+                            <Link
+                                key={c.slug}
+                                href={elEnlaceDeLaCategoria(c.slug, raiz)}
+                                data-categoria-de-ayuda={c.slug}
+                                className={CLASE_DE_LA_CATEGORIA}
+                            >
+                                {dentro}
                             </Link>
                         );
                     })}

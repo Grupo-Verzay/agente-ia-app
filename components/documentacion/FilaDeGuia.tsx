@@ -35,7 +35,7 @@ export function FilaDeGuia({
             data-fila-de-guia
             className={`flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3${conAsa ? " pl-11" : ""}${className ? ` ${className}` : ""}`}
         >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 <BookOpen className="h-4 w-4" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">

@@ -1,18 +1,12 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { GuiasDeLaCategoria } from "@/components/ayuda/GuiasDeLaCategoria";
-import { RUTA_PUBLICA_DE_TUTORIALES, laCategoria, lasGuiasDeLaCategoria } from "@/lib/centro-de-ayuda";
-import { lasGuiasDelCentroDeAyuda } from "@/lib/guias-del-centro-de-ayuda";
+import { elEnlaceDeTutoriales } from "@/lib/tutoriales-de-la-landing";
 
-/** Las guías de una categoría, desde la landing (`/tutoriales/<categoria>`). */
+/**
+ * `/tutoriales/<categoria>`: la misma categoría, abierta dentro de la sección
+ * de tutoriales de la landing (`/inicio#tutoriales/<categoria>`). Una que no
+ * existe lleva a la portada de tutoriales.
+ */
 export default function CategoriaDeTutorialesPage({ params }: { params: { categoria: string } }) {
-    const categoria = laCategoria(params.categoria);
-    if (!categoria) notFound();
-    return (
-        <GuiasDeLaCategoria
-            categoria={categoria}
-            guias={lasGuiasDeLaCategoria(lasGuiasDelCentroDeAyuda(), categoria.slug)}
-            raiz={RUTA_PUBLICA_DE_TUTORIALES}
-        />
-    );
+    redirect(elEnlaceDeTutoriales(params.categoria));
 }
