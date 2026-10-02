@@ -24839,6 +24839,58 @@ Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
 «Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
 por nombre hasta la que conteste.
 
+### La decimoséptima guía, Crear flujos: la lista Y su editor, y las pastillas ahora filtran
+
+`/guia/flujos` documenta Creación de Flujos (`/workflow`) **y su editor** con
+el estándar de las anteriores: diez secciones —vista general, los cuatro
+tipos (Inicio, IA, Flujo y Chatbot), crear, palabras clave y disparadores, el
+editor, agregar pasos, automatizaciones, seguimientos, el «⋯» de una tarjeta
+y los límites del plan—, una miniatura con enfoque por tarjeta y el vídeo de
+un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/workflow`: «Aprende a crear flujos automáticos
+para tus chats en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-flujos.sh && npm run build`.
+
+> **De qué tipo es un flujo lo decide `lib/flujos-de-la-lista.ts` (pura), y lo
+> usan la barra, la lista y la guía**: la bienvenida gana a todo; con
+> disparador de IA es de IA aunque tenga palabras clave; con palabras clave,
+> Chatbot; y lo demás, Flujo. Con el tipo deducido en dos sitios, una pastilla
+> diría «3» y al pulsarla saldrían 2.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| las cuatro pastillas de tipo eran cifras sueltas (`no son pulsables`) | filtran: pulsarla deja ese tipo, pulsarla otra vez lo quita (`alPulsarUnTipo`) |
+| la búsqueda miraba el JSON crudo de las palabras clave, así que «contiene» encontraba todos los chatbots | busca en el nombre y en las palabras de verdad (`lasPalabrasClave`, `pasaElFiltro`) |
+| con una búsqueda puesta se podía arrastrar una lista a la que le faltaban filas | el asa se apaga y dice por qué (`porQueNoSePuedeOrdenar`) |
+| «CREAR FLUJO» en mayúsculas en la barra, y el «⋯» decía «Mas Acciones», «Bienvenida» y «Quitar» | «Nuevo» (`BotonDeCrear`), «Más acciones», «Usar como bienvenida» y «Quitar bienvenida» |
+| los controles del lienzo en inglés («Zoom In», «Fit View») | en español (`ETIQUETAS_DEL_LIENZO_DEL_FLUJO`), como Diagramas |
+| en «Selecciona una acción», pasar el ratón por una fila a medio ver desplazaba la lista y el clic caía en la fila de al lado (pasaba también en Diagramas) | la lista solo se desplaza sola con el teclado o al buscar, nunca por el ratón (`porRaton`, en los dos `InlineAddNode`) |
+
+Cuatro cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara los tipos con
+   `TIPOS_DE_FLUJO`, el «⋯» de la tarjeta con `WorkflowAction.tsx`, la paleta
+   «Selecciona una acción» con `types/workflow-node.ts` grupo por grupo y en su
+   orden (`PALETA_DOCUMENTADA`), y los topes con `MAX_NODES_PER_WORKFLOW`,
+   `MAX_SEGUIMIENTOS_PER_WORKFLOW` y `MAX_MESSAGE_LENGTH`. Un paso nuevo en la
+   paleta sin su nombre en la guía la pone en rojo.
+2. **Eliminar un flujo pide confirmación con `GenericDeleteDialog`**, sin
+   teclear el nombre: `DeleteWorkflowDialog` existe y no lo usa nadie. Y el
+   «⋯» de un paso del editor solo tiene «Eliminar nodo».
+3. **En el vídeo, tras abrir el panel del «+» se espera a que acabe su
+   animación** (400 ms): un clic antes cae en la fila de al lado —se agregaba
+   Imagen donde se pidió Texto—.
+4. **Las capturas crean un flujo y lo editan**, así que antes del vídeo se
+   vuelve a sembrar; el vídeo crea uno de ejemplo y no borra nada.
+
+Lo prueba `scripts/banco-guia-flujos.sh`: el contenido y las reglas de la
+lista contra el código, el vídeo medido como el de Finanzas, las miniaturas en
+sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
+servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
+que las pastillas no filtraban y que la pantalla no exponía sus marcas.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
