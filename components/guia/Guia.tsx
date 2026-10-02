@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
     Archive,
@@ -166,6 +167,42 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     CalendarClock,
 };
 
+/**
+ * Un enlace de la guía que, dentro de la landing, NO navega: cambia de vista
+ * en la misma página (`GuiaEnLaLanding`). En `/guia/<modulo>` es el `Link` de
+ * siempre. La misma caja en los dos, así que la guía se ve igual en los dos.
+ */
+function EnlaceDeLaGuia({
+    href,
+    alPulsar,
+    className,
+    children,
+    ...resto
+}: {
+    href: string;
+    alPulsar?: () => void;
+    className?: string;
+    children: ReactNode;
+} & Record<`data-${string}`, string>) {
+    if (alPulsar) {
+        return (
+            <button
+                type="button"
+                onClick={alPulsar}
+                className={`${className ?? ""} w-full ${/\btext-right\b/.test(className ?? "") ? "" : "text-left"}`}
+                {...resto}
+            >
+                {children}
+            </button>
+        );
+    }
+    return (
+        <Link href={href} className={className} {...resto}>
+            {children}
+        </Link>
+    );
+}
+
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
     const Icono = ICONOS[nombre];
     return <Icono className={className} aria-hidden />;
@@ -272,15 +309,19 @@ export function TarjetaDeSeccion({
     seccion,
     numero,
     moduloPath,
+    alAbrir,
 }: {
     seccion: Seccion;
     numero: number;
     /** La carpeta de la guía (`/guia/<modulo>`): de ahí cuelgan la sección y su miniatura. */
     moduloPath: string;
+    /** Dentro de la landing: abre la sección sin navegar. */
+    alAbrir?: () => void;
 }) {
     return (
-        <Link
+        <EnlaceDeLaGuia
             href={`${moduloPath}/${seccion.slug}`}
+            alPulsar={alAbrir}
             data-tarjeta-de-seccion={seccion.slug}
             className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
         >
@@ -309,7 +350,7 @@ export function TarjetaDeSeccion({
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
                 </span>
             </div>
-        </Link>
+        </EnlaceDeLaGuia>
     );
 }
 
@@ -354,17 +395,21 @@ export function NavegacionEntreSecciones({
     carpeta,
     anterior,
     siguiente,
+    alAbrir,
 }: {
     /** La carpeta de la guía (`/guia/<modulo>`): el índice y sus secciones. */
     carpeta: string;
     anterior: Seccion | null;
     siguiente: Seccion | null;
+    /** Dentro de la landing: abre la sección (o el índice, con `null`) sin navegar. */
+    alAbrir?: (slug: string | null) => void;
 }) {
     return (
         <nav className="grid gap-3 sm:grid-cols-2" aria-label="Otras secciones">
             {anterior ? (
-                <Link
+                <EnlaceDeLaGuia
                     href={`${carpeta}/${anterior.slug}`}
+                    alPulsar={alAbrir ? () => alAbrir(anterior.slug) : undefined}
                     className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"
                 >
                     <ArrowLeft className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
@@ -372,13 +417,14 @@ export function NavegacionEntreSecciones({
                         <span className="block text-xs text-slate-500">Anterior</span>
                         <span className="block truncate text-sm font-medium text-slate-900">{anterior.titulo}</span>
                     </span>
-                </Link>
+                </EnlaceDeLaGuia>
             ) : (
                 <span className="hidden sm:block" />
             )}
             {siguiente ? (
-                <Link
+                <EnlaceDeLaGuia
                     href={`${carpeta}/${siguiente.slug}`}
+                    alPulsar={alAbrir ? () => alAbrir(siguiente.slug) : undefined}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="min-w-0">
@@ -386,15 +432,16 @@ export function NavegacionEntreSecciones({
                         <span className="block truncate text-sm font-medium text-slate-900">{siguiente.titulo}</span>
                     </span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-                </Link>
+                </EnlaceDeLaGuia>
             ) : (
-                <Link
+                <EnlaceDeLaGuia
                     href={carpeta}
+                    alPulsar={alAbrir ? () => alAbrir(null) : undefined}
                     className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
                 >
                     <span className="block text-sm font-medium text-slate-900">Volver al índice</span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-                </Link>
+                </EnlaceDeLaGuia>
             )}
         </nav>
     );
@@ -440,17 +487,32 @@ export function CuadriculaDeSecciones({
     moduloPath,
     contactoHref,
     videoHref,
+    alAbrirSeccion,
+    alVerElVideo,
 }: {
     secciones: readonly Seccion[];
     moduloPath: string;
     contactoHref: string;
     videoHref: string;
+    /** Dentro de la landing: las secciones se abren sin navegar. */
+    alAbrirSeccion?: (slug: string) => void;
+    /**
+     * Dentro de la landing: «Ir al vídeo» baja al vídeo sin tocar el ancla
+     * (`#demostracion` pisaría la de los tutoriales y se perdería la vista).
+     */
+    alVerElVideo?: () => void;
 }) {
     const cierre = lasClasesDelCierre(secciones.length);
     return (
         <div data-cuadricula-de-secciones className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {secciones.map((s, i) => (
-                <TarjetaDeSeccion key={s.slug} seccion={s} numero={i + 1} moduloPath={moduloPath} />
+                <TarjetaDeSeccion
+                    key={s.slug}
+                    seccion={s}
+                    numero={i + 1}
+                    moduloPath={moduloPath}
+                    alAbrir={alAbrirSeccion ? () => alAbrirSeccion(s.slug) : undefined}
+                />
             ))}
             <a
                 href={contactoHref}
@@ -474,6 +536,14 @@ export function CuadriculaDeSecciones({
             {cierre.video ? (
                 <a
                     href={videoHref}
+                    onClick={
+                        alVerElVideo
+                            ? (e) => {
+                                  e.preventDefault();
+                                  alVerElVideo();
+                              }
+                            : undefined
+                    }
                     data-tarjeta-de-cierre="video"
                     className={`${cierre.video} group ${MARCO_DE_TARJETA} border-slate-200 bg-white hover:border-blue-300`}
                 >
@@ -504,4 +574,55 @@ export const CONTENEDOR_DEL_INDICE = "mx-auto w-full max-w-5xl space-y-10 px-4 p
 
 export function FinDeLaGuia() {
     return <hr data-fin-de-la-guia className="border-0 border-t border-slate-200" />;
+}
+
+/**
+ * El cuerpo de una SECCIÓN de una guía: su cabecera, sus pasos con sus
+ * capturas, los consejos y la navegación a la anterior y la siguiente. Es lo
+ * que pinta `/guia/<modulo>/<seccion>`, y lo usa tal cual la guía incrustada
+ * en la landing (`GuiaEnLaLanding`), con `alAbrir` para no navegar.
+ */
+export function ArticuloDeLaSeccion({
+    carpeta,
+    nombre,
+    secciones,
+    seccion,
+    alAbrir,
+}: {
+    carpeta: string;
+    /** El nombre del módulo («Leads»). */
+    nombre: string;
+    secciones: readonly Seccion[];
+    seccion: Seccion;
+    alAbrir?: (slug: string | null) => void;
+}) {
+    const i = secciones.findIndex((s) => s.slug === seccion.slug);
+    const anterior = secciones[i - 1] ?? null;
+    const siguiente = secciones[i + 1] ?? null;
+    return (
+        <article data-seccion-de-la-guia={seccion.slug} className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        <IconoDeSeccion nombre={seccion.icono} className="h-5 w-5" />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {nombre} · Sección {i + 1} de {secciones.length}
+                    </span>
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{seccion.titulo}</h1>
+                <p className="text-base leading-relaxed text-slate-600">{seccion.resumen}</p>
+            </header>
+
+            <ol className="space-y-10">
+                {seccion.pasos.map((p, n) => (
+                    <PasoDeLaGuia key={p.imagen + n} carpeta={carpeta} paso={p} numero={n + 1} />
+                ))}
+            </ol>
+
+            <Consejos consejos={seccion.consejos ?? []} />
+
+            <NavegacionEntreSecciones carpeta={carpeta} anterior={anterior} siguiente={siguiente} alAbrir={alAbrir} />
+        </article>
+    );
 }

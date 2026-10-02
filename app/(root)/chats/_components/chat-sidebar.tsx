@@ -300,6 +300,8 @@ type ChatSidebarProps = {
   presencias?: Record<string, PresenciaContacto>;
   /** El sentimiento de cada conversación no neutra (`linea::jid`): tiñe el aro del avatar. */
   sentimientos?: Record<string, SentimientoDeLaConversacion>;
+  /** Las lineas con la funcion de sentimiento encendida; en las demas, sin aro. */
+  lineasConSentimiento?: string[];
   // Cada chat marcado viaja con SU linea: un mismo numero puede estar
   // seleccionado en una linea y no en otra, y la accion tiene que caer solo en
   // la que se marco.
@@ -364,6 +366,7 @@ export function ChatSidebar({
   onCompose,
   presencias,
   sentimientos,
+  lineasConSentimiento,
   onBulkArchive,
   onBulkDelete,
   onContarParaBorrar,
@@ -1966,7 +1969,11 @@ export function ChatSidebar({
                 key={`${contact.instanceName ?? ""}::${contact.id}`}
                 contact={contact}
                 presencia={presencias?.[`${contact.instanceName ?? ""}::${contact.id}`] ?? null}
-                sentimiento={elSentimientoDe(sentimientos, contact.instanceName, [contact.id, ...(contact.identidades ?? [])])?.sentimiento ?? null}
+                sentimiento={
+                  !contact.instanceName || !lineasConSentimiento?.includes(contact.instanceName)
+                    ? "apagado"
+                    : elSentimientoDe(sentimientos, contact.instanceName, [contact.id, ...(contact.identidades ?? [])])?.sentimiento ?? null
+                }
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
                 onPrefetch={handlePrefetchJid}
