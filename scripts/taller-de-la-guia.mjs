@@ -522,7 +522,16 @@ async function traerALaVista(p, locator) {
     if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que señalar: ${locator}`);
     const vista = p.viewportSize();
     const fuera = (c) => c.y + c.height / 2 < 0 || c.y + c.height / 2 > vista.height || c.x + c.width / 2 < 0 || c.x + c.width / 2 > vista.width;
-    if (fuera(b)) {
+    // Dentro de la ventana pero DEBAJO de algo fijo —el pie pegajoso de un
+    // diálogo, que tapa la última fila visible del cuerpo que se desplaza— es
+    // igual de inalcanzable: se centra, como haría una persona con la rueda.
+    const tapado = () =>
+        locator.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !!e && el !== e && !el.contains(e) && !e.closest("[data-sonner-toaster]");
+        });
+    if (fuera(b) || (await tapado())) {
         await locator.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
         await espera(p, 700);
         b = await locator.boundingBox();

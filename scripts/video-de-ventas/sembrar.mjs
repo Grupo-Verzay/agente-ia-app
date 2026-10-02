@@ -115,6 +115,24 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
     if (!guardado) throw new Error("[video] no se pudieron guardar las etapas del embudo");
     const etapas = Object.fromEntries((await embudos.lasEtapasDe([embudoId])).map((e) => [e.nombre, e.id]));
 
+    // La asesora que recibe a Laura cuando pide hablar con alguien: alguien del
+    // equipo de la cuenta, como la crea Usuarios. Antes de los otros pacientes:
+    // los que llevan `asesora` ya son suyos (la escena de Multiagente abre el
+    // embudo filtrado por ella y enseña SUS clientes).
+    const asesora = await db.user.upsert({
+        where: { email: ASESORA.correo },
+        update: { ownerId: dueno.id, advisorRole: "agente", name: `${ASESORA.nombre} ${ASESORA.apellido}` },
+        create: {
+            email: ASESORA.correo,
+            name: `${ASESORA.nombre} ${ASESORA.apellido}`,
+            role: "user",
+            status: true,
+            ownerId: dueno.id,
+            advisorRole: "agente",
+            company: NEGOCIO.nombre,
+        },
+    });
+
     // Los otros pacientes de la bandeja.
     for (const [i, c] of OTROS_CHATS.entries()) {
         const jid = jidDe(c.numero);
@@ -131,6 +149,7 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
                 status: true,
                 leadStatus: CALIFICACION[c.calificacion] ?? null,
                 leadStatusUpdatedAt: new Date(ultimo),
+                ...(c.asesora ? { assignedAdvisorId: asesora.id } : {}),
                 createdAt: new Date(ultimo - 3 * 60_000),
                 updatedAt: new Date(ultimo),
             },
@@ -216,22 +235,6 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
             },
         });
     }
-
-    // La asesora que recibe a Laura cuando pide hablar con alguien: alguien del
-    // equipo de la cuenta, como la crea Usuarios.
-    const asesora = await db.user.upsert({
-        where: { email: ASESORA.correo },
-        update: { ownerId: dueno.id, advisorRole: "agente", name: `${ASESORA.nombre} ${ASESORA.apellido}` },
-        create: {
-            email: ASESORA.correo,
-            name: `${ASESORA.nombre} ${ASESORA.apellido}`,
-            role: "user",
-            status: true,
-            ownerId: dueno.id,
-            advisorRole: "agente",
-            company: NEGOCIO.nombre,
-        },
-    });
 
     // El resumen de la semana anterior, como lo escribe el informe semanal
     // (`weekly_reports` la crea el backend: no está en el esquema de Prisma).

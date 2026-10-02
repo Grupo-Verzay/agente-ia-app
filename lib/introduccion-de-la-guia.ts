@@ -14,7 +14,7 @@
 export type Introduccion = { titulo: string; subtitulo: string; descripcion: string };
 
 /** Los módulos con guía pública. La llave de la tabla y el `/guia/<modulo>`. */
-export const MODULOS_CON_GUIA = ["leads", "catalogo", "diagramas", "reuniones", "notas", "mis-datos", "google-sheets", "integraciones", "agente-ia", "usuarios", "respuestas-rapidas", "macros", "formularios", "copiloto", "ai-imagenes", "finanzas", "llamadas", "productos", "flujos", "agenda", "conexion"] as const;
+export const MODULOS_CON_GUIA = ["leads", "catalogo", "diagramas", "reuniones", "notas", "mis-datos", "google-sheets", "integraciones", "agente-ia", "usuarios", "respuestas-rapidas", "macros", "formularios", "copiloto", "ai-imagenes", "finanzas", "llamadas", "productos", "flujos", "agenda", "recordatorios", "etiquetas", "conexion"] as const;
 export type ModuloConGuia = (typeof MODULOS_CON_GUIA)[number];
 
 /** Cómo se llama cada guía para una persona: el mismo nombre que su menú. */
@@ -30,6 +30,7 @@ export const NOMBRE_DE_LA_GUIA: Record<ModuloConGuia, string> = {
     "agente-ia": "Agente IA",
     usuarios: "Usuarios",
     "respuestas-rapidas": "Respuestas Rápidas",
+    etiquetas: "Etiquetas",
     macros: "Mis macros",
     formularios: "Mis formularios",
     copiloto: "Copiloto",
@@ -39,6 +40,7 @@ export const NOMBRE_DE_LA_GUIA: Record<ModuloConGuia, string> = {
     productos: "Productos",
     flujos: "Crear flujos",
     agenda: "Agenda",
+    recordatorios: "Recordatorios",
     conexion: "Conexión y Ajustes",
 };
 

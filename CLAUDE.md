@@ -25025,7 +25025,6 @@ lista contra el código, el vídeo medido como el de Finanzas, las miniaturas en
 sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
 servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
 que las pastillas no filtraban y que la pantalla no exponía sus marcas.
-
 ### La vigésima guía, Agenda: el calendario, la página pública y sus ocho pestañas
 
 `/guia/agenda` documenta Contactos › Agenda (`/schedule`) con el estándar de las
@@ -25083,7 +25082,83 @@ vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=agenda`),
 servida a 390 y 1440. `MODO=roto` lee `2c7b35e` y afirma que no había guía, ni
 marcas en la pantalla, y el enlace escrito a mano.
 
-### La vigesimoprimera guía, Conexión y Ajustes: una pantalla, ocho pestañas, un apartado por pestaña
+### La vigesimoprimera guía, Recordatorios: lo que se arregló al documentarla
+
+`/guia/recordatorios` documenta Automatizaciones › Recordatorios (`/reminders`)
+con el estándar de las demás: nueve secciones —vista general, la lista, el
+tablero Kanban, crear, adjunto y nota de voz, fecha y repetición, el flujo, el
+historial de envíos, y editar y eliminar—, una miniatura con enfoque por
+tarjeta y el vídeo narrado con Cedar al MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/reminders`: «Aprende a programar recordatorios por
+WhatsApp en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-recordatorios.sh && npm run build`.
+
+No trae ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Dos cosas de la receta:
+
+1. **Sin bucket, `/api/upload` lo contesta la propia receta** (`ctx.route`,
+   con `archivos.ejemplo.co`): elegir el archivo, su vista previa, guardarlo y
+   la marca «Media» de la tarjeta son de verdad. La nota de voz se graba con el
+   micrófono de mentira de Chromium.
+2. **Las capturas crean un recordatorio**, así que antes del vídeo se vuelve a
+   sembrar; y las ventanas de eliminar se CANCELAN, en las capturas y en el
+   vídeo.
+
+Lo que se arregló en la pantalla, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| **«Hola @client_name» le llegaba al cliente con la arroba dentro**: un recordatorio de un contacto lo entrega el seguimiento que se escribe al crearlo, y ese camino manda el texto tal cual | `elMensajeDelRecordatorio` (`lib/repeticion-del-recordatorio.ts`) lo cambia por el nombre al crear y al editar, con la regla del motor («Cliente» si no lo hay o es «Desconocido») |
+| la hora del historial salía en crudo, `2026-10-02T14:30:00.000Z` | `laHoraDelEnvio`: `dd/MM/yyyy HH:mm` en la zona de quien mira; el reloj de pared viejo se queda como está |
+| «Cada dia» y «Todos los dias» —lo mismo para el motor— salían las dos, y «Repetir cada N» no lo lee el motor | una lista, `REPETICIONES`, con sus tildes; «Todos los días» solo se ofrece si ya la tiene, y «cada N» se quitó |
+| el buscador de flujos buscaba por el ID: escribir el nombre no encontraba nada | `value` lleva el nombre (`SelectWorkflowBox`) |
+
+Lo prueba `scripts/banco-guia-recordatorios.sh`: el contenido contra el código
+(vistas, cifras, columnas, archivos, repeticiones, campos, partes de un
+recordatorio, historial, el «⋯»), los arreglos, el vídeo medido como el de Mis
+macros, las miniaturas en sus píxeles (`GUIA=recordatorios`), `fin-de-la-guia`
+y `menu-de-la-guia` y la guía servida a 390 y 1440. `MODO=roto` contra
+`ab6b110` afirma que no había guía y que el `@client_name` llegaba tal cual.
+
+### La vigesimosegunda guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
+
+`/guia/etiquetas` documenta Contactos › Etiquetas (`/tags`) con el mismo
+estándar: diez secciones —vista general, el tablero, arrastrar, calificar con
+IA, filtrar por puntaje, varios a la vez, y crear, editar, ordenar y eliminar
+una etiqueta—, una miniatura con enfoque por tarjeta y el vídeo narrado con
+Cedar al MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/tags`: «Aprende a organizar tus contactos con etiquetas en la plataforma».
+Se regenera con `npm run build && scripts/generar-guia-etiquetas.sh && npm run build`.
+
+Ninguna pieza propia salvo la IA de ejemplo que pone los puntajes
+(`fingido-guia-etiquetas.mjs`, cargado por el lanzador común): calificar es una
+llamada a OpenAI con la clave de la cuenta, y el banco no la tiene. El puntaje
+de cada contacto de ejemplo lo decide la semilla (`guia-etiquetas-datos.mjs`).
+
+Lo que se arregló en la pantalla al documentarla, con las reglas en
+`lib/etiquetas-de-la-pantalla.ts` (pura):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| pulsar el rango de puntaje puesto no lo quitaba: la «x» lo prometía y no había forma de volver a ver el tablero entero | `elFiltroDePuntaje`: otro clic en el mismo lo quita |
+| los cinco rangos vivían en tres copias (la barra, el filtro y el color de la insignia de cada tarjeta) | `RANGOS_DE_PUNTAJE`, una vez |
+| reordenar las etiquetas con una búsqueda puesta guardaba el orden de un TROZO y las escondidas desaparecían hasta recargar | con búsqueda no se arrastra, y se dice (`porQueNoSePuedenOrdenarLasEtiquetas`) |
+| eliminar una etiqueta preguntaba «Se eliminará ETIQUETA», sin decir cuál | dice «la etiqueta VIP» (`queSeElimina` de `GenericDeleteDialog`; sin él, las demás pantallas siguen igual) |
+| en la tarjeta del tablero el nombre del contacto se recortaba a «Ca…»: el puntaje, la hora y el destello iban en su misma fila | van en una fila debajo (`data-zona="medidas"`), y el nombre se queda la suya entera; la receta se cae si algo de una tarjeta sale con «…» (`queNadaSalgaRecortado`) |
+
+Y la pantalla expone sus marcas (`data-zona` en las barras, la cabecera de cada
+columna, cada parte de una tarjeta y la lista de Gestionar), que es lo que la
+receta usa: nada de coordenadas. El vídeo no borra nada: la ventana de eliminar
+una etiqueta se CANCELA y no abre el borrado de contactos.
+
+Lo prueba `scripts/banco-guia-etiquetas.sh`: los arreglos de la pantalla, el
+contenido contra el código (vistas, rangos, las dos barras, la cabecera de una
+columna, las seis partes de una tarjeta y el «⋯» sin registros), el vídeo, las
+miniaturas (`GUIA=etiquetas`), `fin-de-la-guia` y `menu-de-la-guia`, y la guía
+servida. `MODO=roto` contra `7767f6f` afirma que no había guía y los fallos de
+la pantalla.
+
+### La vigesimotercera guía, Conexión y Ajustes: una pantalla, ocho pestañas, un apartado por pestaña
 
 `/guia/conexion` documenta Conexión y Ajustes (`/profile`) con el estándar de
 las anteriores: una sección de vista general y **una por pestaña** —Conexión,
@@ -25359,24 +25434,49 @@ como tú decidas: con texto, nota de voz, un archivo o hasta una llamada»)
 seguido de **una llamada de WhatsApp de verdad escrita en el panel** —Laura
 contesta y se oyen hablando, con dos voces del mismo modelo (`LA_LLAMADA`)—, la
 cita, el recordatorio, **el paso a un asesor**, el embudo y **los reportes**.
-Antes del cierre, un **resumen** con todas las píldoras mostradas (más «sincroniza
-con Google Sheets» y «hace llamadas con IA») y una **ráfaga de tres avanzadas**:
-modo dueño, puente con operarios de campo y multiagente (`AVANZADAS`). El botón
-«Escribir por WhatsApp» del cierre y de la página lleva el **+57 323 361 2620**
-(`LLAMADO.whatsapp`).
+Después de los reportes, **«13 · Trabaja en equipo»**: tres líneas de WhatsApp
+—Ventas (6 asesores), Soporte (3) y Cobros (2), `LINEAS_DEL_EQUIPO`— con sus
+asesores atendiendo a la vez, y el embudo **de verdad** filtrado por Andrea, la
+asesora de Ventas (`/embudos?asesor=`). Antes del cierre, un **resumen** con
+todas las píldoras, «Trabaja en equipo» incluida. **No hay ráfaga de «Y hay
+más»**: Modo dueño y Operarios de campo se quitaron.
 
-La hoja de Sheets, la llamada vista en el celular, el resumen y las avanzadas
+**El cierre es solo la marca y su frase, sin botones**: el vídeo se manda dentro
+de un flujo de WhatsApp y el llamado llega después por texto. La PÁGINA sí
+conserva sus dos llamados (agendar y escribir al **+57 323 361 2620**,
+`LLAMADO.whatsapp`).
+
+Tres cosas del montaje que hay que mantener:
+
+1. **El primer fotograma es una portada** (`#portada`: logo, nombre y un botón
+   de reproducir) durante `PORTADA_MS` (500 ms). WhatsApp usa el primer
+   fotograma como miniatura al compartir el archivo, y antes era negro. El
+   `.jpg` publicado (portada de la página y `og:image`) es un fotograma de esa
+   portada (`PORTADA_JPG_MS`). Más larga que ~0,8 s, la voz empieza tarde y el
+   banco de los huecos mudos se pone rojo.
+2. **De los cinco negocios a la marca no hay pausa**: `callar(0)` y la marca
+   entra deslizándose en medio segundo. Antes había un respiro y un fundido
+   lento, y se veía la pantalla quieta.
+3. **El esquema de las tres líneas es una recreación** (las líneas y los
+   asesores no se siembran); el embudo filtrado sí es la App. La página lo dice
+   en `LO_QUE_ES_EL_VIDEO`.
+
+La hoja de Sheets, la llamada vista en el celular, el resumen y las tres líneas
 son recreaciones, y la página lo dice (`LO_QUE_ES_EL_VIDEO`); la llamada queda
 escrita en el panel como una llamada de verdad (`messageType: 'call'`). El
 `MODO=roto` del banco lee la historia de `e2e0005` (pinchado) y afirma que allí
 la apertura decía otra cosa y no había ni Sheets, ni llamada, ni asesor, ni
-reportes, ni resumen, ni el WhatsApp en el cierre.
+reportes, ni resumen; y la de `6619c2e` (`ANTES_DEL_EQUIPO`) y afirma que no
+había portada ni escena del equipo, que estaba la ráfaga y que el cierre
+llevaba botones. El vídeo publicado se mide en sus fotogramas: el primero no es
+negro y enseña el botón de reproducir, la marca se mueve al entrar y las líneas
+se ven.
 
 ### La página
 
-`app/demo/`: el vídeo con su portada, qué es real y qué no, las doce capacidades
-en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, tres filas de cuatro o seis de
-dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las trece capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, trece: filas llenas y la
+última centrada) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
 `noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
 (`/demo/:path*`, también el vídeo).
 

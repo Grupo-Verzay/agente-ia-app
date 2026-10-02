@@ -141,13 +141,17 @@ export type RecordatorioParaAgrupar = {
 /** La hora de un recordatorio: ISO, o `dd/mm/aaaa hh:mm`. `null` si no se entiende. */
 export function laHoraDelRecordatorio(time: string | null | undefined): number | null {
     if (!time) return null;
-    const direct = new Date(time);
-    if (!Number.isNaN(direct.getTime())) return direct.getTime();
-
+    // Primero la forma de la pantalla, `dd/MM/yyyy HH:mm`. Va ANTES que
+    // `new Date(...)` porque el navegador lee «06/10/2026» como 10 de JUNIO
+    // (mes/día): todo recordatorio de un día 1 a 12 caía en otra fecha, y uno de
+    // la semana que viene salía en «Vencidos».
     const match = time.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
-    if (!match) return null;
-    const [, day, month, year, hours, minutes] = match;
-    return new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes)).getTime();
+    if (match) {
+        const [, day, month, year, hours, minutes] = match;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes)).getTime();
+    }
+    const direct = new Date(time);
+    return Number.isNaN(direct.getTime()) ? null : direct.getTime();
 }
 
 /**

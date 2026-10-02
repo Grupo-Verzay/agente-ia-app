@@ -36,6 +36,8 @@ import { GUIA_FINANZAS } from "@/lib/guia-finanzas";
 import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
+import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
+import { GUIA_ETIQUETAS } from "@/lib/guia-etiquetas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
@@ -252,6 +254,18 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/schedule",
         contenido: GUIA_AGENDA,
         tarjeta: "Aprende a gestionar tus citas y tu agenda en la plataforma",
+    },
+    {
+        modulo: "recordatorios",
+        ruta: "/reminders",
+        contenido: GUIA_RECORDATORIOS,
+        tarjeta: "Aprende a programar recordatorios por WhatsApp en la plataforma",
+    },
+    {
+        modulo: "etiquetas",
+        ruta: "/tags",
+        contenido: GUIA_ETIQUETAS,
+        tarjeta: "Aprende a organizar tus contactos con etiquetas en la plataforma",
     },
     {
         modulo: "conexion",

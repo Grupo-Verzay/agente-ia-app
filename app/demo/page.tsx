@@ -77,9 +77,9 @@ export default function PaginaDelVideoDeVentas() {
                     <h2 id="capacidades" className="text-center text-lg font-semibold text-slate-900">
                         Lo que acabas de ver
                     </h2>
-                    <ol data-capacidades className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <ol data-capacidades className="flex flex-wrap justify-center gap-3">
                         {CAPACIDADES_DEL_VIDEO.map((c, i) => (
-                            <li key={c.escena} data-capacidad={c.escena} className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+                            <li key={c.escena} data-capacidad={c.escena} className="flex w-[calc(50%-0.375rem)] flex-col gap-1 rounded-xl border border-slate-200 bg-white p-3 sm:w-[calc(25%-0.5625rem)] sm:p-4">
                                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
                                     {i + 1}
                                 </span>
