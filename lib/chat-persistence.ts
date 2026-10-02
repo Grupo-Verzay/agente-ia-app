@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { lasReaccionesQueTrae } from '@/lib/reacciones-del-chat';
 import { db } from '@/lib/db';
 import {
   buildWhatsAppJidCandidates,
@@ -1171,6 +1172,8 @@ export async function guardarReaccion(params: {
   instanceName: string;
   messageId: string;
   emoji: string;
+  /** Sin aviso si no hay copia local: el sondeo trae reacciones a mensajes viejos que no guardamos. */
+  callada?: boolean;
 }): Promise<void> {
   const { userId, instanceName, messageId } = params;
   if (!userId || !instanceName || !messageId) return;
@@ -1188,11 +1191,19 @@ export async function guardarReaccion(params: {
     // Sin copia local no hay donde colgarla. Se dice, porque desde fuera esto
     // se ve como «reaccioné y no quedó nada».
     if (!filas.length) {
-      console.warn('[chats] reaccion sin copia local del mensaje', { instanceName, messageId });
+      if (!params.callada) console.warn('[chats] reaccion sin copia local del mensaje', { instanceName, messageId });
       return;
     }
 
     const base = filas[0].raw;
+    // Sin cambio no se escribe: el sondeo vuelve a traer las mismas reacciones
+    // en cada vuelta, y reescribir la fila (y tirar la cache de la bandeja) por
+    // nada es trabajo tirado.
+    const yaTenia =
+      base && typeof base === 'object' && !Array.isArray(base) && typeof (base as { reaccion?: unknown }).reaccion === 'string'
+        ? ((base as { reaccion: string }).reaccion)
+        : '';
+    if (yaTenia === emoji) return;
     const copia =
       base && typeof base === 'object' && !Array.isArray(base)
         ? (JSON.parse(JSON.stringify(base)) as Record<string, unknown>)
@@ -1650,6 +1661,12 @@ export async function persistEvolutionMessages(params: {
 }) {
   const toPersist = params.messages.filter((message) => !isReactionMessageSnapshot(message));
 
+  // Las reacciones NO son filas, pero tampoco se tiran: se cuelgan de su
+  // mensaje, como las que pone la plataforma. Antes se filtraban aqui y la del
+  // cliente no quedaba en ninguna parte (ver `lib/reacciones-del-chat.ts`).
+  // Va despues de los mensajes, que una reaccion necesita su mensaje guardado.
+  const reacciones = lasReaccionesQueTrae(params.messages);
+
   // Persistir en lotes concurrentes en vez de uno-por-uno: cada persistChatMessage
   // es idempotente (ON CONFLICT + índice único) y todas las llamadas tocan las
   // filas de sesión/conversación en el mismo orden, así que no hay riesgo de
@@ -1673,6 +1690,16 @@ export async function persistEvolutionMessages(params: {
         });
       }),
     );
+  }
+
+  for (const r of reacciones) {
+    await guardarReaccion({
+      userId: params.userId,
+      instanceName: params.instanceName,
+      messageId: r.idDelMensaje,
+      emoji: r.emoji,
+      callada: true,
+    });
   }
 }
 
