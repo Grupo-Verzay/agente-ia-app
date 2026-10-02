@@ -309,7 +309,7 @@ async function miniaturas(p) {
             await espera(p, 500);
         },
     );
-    await mini("editar-y-eliminar", () => caja(p, laParte(p, "CONFIRMAR CITA", "mandos")));
+    await mini("editar-y-eliminar", () => aLaVistaYMedir(p, laParte(p, "CONFIRMAR CITA", "mandos")));
 
     await desmarcar(p);
     writeFileSync(FOCOS, JSON.stringify(focos, null, 2) + "\n");
@@ -681,6 +681,20 @@ const RESPIRO_ENTRE_FRASES_MS = 250;
 /** El vídeo arranca esto antes de la primera palabra; lo de antes (la carga) se recorta. */
 const INICIO_ANTES_DE_HABLAR_MS = 300;
 
+/**
+ * Como `pulsar`, pero sin su pausa: el cursor llega en pocos pasos y pulsa.
+ * Para una escena con más acciones que palabras; lo de dentro de la ventana ya
+ * está a la vista y destapado.
+ */
+async function tocar(p, locator) {
+    const b = await locator.boundingBox();
+    if (!b) throw new Error(`[guia] no se ve lo que el vídeo tenía que pulsar: ${locator}`);
+    await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
+    await p.mouse.down();
+    await espera(p, 60);
+    await p.mouse.up();
+}
+
 async function video(navegador, estado) {
     const dir = path.join(TMP, "video");
     rmSync(dir, { recursive: true, force: true });
@@ -780,18 +794,23 @@ async function video(navegador, estado) {
     await pulsar(p, EL_NUEVO(p));
     await ventana.waitFor({ state: "visible", timeout: 10000 });
     await espera(p, 500);
+    // La frase dura menos de seis segundos para título, mensaje y contacto:
+    // aquí el cursor va directo (`tocar`), sin la pausa de `pulsar`, o la
+    // escena se come la frase y deja un hueco mudo antes de la siguiente.
     await alDecir("le pones un título");
-    await pulsar(p, elCampo(p, "titulo").locator("input"));
-    await elCampo(p, "titulo").locator("input").pressSequentially("Pedido listo", { delay: 45 });
+    await tocar(p, elCampo(p, "titulo").locator("input"));
+    await elCampo(p, "titulo").locator("input").pressSequentially("Pedido listo", { delay: 30 });
     await alDecir("el mensaje", 150);
-    await pulsar(p, elCampo(p, "mensaje").locator("textarea"));
-    await elCampo(p, "mensaje").locator("textarea").pressSequentially("Hola @client_name, tu pedido ya está listo.", { delay: 22 });
+    await tocar(p, elCampo(p, "mensaje").locator("textarea"));
+    await elCampo(p, "mensaje").locator("textarea").pressSequentially("Hola @client_name, tu pedido está listo.", { delay: 12 });
+    // El contacto queda debajo del pie fijo de la ventana: se trae al centro.
+    await elCampo(p, "contacto").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await alDecir("eliges el contacto");
-    await pulsar(p, elCampo(p, "contacto").getByRole("combobox"));
+    await tocar(p, elCampo(p, "contacto").getByRole("combobox"));
     const contactos = p.locator("[data-radix-popper-content-wrapper]").filter({ has: p.locator("[cmdk-input]") }).last();
     await contactos.waitFor({ state: "visible", timeout: 10000 });
-    await contactos.locator("[cmdk-input]").pressSequentially("Laura", { delay: 90 });
-    await pulsar(p, contactos.locator("[cmdk-item]", { hasText: "Laura Méndez" }).first());
+    await contactos.locator("[cmdk-input]").pressSequentially("Lau", { delay: 40 });
+    await tocar(p, contactos.locator("[cmdk-item]", { hasText: "Laura Méndez" }).first());
 
     // Adjuntar: los tipos, y una nota de voz grabada ahí mismo.
     await decir("adjunto");
@@ -799,27 +818,29 @@ async function video(navegador, estado) {
     await mover(p, elBotonDeArchivo(p, "Imagen"));
     await alDecir("o un documento", 100);
     await mover(p, elBotonDeArchivo(p, "Doc."));
-    await alDecir("grabar ahí mismo");
+    // Grabar, detener y usar tardan más que lo que queda de la frase: se
+    // empieza en «o grabar» y «Usar grabación» se pulsa ya con la frase de la
+    // fecha sonando, o quedaba un hueco mudo de cuatro segundos.
+    await alDecir("o grabar");
     await pulsar(p, elMando(p, "grabar"));
     await elMando(p, "detener").waitFor({ state: "visible", timeout: 10000 });
-    await espera(p, 1600);
+    await espera(p, 900);
     await pulsar(p, elMando(p, "detener"));
     await elMando(p, "usar").waitFor({ state: "visible", timeout: 10000 });
-    await pulsar(p, elMando(p, "usar"));
 
     // Fecha, hora y repetición.
     const dia = elDiaQueSeElige();
     await decir("fecha");
+    await pulsar(p, elMando(p, "usar"));
     await alDecir("la fecha en el calendario");
     await pulsar(p, EL_DIA(p));
     const calendario = p.locator("[data-radix-popper-content-wrapper]").filter({ has: p.locator('button[name="day"]') }).last();
     await calendario.waitFor({ state: "visible", timeout: 10000 });
     await pulsar(p, await elegirElDia(p, calendario, dia));
-    await alDecir("la hora");
-    await mover(p, LAS_HORAS(p).nth(0));
+    await alDecir("la hora", 150);
     await LAS_HORAS(p).nth(0).selectOption("10");
     await LAS_HORAS(p).nth(1).selectOption("30");
-    await alDecir("que se repita");
+    await alDecir("y si quieres");
     await pulsar(p, elCampo(p, "repeticion").getByRole("combobox"));
     const repeticiones = p.locator('[role="listbox"]').last();
     await repeticiones.waitFor({ state: "visible", timeout: 10000 });

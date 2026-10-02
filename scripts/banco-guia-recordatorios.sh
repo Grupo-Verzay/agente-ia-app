@@ -38,12 +38,6 @@ export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/c
 MODO="${MODO:-bueno}"
 export MODO ANTES_REC_REF="${ANTES_REC_REF:-ab6b110}"
 
-if [ "$MODO" = "roto" ]; then
-  node --test lib/__tests__/guia-recordatorios.test.mjs lib/__tests__/video-guia-recordatorios.test.mjs
-  GUIA=recordatorios ANTES_REF="$ANTES_REC_REF" node --test lib/__tests__/miniaturas-guia-leads.test.mjs
-  exit 0
-fi
-
 # Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
 for G in leads catalogo diagramas reuniones notas mis-datos google-sheets integraciones agente-ia usuarios respuestas-rapidas macros formularios copiloto ai-imagenes finanzas llamadas productos flujos recordatorios; do
   OUT="lib/__tests__/.compilado/guia-$G"
@@ -60,6 +54,13 @@ if [ "${MODO:-}" = "roto" ]; then
 else
   npx esbuild lib/pendientes-del-menu.ts --bundle --platform=node --format=esm --outfile=lib/__tests__/.compilado/guia-recordatorios/pendientes-del-menu.mjs --log-level=warning
 fi
+
+if [ "$MODO" = "roto" ]; then
+  node --test lib/__tests__/guia-recordatorios.test.mjs lib/__tests__/video-guia-recordatorios.test.mjs
+  GUIA=recordatorios ANTES_REF="$ANTES_REC_REF" node --test lib/__tests__/miniaturas-guia-leads.test.mjs
+  exit 0
+fi
+
 npx esbuild lib/repeticion-del-recordatorio.ts --bundle --platform=node --format=esm --outfile=lib/__tests__/.compilado/guia-recordatorios/repeticion-del-recordatorio.mjs --log-level=warning
 node --test lib/__tests__/guia-recordatorios.test.mjs
 node --test lib/__tests__/video-guia-recordatorios.test.mjs
