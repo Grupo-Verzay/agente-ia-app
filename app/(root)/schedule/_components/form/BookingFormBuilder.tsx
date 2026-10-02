@@ -83,6 +83,7 @@ function SortableQuestionItem({ question: q, editingId, isFirst, isLast, onEdit,
     <Card
       ref={setNodeRef}
       style={style}
+      data-pregunta-del-formulario={q.id}
       className={[
         'rounded-xl',
         !q.active ? 'opacity-50' : '',

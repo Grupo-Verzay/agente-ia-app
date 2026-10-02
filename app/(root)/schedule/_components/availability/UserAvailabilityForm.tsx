@@ -121,11 +121,11 @@ export const UserAvailabilityForm = ({ userId }: { userId: string }) => {
                 const list = entriesByDay[i] ?? [];
                 const empty = list.length === 0;
                 return (
-                    <div key={i} className="flex items-start sm:items-center gap-1 py-1">
+                    <div key={i} data-dia-de-disponibilidad={i} className="flex items-start sm:items-center gap-1 py-1">
                         <div className="shrink-0 flex items-center gap-0.5">
                             <span className="font-medium text-sm sm:text-base">{dayLabels[i]}</span>
 
-                            <Button variant="ghost" size="icon" onClick={() => handleAdd(i)} title="Añadir otro periodo">
+                            <Button variant="ghost" size="icon" onClick={() => handleAdd(i)} title="Añadir otro periodo" aria-label={`Añadir periodo el ${dayLabels[i]}`}>
                                 <PlusCircle className="w-4 h-4" />
                             </Button>
                         </div>

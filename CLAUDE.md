@@ -25025,7 +25025,64 @@ lista contra el código, el vídeo medido como el de Finanzas, las miniaturas en
 sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
 servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
 que las pastillas no filtraban y que la pantalla no exponía sus marcas.
-### La vigésima guía, Recordatorios: lo que se arregló al documentarla
+### La vigésima guía, Agenda: el calendario, la página pública y sus ocho pestañas
+
+`/guia/agenda` documenta Contactos › Agenda (`/schedule`) con el estándar de las
+anteriores: diez secciones —vista general, el calendario, estado y reagendar,
+disponibilidad, el enlace público de reserva, el Kanban, los servicios, los
+recordatorios antes de la cita, el formulario de calificación con sus registros,
+y los ajustes (duración, enlace de reunión, anticipación y Google Calendar)—,
+una miniatura con enfoque por tarjeta y el vídeo narrado con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/schedule`
+(`GUIAS_PUBLICADAS`): «Aprende a gestionar tus citas y tu agenda en la
+plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-agenda.ts`, con `laGuiaDe`),
+semilla (`sembrar-guia-agenda.mjs`, sobre `sembrarElMarco`, con una clínica de
+ejemplo: citas en varios estados, servicios, recordatorios, preguntas y
+registros), receta (`capturar-guia-agenda.mjs`, sobre el taller) y narración. Se
+regenera con `npm run build && scripts/generar-guia-agenda.sh && npm run build`.
+
+**La guía se compara con el CÓDIGO** (`guia-agenda.test.mjs`): las pestañas con
+`PESTANAS_DE_LA_AGENDA` (`lib/pantalla-de-agenda.ts`, que la pantalla también
+lee), las cifras de arriba, los estados de la ficha y del Kanban, las vistas del
+calendario, los mandos de un periodo, los pasos de la página pública, los tipos
+de pregunta y los campos de Ajustes.
+
+Cinco cosas que hay que mantener:
+
+1. **La página pública se fotografía de verdad y NUNCA se pulsa su Confirmar**:
+   ese botón reserva. Elegir un día ya pasa solo a la hora (no hay «Continuar»
+   que pulsar). Las banderas del selector de país vienen de fuera, así que la
+   receta sirve una dibujada; y la foto se recorta a la tarjeta, que es una
+   columna estrecha.
+2. **El vídeo no cancela ni reserva nada**: señala «Sí, cancelar la cita» y
+   «Confirmar» sin pulsarlos (lo afirma el banco). Arrastra una tarjeta de
+   Pendiente a Confirmada, y por eso antes del vídeo se vuelve a sembrar.
+3. **Las fechas salen en español solo con `--lang=es-CO` y `LANG=es_CO.UTF-8`**:
+   el campo de fecha de Reagendar lo pinta el proceso de Chromium.
+4. **Cada carga dice «Agenda cargada con éxito»**: la receta quita el aviso al
+   cambiar de pestaña, fuera del vídeo (dentro está prohibido).
+5. **«Buscar pregunta…» también lleva la palabra «pregunta»**: el campo de una
+   pregunta nueva se busca por su ejemplo, o se escribe en el buscador.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el enlace de reserva llevaba `agente.ia-app.com` escrito a mano: desde el dominio de un reseller se compartía el de otro | `elEnlaceDeReserva` con el dominio de la página abierta |
+| copiar el enlace sin `try`: sin HTTPS el portapapeles lanza callado | en su `try`, y si falla dice qué hacer |
+| la confirmación de cancelar decía «Cancelar» (que NO cancela) y «Eliminar» (que cancela) | «Volver» y «Sí, cancelar la cita» |
+| la lista de recordatorios pintaba «days-1» | «1 día antes» (`formatReminderTime` entiende las cuatro unidades) |
+| «Estas», «Telefono», «accion», «cancelacion»… | con sus tildes |
+
+Lo prueba `scripts/banco-guia-agenda.sh`: el contenido contra el código, el
+vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=agenda`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren todas las guías— y la guía
+servida a 390 y 1440. `MODO=roto` lee `2c7b35e` y afirma que no había guía, ni
+marcas en la pantalla, y el enlace escrito a mano.
+
+### La vigesimoprimera guía, Recordatorios: lo que se arregló al documentarla
 
 `/guia/recordatorios` documenta Automatizaciones › Recordatorios (`/reminders`)
 con el estándar de las demás: nueve secciones —vista general, la lista, el

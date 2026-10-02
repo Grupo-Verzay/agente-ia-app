@@ -53,7 +53,7 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                         transition={{ duration: 0.2 }}
                         className="w-full max-w-[33rem] p-2"
                     >
-                        <Card className={cn("relative shadow-2xl border-border rounded-md bg-background flex flex-col overflow-hidden", ALTO_DEL_DIALOGO)} data-ventana-del-recordatorio="">
+                        <Card data-ventana-de-recordatorio className={cn("relative shadow-2xl border-border rounded-md bg-background flex flex-col overflow-hidden", ALTO_DEL_DIALOGO)}>
                             <CardHeader className="flex items-center justify-between flex-row px-6 pt-4 pb-2 shrink-0">
                                 <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                                     {openDialog === 'edit' ? `Editar ${modalTitle}` : `Crear ${modalTitle}`}

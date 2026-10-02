@@ -270,7 +270,7 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
 
     return (
         <>
-            <Card className="border-border w-full">
+            <Card className="border-border w-full" data-servicio-de-agenda={service.id}>
                 <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -431,6 +431,7 @@ function ServiceToolbar({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Buscar por nombre o mensaje…"
+                    aria-label="Buscar servicio"
                     className="pl-8 w-full"
                 />
             </div>
@@ -531,7 +532,7 @@ export default function ServiceManager({ userId }: { userId: string }) {
                         mode="create"
                         onSaved={(s) => upsertLocal(s)}
                         trigger={
-                            <Button size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button size="sm" data-nuevo-servicio="" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
                                 <Plus className="h-4 w-4 sm:mr-2" />
                                 <span className="hidden sm:inline">Nuevo</span>
                             </Button>

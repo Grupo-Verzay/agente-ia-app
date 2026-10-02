@@ -150,7 +150,7 @@ const LAS_CIFRAS = '[data-zona="cifras"]';
 const EL_BUSCADOR = 'input[placeholder="Buscar por título, número o nombre..."]';
 const EL_NUEVO = (p) => p.locator('[data-barra-de-acciones] [data-zona="crear"] button').first();
 const LAS_MASIVAS = '[data-barra-de-acciones] [data-zona="acciones"] button';
-const LA_VENTANA = "[data-ventana-del-recordatorio]";
+const LA_VENTANA = "[data-ventana-de-recordatorio]";
 const LA_ALERTA = '[role="alertdialog"]';
 const EL_HISTORIAL = "[data-historial-de-envios]";
 

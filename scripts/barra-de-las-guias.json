@@ -9,6 +9,7 @@
     "Tus notificaciones"
   ],
   "guias": [
+    "agenda",
     "agente-ia",
     "ai-imagenes",
     "catalogo",
@@ -31,6 +32,7 @@
     "usuarios"
   ],
   "imagenes": {
+    "agenda": "ecce6aec4da4655e",
     "agente-ia": "fd701d1078140040",
     "ai-imagenes": "09f86177fb994970",
     "catalogo": "50f3db09ebb776b2",
