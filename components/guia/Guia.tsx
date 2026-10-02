@@ -70,6 +70,8 @@ import {
     Users,
     Video,
     Wallet,
+    Phone,
+    CalendarClock,
     Zap,
 } from "lucide-react";
 
@@ -156,6 +158,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     CalendarRange,
     Truck,
     Wallet,
+    Phone,
+    CalendarClock,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {
