@@ -1,5 +1,6 @@
 "use client";
 
+import { BotonDeCrear } from "@/components/shared/BarraDeAcciones";
 import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -157,10 +158,12 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { clearState(); setOpen(nextOpen); }}>
       <DialogTrigger asChild>
-        <Button>{triggerText ?? "CREAR FLUJO"}</Button>
+        {/* En la barra es el «Nuevo» de todas las listas; en la lista vacía,
+            un botón con su frase. */}
+        {triggerText === "Nuevo" ? <BotonDeCrear>Nuevo</BotonDeCrear> : <Button>{triggerText ?? "Crear flujo"}</Button>}
       </DialogTrigger>
       <DialogContent className="px-0">
-        <CustomDialogHeader icon={Layers2Icon} title="CREAR FLUJO" />
+        <CustomDialogHeader icon={Layers2Icon} title="NUEVO FLUJO" />
         <div className="px-6 pt-6 pb-0">
           <Form {...form}>
             <form className="space-y-3 w-full" onSubmit={form.handleSubmit(onSubmit)}>

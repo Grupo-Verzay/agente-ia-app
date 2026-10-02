@@ -141,6 +141,8 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode, lo
                 onDragEnd={() => closeSidebar()}
                 onClick={() => onClickCreate(action)}
                 title={featureLocked ? 'No incluido en tu plan' : undefined}
+                data-accion={action.type}
+                data-bloqueada={featureLocked ? '' : undefined}
                 className={`flex justify-start w-full ${
                     seguimiento
                         ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
@@ -160,6 +162,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode, lo
             variant="sidebar"
             collapsible="offcanvas"
             className={PALETA_DEL_FLUJO}
+            data-paleta-del-flujo
         >
             <SidebarHeader className="p-4 pb-3">
                 <p className="text-sm font-bold text-foreground">Selecciona una acción</p>
@@ -170,28 +173,28 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode, lo
             </SidebarHeader>
 
             <SidebarContent className="px-2 pb-2 pt-0 gap-0">
-                <SidebarGroup className="p-0">
+                <SidebarGroup className="p-0" data-grupo-de-la-paleta="Nodos">
                     <SidebarSectionLabel label="Nodos" />
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {nodeActions.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
-                <SidebarGroup className="p-0">
+                <SidebarGroup className="p-0" data-grupo-de-la-paleta="Acciones">
                     <SidebarSectionLabel label="Acciones" />
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {accionActions.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
-                <SidebarGroup className="p-0">
+                <SidebarGroup className="p-0" data-grupo-de-la-paleta="Automatizaciones">
                     <SidebarSectionLabel label="Automatizaciones" />
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {automationActions.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
-                <SidebarGroup className="p-0">
+                <SidebarGroup className="p-0" data-grupo-de-la-paleta="Seguimientos">
                     <SidebarSectionLabel label="Seguimientos" />
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {seguimientoActions.map((action) =>

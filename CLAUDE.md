@@ -24839,7 +24839,132 @@ Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
 «Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
 por nombre hasta la que conteste.
 
-### La decimoséptima guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
+### La decimoséptima guía, Llamadas: llamar, el historial y sus ventanas, sin llamar a nadie
+
+`/guia/llamadas` documenta Bandeja › Llamadas (`/crm/llamadas`) con el estándar
+de las anteriores: ocho secciones —vista general, llamar (tú o el asistente con
+IA), el historial y sus filtros, abrir el chat desde una llamada, el resultado y
+el nombre, agendar un callback, el detalle (grabación, Resumen IA y
+transcripción) y el mensaje al no contestar—, una miniatura con enfoque por
+tarjeta y el vídeo de minuto y medio con la voz Cedar y el MISMO ritmo. Su
+tarjeta sale sola en «Tutoriales del módulo» de `/crm/llamadas`. Ninguna pieza
+propia: contenido en `lib/guia-llamadas.ts`, semilla
+`sembrar-guia-llamadas.mjs`, receta `capturar-guia-llamadas.mjs` y narración
+`narracion-guia-llamadas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-llamadas.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo llaman a nadie**: señalan «Llamar» y «Llamar
+   IA» y los dejan sin pulsar; el vídeo cancela el callback y el mensaje al no
+   contestar. La grabación de ejemplo es un audio de la caché de Cedar servido
+   por la receta (`ctx.route`), y los números y nombres son de ejemplo.
+2. **El contenido se compara con el código**: las direcciones, las columnas,
+   los resultados, los dos botones de la ventana de llamar en su orden, el «⋯»
+   de la fila y el de la barra, y las tres partes del detalle en su orden
+   (`guia-llamadas.test.mjs`). Una opción nueva sin su nombre la pone en rojo.
+3. **El paso a Chats y la vuelta son CORTES** (`sinGrabarLaEspera`): la carga
+   de la conversación no sale en el vídeo.
+4. **Con un menú de Radix abierto lo de fuera es `aria-hidden`**: la receta
+   mide los tres puntos de la fila y de la barra ANTES de abrirlos.
+
+Lo prueba `scripts/banco-guia-llamadas.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=llamadas`, `fin-de-la-guia`, `menu-de-la-guia`
+y la guía servida a 390 y 1440); `MODO=roto` contra `2c7b35e` afirma que no
+había guía.
+
+### La decimoctava guía, Productos: y documentarla destapó productos que nacían agotados
+
+`/guia/productos` documenta Entrenamiento › Productos (`/products`) con el
+mismo estándar: diez secciones —vista general, buscar, las cifras, ver el
+catálogo, crear, fotos, precio, categoría y código, inventario, y editar,
+ordenar y eliminar—, una miniatura con enfoque por tarjeta y el vídeo con la
+voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/products` (`GUIAS_PUBLICADAS`). Ninguna pieza propia: contenido con
+`laGuiaDe` (`lib/guia-productos.ts`), semilla sobre `sembrarElMarco`, receta
+sobre el taller (las fotos del catálogo las sirve `imagenes-guia-catalogo.mjs`).
+Se regenera con `npm run build && scripts/generar-guia-productos.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla (las reglas, puras, en
+`lib/productos.ts`):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el interruptor de inventario nacía en «Sin límite» y el formulario en 0: un producto nuevo se guardaba **agotado** y en el catálogo perdía su botón de WhatsApp | los dos nacen de `elInventarioAlAbrir` (sin límite si es nuevo) |
+| «Sin stock» contaba los de inventario sin límite (`stock <= 0` incluye el -1) | cuenta CERO unidades (`estaAgotado`) |
+| Guardar con la categoría vacía no hacía nada | el campo enseña su error y sale `porQueNoSeGuardaElProducto` |
+| abrir un producto con código decía «Este código ya está registrado» sobre el suyo | `checkIfSkuExists` excluye el que se edita; y un código repetido no se guarda |
+| el buscador solo miraba el nombre | nombre, código y categoría (`dondeBusca`) |
+| arrastrar en la página 2 (o con una búsqueda) escribía `0..n` sobre ese trozo y lo subía por delante de la página 1 | `elOrdenCompleto`: lo movido se coloca en los sitios que ya ocupaba |
+| borrar un producto lo dejaba en el catálogo público | se revalida `/catalogo` |
+| el botón de crear decía «+ Agregar» y el pie del formulario era un `div` a mano | `BotonDeCrear` («Nuevo») y `DialogFooter` |
+
+Y de la receta, lo que vale para las siguientes: **una marca con rótulo solo
+donde hay hueco**. En un formulario de dos columnas cada rótulo cae sobre el
+campo de al lado; ahí va solo el recuadro y lo explica el texto de la guía. Y
+antes de cada foto se suelta el foco (`sinFoco`): al cerrar un diálogo el foco
+vuelve al lápiz de la fila y su anillo se lee como otra marca.
+
+Lo prueba `scripts/banco-guia-productos.sh`: el contenido contra la pantalla
+(columnas, cifras y campos leídos del código), las reglas, el vídeo, las
+miniaturas en sus píxeles (`GUIA=productos`), `fin-de-la-guia` y
+`menu-de-la-guia` —que barren todas las guías— y la guía servida a 390 y 1440.
+`MODO=roto` lee `7767f6f` y afirma que no había guía y los fallos del
+formulario y de la cifra.
+
+### La decimonovena guía, Crear flujos: la lista Y su editor, y las pastillas ahora filtran
+
+`/guia/flujos` documenta Creación de Flujos (`/workflow`) **y su editor** con
+el estándar de las anteriores: diez secciones —vista general, los cuatro
+tipos (Inicio, IA, Flujo y Chatbot), crear, palabras clave y disparadores, el
+editor, agregar pasos, automatizaciones, seguimientos, el «⋯» de una tarjeta
+y los límites del plan—, una miniatura con enfoque por tarjeta y el vídeo de
+un minuto con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en
+«Tutoriales del módulo» de `/workflow`: «Aprende a crear flujos automáticos
+para tus chats en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-flujos.sh && npm run build`.
+
+> **De qué tipo es un flujo lo decide `lib/flujos-de-la-lista.ts` (pura), y lo
+> usan la barra, la lista y la guía**: la bienvenida gana a todo; con
+> disparador de IA es de IA aunque tenga palabras clave; con palabras clave,
+> Chatbot; y lo demás, Flujo. Con el tipo deducido en dos sitios, una pastilla
+> diría «3» y al pulsarla saldrían 2.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| las cuatro pastillas de tipo eran cifras sueltas (`no son pulsables`) | filtran: pulsarla deja ese tipo, pulsarla otra vez lo quita (`alPulsarUnTipo`) |
+| la búsqueda miraba el JSON crudo de las palabras clave, así que «contiene» encontraba todos los chatbots | busca en el nombre y en las palabras de verdad (`lasPalabrasClave`, `pasaElFiltro`) |
+| con una búsqueda puesta se podía arrastrar una lista a la que le faltaban filas | el asa se apaga y dice por qué (`porQueNoSePuedeOrdenar`) |
+| «CREAR FLUJO» en mayúsculas en la barra, y el «⋯» decía «Mas Acciones», «Bienvenida» y «Quitar» | «Nuevo» (`BotonDeCrear`), «Más acciones», «Usar como bienvenida» y «Quitar bienvenida» |
+| los controles del lienzo en inglés («Zoom In», «Fit View») | en español (`ETIQUETAS_DEL_LIENZO_DEL_FLUJO`), como Diagramas |
+| en «Selecciona una acción», pasar el ratón por una fila a medio ver desplazaba la lista y el clic caía en la fila de al lado (pasaba también en Diagramas) | la lista solo se desplaza sola con el teclado o al buscar, nunca por el ratón (`porRaton`, en los dos `InlineAddNode`) |
+
+Cuatro cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara los tipos con
+   `TIPOS_DE_FLUJO`, el «⋯» de la tarjeta con `WorkflowAction.tsx`, la paleta
+   «Selecciona una acción» con `types/workflow-node.ts` grupo por grupo y en su
+   orden (`PALETA_DOCUMENTADA`), y los topes con `MAX_NODES_PER_WORKFLOW`,
+   `MAX_SEGUIMIENTOS_PER_WORKFLOW` y `MAX_MESSAGE_LENGTH`. Un paso nuevo en la
+   paleta sin su nombre en la guía la pone en rojo.
+2. **Eliminar un flujo pide confirmación con `GenericDeleteDialog`**, sin
+   teclear el nombre: `DeleteWorkflowDialog` existe y no lo usa nadie. Y el
+   «⋯» de un paso del editor solo tiene «Eliminar nodo».
+3. **En el vídeo, tras abrir el panel del «+» se espera a que acabe su
+   animación** (400 ms): un clic antes cae en la fila de al lado —se agregaba
+   Imagen donde se pidió Texto—.
+4. **Las capturas crean un flujo y lo editan**, así que antes del vídeo se
+   vuelve a sembrar; el vídeo crea uno de ejemplo y no borra nada.
+
+Lo prueba `scripts/banco-guia-flujos.sh`: el contenido y las reglas de la
+lista contra el código, el vídeo medido como el de Finanzas, las miniaturas en
+sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
+servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
+que las pastillas no filtraban y que la pantalla no exponía sus marcas.
+
+### La vigésima guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
 
 `/guia/etiquetas` documenta Contactos › Etiquetas (`/tags`) con el mismo
 estándar: diez secciones —vista general, el tablero, arrastrar, calificar con

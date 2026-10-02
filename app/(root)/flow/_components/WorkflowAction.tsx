@@ -68,6 +68,7 @@ export const WorkflowAction = ({
                     }),
                     "flex items-center gap-2"
                 )}
+                data-boton-editar
             >
                 <ShuffleIcon size={16} />
                 Editar
@@ -75,8 +76,8 @@ export const WorkflowAction = ({
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant={"outline"} size={"sm"} className="w-9 px-0">
-                        <TooltipWrapper content={"Mas Acciones"}>
+                    <Button variant={"outline"} size={"sm"} className="w-9 px-0" aria-label="Más acciones" data-mas-acciones>
+                        <TooltipWrapper content={"Más acciones"}>
                             <div className="flex items-center justify-center w-full h-full">
                                 <MoreVerticalIcon size={18} />
                             </div>
@@ -113,12 +114,12 @@ export const WorkflowAction = ({
                             {isWelcome ? (
                                 <>
                                     <XCircleIcon size={16} className="text-muted-foreground" />
-                                    Quitar
+                                    Quitar bienvenida
                                 </>
                             ) : (
                                 <>
                                     <HomeIcon size={16} className="text-green-600" />
-                                    Bienvenida
+                                    Usar como bienvenida
                                 </>
                             )}
                         </DropdownMenuItem>

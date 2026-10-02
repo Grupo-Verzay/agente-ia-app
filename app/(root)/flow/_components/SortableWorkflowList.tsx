@@ -29,6 +29,12 @@ interface SortableWorkflowListProps {
   userId: string;
   triggers?: IntentTrigger[];
   repeticiones?: Record<string, RepeticionesDeFlujo>;
+  /**
+   * Por qué no se puede arrastrar ahora (una búsqueda o un filtro puestos), o
+   * `null`. El orden se guarda con la posición de cada flujo: reordenar una
+   * lista a la que le faltan filas movería de sitio a las escondidas.
+   */
+  motivoSinOrdenar?: string | null;
 }
 
 interface SortableItemProps {
@@ -36,9 +42,10 @@ interface SortableItemProps {
   userId: string;
   trigger?: IntentTrigger | null;
   repeticiones?: RepeticionesDeFlujo;
+  motivoSinOrdenar?: string | null;
 }
 
-const SortableWorkflowItem = ({ workflow, userId, trigger, repeticiones }: SortableItemProps) => {
+const SortableWorkflowItem = ({ workflow, userId, trigger, repeticiones, motivoSinOrdenar }: SortableItemProps) => {
   const {
     attributes,
     listeners,
@@ -46,23 +53,27 @@ const SortableWorkflowItem = ({ workflow, userId, trigger, repeticiones }: Sorta
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: workflow.id });
+  } = useSortable({ id: workflow.id, disabled: !!motivoSinOrdenar });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
+      data-fila-de-flujo={workflow.id}
       className="flex items-center gap-1.5"
     >
       <div
-        className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+        data-asa-de-flujo
+        title={motivoSinOrdenar ?? 'Arrastrar para reordenar'}
+        className={motivoSinOrdenar
+          ? 'cursor-not-allowed rounded-md p-1.5 text-muted-foreground/40'
+          : 'cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted'}
         {...attributes}
         {...listeners}
       >
@@ -75,7 +86,7 @@ const SortableWorkflowItem = ({ workflow, userId, trigger, repeticiones }: Sorta
   );
 };
 
-export const SortableWorkflowList = ({ workflows, userId, triggers = [], repeticiones = {} }: SortableWorkflowListProps) => {
+export const SortableWorkflowList = ({ workflows, userId, triggers = [], repeticiones = {}, motivoSinOrdenar = null }: SortableWorkflowListProps) => {
   const [items, setItems] = useState<Workflow[]>(workflows);
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -85,7 +96,7 @@ export const SortableWorkflowList = ({ workflows, userId, triggers = [], repetic
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) {
+    if (!over || active.id === over.id || motivoSinOrdenar) {
       return;
     }
 
@@ -132,6 +143,7 @@ export const SortableWorkflowList = ({ workflows, userId, triggers = [], repetic
               userId={userId}
               trigger={triggers.find(t => t.workflowId === workflow.id) ?? null}
               repeticiones={repeticiones[workflow.id]}
+              motivoSinOrdenar={motivoSinOrdenar}
             />
           ))}
         </div>
