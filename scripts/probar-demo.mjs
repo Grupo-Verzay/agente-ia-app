@@ -68,17 +68,26 @@ try {
         exigir(poster === PORTADA_DEL_VIDEO_DE_VENTAS, `${tag}: el vídeo lleva su portada`);
         exigir(await p.$eval("[data-lo-que-es]", (e) => e.getBoundingClientRect().height > 0 && /plataforma real/.test(e.textContent)), `${tag}: dice qué es real y qué es recreación`);
 
-        const capacidades = await p.$$eval("[data-capacidad]", (els) => els.map((e) => ({ escena: e.getAttribute("data-capacidad"), alto: e.getBoundingClientRect().height, top: Math.round(e.getBoundingClientRect().top) })));
+        const capacidades = await p.$$eval("[data-capacidad]", (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { escena: e.getAttribute("data-capacidad"), alto: r.height, w: Math.round(r.width), top: Math.round(r.top), x: Math.round(r.left), fin: Math.round(r.right) }; }));
         exigir(
             JSON.stringify(capacidades.map((c) => c.escena)) === JSON.stringify(CAPACIDADES_DEL_VIDEO.map((c) => c.escena)),
             `${tag}: las ${CAPACIDADES_DEL_VIDEO.length} capacidades, en el orden del vídeo`,
         );
-        // Simetría: filas completas (dos filas de cuatro, o cuatro de dos) y las de una fila miden lo mismo.
+        // Simetría: filas completas, salvo la última —que va centrada—; todas las
+        // tarjetas del mismo ancho, y las de una fila del mismo alto.
         const porFila = new Map();
         for (const c of capacidades) porFila.set(c.top, [...(porFila.get(c.top) ?? []), c]);
         const filas = [...porFila.values()];
         const columnas = vista.width >= 640 ? 4 : 2;
-        exigir(filas.every((f) => f.length === columnas), `${tag}: ${filas.length} filas completas de ${columnas}`);
+        exigir(filas.slice(0, -1).every((f) => f.length === columnas) && filas.at(-1).length <= columnas, `${tag}: ${filas.length} filas de ${columnas}, completas salvo la última`);
+        exigir(capacidades.every((c) => Math.abs(c.w - capacidades[0].w) <= 1), `${tag}: todas las tarjetas miden lo mismo de ancho`);
+        {
+            const caja = await p.$eval("[data-capacidades]", (e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), fin: Math.round(r.right) }; });
+            const ult = filas.at(-1);
+            const izq = ult[0].x - caja.x;
+            const der = caja.fin - ult.at(-1).fin;
+            exigir(Math.abs(izq - der) <= 2, `${tag}: la última fila va centrada (${izq} / ${der})`);
+        }
         exigir(filas.every((f) => f.every((c) => Math.abs(c.alto - f[0].alto) < 1)), `${tag}: las tarjetas de una fila miden lo mismo`);
 
         const llamados = await p.$$eval('[data-llamados] [data-llamado]', (els) => els.map((a) => {
