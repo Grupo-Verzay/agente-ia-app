@@ -194,7 +194,11 @@ async function miniaturas(p) {
         return unir(...cajas);
     });
     await irA(p, "reminders");
-    await mini("recordatorios", () => caja(p, `${EL_CONTENIDO}`));
+    await mini("recordatorios", async () => {
+        const cajas = [];
+        for (let i = 0; i < 3; i += 1) cajas.push(await caja(p, p.locator(`${EL_CONTENIDO} [data-recordatorio]`).nth(i)));
+        return unir(...cajas);
+    });
     await irA(p, "form");
     await mini("formulario-y-registros", async () => {
         const cajas = [];
@@ -245,8 +249,8 @@ async function capturas(p) {
 
     // Las cifras.
     const cCifras = await caja(p, LAS_CIFRAS);
-    await marcar(p, [{ c: cCifras, texto: "Citas por estado", lado: "abajo" }]);
-    await guardar(p, "cifras.webp", holgura({ ...cCifras, x: cCifras.x - 260, w: cCifras.w + 260, h: cCifras.h + 60 }, 24, vista));
+    await marcar(p, [{ c: cCifras, texto: "Citas por estado", lado: "izquierda" }]);
+    await guardar(p, "cifras.webp", holgura({ ...cCifras, x: cCifras.x - 260, w: cCifras.w + 260 }, 24, vista));
     await desmarcar(p);
 
     // 2. El calendario: Día.
@@ -256,8 +260,8 @@ async function capturas(p) {
     await marcar(p, [
         { c: await caja(p, p.locator(".fc-agendaToggle-button")), n: 1 },
         { c: await caja(p, p.locator(".fc-today-button")), n: 2 },
-        { c: cManana, texto: "Mañana", lado: "abajo", sinRecuadro: true },
-        { c: cTarde, texto: "Tarde", lado: "abajo", sinRecuadro: true },
+        // Sin rótulo para las columnas: ya dicen MAÑANA y TARDE, y debajo no
+        // queda pantalla donde ponerlo (el rótulo salía cortado).
     ]);
     await guardar(p, "calendario-dia.webp", holgura(unir(cDia, cManana, cTarde), 16, vista));
     await desmarcar(p);
@@ -463,7 +467,17 @@ async function capturas(p) {
     await marcar(p, [
         { c: await caja(p, p.locator(`${EL_CONTENIDO} [data-barra-de-acciones] input`).first()), n: 1 },
         { c: await caja(p, nuevoRecordatorio), n: 2, esquina: "derecha" },
-        { c: await caja(p, p.getByText("3 horas antes", { exact: true }).first()), texto: "Cuándo sale", lado: "derecha" },
+        // Solo el texto: el `span` se estira hasta los mandos de la derecha.
+        {
+            c: await p.getByText("3 horas antes", { exact: true }).first().evaluate((el) => {
+                const r = document.createRange();
+                r.selectNodeContents(el);
+                const b = r.getBoundingClientRect();
+                return { x: b.x - 22, y: b.y - 2, w: b.width + 26, h: b.height + 4 };
+            }),
+            texto: "Cuándo sale",
+            lado: "derecha",
+        },
     ]);
     await guardar(p, "recordatorios.webp");
     await desmarcar(p);

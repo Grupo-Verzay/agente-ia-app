@@ -114,7 +114,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
 
     return (
         <>
-            <Card className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+            <Card data-recordatorio className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
                 {compact ? (
                     <CardContent className="flex flex-col gap-1 p-2.5">
                         <div className="flex items-center gap-2">

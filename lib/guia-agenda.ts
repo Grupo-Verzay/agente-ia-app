@@ -128,7 +128,7 @@ export const GUIA_AGENDA: Contenido = {
                     alt: "La barra de arriba con cada botón numerado",
                 },
                 {
-                    titulo: "Las pestañas",
+                    titulo: "Las pestañas de Agenda",
                     texto:
                         "1 Dashboard · 2 Disponibilidad · 3 Kanban · 4 Servicios · 5 Recordatorios · 6 Formulario · " +
                         "7 Registros · 8 Ajustes.",
@@ -428,8 +428,8 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Los registros",
                     texto:
-                        "Registros guarda cada respuesta con el nombre, el número y la cita. Arriba ves el total, " +
-                        "los sincronizados, los pendientes y los de esta semana.",
+                        "Registros guarda cada respuesta con el nombre, el número y la cita. Arriba ves Total registros, " +
+                        "Sincronizados, Pendientes y Esta semana.",
                     imagen: "registros.webp",
                     alt: "La pestaña Registros con las respuestas recibidas",
                 },
@@ -457,7 +457,7 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "La reunión",
                     texto:
-                        "Duración de la reunión es lo que dura cada cita. El enlace de reunión virtual es el de tu " +
+                        "Duración de la reunión es lo que dura cada cita. Enlace de reunión virtual es el de tu " +
                         "Zoom o Google Meet, que se le envía al cliente.",
                     imagen: "ajustes-reunion.webp",
                     alt: "La tarjeta Configuración de Reunión",

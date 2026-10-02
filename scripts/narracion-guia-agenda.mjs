@@ -33,7 +33,7 @@ export const NARRACION = {
     },
     disponibilidad: {
         rotulo: "Disponibilidad: en qué horarios atiendes",
-        texto: "En Disponibilidad defines en qué horarios atiendes cada día, con uno o varios periodos.",
+        texto: "En Disponibilidad pones los horarios en que atiendes cada día, con uno o varios periodos.",
     },
     enlace: {
         rotulo: "Tu enlace público de reserva",
