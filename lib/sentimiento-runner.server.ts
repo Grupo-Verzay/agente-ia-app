@@ -157,6 +157,10 @@ export async function analizarUnaConversacion(
         const antes = await reclamarElAnalisis(p);
         if (!antes) return { resultado: "ocupado", tokens: 0 };
         reclamado = true;
+        // Lo que se conserva cuando no hay nada nuevo que decir. Un «molesto»
+        // de la calibración vieja (`recalibrando`) NO se conserva: era justo
+        // lo que estaba mal, y quedaría sellado con la versión nueva.
+        const loDeAntes: Sentimiento = antes.recalibrando ? "neutro" : antes.sentimiento ?? "neutro";
         const mensajes = await losMensajesDeContexto(p, MENSAJES_DE_CONTEXTO);
         const texto = elTextoParaAnalizar(mensajes);
 
@@ -166,7 +170,7 @@ export async function analizarUnaConversacion(
             // Sin texto del cliente (un audio sin transcribir, una imagen) no
             // hay nada que juzgar: se da por leído, se conserva lo que había y
             // no se le pregunta nada a la IA, así que no se cobra nada.
-            ahora = antes.sentimiento ?? "neutro";
+            ahora = loDeAntes;
         } else {
             let respuesta: Awaited<ReturnType<Analizador>>;
             try {
@@ -175,7 +179,7 @@ export async function analizarUnaConversacion(
                 if (error instanceof SinIa) {
                     // Una cuenta sin IA configurada: no se reintenta en bucle.
                     // Se da por leído conservando lo que había. Sin IA no hubo uso.
-                    await guardarElAnalisis(p, antes, antes.sentimiento ?? "neutro");
+                    await guardarElAnalisis(p, antes, loDeAntes);
                     return { resultado: "sin_ia", tokens: 0 };
                 }
                 throw error;
@@ -203,7 +207,7 @@ export async function analizarUnaConversacion(
             console.warn("[sentimiento] la IA contestó algo que no es un sentimiento", {
                 linea: p.instanceName,
             });
-            ahora = antes.sentimiento ?? "neutro";
+            ahora = loDeAntes;
         }
         const { cayo } = await guardarElAnalisis(p, antes, ahora);
         return { resultado: cayo ? "cayo" : "analizado", tokens };

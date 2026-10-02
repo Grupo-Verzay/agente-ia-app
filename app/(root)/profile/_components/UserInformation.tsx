@@ -47,6 +47,7 @@ import { NotificationContactsManager } from "./NotificationContactsManager";
 import { OperatorContactsManager } from "./OperatorContactsManager";
 import { EscaladoCard } from "./EscaladoCard";
 import { EncuestaSatisfaccionCard } from "./EncuestaSatisfaccionCard";
+import { SentimientoCard } from "./SentimientoCard";
 import { OwnerModeToggle } from "./OwnerModeToggle";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
@@ -171,7 +172,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, wahaInstances, hayServidorWaha, puedeVolverAEvolution, autoOpenApiKey, autoSetup, readOnly = false }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, wahaInstances, hayServidorWaha, puedeVolverAEvolution, autoOpenApiKey, autoSetup, readOnly = false, esElDueno = false }: UserInformationProps) => {
     const reseller = useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -894,6 +895,17 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     <EncuestaSatisfaccionCard readOnly={readOnly} />
                                 </CardContent>
                             </Card>
+
+                            {/* Análisis de sentimiento: SOLO el dueño. Juzga a
+                                los clientes y gasta créditos de la cuenta. */}
+                            {esElDueno && (<>
+                            <SectionTitle>Análisis de sentimiento</SectionTitle>
+                            <Card className="border-border">
+                                <CardContent className="pt-4">
+                                    <SentimientoCard />
+                                </CardContent>
+                            </Card>
+                            </>)}
 
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">

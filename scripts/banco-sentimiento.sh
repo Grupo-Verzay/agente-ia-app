@@ -17,6 +17,8 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 export MODO="${MODO:-bueno}"
 export ANTES_REF="${ANTES_REF:-aecdcef}"
+# El «antes» de la calibración y del interruptor (pinchado, no origin/main).
+export ANTES_DE_CALIBRAR="${ANTES_DE_CALIBRAR:-2114b64}"
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
@@ -29,6 +31,10 @@ mkdir -p "$OUT"
 # 1. Las reglas puras
 npx esbuild lib/sentimiento.ts --bundle --platform=node --format=esm \
   --outdir="$OUT" --log-level=error
+mkdir -p "$OUT/antes"
+git show "$ANTES_DE_CALIBRAR:lib/sentimiento.ts" > "$OUT/antes/sentimiento.ts"
+npx esbuild "$OUT/antes/sentimiento.ts" --bundle --platform=node --format=esm \
+  --outfile="$OUT/antes/sentimiento.js" --log-level=error
 
 # 3. El análisis contra Postgres
 PGDIR=/tmp/pgsentimiento
@@ -65,4 +71,5 @@ npx esbuild lib/__tests__/fingido/entrada-de-la-franja.tsx --bundle \
   --format=iife --outfile="$OUT/harness-franja.js" --jsx=automatic \
   --define:process.env.NODE_ENV='"production"' --log-level=error
 
-node --test lib/__tests__/sentimiento.test.mjs "$@"
+# En serie y en este orden: el primero crea las tablas del chat que el segundo usa.
+node --test --test-concurrency=1 lib/__tests__/sentimiento.test.mjs lib/__tests__/sentimiento-calibracion.test.mjs "$@"
