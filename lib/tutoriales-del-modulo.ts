@@ -28,6 +28,7 @@ import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
+import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
@@ -272,6 +273,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/profile",
         contenido: GUIA_CONEXION,
         tarjeta: "Aprende a conectar tus canales y ajustar tu cuenta en la plataforma",
+    },
+    {
+        modulo: "chats",
+        ruta: "/chats",
+        contenido: GUIA_CHATS,
+        tarjeta: "Aprende a atender todas tus conversaciones de WhatsApp en la plataforma",
     },
 ];
 

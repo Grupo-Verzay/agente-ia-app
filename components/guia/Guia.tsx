@@ -73,6 +73,8 @@ import {
     Wallet,
     Phone,
     CalendarClock,
+    PanelTop,
+    Contact,
     Zap,
     List,
     Kanban,
@@ -165,6 +167,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     List,
     Kanban,
     CalendarClock,
+    PanelTop,
+    Contact,
 };
 
 /**
