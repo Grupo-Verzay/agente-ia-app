@@ -340,7 +340,7 @@ export const CustomCalendar = ({
     return (
         <>
             {/* FullCalendar - toolbar siempre visible */}
-            <div ref={calendarWrapRef}>
+            <div ref={calendarWrapRef} data-calendario-de-agenda>
                 <FullCalendar
                     ref={calendarRef}
                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -424,7 +424,7 @@ export const CustomCalendar = ({
                     style={{ height: agendaPanelHeight ? `${agendaPanelHeight}px` : 'calc(100vh - 230px)' }}
                 >
                     {/* Mañana */}
-                    <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                    <div data-columna-del-dia="manana" className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Mañana
                         </p>
@@ -445,7 +445,7 @@ export const CustomCalendar = ({
                     </div>
 
                     {/* Tarde */}
-                    <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                    <div data-columna-del-dia="tarde" className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Tarde
                         </p>
@@ -466,7 +466,7 @@ export const CustomCalendar = ({
                     </div>
 
                     {nightAppts.length > 0 && (
-                        <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                        <div data-columna-del-dia="noche" className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                                 Noche
                             </p>
@@ -496,7 +496,7 @@ export const CustomCalendar = ({
                     }
                 }}
             >
-                <AlertDialogContent className="border-border">
+                <AlertDialogContent className="border-border" data-ficha-de-la-cita>
                     <Tabs defaultValue="details">
                         <div className="flex justify-between flex-row w-full items-center">
                             <TabsList>
@@ -513,8 +513,8 @@ export const CustomCalendar = ({
                             <Card className="border-border min-h-[10rem]">
                                 <CardHeader>
                                     <CardDescription>
-                                        Estas por modificar el estado de la cita:
-                                        <span className="text-muted-foreground">
+                                        Estás por modificar el estado de la cita de{" "}
+                                        <span className="font-medium text-foreground">
                                             {selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "Cliente desconocido"}
                                         </span>
                                     </CardDescription>
@@ -572,7 +572,7 @@ export const CustomCalendar = ({
                         <TabsContent value="details">
                             <Card className="border-border">
                                 <CardHeader>
-                                    <CardTitle className="text-lg font-medium">Detalles de la Cita</CardTitle>
+                                    <CardTitle className="text-lg font-medium">Detalles de la cita</CardTitle>
                                 </CardHeader>
                                 {currentAppointment &&
                                     <CardContent>
@@ -588,7 +588,7 @@ export const CustomCalendar = ({
                                                 )}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
-                                                <strong className="uppercase font-medium">Telefono:</strong>
+                                                <strong className="uppercase font-medium">Teléfono:</strong>
                                                 <span className="whitespace-nowrap">{fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}</span>
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
@@ -627,7 +627,7 @@ export const CustomCalendar = ({
                                                 {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "HH:mm")} - {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, "HH:mm")}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
-                                                <strong className="uppercase font-medium">Zona Horaria:</strong>
+                                                <strong className="uppercase font-medium">Zona horaria:</strong>
                                                 {currentAppointment.timezone || "No especificada"}
                                             </div>
                                         </div>
@@ -661,9 +661,9 @@ export const CustomCalendar = ({
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Estas seguro de que quieres eliminar la cita de{" "}
+                            ¿Estás seguro de que quieres eliminar la cita de{" "}
                             <strong>{selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "este cliente"}</strong>?
-                            Esta accion no se puede deshacer.
+                            Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">
@@ -684,7 +684,7 @@ export const CustomCalendar = ({
                                 }
                             }}
                         >
-                            Si, eliminar
+                            Sí, eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -693,14 +693,14 @@ export const CustomCalendar = ({
             <AlertDialog open={openCancelAlert} onOpenChange={setOpenCancelAlert}>
                 <AlertDialogContent className="border-border">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar cancelacion</AlertDialogTitle>
+                        <AlertDialogTitle>Confirmar cancelación</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminaran todos los recordatorios/seguimientos del agendamiento asociados.
+                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarán los recordatorios y seguimientos de esta cita.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel>Volver</AlertDialogCancel>
 
                         <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -712,7 +712,7 @@ export const CustomCalendar = ({
                                 setOpenDialog(false);
                             }}
                         >
-                            Eliminar
+                            Sí, cancelar la cita
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -219,6 +219,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
               {filtered.map(({ row, num }) => (
                 <div
                   key={row.id}
+                  data-registro-de-reserva={row.id}
                   className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
                 >
                   {/* Ícono de estado de sync */}

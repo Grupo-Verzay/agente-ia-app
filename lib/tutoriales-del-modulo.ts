@@ -27,6 +27,7 @@ import { GUIA_INTEGRACIONES } from "@/lib/guia-integraciones";
 import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
+import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
@@ -223,6 +224,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/dashboard/finance",
         contenido: GUIA_FINANZAS,
         tarjeta: "Aprende a registrar ventas y gastos y ver tu balance en la plataforma",
+    },
+    {
+        modulo: "agenda",
+        ruta: "/schedule",
+        contenido: GUIA_AGENDA,
+        tarjeta: "Aprende a gestionar tus citas y tu agenda en la plataforma",
     },
 ];
 
