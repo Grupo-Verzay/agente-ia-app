@@ -74,7 +74,7 @@ export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }:
         >
           {value
             ? getVal(value)
-            : "Seleccione un lead..."}
+            : "Selecciona un lead..."}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>

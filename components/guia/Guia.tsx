@@ -71,6 +71,9 @@ import {
     Video,
     Wallet,
     Zap,
+    List,
+    Kanban,
+    CalendarClock,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -156,6 +159,9 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     CalendarRange,
     Truck,
     Wallet,
+    List,
+    Kanban,
+    CalendarClock,
 };
 
 export function IconoDeSeccion({ nombre, className }: { nombre: Seccion["icono"]; className?: string }) {

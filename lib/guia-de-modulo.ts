@@ -90,6 +90,9 @@ export const ICONOS_DE_SECCION = [
     "CalendarRange",
     "Truck",
     "Wallet",
+    "List",
+    "Kanban",
+    "CalendarClock",
 ] as const;
 
 export type Seccion = {
