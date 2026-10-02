@@ -45,7 +45,7 @@ export const SelectWorkflowBox = ({ workflows, onSelect, initialValue }: Props) 
                     <span className="min-w-0 truncate">
                         {value
                             ? workflows.find((w) => w.id === value)?.name?.toUpperCase()
-                            : "Seleccione workflow..."}
+                            : "Selecciona un flujo..."}
                     </span>
                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -60,10 +60,12 @@ export const SelectWorkflowBox = ({ workflows, onSelect, initialValue }: Props) 
                                 return (
                                     <CommandItem
                                         key={workflow.id}
-                                        value={workflow.id}
+                                        // cmdk busca por `value`: con el id a secas, escribir el
+                                        // NOMBRE del flujo en «Buscar flujo...» no encontraba nada.
+                                        value={`${workflow.name} ${workflow.id}`}
                                         className="min-h-[48px]"
-                                        onSelect={(currentValue) => {
-                                            setValue(currentValue === value ? "" : currentValue)
+                                        onSelect={() => {
+                                            setValue(workflow.id === value ? "" : workflow.id)
                                             onSelect(workflow)
                                             setOpen(false)
                                         }}

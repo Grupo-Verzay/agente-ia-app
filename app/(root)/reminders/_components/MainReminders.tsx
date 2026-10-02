@@ -176,7 +176,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
           <div className="flex shrink-0 flex-col gap-2">
             {!isScheduleView && (
               <div className="flex items-center justify-between gap-2">
-              <div className="flex w-fit gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+              <div className="flex w-fit gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto" data-zona="vista">
                 <button
                   type="button"
                   onClick={() => setView('list')}
@@ -192,6 +192,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                   <Kanban className="h-3.5 w-3.5" /> Kanban
                 </button>
               </div>
+              <div data-zona="cifras">
               <PastillasDeMetricas
                 metricas={[
                   { clave: 'pending', icono: <Bell />, etiqueta: 'Pendientes', valor: reminderMetrics.pending, color: '#F59E0B', ayuda: isCampaignPage ? 'Campañas pendientes por enviar' : 'Recordatorios pendientes por enviar' },
@@ -200,6 +201,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                   { clave: 'expired', icono: <AlertTriangle />, etiqueta: 'Vencidos', valor: reminderMetrics.expired, color: '#EF4444', ayuda: isCampaignPage ? 'Campañas vencidas sin enviar' : 'Recordatorios vencidos sin enviar' },
                 ]}
               />
+              </div>
               </div>
             )}
 
@@ -262,10 +264,11 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
             </div>
           )
         ) : view === 'kanban' ? (
-          <div className="flex h-full min-h-0 gap-3 overflow-x-auto pb-3">
+          <div className="flex h-full min-h-0 gap-3 overflow-x-auto pb-3" data-zona="kanban">
             {kanbanColumns.map((column) => (
               <div
                 key={column.key}
+                data-columna={column.key}
                 className="flex h-full w-[260px] min-w-[260px] shrink-0 flex-col overflow-hidden rounded-xl border-2 shadow-sm"
                 style={{ borderColor: `${column.color}52`, backgroundColor: `${column.color}0A` }}
               >
@@ -281,13 +284,15 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                       className="text-white/70 hover:text-white transition-colors"
                       onClick={() => setAutomationsOpen(column.key)}
                       title="Configurar automatizaciones"
+                      aria-label={`Configurar automatizaciones de ${column.label}`}
+                      data-boton="automatizaciones"
                     >
                       <Settings2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
                 <Sheet open={automationsOpen === column.key} onOpenChange={(v) => !v && setAutomationsOpen(null)}>
-                  <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                  <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto" data-automatizaciones-del-grupo={column.key}>
                     <SheetHeader>
                       <SheetTitle>Automatizaciones · {column.label}</SheetTitle>
                     </SheetHeader>
@@ -316,7 +321,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 p-2">
+          <div className="grid grid-cols-1 gap-2 p-2" data-zona="lista">
             <Suspense fallback={<ReminderSkeleton />}>
               <ReminderListClient
                 filteredReminders={filteredReminders}

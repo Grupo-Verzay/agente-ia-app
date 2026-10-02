@@ -100,6 +100,9 @@ export function DateTimePicker({
                 <PopoverContent side="top" align="start" className="w-auto p-0">
                     <Calendar
                         mode="single"
+                        // En español: sin `locale` el calendario salía en inglés
+                        // («October 2026», «Su Mo Tu…») y empezaba en domingo.
+                        locale={es}
                         selected={date}
                         onSelect={(d) => d && updateDateTime(d)}
                     />
