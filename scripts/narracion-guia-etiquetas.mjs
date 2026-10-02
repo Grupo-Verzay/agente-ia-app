@@ -51,7 +51,7 @@ export const NARRACION = {
     },
     crear: {
         rotulo: "Crea una etiqueta con su color",
-        texto: "En Gestionar creas tus etiquetas: pulsas Nuevo, le pones nombre, eliges un color y la guardas.",
+        texto: "En Gestionar creas tus etiquetas: pulsas Nuevo, le pones un nombre y un color, y la guardas.",
     },
     editar: {
         rotulo: "Edítala sin perder sus contactos",

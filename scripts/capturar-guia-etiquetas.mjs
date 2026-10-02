@@ -97,6 +97,23 @@ async function abrirElTablero(p) {
     await despejar(p);
     // Los botones del borde tapan la última columna del tablero.
     await esconderLosBotonesDelBorde(p);
+    await queNadaSalgaRecortado(p);
+}
+
+/**
+ * Un nombre o un número que no cabe sale con «…» en la captura, y la guía
+ * enseñaría un contacto que no se sabe quién es. Pasó: con el puntaje y la
+ * hora en la misma fila, el nombre quedaba en «Ca…». Se mira en las tarjetas.
+ */
+async function queNadaSalgaRecortado(p) {
+    const recortados = await p.evaluate((sel) => {
+        const fuera = [];
+        for (const el of document.querySelectorAll(`${sel} [data-tarjeta-del-tablero] .truncate`)) {
+            if (el.scrollWidth > el.clientWidth + 1) fuera.push(el.textContent || "");
+        }
+        return fuera;
+    }, EL_TABLERO);
+    if (recortados.length) throw new Error(`[guia] sale recortado con «…»: ${recortados.join(" · ")}`);
 }
 
 const laVista = (p, nombre) => p.locator('[data-zona="vista"] button', { hasText: nombre }).first();
@@ -237,13 +254,29 @@ async function miniaturas(p) {
             await espera(p, 400);
         },
     );
-    await mini("editar-etiqueta", () => caja(p, laEtiqueta(p, "COTIZADO").getByRole("button", { name: "Editar COTIZADO" })));
+    await mini("editar-etiqueta", () => caja(p, laEtiqueta(p, "COTIZADO")));
     await mini("ordenar-etiquetas", async () => {
         const asas = [];
         for (const n of ["NUEVO", "INTERESADO", "COTIZADO", "CLIENTE"]) asas.push(await caja(p, laEtiqueta(p, n).locator('[data-zona="asa"]')));
         return unir(...asas);
     });
-    await mini("eliminar-etiqueta", () => caja(p, laEtiqueta(p, "SOPORTE").getByRole("button", { name: "Eliminar SOPORTE" })));
+    // La ventana de eliminar, y no la papelera sola: la papelera es un icono de
+    // 32 px al final de la fila, y la miniatura salía casi vacía. Se CANCELA.
+    await mini(
+        "eliminar-etiqueta",
+        async () => {
+            await laEtiqueta(p, "SOPORTE").getByRole("button", { name: "Eliminar SOPORTE" }).click();
+            const ventana = p.locator('[role="alertdialog"], [role="dialog"]').last();
+            await ventana.waitFor({ state: "visible", timeout: 10000 });
+            await espera(p, 500);
+            return caja(p, ventana);
+        },
+        async () => {
+            const cancelar = p.locator('[role="alertdialog"]:visible').getByRole("button", { name: "Cancelar" });
+            if (await cancelar.count()) await cancelar.first().click();
+            await espera(p, 400);
+        },
+    );
     await aKanban(p);
 
     await desmarcar(p);
@@ -339,8 +372,10 @@ async function capturas(p) {
         p,
         [
             { c: cCasilla, n: 1, numeroEn: { x: izquierda, y: cCasilla.y + cCasilla.h / 2 } },
-            { c: cContacto, n: 2, numeroEn: { x: cContacto.x + cContacto.w / 2, y: cTarjeta.y - 18 } },
-            { c: cPuntaje, n: 3, numeroEn: { x: cPuntaje.x + cPuntaje.w / 2, y: cTarjeta.y - 18 } },
+            // El nombre ocupa su fila entera y el puntaje abre la de debajo:
+            // cada número va en el margen, a la altura de su parte.
+            { c: cContacto, n: 2, numeroEn: { x: derecha, y: cContacto.y + cContacto.h / 2 } },
+            { c: cPuntaje, n: 3, numeroEn: { x: izquierda, y: cPuntaje.y + cPuntaje.h / 2 } },
             { c: cPuntuar, n: 4, numeroEn: { x: derecha, y: cPuntuar.y + cPuntuar.h / 2 } },
             { c: cMotivo, n: 5, numeroEn: { x: derecha, y: cMotivo.y + cMotivo.h / 2 } },
             { c: cEstado, n: 6, numeroEn: { x: izquierda, y: cEstado.y + cEstado.h / 2 } },
@@ -738,10 +773,10 @@ async function video(navegador, estado) {
     await alDecir("pulsas Nuevo");
     await pulsar(p, EL_NUEVO(p));
     await fila.waitFor({ state: "visible", timeout: 10000 });
-    await alDecir("le pones nombre", 150);
+    await alDecir("le pones un nombre", 150);
     await pulsar(p, fila.locator('input[aria-label="Nombre de la etiqueta"]'));
     await fila.locator('input[aria-label="Nombre de la etiqueta"]').pressSequentially("vip", { delay: 120 });
-    await alDecir("eliges un color", 150);
+    await alDecir("y un color", 150);
     await pulsar(p, fila.locator('button[aria-label="Color #F59E0B"]'));
     await alDecir("y la guardas");
     await pulsar(p, fila.getByRole("button", { name: "Guardar" }));

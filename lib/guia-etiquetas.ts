@@ -44,7 +44,7 @@ export const RANGOS_DOCUMENTADOS = [
 /** Las partes de la barra de trabajo, con su `data-zona` (`TagsPageClient.tsx`). */
 export const PARTES_DE_LA_BARRA_DE_TRABAJO = [
     { nombre: "Kanban y Gestionar", zona: "vista" },
-    { nombre: "Las etiquetas más usadas", zona: "mas-usadas" },
+    { nombre: "Las etiquetas con más contactos", zona: "mas-usadas" },
     { nombre: "El filtro por puntaje", zona: "filtro-de-puntaje" },
     { nombre: "Acciones masivas", zona: "acciones" },
 ] as const;

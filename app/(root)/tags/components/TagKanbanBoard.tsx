@@ -139,8 +139,9 @@ function TagKanbanCardItem({
             selected ? 'border-primary ring-1 ring-primary/40 bg-primary/5' : 'border-border',
             isDragging && 'opacity-80 shadow-lg rotate-1 scale-105',
         )}>
-            <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+            {/* El nombre va solo en su fila: con el puntaje y la hora al lado se
+                recortaba a dos letras («Ca…»). Lo de medir va debajo. */}
+            <div className="flex items-center gap-2 min-w-0">
                     {onToggleSelect ? (
                         // pointerDown detenido: si no, dnd-kit arranca el arrastre y la
                         // casilla nunca llega a recibir el clic.
@@ -164,7 +165,7 @@ function TagKanbanCardItem({
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
-                    <div data-zona="contacto" className="min-w-0">
+                    <div data-zona="contacto" className="min-w-0 flex-1">
                         <p className="app-item-title truncate leading-tight">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
@@ -174,38 +175,37 @@ function TagKanbanCardItem({
                             {fmtPhone(card.remoteJid)}
                         </Link>
                     </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                    {card.leadScore !== null && card.leadScore !== undefined && (
-                        <ScoreBadge score={card.leadScore} />
-                    )}
-                    {card.pendingFollowUps > 0 && (
-                        <div className="flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded px-1 py-0.5">
-                            <Bell className="h-2.5 w-2.5" />
-                            {card.pendingFollowUps}
-                        </div>
-                    )}
-                    {ago && (
-                        <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <Clock className="h-2.5 w-2.5" />
-                            {ago}
-                        </div>
-                    )}
-                    {onScore && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onScore(card.id); }}
-                            disabled={scoring}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            data-zona="puntuar"
-                            className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
-                            title={card.leadScore !== null ? 'Volver a calificar con IA' : 'Calificar con IA'}
-                            aria-label={card.leadScore !== null ? `Volver a calificar a ${card.pushName} con IA` : `Calificar a ${card.pushName} con IA`}
-                        >
-                            {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                        </button>
-                    )}
-                </div>
+            </div>
+            <div data-zona="medidas" className="flex items-center gap-1 pl-6">
+                {card.leadScore !== null && card.leadScore !== undefined && (
+                    <ScoreBadge score={card.leadScore} />
+                )}
+                {card.pendingFollowUps > 0 && (
+                    <div className="flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded px-1 py-0.5">
+                        <Bell className="h-2.5 w-2.5" />
+                        {card.pendingFollowUps}
+                    </div>
+                )}
+                {ago && (
+                    <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                        <Clock className="h-2.5 w-2.5" />
+                        {ago}
+                    </div>
+                )}
+                {onScore && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onScore(card.id); }}
+                        disabled={scoring}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        data-zona="puntuar"
+                        className="ml-auto flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+                        title={card.leadScore !== null ? 'Volver a calificar con IA' : 'Calificar con IA'}
+                        aria-label={card.leadScore !== null ? `Volver a calificar a ${card.pushName} con IA` : `Calificar a ${card.pushName} con IA`}
+                    >
+                        {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    </button>
+                )}
             </div>
 
             {card.leadScoreReason && card.leadScore !== null && (
