@@ -16,8 +16,10 @@ import { ElementMenu } from "./ElementMenu";
 import { TituloDelElemento } from "./TituloDelElemento";
 
 /**
- * «Transición» — MAQUETA, todavía sin lógica: elegir un paso no se guarda ni
- * cambia el recorrido del agente. Hoy solo se pinta en `/ia/maqueta`.
+ * «Agregar transición»: a qué paso se pasa cuando este tenga sus datos. Se
+ * guarda en el elemento (`fn: "transicion"`) y la línea ➡️ TRANSICIÓN la
+ * escribe en el prompt `lib/casos-y-transicion-del-paso`. Sin destino, pasa
+ * al paso siguiente. La pintan el editor de verdad y la maqueta.
  *
  * Un solo campo: a qué paso se pasa cuando este tenga sus datos. La lista son
  * los pasos ya creados, por nombre, sin el propio (`pasosParaLaTransicion`).
@@ -47,6 +49,9 @@ export const TransicionCard: FC<{
                     ))}
                 </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground" data-ayuda-transicion>
+                {CAMPO_DE_LA_TRANSICION.ayuda}
+            </p>
         </CardContent>
     </Card>
 );

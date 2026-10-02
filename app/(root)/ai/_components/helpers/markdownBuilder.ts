@@ -1,5 +1,6 @@
 import { AnyElement, BuildCfg, DraftLike, flowBehaviorText, FnCommon, notifyPrompt, Step } from "@/types/agentAi";
 import { envolverLaNotaInterna } from "@/lib/nota-interna-de-paso";
+import { lineasDelPaso } from "@/lib/casos-y-transicion-del-paso";
 
 // Helper genérico para construir markdown de Steps (Extras, FAQ, Products, Training)
 const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix">> & { sectionPrefix: string } = {
@@ -211,9 +212,11 @@ export function buildSectionedMarkdown(
             const els = s.elements ?? [];
             if (els.length > 0) {
                 body.push(`#### ${resolveElementsLabel(n)}`);
-                els.forEach((el, idx) => {
-                    body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
-                });
+                // Los casos (una tabla) y la transición (al final) los escribe
+                // `lib/casos-y-transicion-del-paso`, el mismo que usa el otro
+                // constructor.
+                body.push(...lineasDelPaso(els, steps, idx, (el, k) =>
+                    renderElement(el as AnyElement, flowBehaviorText, k)));
             }
             return [head, ...body].filter(Boolean).join("\n\n");
         }
@@ -231,9 +234,11 @@ export function buildSectionedMarkdown(
             const mgmtEls = s.elements ?? [];
             if (mgmtEls.length > 0) {
                 body.push(`#### ${resolveElementsLabel(n)}`);
-                mgmtEls.forEach((el, idx) => {
-                    body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
-                });
+                // Los casos (una tabla) y la transición (al final) los escribe
+                // `lib/casos-y-transicion-del-paso`, el mismo que usa el otro
+                // constructor.
+                body.push(...lineasDelPaso(mgmtEls, steps, idx, (el, k) =>
+                    renderElement(el as AnyElement, flowBehaviorText, k)));
             }
             return [head, ...body.filter(Boolean)].join("\n\n");
         }
@@ -249,9 +254,8 @@ export function buildSectionedMarkdown(
         const els = s.elements ?? [];
         if (els.length > 0) {
             body.push(`#### ${resolveElementsLabel(n)}`);
-            els.forEach((el, idx) => {
-                body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
-            });
+            body.push(...lineasDelPaso(els, steps, idx, (el, k) =>
+                renderElement(el as AnyElement, flowBehaviorText, k)));
         }
         return [head, ...body.filter(Boolean)].join("\n\n");
     });

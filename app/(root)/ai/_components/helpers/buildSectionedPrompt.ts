@@ -1,6 +1,7 @@
 import { AnyEl, AnyStep, flowBehaviorText as initialFlowBehaviorText, notifyPrompt, PromptBuildConfig } from "@/types/agentAi";
 import { variablesDelPaso, variablesParaLaTabla } from "@/lib/variables-del-paso";
 import { envolverLaNotaInterna } from "@/lib/nota-interna-de-paso";
+import { escribeCasosOTransicion, lineasDelPaso } from "@/lib/casos-y-transicion-del-paso";
 
 export const transformSubtype = (subtype?: string): string | undefined => {
     const transformMap: Record<string, string> = {
@@ -343,17 +344,15 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
                 return !!trimOrUndefined(el.text);
             }
             return false;
-        });
+        }) || escribeCasosOTransicion(els, items, i);
 
         if (hasActions || cfg.mode === "management") {
             if (cfg.mode !== "management") {
                 blocks.push(`${cfg.elementsLabel(n, step)}`);
             }
 
-            els.forEach((el, idx) => {
-                const k = idx + 1;
-                blocks.push(...formatElement(el, k, flowBehaviorText, cfg));
-            });
+            blocks.push(...lineasDelPaso(els, items, i, (el, k) =>
+                formatElement(el, k, flowBehaviorText, cfg)));
 
             blocks.push("---");
         }
