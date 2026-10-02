@@ -283,7 +283,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             )}
           </div>
           <nav className="hidden items-center gap-7 sm:flex">
-            {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+            {[["#how","Cómo funciona"],["#features","Funciones"],["/tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
               .filter(([href]) => href !== "#pricing" || showPricing)
               .map(([href,label]) => (
               <a key={href} href={href} className="text-sm text-slate-400 transition-colors hover:text-white">{label}</a>
@@ -305,7 +305,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
         </div>
         {mobileMenuOpen && (
           <div className="space-y-3 border-t border-white/10 px-4 py-3 sm:hidden">
-            {[["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]]
+            {[["#features","Funciones"],["/tutoriales","Tutoriales"],["#pricing","Precios"],["#faq","FAQ"]]
               .filter(([href]) => href !== "#pricing" || showPricing)
               .map(([href,label]) => (
               <a key={href} href={href} className="block text-sm text-slate-300" onClick={() => setMobileMenuOpen(false)}>{label}</a>
@@ -856,6 +856,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
+            <Link href="/tutoriales" className="transition-colors hover:text-slate-300">Tutoriales</Link>
             {showPricing && <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>}
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             <Link href="/documentacion" className="transition-colors hover:text-slate-300">Documentación</Link>

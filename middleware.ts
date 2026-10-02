@@ -195,7 +195,12 @@ export default auth((req) => {
     // `lib/video-de-ventas.ts` y de `public/demo/`— y no se indexa (metadata y
     // `X-Robots-Tag`).
     currentPath === "/demo" ||
-    currentPath.startsWith("/demo/");
+    currentPath.startsWith("/demo/") ||
+    // Tutoriales públicos (/tutoriales): «Tutoriales» del menú de la landing.
+    // Es el centro de ayuda del panel con otra puerta, para quien todavía no
+    // tiene cuenta: las mismas guías, sin leer nada de la base y sin indexar.
+    currentPath === "/tutoriales" ||
+    currentPath.startsWith("/tutoriales/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {

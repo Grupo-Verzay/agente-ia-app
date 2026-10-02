@@ -27,7 +27,16 @@ import {
  * Una categoría sin guías todavía lo dice («Estamos trabajando en esta guía»)
  * y no enseña el buscador: un buscador sobre nada es un mando que no hace nada.
  */
-export function GuiasDeLaCategoria({ categoria, guias }: { categoria: CategoriaDeAyuda; guias: GuiaDeAyuda[] }) {
+export function GuiasDeLaCategoria({
+    categoria,
+    guias,
+    raiz = RUTA_DEL_CENTRO_DE_AYUDA,
+}: {
+    categoria: CategoriaDeAyuda;
+    guias: GuiaDeAyuda[];
+    /** A dónde vuelve la flecha: `/ayuda` en el panel, `/tutoriales` en la landing. */
+    raiz?: string;
+}) {
     const [consulta, setConsulta] = useState("");
     const queSeVen = guias.filter((g) => pasaElFiltroDeLaCategoria(g, consulta));
 
@@ -36,7 +45,7 @@ export function GuiasDeLaCategoria({ categoria, guias }: { categoria: CategoriaD
             <CabeceraDeDocumentacion
                 titulo={categoria.nombre}
                 subtitulo={lasPantallasEnUnaFrase(categoria)}
-                volverA={{ href: RUTA_DEL_CENTRO_DE_AYUDA, etiqueta: "Volver al centro de ayuda" }}
+                volverA={{ href: raiz, etiqueta: raiz === RUTA_DEL_CENTRO_DE_AYUDA ? "Volver al centro de ayuda" : "Volver a tutoriales" }}
             />
 
             {guias.length > 0 ? (

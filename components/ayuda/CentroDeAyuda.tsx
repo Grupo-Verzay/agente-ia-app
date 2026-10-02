@@ -15,6 +15,7 @@ import {
     elNumeroDeGuias,
     laCategoria,
     lasPantallasEnUnaFrase,
+    RUTA_DEL_CENTRO_DE_AYUDA,
     type GuiaDeAyuda,
 } from "@/lib/centro-de-ayuda";
 
@@ -41,7 +42,17 @@ import {
 /** El tope del buscador de la portada: 36rem (576 px), centrado. */
 const ANCHO_DEL_BUSCADOR = "mx-auto w-full max-w-xl";
 
-export function CentroDeAyuda({ guias }: { guias: GuiaDeAyuda[] }) {
+export function CentroDeAyuda({
+    guias,
+    raiz = RUTA_DEL_CENTRO_DE_AYUDA,
+    titulo = "Centro de ayuda",
+}: {
+    guias: GuiaDeAyuda[];
+    /** «Tutoriales» en la landing, que es el nombre del menú por el que se llega. */
+    titulo?: string;
+    /** De dónde cuelgan las categorías: `/ayuda` en el panel, `/tutoriales` en la landing. */
+    raiz?: string;
+}) {
     const [consulta, setConsulta] = useState("");
     const [marcado, setMarcado] = useState(0);
     const [abierto, setAbierto] = useState(false);
@@ -80,7 +91,7 @@ export function CentroDeAyuda({ guias }: { guias: GuiaDeAyuda[] }) {
     return (
         <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4" data-centro-de-ayuda>
             <CabeceraDeDocumentacion
-                titulo="Centro de ayuda"
+                titulo={titulo}
                 volverA={null}
                 centrada
             />
@@ -170,7 +181,7 @@ export function CentroDeAyuda({ guias }: { guias: GuiaDeAyuda[] }) {
                         return (
                             <Link
                                 key={c.slug}
-                                href={elEnlaceDeLaCategoria(c.slug)}
+                                href={elEnlaceDeLaCategoria(c.slug, raiz)}
                                 data-categoria-de-ayuda={c.slug}
                                 className="group flex h-full items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/30"
                             >
