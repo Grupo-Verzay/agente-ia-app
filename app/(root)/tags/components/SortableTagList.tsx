@@ -41,6 +41,8 @@ interface SortableTagItemProps {
   onCancelEdit: () => void;
   onStartEdit: (tag: SimpleTag) => void;
   onDelete: (tag: SimpleTag) => void;
+  /** Por qué no se puede arrastrar ahora (una búsqueda puesta), o null. */
+  porQueNoSeOrdena: string | null;
 }
 
 const SortableTagItem = ({
@@ -55,8 +57,12 @@ const SortableTagItem = ({
   onCancelEdit,
   onStartEdit,
   onDelete,
+  porQueNoSeOrdena,
 }: SortableTagItemProps) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tag.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tag.id,
+    disabled: porQueNoSeOrdena !== null,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -71,6 +77,8 @@ const SortableTagItem = ({
       <div
         ref={setNodeRef}
         style={style}
+        data-etiqueta={tag.name}
+        data-zona="editar-etiqueta"
         className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3"
       >
         <div className="flex flex-1 min-w-[160px] items-center gap-2">
@@ -83,14 +91,17 @@ const SortableTagItem = ({
           <Input
             value={editName}
             onChange={(e) => onEditName(e.target.value.toUpperCase())}
+            aria-label="Nombre de la etiqueta"
             className="h-9"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div data-zona="colores" className="flex items-center gap-1.5">
           {COLOR_PRESETS.map((c) => (
             <button
               key={c}
               type="button"
+              aria-label={`Color ${c}`}
+              aria-pressed={mismoColor(editColor, c)}
               onClick={() => onEditColor(mismoColor(editColor, c) ? null : c)}
               className={cn('h-5 w-5 rounded-full border border-border/60', mismoColor(editColor, c) && 'ring-2 ring-primary')}
               style={{ backgroundColor: c }}
@@ -100,6 +111,8 @@ const SortableTagItem = ({
             type="color"
             value={editColor ?? '#3B82F6'}
             onChange={(e) => onEditColor(e.target.value)}
+            title="Color personalizado"
+            aria-label="Color personalizado"
             className="h-9 w-12 cursor-pointer p-1"
           />
         </div>
@@ -119,10 +132,17 @@ const SortableTagItem = ({
     <div
       ref={setNodeRef}
       style={style}
+      data-etiqueta={tag.name}
       className="flex items-center gap-3 rounded-xl border bg-card px-3 py-3 shadow-sm"
     >
       <div
-        className="cursor-grab p-1 text-muted-foreground hover:text-foreground"
+        data-zona="asa"
+        aria-label={porQueNoSeOrdena ?? `Arrastrar ${tag.name} para ordenarla`}
+        title={porQueNoSeOrdena ?? 'Arrastrar para ordenar'}
+        className={cn(
+          'p-1 text-muted-foreground',
+          porQueNoSeOrdena ? 'cursor-not-allowed opacity-40' : 'cursor-grab hover:text-foreground',
+        )}
         {...attributes}
         {...listeners}
       >
@@ -144,6 +164,7 @@ const SortableTagItem = ({
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 rounded-lg px-3 text-xs"
+          aria-label={`Editar ${tag.name}`}
           onClick={() => onStartEdit(tag)}
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -154,6 +175,8 @@ const SortableTagItem = ({
           size="icon"
           variant="ghost"
           className="h-8 w-8 rounded-lg text-destructive hover:text-destructive/80"
+          aria-label={`Eliminar ${tag.name}`}
+          title="Eliminar"
           onClick={() => onDelete(tag)}
         >
           <Trash2 className="h-4 w-4" />
@@ -176,6 +199,12 @@ interface SortableTagListProps {
   onCancelEdit: () => void;
   onStartEdit: (tag: SimpleTag) => void;
   onDelete: (tag: SimpleTag) => void;
+  /**
+   * Por qué no se puede ordenar ahora, o null. Con una búsqueda puesta `tags`
+   * es un TROZO de la lista, y guardar 0, 1, 2… sobre un trozo dejaba a las
+   * escondidas empatadas con las de arriba.
+   */
+  porQueNoSeOrdena?: string | null;
 }
 
 export const SortableTagList = ({
@@ -191,13 +220,14 @@ export const SortableTagList = ({
   onCancelEdit,
   onStartEdit,
   onDelete,
+  porQueNoSeOrdena = null,
 }: SortableTagListProps) => {
   const router = useRouter();
   const sensors = useSensors(useSensor(PointerSensor));
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id || porQueNoSeOrdena) return;
 
     const oldIndex = tags.findIndex((t) => t.id === active.id);
     const newIndex = tags.findIndex((t) => t.id === over.id);
@@ -222,7 +252,10 @@ export const SortableTagList = ({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={tags.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-2">
+        {porQueNoSeOrdena && (
+          <p data-zona="no-se-ordena" className="mb-2 text-xs text-muted-foreground">{porQueNoSeOrdena}</p>
+        )}
+        <div data-zona="lista-de-etiquetas" className="flex flex-col gap-2">
           {tags.map((tag) => (
             <SortableTagItem
               key={tag.id}
@@ -237,6 +270,7 @@ export const SortableTagList = ({
               onCancelEdit={onCancelEdit}
               onStartEdit={onStartEdit}
               onDelete={onDelete}
+              porQueNoSeOrdena={porQueNoSeOrdena}
             />
           ))}
         </div>

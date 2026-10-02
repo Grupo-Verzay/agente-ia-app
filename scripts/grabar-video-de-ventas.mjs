@@ -513,7 +513,15 @@ await espera(p, 1500);
  * en la tercera (`ESPERA_DEL_PRIMER_MENSAJE_MS`).
  */
 const ESPERA_DEL_PRIMER_MENSAJE_MS = 2_600;
-const hastaElPrimerMensaje = 450 + voz.gancho.audio.ms + voz.promesa.audio.ms + 2 * RESPIRO_ENTRE_FRASES_MS + 900 + ESPERA_DEL_PRIMER_MENSAJE_MS;
+/**
+ * Cuánto se queda la PORTADA al empezar —el logo y el botón de reproducir—: es
+ * el primer fotograma del vídeo, y de ahí sale la miniatura que enseña WhatsApp
+ * al compartirlo (con el primer fotograma en negro, se veía un recuadro negro).
+ */
+const PORTADA_MS = 500;
+/** La imagen de portada (la de la página y la de la vista previa al compartir) es un fotograma de la portada. */
+const PORTADA_JPG_MS = 250;
+const hastaElPrimerMensaje = PORTADA_MS + 150 + voz.gancho.audio.ms + voz.promesa.audio.ms + 900 + ESPERA_DEL_PRIMER_MENSAJE_MS;
 {
     // Se miden dos vueltas seguidas de la lista (sin grabar) y se arranca para
     // que el primer mensaje caiga en la mitad de la ventana de una vuelta.
@@ -537,6 +545,9 @@ const hastaElPrimerMensaje = 450 + voz.gancho.audio.ms + voz.promesa.audio.ms + 
 /* La grabación                                                        */
 /* ------------------------------------------------------------------ */
 
+// La portada se pone ANTES de grabar: el fotograma 0 ya es ella.
+await est("plano", PLANOS.portada);
+await espera(p, 500);
 const mudo = path.join(TRABAJO, "pantalla.mkv");
 const grabadora = await grabar(p, mudo, { ancho: 1920, alto: 1080 });
 t0 = Date.now();
@@ -575,10 +586,14 @@ const capacidad = async (escena2) => {
     await est("capacidad", i + 1, CAPACIDADES[i].titulo, CAPACIDADES[i].detalle);
 };
 
+// 0. La portada: lo primero que se graba, y por eso la miniatura que enseña
+// WhatsApp al compartir el archivo. Corta, para que la voz no empiece tarde.
+await espera(p, PORTADA_MS);
+
 // 1. El gancho: cinco negocios a la vez, y debajo, cualquier otro.
 await est("plano", PLANOS.montaje);
 await est("montaje");
-await espera(p, 450);
+await espera(p, 150);
 await decir("gancho");
 // El cierre del arranque sale con la frase que lo dice, y nunca antes del
 // último mensaje de la última tarjeta (el estudio espera si hace falta).
@@ -602,15 +617,18 @@ const cajasDelMontaje = await p.evaluate(() =>
     ),
 );
 
-// 2. La promesa: la marca.
-await callar();
+// 2. La promesa: la marca ENTRA deslizándose en cuanto calla el gancho, sin
+// respiro ni fundido largo, y al callar la promesa se pasa a las tres
+// pantallas: ningún segundo con la pantalla quieta.
+await callar(0);
+const marcaMs = Date.now() - t0;
 await est("plano", PLANOS.marca);
 await decir("promesa");
-await espera(p, 1800);
+await espera(p, 700);
 await captura("marca");
 
 // 3. Tres pantallas y el primer mensaje.
-await callar();
+await callar(0);
 await est("plano", PLANOS.tres);
 await espera(p, 900);
 await decir("tresPantallas");
@@ -638,8 +656,6 @@ await espera(p, 350);
     if (!boton.abierta) await pulsarEn(await enElCuadro("app", ENCONTRAR.botonDeLaFicha), { ms: 500, antes: () => clicEn("app", 'button[title="Ver ficha del contacto"]') });
 }
 await espera(p, 600);
-// La portada: las tres pantallas con la conversación ya abierta.
-const portadaMs = Date.now() - t0;
 await captura("tres-pantallas");
 
 // 4. Texto: responde y llena la ficha.
@@ -879,7 +895,44 @@ await acabar(800);
 await anillos([]);
 await est("mostrarApp", "app");
 
-// 11c. El resumen: todo lo que se vio, en una pantalla.
+// 11c. Multiagente: varias líneas y varios asesores, y el embudo de UNA asesora.
+// El embudo filtrado se carga mientras se ven las líneas: cuando la voz dice
+// «Cada asesor ve solo sus chats» ya está listo detrás.
+await p.evaluate(([id, ruta]) => {
+    document.getElementById(id).src = ruta;
+}, ["embudo", `/embudos?asesor=${sembrado.asesor}`]);
+await capacidad("multiagente");
+await est("plano", PLANOS.lineas);
+const lineasMs = Date.now() - t0;
+await est("lineas");
+await decir("multiagente");
+await espera(p, 1600);
+{
+    const r = await p.evaluate(() => {
+        const b = document.querySelector('#lineas .asesor[data-asesor^="Andrea"]')?.getBoundingClientRect();
+        return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
+    });
+    await captura("lineas");
+    await alDecir("Cada asesor ve solo sus chats", 700);
+    if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de Ventas`, abajo: true }]);
+}
+await esperarEn("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]', { ms: 20_000, que: "el embudo filtrado" });
+await esperarEn("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO, "Cita confirmada"], { ms: 20_000, que: "Laura en el embudo de la asesora" });
+await alDecir("con su propio embudo", 500);
+await anillos([]);
+await est("plano", PLANOS.panel);
+await est("mostrarApp", "embudo");
+await espera(p, 700);
+{
+    const f = await enElCuadro("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]');
+    if (f) await anillos([{ c: f, texto: `Solo los clientes de ${ASESORA.nombre}`, abajo: true }]);
+}
+await captura("multiagente");
+await acabar(900);
+await anillos([]);
+await est("mostrarApp", "app");
+
+// 11d. El resumen: todo lo que se vio, en una pantalla.
 await est("capacidad", 0, "");
 await est("plano", PLANOS.resumen);
 await espera(p, 300);
@@ -889,28 +942,16 @@ await espera(p, 1700);
 await captura("resumen");
 await acabar(600);
 
-// 11d. La ráfaga: tres funciones avanzadas.
-await est("plano", PLANOS.avanzadas);
-await decir("avanzadas");
-await alDecir("el modo dueño", 200);
-await est("avanzada", "dueno");
-await alDecir("El puente con operarios", 200);
-await est("avanzada", "campo");
-await alDecir("el multiagente", 200);
-await est("avanzada", "multiagente");
-await captura("avanzadas");
-await acabar(700);
-
 // 12. El cierre.
 await est("capacidad", 0, "");
 await est("plano", PLANOS.cierre);
-await espera(p, 500);
+await espera(p, 400);
 await decir("cierre");
 await callar(0);
-await espera(p, 1400);
+await espera(p, 900);
 await est("subtitulo", "");
 await captura("cierre");
-await espera(p, 1500);
+await espera(p, 900);
 
 const totalMs = Date.now() - t0;
 const grabado = await grabadora.parar();
@@ -944,7 +985,7 @@ execFileSync(
     ],
     { stdio: "inherit" },
 );
-execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", (portadaMs / 1000).toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS_DEL_VIDEO.portada)]);
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", (PORTADA_JPG_MS / 1000).toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS_DEL_VIDEO.portada)]);
 
 const frases = Object.fromEntries(Object.entries(NARRACION).map(([id, n]) => [id, llaveDeLaFrase(n.texto, VOZ_DE_VENTAS)]));
 writeFileSync(
@@ -965,6 +1006,11 @@ writeFileSync(
                 cajas: cajasDelMontaje,
                 cajasMs: cajasDelMontajeMs,
             },
+            // La portada del principio, cuándo entra la marca y cuándo salen
+            // las líneas del equipo: el banco las busca en los fotogramas.
+            portada: { hastaMs: PORTADA_MS, jpgMs: PORTADA_JPG_MS },
+            marcaMs,
+            lineasMs,
             // Dónde suena cada cosa EN EL VÍDEO: el banco lo compara con el audio.
             colocados: colocados.map((c) => ({ clase: c.clase, texto: c.texto, inicioMs: c.inicioMs, finMs: c.finMs })),
         },

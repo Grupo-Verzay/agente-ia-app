@@ -356,6 +356,7 @@ export const OTROS_CHATS = Object.freeze([
         etapa: "Cita agendada",
         calificacion: "Caliente",
         etiqueta: "Ortodoncia",
+        asesora: true,
     },
     {
         nombre: "Daniela Mejía",
@@ -365,6 +366,7 @@ export const OTROS_CHATS = Object.freeze([
         etapa: "Interesado",
         calificacion: "Tibio",
         etiqueta: "Ortodoncia",
+        asesora: true,
     },
     {
         nombre: "Carlos Ramírez",
@@ -392,6 +394,7 @@ export const OTROS_CHATS = Object.freeze([
         etapa: "Cita confirmada",
         calificacion: "Caliente",
         etiqueta: "Implantes",
+        asesora: true,
     },
 ]);
 
@@ -435,34 +438,49 @@ export const CAPACIDADES = Object.freeze([
     { escena: "asesor", titulo: "Pasa a un asesor", detalle: "Cuando hace falta una persona" },
     { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
     { escena: "reportes", titulo: "Reportes y analíticas", detalle: "Todo resumido, cada semana" },
+    { escena: "multiagente", titulo: "Trabaja en equipo", detalle: "Varias líneas y varios asesores" },
 ]);
 
 /**
- * La ráfaga del final: tres funciones avanzadas que no caben en la historia
- * de Laura, cada una con su frase. Son recreaciones de lo que hacen, dichas
- * así en la página (`LO_QUE_ES_EL_VIDEO`).
+ * Las LÍNEAS del equipo de la escena de Multiagente: tres WhatsApp de la misma
+ * clínica, cada uno con sus asesores atendiendo a la vez. Es una recreación
+ * (un esquema, no una pantalla de la App) y la página lo dice
+ * (`LO_QUE_ES_EL_VIDEO`); el embudo filtrado por la asesora que viene después
+ * sí es el panel de verdad. La primera persona de Ventas es la asesora de la
+ * historia: sus clientes son los que salen en ese embudo.
  */
-export const AVANZADAS = Object.freeze([
+export const LINEAS_DEL_EQUIPO = Object.freeze([
     {
-        id: "dueno",
-        icono: "📊",
-        titulo: "Modo dueño",
-        detalle: "Le preguntas a tu WhatsApp cómo van tus ventas, citas y embudos.",
-        ejemplo: "¿Cuántas citas tengo esta semana?",
+        id: "ventas",
+        nombre: "Ventas",
+        color: "#3B82F6",
+        asesores: [
+            { nombre: "Andrea Rojas", chats: 4 },
+            { nombre: "Felipe Gómez", chats: 3 },
+            { nombre: "Valeria Díaz", chats: 5 },
+            { nombre: "Santiago Peña", chats: 2 },
+            { nombre: "Camila Ortiz", chats: 4 },
+            { nombre: "Mateo Vargas", chats: 3 },
+        ],
     },
     {
-        id: "campo",
-        icono: "🔧",
-        titulo: "Operarios de campo",
-        detalle: "La IA consulta otro WhatsApp y le traslada la respuesta a tu cliente.",
-        ejemplo: "¿A qué hora llega el técnico?",
+        id: "soporte",
+        nombre: "Soporte",
+        color: "#8B5CF6",
+        asesores: [
+            { nombre: "Lucía Herrera", chats: 3 },
+            { nombre: "Tomás Rincón", chats: 2 },
+            { nombre: "Paula Moreno", chats: 4 },
+        ],
     },
     {
-        id: "multiagente",
-        icono: "👥",
-        titulo: "Multiagente",
-        detalle: "Varias líneas y asesores en un solo panel.",
-        ejemplo: "Ventas · Soporte · Agenda",
+        id: "cobros",
+        nombre: "Cobros",
+        color: "#10B981",
+        asesores: [
+            { nombre: "Natalia Silva", chats: 3 },
+            { nombre: "Esteban Cruz", chats: 2 },
+        ],
     },
 ]);
 

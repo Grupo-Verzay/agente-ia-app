@@ -94,12 +94,12 @@ export const NARRACION = Object.freeze({
     asesor: { texto: "Si la IA no sabe responder o Laura pide hablar con alguien, la conversación pasa directo a un asesor." },
     embudo: { texto: "Cada cliente avanza solo por tu embudo, con toda su historia en su ficha." },
     reportes: { texto: "Todo el historial queda resumido en reportes y analíticas, sin perseguir a nadie." },
-    resumen: { texto: "En resumen: todo esto trabaja por ti, en una sola plataforma." },
-    avanzadas: {
+    multiagente: {
         texto:
-            "Y hay más: con el modo dueño le preguntas a tu WhatsApp cómo van tus ventas, citas y embudos. El puente con operarios de campo consulta otro WhatsApp y le traslada la respuesta a tu cliente. Y con el multiagente trabajas con varias líneas y asesores.",
+            "Si tu negocio crece, separas tus líneas: ventas, soporte y cobros, cada una con los asesores que necesite. Cada asesor ve solo sus chats, con su propio embudo.",
     },
-    cierre: { texto: "Verzay responde, vende, agenda y hace seguimiento las veinticuatro horas. Agenda una reunión y míralo funcionando en tu negocio." },
+    resumen: { texto: "En resumen: todo esto trabaja por ti, en una sola plataforma." },
+    cierre: { texto: "Verzay responde, vende, agenda y hace seguimiento, las veinticuatro horas." },
 });
 
 /** Todo lo que hay que sintetizar: la narración, las dos notas de voz y la llamada, cada una con su voz. */

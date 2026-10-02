@@ -34,6 +34,7 @@ export const CAPACIDADES_DEL_VIDEO = Object.freeze([
     { escena: "asesor", titulo: "Pasa a un asesor", detalle: "Cuando hace falta una persona" },
     { escena: "embudo", titulo: "Tu embudo, al día", detalle: "Cada cliente en su etapa" },
     { escena: "reportes", titulo: "Reportes y analíticas", detalle: "Todo resumido, cada semana" },
+    { escena: "multiagente", titulo: "Trabaja en equipo", detalle: "Varias líneas y varios asesores" },
 ] as const);
 
 /**
@@ -71,4 +72,4 @@ export function elEnlaceDeWhatsapp(numero: string, texto: string): string {
  * lead que después ve la plataforma no puede sentir que el vídeo le mintió.
  */
 export const LO_QUE_ES_EL_VIDEO =
-    "Demostración con datos de ejemplo. El panel es la plataforma real; el celular, WhatsApp Web, la hoja de Google Sheets y la llamada son recreaciones fieles, y las respuestas de la IA siguen un guion.";
+    "Demostración con datos de ejemplo. El panel es la plataforma real; el celular, WhatsApp Web, la hoja de Google Sheets, la llamada y el esquema de las tres líneas del equipo son recreaciones fieles, y las respuestas de la IA siguen un guion.";

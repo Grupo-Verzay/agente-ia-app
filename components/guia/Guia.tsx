@@ -76,6 +76,8 @@ import {
     PanelTop,
     Contact,
     Zap,
+    List,
+    Kanban,
 } from "lucide-react";
 
 import type { Paso, Seccion } from "@/lib/guia-de-modulo";
@@ -162,6 +164,8 @@ const ICONOS: Record<Seccion["icono"], typeof Search> = {
     Truck,
     Wallet,
     Phone,
+    List,
+    Kanban,
     CalendarClock,
     PanelTop,
     Contact,

@@ -91,6 +91,8 @@ export const ICONOS_DE_SECCION = [
     "Truck",
     "Wallet",
     "Phone",
+    "List",
+    "Kanban",
     "CalendarClock",
     "PanelTop",
     "Contact",

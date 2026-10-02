@@ -11,6 +11,7 @@ import { crearEnlacePagoRenovacion } from '@/actions/billing/wompi-checkout-acti
 import ChoosePlanToPay from '@/components/shared/ChoosePlanToPay';
 import { PLAN_LABELS } from '@/types/plans';
 import type { Plan } from '@prisma/client';
+import { elMontoAlMes } from '@/lib/pantalla-de-perfil';
 
 interface Props {
     userPlan: Plan;
@@ -21,10 +22,6 @@ function fmt(date: string | null | undefined) {
     return new Date(date).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function fmtPrice(price: string | number | null | undefined, currency: string | null | undefined) {
-    if (!price || Number(price) === 0) return '—';
-    return new Intl.NumberFormat('es', { style: 'currency', currency: currency || 'COP', maximumFractionDigits: 0 }).format(Number(price));
-}
 
 /** Días que le quedan de prueba. Negativo o cero = ya se le pasó. */
 function diasRestantes(dueDate: string | null | undefined): number | null {
@@ -119,8 +116,9 @@ export function PlanBillingCard({ userPlan }: Props) {
                                         tasa, así que cambiaba solo y acababa diciendo un
                                         precio distinto al que el cliente contrató. */}
                                     <span className="text-right font-medium tabular-nums">
-                                        {fmtPrice(billing?.price, billing?.currencyCode)}{' '}
-                                        {billing?.currencyCode || 'COP'}/mes
+                                        {/* El formato con moneda ya escribe «COP»:
+                                            añadirlo otra vez salía «250.000 COP COP/mes». */}
+                                        {elMontoAlMes(billing?.price, billing?.currencyCode)}
                                     </span>
                                 </div>
                                 <div className="flex flex-col gap-1">
