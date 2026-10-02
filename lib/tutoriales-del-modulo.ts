@@ -32,6 +32,7 @@ import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
 import { GUIA_AI_IMAGENES } from "@/lib/guia-ai-imagenes";
 import { GUIA_FINANZAS } from "@/lib/guia-finanzas";
+import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 
 /** Lo que pinta una tarjeta. La fila de `GuidesUrl` tiene esto y más. */
 export type TutorialDelModulo = {
@@ -223,6 +224,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/dashboard/finance",
         contenido: GUIA_FINANZAS,
         tarjeta: "Aprende a registrar ventas y gastos y ver tu balance en la plataforma",
+    },
+    {
+        modulo: "llamadas",
+        ruta: "/crm/llamadas",
+        contenido: GUIA_LLAMADAS,
+        tarjeta: "Aprende a llamar a tus clientes y revisar cada llamada en la plataforma",
     },
 ];
 
