@@ -567,6 +567,29 @@ que no había pasado nada. **La fila se quita y la conversación se cierra antes
 de preguntarle al servidor**, y si el servidor dice que no, se devuelve todo tal
 cual estaba. Si se añade otra acción del asesor, va igual.
 
+## Chats: lo que se cambia desde la conversación abierta pinta SU fila al momento
+
+Las etiquetas, el recordatorio, la cita, las notas internas, los seguimientos,
+los flujos y lo que hace una macro se veían en la fila de la lista solo al
+minuto (reloj de sesiones) o al recargar; la calificación y la etapa sí iban al
+momento porque se aplicaban en memoria. Y las etiquetas, además, se aplicaban
+bajo la llave GLOBAL del contacto mientras la fila lee la de SU línea.
+
+> **Quien cambia algo de la fila AVISA con el id de la sesión**
+> (`avisarQueCambioLaFila`, `lib/fila-de-chats-al-dia.ts`), y Chats vuelve a
+> leer ESA fila con la MISMA consulta que la bandeja (`laFilaDeLaSesionAction` →
+> `getSesionesDeLaCuenta` con `soloLaSesion`) y la aplica por id en todas sus
+> llaves (`aplicarEnLaSesion`). Nada se cuenta en el navegador: el número es el
+> que traerá el reloj. **Si se añade otro sitio que cambie un icono de la fila,
+> avisa igual.**
+
+El candado de notas va aparte (`EVENTO_NOTAS_DE_LA_FILA`), y la lista de
+conversaciones con notas mira las cuentas que la bandeja enseña
+(`lasCuentasQueVeLaBandeja`). Los avisos de la misma sesión se agrupan en una
+lectura (`ESPERA_PARA_LEER_LA_FILA_MS`). Lo prueba
+`scripts/banco-iconos-de-la-fila.sh` (barrido y la acción contra Postgres);
+`MODO=roto` lee `ffe0583` y afirma que nadie avisaba.
+
 ## Chats: la sesión se busca por su id, no por el número
 
 Cambiar el estado de un lead desde la lista —Frío, Tibio, Finalizado— **se

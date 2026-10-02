@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { avisarQueCambioLaFila } from "@/lib/fila-de-chats-al-dia";
 import { Check, Tag as TagIcon } from "lucide-react";
 import {
     assignTagToSessionAction,
@@ -114,6 +115,9 @@ export function SessionTagsCombobox({
             }
 
             toast.success(res.message || "Etiquetas actualizadas.");
+            // Ya guardado: la fila de Chats lo vuelve a leer (fuera de Chats
+            // nadie escucha y no pasa nada). Ver `lib/fila-de-chats-al-dia.ts`.
+            avisarQueCambioLaFila(sessionId, "las etiquetas de la conversacion");
         });
     };
 

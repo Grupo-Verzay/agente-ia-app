@@ -8,6 +8,13 @@ import { toast } from "sonner";
 import { resolveSession, resolverSesionesAction } from "@/actions/advisor-assign-actions";
 import { estaResuelta } from "@/lib/total-de-todos";
 import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
+import {
+  EVENTO_NOTAS_DE_LA_FILA,
+  avisarQueCambioLaFila,
+  conLasNotasDeLaFila,
+  INTERVALO_DE_LAS_NOTAS_MS,
+  type NotasDeLaFila,
+} from "@/lib/fila-de-chats-al-dia";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateLeadPushNameAction } from "@/actions/registro-action";
 import {
@@ -1226,8 +1233,34 @@ export function ChatSidebar({
     } catch {}
   }, []);
 
+  /*
+   * El candado de notas internas de cada fila.
+   *
+   * Se leía UNA vez al montar y no se volvía a mirar: una nota escrita desde la
+   * conversación abierta no salía en su fila hasta recargar. Ahora:
+   *  - lo que cambia desde la conversación llega al momento por el aviso de la
+   *    fila (`EVENTO_NOTAS_DE_LA_FILA`, ver `lib/fila-de-chats-al-dia.ts`);
+   *  - y lo que escriben los compañeros, con el ritmo del reloj de sesiones
+   *    (cuando cambian las sesiones, como mucho una vez por minuto).
+   */
+  const notasLeidasEnRef = React.useRef(0);
   React.useEffect(() => {
-    getSessionIdsWithNotesAction().then((ids) => setNotedSessionIds(new Set(ids)));
+    const ahora = Date.now();
+    if (ahora - notasLeidasEnRef.current < INTERVALO_DE_LAS_NOTAS_MS) return;
+    notasLeidasEnRef.current = ahora;
+    void getSessionIdsWithNotesAction().then((ids) => setNotedSessionIds(new Set(ids)));
+  }, [chatSessions]);
+
+  React.useEffect(() => {
+    const alCambiar = (evento: Event) => {
+      const detalle = (evento as CustomEvent<NotasDeLaFila>).detail;
+      if (!detalle || typeof detalle.sessionId !== "number") return;
+      setNotedSessionIds((previo) =>
+        conLasNotasDeLaFila(previo, detalle.sessionId, detalle.tieneNotas) as Set<number>,
+      );
+    };
+    window.addEventListener(EVENTO_NOTAS_DE_LA_FILA, alCambiar);
+    return () => window.removeEventListener(EVENTO_NOTAS_DE_LA_FILA, alCambiar);
   }, []);
 
   React.useEffect(() => {
@@ -1664,8 +1697,11 @@ export function ChatSidebar({
       : chatSessionsRef.current[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para etiquetar."); return; }
     const res = await assignTagToSessionAction({ userId: session.userId, sessionId: session.id, tagId });
-    if (res.success) toast.success("Etiqueta asignada.");
-    else toast.error(res.message ?? "Error al asignar etiqueta.");
+    if (res.success) {
+      toast.success("Etiqueta asignada.");
+      // Sin esto el contador de etiquetas de la fila esperaba al reloj.
+      avisarQueCambioLaFila(session.id, "la etiqueta desde el menu de la fila");
+    } else toast.error(res.message ?? "Error al asignar etiqueta.");
   }, []);
 
   // Callbacks estables para los items (necesarios para que React.memo de

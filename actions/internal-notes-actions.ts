@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { lasCuentasQueVeLaBandeja } from "@/lib/cuentas-asociadas";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
 import { elEquipoDeLaCuenta } from "@/lib/equipo-de-la-cuenta.server";
@@ -43,8 +44,9 @@ import {
  *
  * Lo que **no** se toca es `getSessionIdsWithNotesAction`, que filtra por
  * `session.userId`: eso es ALCANCE —de qué cuenta son esas conversaciones— y
- * el alcance se pregunta a la fila efectiva. Resolver la persona ahí es
- * exactamente lo que rompió la cartera de clientes en el #783.
+ * el alcance se pregunta a la fila efectiva (con las cuentas que la bandeja
+ * enseña, `lasCuentasQueVeLaBandeja`). Resolver la persona ahí es exactamente
+ * lo que rompió la cartera de clientes en el #783.
  */
 
 export type InternalNoteData = {
@@ -238,13 +240,18 @@ export async function getInternalNotesBySessionAction(
 export async function getSessionIdsWithNotesAction(): Promise<number[]> {
   try {
     const user = await assertAuthorized();
+    // Las cuentas que ENSEÑA la bandeja, no solo la fila efectiva: con
+    // `user.id` a secas, una conversación de una cuenta que cuelga de esta
+    // nunca pintaba su candado aunque tuviera notas.
+    const cuentas = await lasCuentasQueVeLaBandeja(user);
     const rows = await (db as any).internalNote.findMany({
-      where: { session: { userId: user.id } },
+      where: { session: { userId: { in: cuentas.length ? cuentas : [user.id] } } },
       select: { sessionId: true },
       distinct: ['sessionId'],
     });
     return rows.map((r: { sessionId: number }) => r.sessionId);
-  } catch {
+  } catch (error) {
+    console.warn("[chats] no se pudieron leer las conversaciones con notas internas", error);
     return [];
   }
 }

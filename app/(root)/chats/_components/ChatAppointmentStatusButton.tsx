@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { CalendarClock, Loader2 } from 'lucide-react';
 import {
   Popover,
@@ -38,6 +38,7 @@ import {
 import { STATUS_LABELS } from '@/types/schedule';
 import { DialogoDeReagendar } from '@/components/shared/DialogoDeReagendar';
 import { OPCION_REAGENDAR, ROTULO_REAGENDAR, esLaOpcionDeReagendar } from '@/lib/reagendar-cita';
+import { avisarQueCambioLaFila } from '@/lib/fila-de-chats-al-dia';
 import { cn } from '@/lib/utils';
 import { usePanelFlotante } from '@/hooks/usePanelFlotante';
 import { ENCIMA_DE_SU_PANEL, PANEL_QUE_SE_DESPLAZA, RELLENO_DEL_MENU } from '@/lib/paneles-flotantes';
@@ -76,6 +77,29 @@ export function ChatAppointmentStatusButton({
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState(false);
   const [reagendando, setReagendando] = useState(false);
 
+  /*
+   * «Agendar nueva cita» abre la agenda en OTRA pestaña. Al volver a esta, la
+   * cita ya existe y nadie se lo ha dicho a la fila de la lista ni a este
+   * panel: se olvida lo cargado (el panel la vuelve a pedir al abrirse) y se
+   * avisa a la fila. Solo después de haber pulsado ese botón: volver a la
+   * pestaña no cuesta nada el resto del tiempo.
+   */
+  const agendandoAfueraRef = useRef(false);
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState !== 'visible' || !agendandoAfueraRef.current) return;
+      agendandoAfueraRef.current = false;
+      setAppointment(undefined);
+      avisarQueCambioLaFila(sessionId, 'la cita agendada en otra pestana');
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
+    return () => {
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
+    };
+  }, [sessionId]);
+
   const loadAppointment = useCallback(async () => {
     if (appointment !== undefined) return;
     setLoading(true);
@@ -100,6 +124,8 @@ export function ChatAppointmentStatusButton({
       if (res.success) {
         setAppointment({ ...appointment, status: newStatus });
         toast.success('Estado de cita actualizado');
+        // El punto de color de la cita en la FILA de la lista.
+        avisarQueCambioLaFila(sessionId, 'el estado de la cita');
         if (newStatus !== 'FINALIZADO' && newStatus !== 'DESCARTADO') {
           void sendAppointmentStatusNotification(appointment.id, newStatus);
         }
@@ -232,6 +258,7 @@ export function ChatAppointmentStatusButton({
                   type="button"
                   onClick={() => {
                     setOpen(false);
+                    agendandoAfueraRef.current = true;
                     const phone = remoteJid.replace(/@.*$/, '');
                     const params = new URLSearchParams();
                     if (pushName) params.set('name', pushName);
@@ -260,6 +287,7 @@ export function ChatAppointmentStatusButton({
             endTime: cita.endTime,
             status: cita.status as AppointmentStatus,
           });
+          avisarQueCambioLaFila(sessionId, 'la cita reagendada');
         }}
       />
 

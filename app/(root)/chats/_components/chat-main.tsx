@@ -69,6 +69,7 @@ import { puedeVerTelefonoCompleto, telefonoParaMostrar } from '@/lib/telefono-vi
 import { elAvisoDeLaCajaDeEscribir } from '@/lib/traduccion-de-chats';
 import { useTraduccionDeLaConversacion } from './hooks/useTraduccionDeLaConversacion';
 import { laUbicacionEnTexto } from '@/lib/ubicacion-de-whatsapp';
+import { avisarQueCambioLaFila } from '@/lib/fila-de-chats-al-dia';
 
 // Notas nativas dentro del chat (pestaña "Notas"). Carga diferida: el editor
 // (BlockNote) solo se descarga cuando el usuario abre la pestaña, para no
@@ -130,7 +131,7 @@ type ChatMainProps = {
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
   /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
   onSessionStatusChange?: (sessionId: number, remoteJid: string, status: boolean) => void;
-  onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
+  onSessionTagsChange?: (remoteJid: string, selectedIds: number[], sessionId?: number) => void;
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
   advisorRole?: string | null;
@@ -801,6 +802,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           if (res.success && res.data) {
             setNotes((prev) => [...prev, res.data!]);
             toast.success('Nota interna creada.');
+            avisarQueCambioLaFila(session.id, 'la nota interna');
           } else {
             toast.error(res.message || 'No se pudo crear la nota.');
           }
@@ -817,6 +819,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         void updateSessionLeadStatus(session.id, detail.leadStatus ?? null).then((res) => {
           if (res.success) {
             toast.success('Estado del lead actualizado.');
+            avisarQueCambioLaFila(session.id, 'el estado del lead');
             mutateSessionStatus();
             void onRefresh?.();
           } else {
@@ -848,6 +851,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       });
       if (res.success && res.data) {
         setNotes((prev) => [...prev, res.data!]);
+        // El candado de la fila de la lista: sin esto salía al recargar.
+        avisarQueCambioLaFila(session.id, 'la nota interna');
         setInput('');
         setMentionIds(new Set());
         setMentionOpen(false);
@@ -865,10 +870,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const res = await deleteInternalNoteAction(noteId);
     if (res.success) {
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      // Si era la última, el candado de la fila se quita: lo dice el servidor.
+      avisarQueCambioLaFila(session?.id, 'la nota interna borrada');
     } else {
       toast.error(res.message);
     }
-  }, []);
+  }, [session?.id]);
 
   const handleRunMacro = useCallback(async (macroId: string) => {
     // Sin ficha de CRM no hay conversación sobre la que correrla: se dice, en
@@ -892,6 +899,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     else if (res.tono === 'parcial') toast.warning(res.message, { id: toastId, duration: 10000 });
     else toast.error(res.message, { id: toastId, duration: 10000 });
     if (res.applied > 0) {
+      // Una macro pone etiquetas, califica, asigna, deja seguimientos: la fila
+      // de la lista lo pinta sin esperar al reloj de sesiones.
+      avisarQueCambioLaFila(session.id, 'la macro');
       mutateSessionStatus();
       void onRefresh?.();
     }

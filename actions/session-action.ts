@@ -431,6 +431,7 @@ export async function getSessionsByUserId(
  */
 export async function getSesionesDeLaCuenta(
   userId: string | string[],
+  opciones?: { soloLaSesion?: number },
 ): Promise<SessionResponse<ChatContactSessionSummary[]> & { tiempos?: Record<string, number> }> {
   const pedidos = Array.isArray(userId) ? userId.filter(Boolean) : [userId].filter(Boolean);
   try {
@@ -474,7 +475,13 @@ export async function getSesionesDeLaCuenta(
 
     const sessions = await medir('sesiones', () =>
       db.session.findMany({
-        where: { userId: userIds.length === 1 ? userIds[0] : { in: userIds } },
+        where: {
+          userId: userIds.length === 1 ? userIds[0] : { in: userIds },
+          // Una sola fila: lo que pide la pantalla al cambiar algo desde la
+          // conversación abierta (`laFilaDeLaSesionAction`). Solo ACOTA: las
+          // cuentas siguen pasando por la puerta de arriba.
+          ...(typeof opciones?.soloLaSesion === 'number' ? { id: opciones.soloLaSesion } : {}),
+        },
         include: {
           sessionTags: {
             include: {
@@ -629,6 +636,40 @@ export async function getSesionesDeLaCuenta(
       success: false,
       message: errorMessage,
     };
+  }
+}
+
+/**
+ * La fila de UNA sesión, leída con la MISMA consulta que la bandeja.
+ *
+ * La pide la pantalla de Chats cuando algo de esa conversación cambió desde la
+ * propia conversación —un recordatorio, una cita, una etiqueta, una nota, un
+ * flujo— para pintar el icono de la fila al momento y no al minuto (ver
+ * `lib/fila-de-chats-al-dia.ts`). Ir por `getSesionesDeLaCuenta` es lo que
+ * garantiza que el número sea el mismo que traerá el reloj: dos formas de
+ * contar un recordatorio darían dos números.
+ */
+export async function laFilaDeLaSesionAction(
+  sessionId: number,
+): Promise<SessionResponse<ChatContactSessionSummary & { tieneNotas: boolean }>> {
+  try {
+    if (!Number.isInteger(sessionId) || sessionId <= 0) {
+      return { success: false, message: 'Sesión no válida.' };
+    }
+    const fila = await db.session.findUnique({ where: { id: sessionId }, select: { userId: true } });
+    if (!fila) return { success: false, message: 'Sesión no encontrada.' };
+
+    // La puerta va dentro: `getSesionesDeLaCuenta` pasa la cuenta dueña por
+    // `assertCanAccessTargetUser`, hacia abajo y nunca hacia arriba.
+    const r = await getSesionesDeLaCuenta(fila.userId, { soloLaSesion: sessionId });
+    const sesion = r.success ? r.data?.find((s) => s.id === sessionId) : undefined;
+    if (!sesion) return { success: false, message: r.message || 'Sesión no encontrada.' };
+
+    const notas = await (db as any).internalNote.count({ where: { sessionId } });
+    return { success: true, message: 'Fila al día.', data: { ...sesion, tieneNotas: notas > 0 } };
+  } catch (error) {
+    console.error('[chats] no se pudo leer la fila de la sesion', { sessionId, error });
+    return { success: false, message: 'No se pudo leer la fila de la sesión.' };
   }
 }
 

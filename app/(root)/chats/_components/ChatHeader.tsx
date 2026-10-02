@@ -111,7 +111,7 @@ interface ChatHeaderProps {
   identidadesDelChat?: string[];
   onBackToList: () => void;
   onOpenContactEditor: () => void;
-  onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
+  onSessionTagsChange?: (remoteJid: string, selectedIds: number[], sessionId?: number) => void;
   onSessionMutate: () => void;
   /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
   onSessionStatusChange?: (status: boolean) => void;
@@ -409,7 +409,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       initialSelectedIds={initialSelectedTagIds}
       onSelectedIdsChange={(selectedIds) => {
         if (!remoteJid) return;
-        onSessionTagsChange?.(remoteJid, selectedIds);
+        onSessionTagsChange?.(remoteJid, selectedIds, session.id);
       }}
       panel="cabecera"
     />
