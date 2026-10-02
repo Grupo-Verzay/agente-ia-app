@@ -23,7 +23,10 @@ import {
     RoutingCard,
     LeerGoogleSheetsCard,
     NotaInternaCard,
+    CasoCard,
+    TransicionCard,
 } from "./";
+import { pasosParaLaTransicion } from "@/lib/maqueta-del-paso";
 
 const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     stepId,
@@ -41,6 +44,9 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     updateRoutingRules,
     updateSheetUrl,
     updateNotaInterna,
+    updateCaso,
+    updateTransicion,
+    numeroDeCaso,
 }) => {
     if (el.kind === "text") {
         return (
@@ -120,6 +126,33 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
                 onRemove={() => removeElement(stepId, el.id)}
                 onChangeNota={(nota) => updateNotaInterna?.(stepId, el.id, nota)}
                 isManagement={isManagement}
+            />
+        );
+    }
+
+    if (el.kind === "function" && el.fn === "caso") {
+        const caso = el as { escenario?: string | null; respuesta?: string | null };
+        return (
+            <CasoCard
+                numero={numeroDeCaso && numeroDeCaso > 0 ? numeroDeCaso : 1}
+                escenario={caso.escenario ?? ""}
+                respuesta={caso.respuesta ?? ""}
+                onChange={(cambio) => updateCaso?.(stepId, el.id, cambio)}
+                onRemove={() => removeElement(stepId, el.id)}
+            />
+        );
+    }
+
+    if (el.kind === "function" && el.fn === "transicion") {
+        return (
+            <TransicionCard
+                pasos={pasosParaLaTransicion(
+                    (steps ?? []).map((s) => ({ id: s.id, titulo: s.title })),
+                    stepId,
+                )}
+                destino={(el as { destino?: string | null }).destino ?? null}
+                onChange={(id) => updateTransicion?.(stepId, el.id, id)}
+                onRemove={() => removeElement(stepId, el.id)}
             />
         );
     }

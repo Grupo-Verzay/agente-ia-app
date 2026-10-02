@@ -3031,6 +3031,37 @@ Lo cazó el banco borrando las tablas a mano: ocho consultas seguidas caían y
 ninguna se recuperaba. Se miran **los dos sitios**, `meta.code` y el texto del
 mensaje. Si se escribe otra comprobación de un código de Postgres, va igual.
 
+## Agente: «Agregar caso» y «Agregar transición» escriben en el BLOQUE del paso
+
+En el menú «Agregar acción» de un paso de Inicio, el grupo ACCIONES no cambia y
+el segundo grupo (antes «TEXTO», ahora «CONVERSACIÓN») ofrece, en orden: Agregar
+caso, Agregar respuesta, Agregar transición, Agregar nota interna. Caso y
+transición solo en el entrenamiento (`conCasosYTransicion`), y una transición por
+paso.
+
+> **Lo que escriben lo decide `lib/casos-y-transicion-del-paso.ts` (puro), y lo
+> usan los DOS constructores** (`markdownBuilder` y `buildSectionedPrompt`): los
+> casos son UNA tabla `| Caso | Detección | Acción |` con letras A, B, C en el
+> orden en que se agregaron y su frase de respaldo; la transición, al final del
+> bloque, `➡️ TRANSICIÓN: … current_step = N …`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Aplica el PRIMER caso que coincide**: con dos o más se escribe además
+   `FRASE_DEL_ORDEN`; con uno solo la tabla sale exactamente con el formato
+   pedido. Una fila con los dos campos vacíos no se escribe.
+2. **La transición guarda el `id` del paso y se escribe su NÚMERO**: sin destino,
+   o con uno borrado o el propio, es el siguiente (N+1); en el último paso sin
+   destino no se escribe nada.
+3. **Un paso sin casos ni transición sale idéntico al de antes**: la numeración
+   `(k)` cuenta solo los elementos normales.
+4. **El esquema Zod los conoce** (`escenario`, `respuesta`, `destino`): sin eso
+   guardar el prompt falla en todas sus secciones.
+
+Lo prueba `scripts/banco-casos-y-transicion.sh` (los dos constructores
+empaquetados, el esquema, el orden y el menú); `MODO=roto` corre el constructor
+de `83159ac` y afirma que no existían.
+
 ## Agente: una prohibición que no viaja en el prompt no existe
 
 La **nota interna** de un paso es una instrucción que el modelo lee y obedece

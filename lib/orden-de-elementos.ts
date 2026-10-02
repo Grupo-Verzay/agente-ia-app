@@ -36,12 +36,23 @@
  * mantener a la par.
  */
 
-/** Acciones primero, respuestas después, la nota interna al final. */
+/**
+ * Acciones primero; después respuestas y casos; luego la transición; la nota
+ * interna al final.
+ *
+ * El caso es una respuesta según lo que pase, así que comparte nivel con la
+ * respuesta. La transición va detrás de los dos —en el prompt se escribe al
+ * final del bloque de todas formas— y por delante de la nota, que sigue
+ * siendo la última.
+ */
 function nivel(elemento: unknown): number {
     const el = elemento as { kind?: unknown; fn?: unknown } | null;
-    // La nota se mira ANTES que el `kind`: es `kind: "function"`, así que
-    // preguntando por el kind caería con las acciones, que es justo el fallo.
-    if (el?.kind === "function" && el?.fn === "nota_interna") return 2;
+    // La nota, el caso y la transición se miran ANTES que el `kind`: son
+    // `kind: "function"`, así que preguntando por el kind caerían con las
+    // acciones, que es justo el fallo.
+    if (el?.kind === "function" && el?.fn === "nota_interna") return 3;
+    if (el?.kind === "function" && el?.fn === "transicion") return 2;
+    if (el?.kind === "function" && el?.fn === "caso") return 1;
     if (el?.kind === "text") return 1;
     // Un elemento legado —los que el esquema conserva tal cual, sin `kind`—
     // cuenta como acción: se queda arriba en vez de caer al final, que es lo
@@ -70,11 +81,7 @@ export function ordenarElementos<T>(elementos: T[]): T[] {
 
     if (yaEstaBien) return elementos;
 
-    return [
-        ...elementos.filter((el) => nivel(el) === 0),
-        ...elementos.filter((el) => nivel(el) === 1),
-        ...elementos.filter((el) => nivel(el) === 2),
-    ];
+    return [0, 1, 2, 3].flatMap((n) => elementos.filter((el) => nivel(el) === n));
 }
 
 /**

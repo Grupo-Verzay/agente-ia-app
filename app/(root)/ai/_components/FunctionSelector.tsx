@@ -39,6 +39,12 @@ type Props = FunctionSelectorInterface & {
     showRule?: boolean;
     showAction?: boolean;
     steps?: Array<{ id: string; title?: string }>;
+    /**
+     * Ofrece «Agregar caso» y «Agregar transición». Solo el entrenamiento
+     * (Inicio): son de un paso del recorrido, y en Preguntas, Productos o
+     * Extras no hay recorrido al que transicionar.
+     */
+    conCasosYTransicion?: boolean;
 };
 
 export const FunctionSelector = ({
@@ -50,6 +56,7 @@ export const FunctionSelector = ({
     showRule = true,
     showAction = true,
     steps = [],
+    conCasosYTransicion = false,
 }: Props) => {
     const isRoot = !step; // sin step => modo raíz
     const [openRoot, setOpenRoot] = useState(false);
@@ -143,6 +150,22 @@ export const FunctionSelector = ({
         nota: null,
     });
 
+    const makeCaso = (): ElementFunction => ({
+        id: nanoid(),
+        kind: "function",
+        fn: "caso",
+        escenario: null,
+        respuesta: null,
+    });
+
+    /** Sin destino = el paso siguiente (como «Ejecutar paso», N+1). */
+    const makeTransicion = (): ElementFunction => ({
+        id: nanoid(),
+        kind: "function",
+        fn: "transicion",
+        destino: null,
+    });
+
     const makeRouting = () => ({
         id: nanoid(),
         kind: "function" as const,
@@ -192,6 +215,13 @@ export const FunctionSelector = ({
 
     const addNotaInterna = () =>
         insertOrCreate(makeNotaInterna() as ElementItem);
+
+    const addCaso = () => insertOrCreate(makeCaso() as ElementItem);
+    const addTransicion = () => insertOrCreate(makeTransicion() as ElementItem);
+    /** Una transición por paso: un paso pasa a UN paso siguiente. */
+    const yaTieneTransicion = !!step?.elements?.some(
+        (e: ElementItem) => e.kind === "function" && e.fn === "transicion"
+    );
 
     const addRouting = () =>
         insertOrCreate(makeRouting() as ElementItem);
@@ -278,22 +308,30 @@ export const FunctionSelector = ({
                                 </CommandGroup>
 
                                 {step && (
-                                    <CommandGroup heading="TEXTO">
+                                    /* Ya no se llama «TEXTO»: lleva también el caso y la
+                                       transición. Orden pedido: caso, respuesta, transición,
+                                       nota interna. Respuesta y nota no cambian. */
+                                    <CommandGroup heading="CONVERSACIÓN">
+                                        {conCasosYTransicion && (
+                                            <CommandItem onSelect={addCaso}>
+                                                <span className="flex items-center gap-2">🔀 Agregar caso</span>
+                                            </CommandItem>
+                                        )}
                                         <CommandItem onSelect={addText}>
                                             {/* "respuesta" a secas: este es el elemento que el
                                                 cliente recibe —las plantillas lo llaman el PRIMER
-                                                elemento de TEXTO—. Antes decía "respuesta/regla"
-                                                porque hacía las dos cosas; ahora las reglas
-                                                internas tienen su propio campo, la nota de abajo,
-                                                así que la barra sobra y confunde.
-                                                Es un cambio de etiqueta: el prompt no cambia. */}
+                                                elemento de TEXTO—. Es un cambio de etiqueta: el
+                                                prompt no cambia. */}
                                             <span className="flex items-center gap-2">📝 Agregar respuesta</span>
                                         </CommandItem>
-                                        {/* La nota va aquí, debajo de la respuesta, porque
-                                            es lo mismo pero al revés: una la lee el cliente
-                                            y la otra no sale nunca de la conversación
-                                            interna. El candado es lo único que las separa
-                                            de un vistazo. */}
+                                        {conCasosYTransicion && !yaTieneTransicion && (
+                                            <CommandItem onSelect={addTransicion}>
+                                                <span className="flex items-center gap-2">➡️ Agregar transición</span>
+                                            </CommandItem>
+                                        )}
+                                        {/* La nota: una la lee el cliente y la otra no sale
+                                            nunca de la conversación interna. El candado es lo
+                                            único que las separa de un vistazo. */}
                                         <CommandItem onSelect={addNotaInterna}>
                                             <span className="flex items-center gap-2">🔒 Agregar nota interna</span>
                                         </CommandItem>

@@ -1,0 +1,186 @@
+/**
+ * «Agregar caso» y «Agregar transición» de un paso del entrenamiento: cómo se
+ * escriben en el prompt.
+ *
+ * Los dos son elementos del paso (`fn: "caso"` y `fn: "transicion"`), con los
+ * mismos campos que la maqueta ya enseñaba —Escenario y Respuesta; el paso al
+ * que se pasa—, y lo que inyectan dentro del bloque del paso es exactamente:
+ *
+ *     | Caso | Detección | Acción |
+ *     |---|---|---|
+ *     | A | <Escenario> | → <Respuesta> |
+ *
+ *     Si lo que dice el cliente no coincide con ningún Escenario declarado en
+ *     la tabla, el agente repite el texto principal del paso y espera, sin
+ *     inventar caso.
+ *
+ * y, al final del bloque:
+ *
+ *     ➡️ TRANSICIÓN: Completados los datos de este paso → `current_step = N`.
+ *     Esperar respuesta del cliente antes de ejecutar el paso siguiente.
+ *
+ * ## Por qué vive aquí y no dentro del constructor
+ *
+ * Los constructores del prompt son DOS —`markdownBuilder` y
+ * `buildSectionedPrompt`— y tienen que escribir lo mismo (la regla de la nota
+ * interna). Con la tabla redactada en cada uno, el día que se afine una el
+ * otro se queda atrás y el mismo paso se comporta distinto según por dónde se
+ * armó el prompt. Es puro: entran elementos y salen líneas.
+ *
+ * ## Varios casos son UNA tabla
+ *
+ * Cada «Agregar caso» es una fila. La tabla se escribe una sola vez, donde
+ * está el primer caso, con las letras en el orden en que se agregaron (A, B,
+ * C…). Ese orden es el de evaluación: aplica el PRIMERO cuyo Escenario
+ * coincida, y si ninguno coincide el agente repite el texto principal y
+ * espera (`FRASE_SIN_CASO`).
+ * Una tabla por caso serían tres tablas de una fila y tres frases de respaldo.
+ *
+ * ## La transición sin destino es el paso siguiente
+ *
+ * Igual que la plantilla «Ejecutar paso» (ruta por defecto `N+1`). En el
+ * último paso no hay siguiente, así que sin destino no se escribe nada:
+ * mandar al modelo a un paso que no existe es peor que no decir nada.
+ */
+
+export type ElementoCaso = {
+    id: string;
+    kind: "function";
+    fn: "caso";
+    escenario?: string | null;
+    respuesta?: string | null;
+};
+
+export type ElementoTransicion = {
+    id: string;
+    kind: "function";
+    fn: "transicion";
+    /** El `id` del paso al que se pasa. `null` = el siguiente. */
+    destino?: string | null;
+};
+
+export const FRASE_SIN_CASO =
+    "Si lo que dice el cliente no coincide con ningún Escenario declarado en la tabla, el agente repite el texto principal del paso y espera, sin inventar caso.";
+
+/**
+ * Con DOS o más casos, el orden manda: se evalúan en el orden en que se
+ * agregaron (A, B, C…) y aplica el primero que coincida. Con uno solo la
+ * frase sobra, así que no se escribe y la tabla queda exactamente como el
+ * formato pedido.
+ */
+export const FRASE_DEL_ORDEN =
+    "Los casos se evalúan en el orden de la tabla (A, B, C…): aplica el primero cuyo Escenario coincida con lo dicho por el cliente; los siguientes no se evalúan.";
+
+export function esCaso(el: unknown): el is ElementoCaso {
+    const e = el as { kind?: unknown; fn?: unknown } | null;
+    return e?.kind === "function" && e?.fn === "caso";
+}
+
+export function esTransicion(el: unknown): el is ElementoTransicion {
+    const e = el as { kind?: unknown; fn?: unknown } | null;
+    return e?.kind === "function" && e?.fn === "transicion";
+}
+
+/** A, B, … Z, AA, AB… */
+export function letraDelCaso(i: number): string {
+    let n = i;
+    let s = "";
+    do {
+        s = String.fromCharCode(65 + (n % 26)) + s;
+        n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return s;
+}
+
+/** Una celda no puede romper la tabla: sin `|` sueltos ni saltos de línea. */
+function celda(s?: string | null): string {
+    return (s ?? "").replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * La tabla de los casos y su frase de respaldo, o `null` si no hay ninguno
+ * escrito. Un caso con los dos campos vacíos no es una fila.
+ */
+export function tablaDeCasos(casos: ReadonlyArray<{ escenario?: string | null; respuesta?: string | null }>): string | null {
+    const filas = casos
+        .map((c) => ({ escenario: celda(c.escenario), respuesta: celda(c.respuesta) }))
+        .filter((c) => c.escenario || c.respuesta);
+    if (filas.length === 0) return null;
+
+    return [
+        "| Caso | Detección | Acción |",
+        "|---|---|---|",
+        ...filas.map((f, i) => `| ${letraDelCaso(i)} | ${f.escenario} | → ${f.respuesta} |`),
+        "",
+        ...(filas.length > 1 ? [FRASE_DEL_ORDEN, ""] : []),
+        FRASE_SIN_CASO,
+    ].join("\n");
+}
+
+/**
+ * El número del paso al que se pasa: el elegido si existe y no es el propio;
+ * si no, el siguiente. `null` cuando no hay a dónde ir (último paso sin
+ * destino).
+ */
+export function elPasoDeDestino(
+    pasos: ReadonlyArray<unknown>,
+    indice: number,
+    destino?: string | null,
+): number | null {
+    if (destino) {
+        const i = pasos.findIndex((p) => (p as { id?: unknown } | null)?.id === destino);
+        if (i !== -1 && i !== indice) return i + 1;
+    }
+    return indice + 1 < pasos.length ? indice + 2 : null;
+}
+
+export function lineaDeTransicion(paso: number): string {
+    return `➡️ TRANSICIÓN: Completados los datos de este paso → \`current_step = ${paso}\`. Esperar respuesta del cliente antes de ejecutar el paso siguiente.`;
+}
+
+/** ¿Escribe algo este paso por sus casos o su transición? */
+export function escribeCasosOTransicion(
+    elementos: ReadonlyArray<unknown>,
+    pasos: ReadonlyArray<unknown>,
+    indice: number,
+): boolean {
+    if (tablaDeCasos(elementos.filter(esCaso)) !== null) return true;
+    const t = (elementos as ReadonlyArray<unknown>).find(esTransicion);
+    return !!t && elPasoDeDestino(pasos, indice, t.destino) !== null;
+}
+
+/**
+ * Las líneas de los elementos de un paso, con los casos y la transición en su
+ * sitio. `normal` escribe cualquier otro elemento con su número; el número
+ * cuenta solo esos, así que un prompt sin casos ni transición sale idéntico
+ * al de siempre.
+ */
+export function lineasDelPaso<E>(
+    elementos: ReadonlyArray<E>,
+    pasos: ReadonlyArray<unknown>,
+    indice: number,
+    normal: (el: E, k: number) => string[],
+): string[] {
+    const out: string[] = [];
+    const tabla = tablaDeCasos((elementos as ReadonlyArray<unknown>).filter(esCaso));
+    let tablaPuesta = false;
+    let k = 0;
+
+    for (const el of elementos) {
+        if (esCaso(el)) {
+            if (!tablaPuesta && tabla) out.push(tabla);
+            tablaPuesta = true;
+            continue;
+        }
+        if (esTransicion(el)) continue;
+        k += 1;
+        out.push(...normal(el, k));
+    }
+
+    const t = (elementos as ReadonlyArray<unknown>).find(esTransicion);
+    if (t) {
+        const destino = elPasoDeDestino(pasos, indice, t.destino);
+        if (destino !== null) out.push(lineaDeTransicion(destino));
+    }
+    return out;
+}

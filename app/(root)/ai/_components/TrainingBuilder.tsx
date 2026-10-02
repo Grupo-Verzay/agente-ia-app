@@ -33,6 +33,7 @@ import {
 import { Workflow } from "@prisma/client";
 import { useTrainingAutosave, AutosaveStatus } from "./hooks/useTrainingAutosave";
 import { FunctionSelector } from "./";
+import { esCaso } from "@/lib/casos-y-transicion-del-paso";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { buildTrainingMarkdown } from "./helpers/actionsBuilders";
 
@@ -440,6 +441,42 @@ export function TrainingBuilder({
             elements: s.elements.map((e) =>
               e.id === elId && e.kind === "function" && e.fn === "nota_interna"
                 ? ({ ...e, nota } as typeof e)
+                : e
+            ),
+          }
+          : s
+      )
+    );
+  };
+
+  // «Agregar caso» y «Agregar transición»: se guardan en el elemento y los
+  // escribe en el prompt `lib/casos-y-transicion-del-paso`.
+  const updateCaso = (stepId: string, elId: string, cambio: { escenario?: string; respuesta?: string }) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+            ...s,
+            elements: s.elements.map((e) =>
+              e.id === elId && e.kind === "function" && e.fn === "caso"
+                ? ({ ...e, ...cambio } as typeof e)
+                : e
+            ),
+          }
+          : s
+      )
+    );
+  };
+
+  const updateTransicion = (stepId: string, elId: string, destino: string | null) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+            ...s,
+            elements: s.elements.map((e) =>
+              e.id === elId && e.kind === "function" && e.fn === "transicion"
+                ? ({ ...e, destino } as typeof e)
                 : e
             ),
           }
@@ -968,7 +1005,10 @@ export function TrainingBuilder({
                                                       steps={steps}
                                                       updateRoutingRules={updateRoutingRules}
                                                       updateSheetUrl={updateSheetUrl}
-                                                                                                            updateNotaInterna={updateNotaInterna}
+                                                      updateNotaInterna={updateNotaInterna}
+                                                      updateCaso={updateCaso}
+                                                      updateTransicion={updateTransicion}
+                                                      numeroDeCaso={step.elements.filter(esCaso).findIndex((c) => c.id === el.id) + 1}
                                                     />
                                                   </div>
                                                 </div>
@@ -991,6 +1031,7 @@ export function TrainingBuilder({
                                         setSteps={setSteps}
                                         notificationNumber={notificationNumber ?? ""}
                                         steps={steps}
+                                        conCasosYTransicion
                                       />
                                     </div>
                                   </div>

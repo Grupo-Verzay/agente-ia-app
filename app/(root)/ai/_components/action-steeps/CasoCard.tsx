@@ -11,8 +11,10 @@ import { ElementMenu } from "./ElementMenu";
 import { TituloDelElemento } from "./TituloDelElemento";
 
 /**
- * «Agregar caso» — MAQUETA, todavía sin lógica: lo escrito no se guarda ni
- * llega al prompt. Hoy solo se pinta en `/ia/maqueta`.
+ * «Agregar caso»: una fila de la tabla de casos del paso. Se guarda en el
+ * elemento (`fn: "caso"`) y la tabla la escribe en el prompt
+ * `lib/casos-y-transicion-del-paso`. La pintan el editor de verdad y la
+ * maqueta de `/ia/maqueta`.
  *
  * Misma anatomía que `TextRuleCard` (cabecera con icono y papelera, campos
  * debajo) porque ocupa su mismo puesto: un paso lleva una Respuesta fija o

@@ -102,6 +102,7 @@ export const CAMPO_DE_LA_TRANSICION = {
     titulo: "TRANSICIÓN",
     pregunta: "¿A qué paso pasa cuando se completen los datos de este paso?",
     vacio: "Elegir paso…",
+    ayuda: "Si no eliges ninguno, pasa al paso siguiente.",
 } as const;
 
 /**
