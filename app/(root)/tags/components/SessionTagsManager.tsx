@@ -327,6 +327,7 @@ export const SessionTagsManager = ({
                     itemId={tagToDelete?.id ?? 0}
                     mutationFn={deleteTagMutationFn}
                     entityLabel="etiqueta"
+                queSeElimina={tagToDelete ? `la etiqueta ${tagToDelete.name}` : undefined}
                 />
             </div>
         );
@@ -443,6 +444,7 @@ export const SessionTagsManager = ({
                 itemId={tagToDelete?.id ?? 0}
                 mutationFn={deleteTagMutationFn}
                 entityLabel="etiqueta"
+                queSeElimina={tagToDelete ? `la etiqueta ${tagToDelete.name}` : undefined}
             />
         </div>
     );

@@ -24,6 +24,8 @@ interface GenericDeleteDialogProps {
     mutationFn: (id: string) => Promise<{ success: boolean; message: string }>;
     entityLabel: string; // Ej: "Flujos", "respuesta rápida"
     requireConfirmationText?: boolean; // Si es true, exige escribir el nombre
+    /** Lo que se nombra en el título y el texto («la etiqueta VIP»). Sin él, `entityLabel`. */
+    queSeElimina?: string;
 }
 
 export function GenericDeleteDialog({
@@ -34,7 +36,9 @@ export function GenericDeleteDialog({
     mutationFn,
     entityLabel,
     requireConfirmationText = false,
+    queSeElimina,
 }: GenericDeleteDialogProps) {
+    const nombrado = queSeElimina || entityLabel.toUpperCase();
     const router = useRouter();
     const [confirmText, setConfirmText] = useState("");
 
@@ -64,9 +68,9 @@ export function GenericDeleteDialog({
         <AlertDialog open={open} onOpenChange={setOpen}>
             <AlertDialogContent className='border-border'>
                 <AlertDialogHeader>
-                    <AlertDialogTitle className="text-black dark:text-gray-100">Se eliminará <strong className="text-red-800">{entityLabel.toUpperCase()}</strong> ¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogTitle className="text-black dark:text-gray-100">Se eliminará <strong className="text-red-800">{nombrado}</strong> ¿Estás seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción eliminará <strong className="text-red-800 uppercase">{entityLabel}</strong>. Esta acción no se puede deshacer.  ¿Deseas continuar?
+                        Esta acción eliminará <strong className="text-red-800">{nombrado}</strong>. Esta acción no se puede deshacer.  ¿Deseas continuar?
                     </AlertDialogDescription>
 
                     {requireConfirmationText && (

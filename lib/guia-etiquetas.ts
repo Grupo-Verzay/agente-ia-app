@@ -344,7 +344,7 @@ export const GUIA_ETIQUETAS: Contenido = {
                 },
                 {
                     titulo: "Pulsa «Nuevo»",
-                    texto: "El botón azul abre la fila para crearla. Escribe el nombre: sale en mayúsculas.",
+                    texto: "1 El botón azul abre la fila para crearla · 2 Escribe el nombre: sale en mayúsculas.",
                     imagen: "crear-formulario.webp",
                     alt: "La fila para crear una etiqueta con su nombre escrito",
                 },

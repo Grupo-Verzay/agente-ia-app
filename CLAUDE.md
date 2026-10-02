@@ -24987,6 +24987,7 @@ Lo que se arregló en la pantalla al documentarla, con las reglas en
 | pulsar el rango de puntaje puesto no lo quitaba: la «x» lo prometía y no había forma de volver a ver el tablero entero | `elFiltroDePuntaje`: otro clic en el mismo lo quita |
 | los cinco rangos vivían en tres copias (la barra, el filtro y el color de la insignia de cada tarjeta) | `RANGOS_DE_PUNTAJE`, una vez |
 | reordenar las etiquetas con una búsqueda puesta guardaba el orden de un TROZO y las escondidas desaparecían hasta recargar | con búsqueda no se arrastra, y se dice (`porQueNoSePuedenOrdenarLasEtiquetas`) |
+| eliminar una etiqueta preguntaba «Se eliminará ETIQUETA», sin decir cuál | dice «la etiqueta VIP» (`queSeElimina` de `GenericDeleteDialog`; sin él, las demás pantallas siguen igual) |
 
 Y la pantalla expone sus marcas (`data-zona` en las barras, la cabecera de cada
 columna, cada parte de una tarjeta y la lista de Gestionar), que es lo que la

@@ -404,7 +404,7 @@ async function capturas(p) {
     await p.locator("[data-sonner-toast]", { hasText: /calificad/ }).first().waitFor({ state: "visible", timeout: 60000 });
     await espera(p, 1200);
     await marcar(p, [
-        { c: await caja(p, zona(p, "puntuar-todos")), texto: "Califica a todos los que faltan", lado: "abajo" },
+        { c: await caja(p, zona(p, "puntuar-todos")) },
         { c: await caja(p, p.locator("[data-sonner-toast]").last()) },
     ]);
     await guardar(p, "calificar-todos.webp");
@@ -452,7 +452,19 @@ async function capturas(p) {
         await enSel('button[title="Agregar etiqueta"]'),
         await enSel('button[aria-label="Eliminar contactos"]'),
     ];
-    await marcar(p, mandos.map((c, i) => ({ c, n: i + 1, numeroEn: { x: c.x + c.w / 2, y: debajo } })));
+    // Los cuatro primeros van pegados: un recuadro para el grupo y los
+    // números repartidos debajo, cada uno a 32 px del anterior (con un
+    // recuadro por mando se montan unos sobre otros).
+    const grupo = unir(...mandos.slice(0, 4));
+    await marcar(
+        p,
+        [
+            { c: grupo },
+            ...mandos.slice(0, 4).map((c, i) => ({ c, n: i + 1, sinRecuadro: true, numeroEn: { x: grupo.x + 12 + i * 32, y: debajo } })),
+            { c: mandos[4], n: 5, numeroEn: { x: mandos[4].x + mandos[4].w / 2, y: debajo } },
+        ],
+        { atenuar: true },
+    );
     await guardar(p, "seleccion-barra.webp", holgura({ ...cSel, h: cSel.h + 40 }, 30, vista));
     await desmarcar(p);
     await sel.locator('button[title="Agregar etiqueta"]').click();
@@ -495,7 +507,7 @@ async function capturas(p) {
     await espera(p, 400);
     await marcar(p, [
         { c: await caja(p, EL_NUEVO(p)), n: 1 },
-        { c: await caja(p, fila.locator('input[aria-label="Nombre de la etiqueta"]')), texto: "Sale en mayúsculas", lado: "abajo" },
+        { c: await caja(p, fila.locator('input[aria-label="Nombre de la etiqueta"]')), n: 2 },
     ]);
     await guardar(p, "crear-formulario.webp", holgura(unir(await caja(p, fila), await caja(p, EL_NUEVO(p))), 40, vista));
     await desmarcar(p);
