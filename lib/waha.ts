@@ -106,6 +106,9 @@ async function wahaFetch(
  *                        para que lo del cliente no entre dos veces.
  * - `message.ack`      → el ✓✓.
  * - `message.revoked`  → el cliente borro un mensaje.
+ * - `message.reaction` → el cliente reacciono con un emoji: se cuelga del
+ *                        mensaje (`raw.reaccion`). Sin este evento Waha no
+ *                        avisa y la reaccion del cliente no llega nunca.
  * - `presence.update`  → escribiendo / grabando.
  *
  * Si se anade uno aqui, hay que atenderlo en el backend (el normalizador o
@@ -116,6 +119,7 @@ export const EVENTOS_DEL_WEBHOOK = [
   'message.any',
   'message.ack',
   'message.revoked',
+  'message.reaction',
   'presence.update',
 ] as const;
 

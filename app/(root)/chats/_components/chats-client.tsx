@@ -119,6 +119,7 @@ import { idbGetChat, idbSetChat } from "./chat-idb";
 import { conLaResolucion, totalesDeTodos } from "@/lib/total-de-todos";
 import { SEGUNDA_VUELTA_DE_UN_CHAT_NUEVO_MS } from "@/lib/bandeja";
 import { DEL_AVISO_EN_VIVO, traeLoQueFaltabaDeUnAviso } from "@/lib/aviso-en-vivo-del-chat";
+import { cambioAlgunaReaccion } from "@/lib/reacciones-del-chat";
 import {
   ESPERA_PARA_PONER_AL_DIA_MS,
   conLaSesionAlDia,
@@ -180,7 +181,11 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
   // BORRADOR de un aviso en vivo y lo que trae el reloj su version real (la
   // nota con su reproductor, el PDF con su archivo, la marca de «Agente IA»).
   // Sin esto el borrador no se sustituia nunca: ver `lib/aviso-en-vivo-del-chat`.
-  return traeLoQueFaltabaDeUnAviso(a, b, (m) => idDeWhatsapp(m.key?.id) || undefined);
+  if (traeLoQueFaltabaDeUnAviso(a, b, (m) => idDeWhatsapp(m.key?.id) || undefined)) return true;
+  // Una reaccion no cambia ni el largo ni el ultimo mensaje: cambia un campo de
+  // un mensaje de en medio. Sin esto la del cliente llegaba con el reloj y se
+  // tiraba por «igual» (ver `lib/reacciones-del-chat`).
+  return cambioAlgunaReaccion(a, b, (m) => idDeWhatsapp(m.key?.id) || undefined);
 }
 
 type ApiKeyData = { url: string; key: string };

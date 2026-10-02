@@ -8608,6 +8608,37 @@ acciones contra Postgres con la IA fingida) y
 `scripts/banco-idioma-del-cliente.sh` en el backend, los dos con `MODO=roto`
 contra un commit pinchado que afirma que no existía nada de esto.
 
+## Chats: la reacción del CLIENTE se cuelga de su mensaje, como la nuestra
+
+El cliente reaccionaba con un emoji desde WhatsApp y en el panel no se veía;
+al revés sí. Cada lado creía que la guardaba el otro: el backend la descartaba
+(`AVISOS_QUE_NO_SON_CONVERSACION`, «de eso se encarga la App») y la App también
+(`persistEvolutionMessages` filtraba las reacciones). Waha ni pedía el evento.
+
+> **Una reacción va en `raw.reaccion` del mensaje al que reaccionaron**, venga
+> de donde venga: la plataforma (`guardarReaccion`), el webhook de Evolution y
+> el `message.reaction` de Waha (`chatStore.guardarReaccion` en el backend) y
+> el sondeo de Evolution (`persistEvolutionMessages`). Ni fila ni columna nueva.
+
+Cuatro cosas que hay que mantener:
+
+1. **El backend la busca por el id de WhatsApp en sus dos formas** (`elIdPelado`:
+   el TERCER trozo), dentro de la cuenta y la línea: el `<chat>` de la reacción
+   no tiene por qué ser el del mensaje (`@lid` frente al número).
+2. **Solo escribe si el emoji cambia**, y avisa en tiempo real solo a los chats
+   que tocó. Un emoji vacío la quita. Del sondeo vale la ÚLTIMA por hora
+   (`lasReaccionesQueTrae`, `lib/reacciones-del-chat.ts`).
+3. **El chat abierto la repinta** porque `areListsDifferent` pregunta
+   `cambioAlgunaReaccion`: una reacción no cambia ni el largo ni el último
+   mensaje, y sin eso la lista nueva se tiraba por «igual».
+4. **`message.reaction` está en `EVENTOS_DEL_WEBHOOK`** (Waha) y en
+   `EVENTOS_ATENDIDOS` del backend; las líneas se ponen al día solas.
+
+Lo prueban `scripts/banco-reaccion-entrante.sh` aquí (regla, barrido y el
+sondeo contra Postgres) y el del mismo nombre en `api-webhook` (Evolution y
+Waha contra Postgres). Los dos con `MODO=roto` contra un commit pinchado que
+afirma que la reacción no quedaba.
+
 ## Chats: reenviar un mensaje es el MISMO envío, a otra conversación
 
 Cada mensaje (texto, foto, vídeo, documento o nota de voz) lleva **Reenviar**:
