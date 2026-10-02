@@ -241,10 +241,10 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Añadir y cambiar un periodo",
                     texto:
-                        "El «+» junto al día es Añadir otro periodo. La hora de inicio y la de fin se eligen en sus " +
-                        "desplegables, y el cambio se guarda solo.",
+                        "El «+» junto al día (1) es Añadir otro periodo. La hora de inicio (2) y la de fin (3) se eligen " +
+                        "en sus desplegables, y el cambio se guarda solo.",
                     imagen: "disponibilidad-periodo.webp",
-                    alt: "El desplegable de la hora de inicio de un periodo abierto",
+                    alt: "El botón de añadir periodo y las horas de inicio y fin de un periodo",
                 },
                 {
                     titulo: "Duplicar y eliminar",
@@ -278,18 +278,18 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Lo que ve tu cliente",
                     texto:
-                        "Tu cliente elige el servicio, la fecha y la hora entre las que tienes libres. Los pasos " +
-                        "van arriba: Servicio, Fecha, Hora, Formulario y Tus datos.",
+                        "Tu cliente elige el servicio, la fecha y la hora (2) entre las que tienes libres. Arriba ve " +
+                        "en qué paso va (1): Servicio, Fecha, Hora, Formulario y Tus datos.",
                     imagen: "reserva-hora.webp",
                     alt: "La página pública de reserva con las horas libres",
                 },
                 {
                     titulo: "Sus datos y la cita",
                     texto:
-                        "Al final deja su nombre y su WhatsApp y confirma. La cita entra en tu calendario como " +
-                        "Pendiente y le llega su confirmación.",
+                        "Al final deja su nombre (1), su país (2) y su WhatsApp (3) y pulsa Confirmar (4). La cita " +
+                        "entra en tu calendario como Pendiente y le llega su confirmación.",
                     imagen: "reserva-datos.webp",
-                    alt: "El último paso de la reserva con el resumen de la cita",
+                    alt: "El último paso de la reserva, con el nombre y el WhatsApp del cliente",
                 },
             ],
             consejos: [
@@ -351,8 +351,8 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Crear un servicio",
                     texto:
-                        "Escribe el nombre del servicio y el mensaje automático para WhatsApp que recibe quien lo " +
-                        "reserva, y guárdalo.",
+                        "Escribe el nombre del servicio (1) y el mensaje automático para WhatsApp (2) que recibe quien " +
+                        "lo reserva, y pulsa Guardar (3).",
                     imagen: "servicio-nuevo.webp",
                     alt: "El formulario de un servicio nuevo",
                 },
@@ -377,8 +377,8 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Tus recordatorios",
                     texto:
-                        "Recordatorios guarda los mensajes que salen solos antes de cada cita. Puedes tener hasta " +
-                        "diez, y cada uno sale a su hora.",
+                        "Recordatorios guarda los mensajes que salen solos antes de cada cita. Arriba buscas (1) y " +
+                        "creas uno con Nuevo (2); cada uno dice cuánto antes sale.",
                     imagen: "recordatorios.webp",
                     alt: "La pestaña Recordatorios con su lista",
                 },
@@ -392,7 +392,7 @@ export const GUIA_AGENDA: Contenido = {
                 },
                 {
                     titulo: "Cuánto antes",
-                    texto: `«${ROTULO_DEL_TIEMPO_ANTES_DE_LA_CITA}» dice cuándo sale: por ejemplo, 1 día o 3 horas antes de la hora de la cita.`,
+                    texto: `«${ROTULO_DEL_TIEMPO_ANTES_DE_LA_CITA}» dice cuándo sale: la unidad (1) —minutos, horas o días— y cuántas (2). Por ejemplo, 2 horas antes de la cita.`,
                     imagen: "recordatorio-tiempo.webp",
                     alt: "El campo de cuánto antes de la cita sale el recordatorio",
                 },
@@ -420,8 +420,8 @@ export const GUIA_AGENDA: Contenido = {
                 {
                     titulo: "Crear una pregunta",
                     texto:
-                        "Con Nuevo escribes la pregunta, eliges el tipo —Texto corto, Texto largo o Selección— y si " +
-                        "es obligatoria. Las de Selección llevan sus opciones.",
+                        "Con Nuevo escribes la pregunta (1), eliges el tipo (2) —Texto corto, Texto largo o Selección— " +
+                        "y si es obligatoria (3). Las de Selección llevan sus opciones (4).",
                     imagen: "pregunta-nueva.webp",
                     alt: "El formulario de una pregunta nueva",
                 },
