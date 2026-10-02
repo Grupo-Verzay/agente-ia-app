@@ -68,6 +68,7 @@ export function VentanaDeLlamada({
     return (
         <div
             ref={cajaRef}
+            data-ventana-de-llamada
             style={estilo}
             className={cn(
                 "fixed z-[100] rounded-xl border border-border bg-background shadow-2xl",

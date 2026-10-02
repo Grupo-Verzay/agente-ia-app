@@ -73,6 +73,13 @@ export GOOGLE_SERVICE_ACCOUNT_JSON='{"client_email":"hojas@plataforma-ejemplo.ia
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 psql "$DATABASE_URL" -c \
   'ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT;' >/dev/null
+# `editedAt` lo añade la App la primera vez que usa `chat_messages`, y en una
+# base recién hecha eso pasa CON el servidor ya atendiendo: una consulta que
+# otra conexión preparó antes (`SELECT *`) revienta desde entonces con
+# «cached plan must not change result type» y la conversación sale vacía. En
+# producción la columna existe hace tiempo; aquí se pone antes de servir.
+psql "$DATABASE_URL" -c \
+  'ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "editedAt" TIMESTAMP(3);' >/dev/null
 node scripts/sembrar-barra.mjs >/dev/null
 node "scripts/sembrar-guia-$MODULO.mjs"
 

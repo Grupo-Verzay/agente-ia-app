@@ -127,6 +127,24 @@ export function elDestinoDeLaLlamada(identidades: ReadonlyArray<string | null | 
 }
 
 /**
+ * El destino de la llamada de UNA conversación abierta: primero con las
+ * identidades REALES (la ficha y el jid de la conversación) y, solo si ahí no
+ * hay ninguno, con los candidatos que se arman para pedir mensajes.
+ *
+ * Los candidatos llevan dentro el puente fabricado `D@lid` ⇄ `D@s.whatsapp.net`
+ * (`buildWhatsAppJidCandidates` lo cruza a propósito para buscar), así que
+ * mezclados con las reales hacían que todo teléfono pareciera «fabricado de su
+ * `@lid`»: el número real se descartaba y la llamada salía al `D@lid` que no
+ * existe, con la burbuja anotada en una conversación aparte.
+ */
+export function elDestinoDeLaConversacion(
+  reales: ReadonlyArray<string | null | undefined>,
+  candidatos: ReadonlyArray<string | null | undefined> = [],
+): string {
+  return elDestinoDeLaLlamada(reales) || elDestinoDeLaLlamada([...reales, ...candidatos]);
+}
+
+/**
  * Lo que viaja como `phone` entre pantallas y acciones, ya limpio: un `D@lid`
  * se queda como `D@lid` y lo demás se queda en sus dígitos. "" si no sirve.
  *
