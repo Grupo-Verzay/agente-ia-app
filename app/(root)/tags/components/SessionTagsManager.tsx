@@ -20,6 +20,7 @@ import { SortableTagList } from "./SortableTagList";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import { porQueNoSePuedenOrdenarLasEtiquetas } from "@/lib/etiquetas-de-la-pantalla";
 
 interface SessionTagsManagerProps {
     userId: string;
@@ -118,7 +119,7 @@ export const SessionTagsManager = ({
             setNewTagName("");
             setNewTagColor(null);
             setIsCreating(false);
-            toast.success("Etiqueta creada", { description: `Se creo la etiqueta "${newTag.name}".` });
+            toast.success("Etiqueta creada", { description: `Se creó la etiqueta "${newTag.name}".` });
         });
     };
 
@@ -191,6 +192,7 @@ export const SessionTagsManager = ({
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             placeholder="Buscar etiqueta..."
+                            aria-label="Buscar etiqueta"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="h-9 pl-9 pr-3"
@@ -210,7 +212,7 @@ export const SessionTagsManager = ({
 
                 {/* Inline create form */}
                 {isCreating && (
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
+                    <div data-zona="crear-etiqueta" className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
                         <div className="flex flex-1 min-w-[180px] items-center gap-2">
                             <div
                                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -221,6 +223,7 @@ export const SessionTagsManager = ({
                             <Input
                                 autoFocus
                                 placeholder="Nombre de la etiqueta..."
+                                aria-label="Nombre de la etiqueta"
                                 value={newTagName}
                                 onChange={(e) => setNewTagName(e.target.value.toUpperCase())}
                                 className="h-9"
@@ -230,15 +233,17 @@ export const SessionTagsManager = ({
                                 }}
                             />
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div data-zona="colores" className="flex items-center gap-1.5">
                             {COLOR_PRESETS.map((c) => (
                                 <button
                                     key={c}
                                     type="button"
-                                    onClick={() => setNewTagColor((prev) => (prev === c ? null : c))}
+                                    aria-label={`Color ${c}`}
+                                    aria-pressed={mismoColor(newTagColor, c)}
+                                    onClick={() => setNewTagColor((prev) => (mismoColor(prev, c) ? null : c))}
                                     className={cn(
                                         "h-5 w-5 rounded-full border border-border/60",
-                                        newTagColor === c && "ring-2 ring-primary"
+                                        mismoColor(newTagColor, c) && "ring-2 ring-primary"
                                     )}
                                     style={{ backgroundColor: c }}
                                 />
@@ -249,6 +254,7 @@ export const SessionTagsManager = ({
                                 onChange={(e) => setNewTagColor(e.target.value)}
                                 className="h-9 w-12 cursor-pointer p-1"
                                 title="Color personalizado"
+                                aria-label="Color personalizado"
                             />
                         </div>
                         <div className="flex items-center gap-2">
@@ -287,7 +293,7 @@ export const SessionTagsManager = ({
                         <p className="text-sm text-muted-foreground">
                             {search
                                 ? `No hay etiquetas que coincidan con "${search}"`
-                                : "Crea tu primera etiqueta con el boton de arriba."}
+                                : "Crea tu primera etiqueta con el botón de arriba."}
                         </p>
                     </div>
                 ) : (
@@ -307,6 +313,7 @@ export const SessionTagsManager = ({
                         onCancelEdit={() => setEditingTagId(null)}
                         onStartEdit={startEditTag}
                         onDelete={openDeleteDialog}
+                        porQueNoSeOrdena={porQueNoSePuedenOrdenarLasEtiquetas(search)}
                     />
                 )}
 
@@ -333,13 +340,13 @@ export const SessionTagsManager = ({
                     <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-3">
                         <div className="flex items-center gap-2">
                             <TagIcon className="h-4 w-4 text-muted-foreground" />
-                            <h3 className="font-semibold">Etiquetas de la sesion</h3>
+                            <h3 className="font-semibold">Etiquetas de la sesión</h3>
                         </div>
                         {isPending && <span className="text-xs text-muted-foreground">Guardando...</span>}
                     </div>
 
                     <div>
-                        <p className="mb-1.5 text-sm font-medium text-muted-foreground">Asignadas a esta sesion</p>
+                        <p className="mb-1.5 text-sm font-medium text-muted-foreground">Asignadas a esta sesión</p>
                         <div className="flex flex-wrap gap-1.5">
                             {tags.filter((t) => selectedIds.includes(t.id)).length === 0 ? (
                                 <span className="text-sm text-muted-foreground">Sin etiquetas asignadas.</span>
@@ -367,10 +374,10 @@ export const SessionTagsManager = ({
                                 <button
                                     key={color}
                                     type="button"
-                                    onClick={() => setNewTagColor((c) => (c === color ? null : color))}
+                                    onClick={() => setNewTagColor((c) => (mismoColor(c, color) ? null : color))}
                                     className={cn(
                                         "h-5 w-5 rounded-full border border-border/60",
-                                        newTagColor === color && "ring-2 ring-primary"
+                                        mismoColor(newTagColor, color) && "ring-2 ring-primary"
                                     )}
                                     style={{ backgroundColor: color }}
                                 />
@@ -401,7 +408,7 @@ export const SessionTagsManager = ({
                             Todas las etiquetas
                         </p>
                         {tags.length === 0 ? (
-                            <span className="text-sm text-muted-foreground">Aun no hay etiquetas creadas.</span>
+                            <span className="text-sm text-muted-foreground">Aún no hay etiquetas creadas.</span>
                         ) : (
                             <div className="flex flex-wrap gap-1.5">
                                 {tags.map((tag) => (

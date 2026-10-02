@@ -40,16 +40,14 @@ import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-scor
 import type { SimpleTag } from '@/types/session';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { TagAutomationsPanel } from '@/app/(root)/crm/rules/components/TagAutomationsPanel';
-
-// ─── Score ranges (para filtrado interno) ────────────────────────────────────
-
-const SCORE_RANGES = [
-    { key: 'bajo',     min: 0,  max: 25  },
-    { key: 'medio',    min: 26, max: 50  },
-    { key: 'moderado', min: 51, max: 75  },
-    { key: 'alto',     min: 76, max: 90  },
-    { key: 'listo',    min: 91, max: 100 },
-] as const;
+// Los rangos de puntaje se escriben UNA vez: la barra, el filtro, el conteo y
+// el color de la insignia de cada tarjeta salen de ahí.
+import {
+    cuantasPorRango,
+    elRangoDelPuntaje,
+    pasaElFiltroDePuntaje,
+    type ClaveDePuntaje,
+} from '@/lib/etiquetas-de-la-pantalla';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,9 +97,10 @@ function columnDropId(tagId: number | null) {
 // ─── Score badge ──────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score }: { score: number }) {
-    const color = score >= 91 ? '#16A34A' : score >= 76 ? '#22C55E' : score >= 51 ? '#F59E0B' : score >= 26 ? '#F97316' : '#EF4444';
+    const color = elRangoDelPuntaje(score)?.color ?? '#EF4444';
     return (
         <div
+            data-zona="puntaje"
             className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
             style={{ backgroundColor: color }}
             title={`Lead Score: ${score}/100`}
@@ -135,7 +134,7 @@ function TagKanbanCardItem({
     const otherTags = card.tags.filter((t) => t.id !== currentTagId);
 
     return (
-        <div className={cn(
+        <div data-tarjeta-del-tablero={card.pushName} className={cn(
             'bg-background rounded-lg border p-3 shadow-sm space-y-2 select-none',
             selected ? 'border-primary ring-1 ring-primary/40 bg-primary/5' : 'border-border',
             isDragging && 'opacity-80 shadow-lg rotate-1 scale-105',
@@ -165,7 +164,7 @@ function TagKanbanCardItem({
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
-                    <div className="min-w-0">
+                    <div data-zona="contacto" className="min-w-0">
                         <p className="app-item-title truncate leading-tight">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
@@ -197,8 +196,11 @@ function TagKanbanCardItem({
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onScore(card.id); }}
                             disabled={scoring}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            data-zona="puntuar"
                             className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
-                            title={card.leadScore !== null ? 'Re-puntuar lead' : 'Puntuar lead con IA'}
+                            title={card.leadScore !== null ? 'Volver a calificar con IA' : 'Calificar con IA'}
+                            aria-label={card.leadScore !== null ? `Volver a calificar a ${card.pushName} con IA` : `Calificar a ${card.pushName} con IA`}
                         >
                             {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                         </button>
@@ -207,13 +209,14 @@ function TagKanbanCardItem({
             </div>
 
             {card.leadScoreReason && card.leadScore !== null && (
-                <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1">
+                <p data-zona="motivo" className="text-[10px] text-muted-foreground/70 italic line-clamp-1">
                     {card.leadScoreReason}
                 </p>
             )}
 
             {card.leadStatus && (
                 <div
+                    data-zona="estado"
                     className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-white"
                     style={{ backgroundColor: LEAD_STATUS_COLORS[card.leadStatus] ?? '#6B7280' }}
                 >
@@ -319,10 +322,12 @@ function TagKanbanColumn({
 
     return (
         <div
+            data-columna-de-etiqueta={col.label}
             className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: headerColor + '52', backgroundColor: headerColor + '0A' }}
         >
             <div
+                data-zona="cabecera-de-columna"
                 className="px-3 py-2 flex items-center justify-between shrink-0"
                 style={{ backgroundColor: headerColor }}
             >
@@ -331,22 +336,28 @@ function TagKanbanColumn({
                     <span className="text-white text-sm font-semibold uppercase">{col.label}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
+                    <Badge data-zona="cuantos" className="bg-white/20 text-white border-0 text-xs font-medium">
                         {cards.length}
                     </Badge>
                     {onToggleSelectColumn && cards.length > 0 && (
                         <button
+                            type="button"
+                            data-zona="seleccionar-columna"
                             onClick={() => onToggleSelectColumn(cards.map((c) => c.id))}
                             className="p-0.5 rounded hover:bg-white/20 transition-colors"
                             title={allSelectedInColumn ? 'Deseleccionar esta columna' : 'Seleccionar esta columna'}
+                            aria-label={allSelectedInColumn ? `Deseleccionar la columna ${col.label}` : `Seleccionar la columna ${col.label}`}
                         >
                             <CheckSquare className={cn('h-3.5 w-3.5', allSelectedInColumn ? 'text-white' : 'text-white/80')} />
                         </button>
                     )}
                     <button
+                        type="button"
+                        data-zona="automatizaciones"
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
                         title="Automatizaciones"
+                        aria-label={`Automatizaciones de ${col.label}`}
                     >
                         <Settings2 className="h-3.5 w-3.5 text-white/80" />
                     </button>
@@ -367,6 +378,7 @@ function TagKanbanColumn({
 
             <div
                 ref={setNodeRef}
+                data-zona="tarjetas"
                 className={cn(
                     'flex-1 min-h-0 p-2 space-y-2 transition-colors overflow-y-auto',
                     isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
@@ -399,15 +411,15 @@ export function TagKanbanBoard({
     userId,
     advisorRole = null,
     initialTags,
-    selectedScoreRanges = new Set(),
+    filtroDePuntaje = null,
     onScoreCountsChange,
     onTagCountsChange,
 }: {
     userId: string;
     advisorRole?: string | null;
     initialTags: SimpleTag[];
-    selectedScoreRanges?: Set<string>;
-    onScoreCountsChange?: (counts: Record<string, number>) => void;
+    filtroDePuntaje?: ClaveDePuntaje | null;
+    onScoreCountsChange?: (counts: Record<ClaveDePuntaje, number>) => void;
     onTagCountsChange?: (counts: Record<string, number>) => void;
 }) {
     const [cards, setCards] = useState<KanbanCard[]>([]);
@@ -439,15 +451,7 @@ export function TagKanbanBoard({
         const res = await getKanbanSessionsAction();
         if (res.success && res.data) {
             setCards(res.data);
-            if (onScoreCountsChange) {
-                const counts: Record<string, number> = {};
-                for (const range of SCORE_RANGES) {
-                    counts[range.key] = res.data.filter(
-                        (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
-                    ).length;
-                }
-                onScoreCountsChange(counts);
-            }
+            onScoreCountsChange?.(cuantasPorRango(res.data.map((c) => c.leadScore)));
             if (onTagCountsChange) {
                 const tc: Record<string, number> = { none: 0 };
                 for (const card of res.data) {
@@ -475,16 +479,11 @@ export function TagKanbanBoard({
                 c.remoteJid.toLowerCase().includes(q)
             );
         }
-        if (selectedScoreRanges.size > 0) {
-            result = result.filter((c) => {
-                if (c.leadScore === null || c.leadScore === undefined) return false;
-                return SCORE_RANGES.some(
-                    (r) => selectedScoreRanges.has(r.key) && c.leadScore! >= r.min && c.leadScore! <= r.max
-                );
-            });
+        if (filtroDePuntaje) {
+            result = result.filter((c) => pasaElFiltroDePuntaje(c.leadScore, filtroDePuntaje));
         }
         return result;
-    }, [cards, searchQuery, selectedScoreRanges]);
+    }, [cards, searchQuery, filtroDePuntaje]);
 
     const columnCards = (tagId: number | null) => {
         if (tagId === null) return filteredCards.filter((c) => c.tags.length === 0);
@@ -500,17 +499,11 @@ export function TagKanbanBoard({
             ));
             if (onScoreCountsChange) {
                 const updated = cards.map((c) => c.id === id ? { ...c, leadScore: res.score! } : c);
-                const counts: Record<string, number> = {};
-                for (const range of SCORE_RANGES) {
-                    counts[range.key] = updated.filter(
-                        (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
-                    ).length;
-                }
-                onScoreCountsChange(counts);
+                onScoreCountsChange(cuantasPorRango(updated.map((c) => c.leadScore)));
             }
-            toast.success(`Lead puntuado: ${res.score}/100`);
+            toast.success(`Lead calificado: ${res.score}/100`);
         } else {
-            toast.error(res.message ?? 'Error al puntuar el lead');
+            toast.error(res.message ?? 'No se pudo calificar el lead');
         }
         setScoringIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }, [cards, onScoreCountsChange]);
@@ -519,12 +512,12 @@ export function TagKanbanBoard({
         setScoringAll(true);
         const res = await scoreAllLeadsByUserId();
         if (res.success) {
-            toast.success(`${res.scored ?? 0} leads puntuados`);
+            toast.success(`${res.scored ?? 0} leads calificados`);
             // Se paró a medias por créditos: se dice, no solo el número.
             if (res.message) toast.warning(res.message);
             await loadCards();
         } else {
-            toast.error(res.message ?? 'Error en puntuación masiva');
+            toast.error(res.message ?? 'No se pudieron calificar los leads');
         }
         setScoringAll(false);
     }, [loadCards]);
@@ -662,17 +655,18 @@ export function TagKanbanBoard({
         );
     }
 
-    const isFiltered = searchQuery || selectedScoreRanges.size > 0;
+    const isFiltered = searchQuery || filtroDePuntaje !== null;
 
     return (
         <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
             {/* Toolbar: búsqueda + contador + botones */}
-            <div className="flex items-center gap-2 min-w-0">
-                <div className="relative w-72 shrink-0">
+            <div data-zona="barra-del-tablero" className="flex items-center gap-2 min-w-0">
+                <div data-zona="buscador" className="relative w-72 shrink-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
                         placeholder="Buscar contacto…"
+                        aria-label="Buscar contacto"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -680,6 +674,7 @@ export function TagKanbanBoard({
                     {searchQuery && (
                         <button
                             type="button"
+                            aria-label="Borrar la búsqueda"
                             onClick={() => setSearchQuery('')}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
@@ -689,30 +684,33 @@ export function TagKanbanBoard({
                 </div>
 
                 <div className="toolbar-collapse flex items-center gap-2 shrink-0 ml-auto">
-                    <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                    <span data-zona="contador" title="Contactos en el tablero" className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
                         <Users className="h-3.5 w-3.5" />
                         <span className="font-medium text-foreground">
                             {isFiltered ? `${filteredCards.length}/${cards.length}` : cards.length}
                         </span>
                     </span>
-                    <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={loadCards} title="Actualizar">
+                    <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={loadCards} title="Actualizar" aria-label="Actualizar el tablero" data-zona="actualizar">
                         <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                         size="sm"
                         onClick={handleScoreAll}
                         disabled={scoringAll}
+                        data-zona="puntuar-todos"
                         className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white border-0"
                     >
                         {scoringAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        Puntuar leads
+                        Calificar con IA
                     </Button>
                 </div>
             </div>
 
             {/* Barra de acciones en lote — solo con algo seleccionado */}
             {selectedIds.size > 0 && (
+                <div data-zona="seleccion">
                 <BulkActionBar
+                    sustantivo={{ uno: 'contacto', varios: 'contactos' }}
                     count={selectedIds.size}
                     totalCount={filteredCards.length}
                     onClear={clearSelection}
@@ -721,11 +719,12 @@ export function TagKanbanBoard({
                     onDelete={canDelete ? () => setBulkDeleteOpen(true) : undefined}
                     allTags={initialTags}
                 />
+                </div>
             )}
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
+                <div data-zona="tablero" className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
                     <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                         {columns.map((col) => (
                             <TagKanbanColumn
