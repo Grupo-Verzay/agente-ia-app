@@ -25380,6 +25380,48 @@ la guía servida a 390 y 1440) y `scripts/banco-destino-de-la-llamada.sh`
 (caso A5: el teléfono real gana a un `@lid` fabricado). `MODO=roto` contra un
 commit pinchado afirma que no había guía y que la llamada iba al `@lid`.
 
+### La vigesimoquinta guía, Mis tareas: y la cifra y la lista no decían lo mismo
+
+`/guia/tareas` documenta Bandeja › Mis tareas (`/tareas`) con el estándar de
+las anteriores: la vista Lista agrupada por fecha, el Kanban por tipo con sus
+automatizaciones, las cifras, crear una tarea, completarla con tiempo y
+resultado programando la siguiente, la ficha, y cancelar o eliminar; con una
+miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y el MISMO
+ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/tareas`. Ninguna
+pieza propia: contenido en `lib/guia-tareas.ts`, semilla
+`sembrar-guia-tareas.mjs`, receta `capturar-guia-tareas.mjs` y narración
+`narracion-guia-tareas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-tareas.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla, con las reglas en
+`lib/pantalla-de-tareas.ts` (pura, la usan la pantalla y la guía):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| la cifra «Vencidas» miraba la HORA y la lista el DÍA: una tarea de esta mañana contaba arriba como vencida y salía abajo en «Hoy» | una regla, `elGrupoDeLaTarea` y `lasCifras`: abierta y con la hora pasada es vencida en los dos sitios |
+| cancelar no pedía confirmación, y eliminar usaba `window.confirm` | las dos con un `AlertDialog` («Volver» / «Sí, cancelar la tarea» / «Eliminar») |
+| «Manana», «Proxima semana», «No respondio» | con sus tildes (`ATAJOS_DE_LA_SIGUIENTE`, `RESULTADOS_RAPIDOS`) |
+| crear desde un chat proponía la fecha en UTC (las 14:00 en Colombia) | `laFechaPropuesta`, mañana a las 9:00 de quien mira |
+| la lista vacía decía lo mismo sin tareas que sin resultados de búsqueda | `elMensajeDeLaListaVacia` |
+
+Cuatro cosas que hay que mantener:
+
+1. **Las capturas y el vídeo nunca confirman cancelar ni eliminar**: abren la
+   confirmación y pulsan «Volver». La tarea que se crea va sin recordatorio de
+   WhatsApp, y antes del vídeo se vuelve a sembrar.
+2. **Las fechas de los campos salen en español solo con `--lang=es-CO` y
+   `LANG=es_CO.UTF-8`**, como en Finanzas.
+3. **El número de cada asesor sale de `User.notificationNumber`**: la semilla lo
+   pone, o la guía enseña «+0000000000».
+4. **Los títulos de ejemplo caben en la tarjeta del Kanban**
+   (`queNadaSalgaRecortado`): se acortan en la semilla, no en la guía.
+
+Lo prueba `scripts/banco-guia-tareas.sh`: las reglas y el contenido contra el
+código (vistas, cifras, grupos, columnas por tipo, acciones de automatización,
+campos, confirmaciones), el vídeo, las miniaturas (`GUIA=tareas`),
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida. `MODO=roto` contra
+`400482e` afirma que no había guía, ni reglas compartidas, ni confirmaciones.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
