@@ -544,6 +544,16 @@ async function capturas(p) {
 
     // 8. Cancelar y eliminar: la ventana se cierra con «Volver».
     const aCancelar = "REUNIÓN DE CIERRE";
+    {
+        const cX = await aLaVistaYMedir(p, elMandoDe(p, aCancelar, "Cancelar tarea"));
+        const cPapelera = await caja(p, elMandoDe(p, aCancelar, "Eliminar tarea definitivamente"));
+        await marcar(p, [
+            { c: cX, n: 1, lado: "abajo" },
+            { c: cPapelera, n: 2, lado: "abajo" },
+        ], { atenuar: true });
+        await guardar(p, "cancelar-botones.webp", holgura(await caja(p, laTarea(p, aCancelar)), 30, vista));
+        await desmarcar(p);
+    }
     for (const [mando, imagen, boton] of [
         ["Cancelar tarea", "cancelar-confirmar.webp", "Sí, cancelar la tarea"],
         ["Eliminar tarea definitivamente", "eliminar-confirmar.webp", "Eliminar"],
@@ -578,6 +588,9 @@ async function capturas(p) {
     await espera(p, 1000);
     await soltarElFoco(p);
     await guardar(p, "ficha.webp", holgura(await caja(p, ficha), 20, vista));
+    await marcar(p, [{ c: await caja(p, ficha.getByRole("button", { name: "Felipe Ríos" })), texto: "Abre su conversación", lado: "derecha" }], { atenuar: true });
+    await guardar(p, "ficha-contacto.webp", holgura(await caja(p, ficha), 20, vista));
+    await desmarcar(p);
     await p.keyboard.press("Escape");
     await ficha.waitFor({ state: "hidden", timeout: 10000 });
     await espera(p, 400);

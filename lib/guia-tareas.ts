@@ -301,14 +301,13 @@ export const GUIA_TAREAS: Contenido = {
                 {
                     titulo: "Agrega una acción",
                     texto:
-                        "«Agregar acción» deja elegir qué se hace y cuántos minutos después: " +
-                        ACCIONES_DE_AUTOMATIZACION.join(", ") +
-                        ".",
+                        "«Agregar acción» deja elegir qué se hace y cuántos minutos después de crear la tarea.",
                     imagen: "automatizaciones-accion.webp",
                     alt: "La ventana de nueva acción con los tipos de acción abiertos",
                 },
             ],
             consejos: [
+                "Las acciones que puedes elegir: " + ACCIONES_DE_AUTOMATIZACION.join(", ") + ".",
                 "Con 0 minutos la acción se hace en el momento; con más, espera ese tiempo.",
                 "Apagar el interruptor la detiene sin borrarla.",
             ],
@@ -403,6 +402,12 @@ export const GUIA_TAREAS: Contenido = {
             miniatura: "mini-cancelar-y-eliminar.webp",
             pasos: [
                 {
+                    titulo: "Los dos botones de cada tarea",
+                    texto: "A la derecha de cada tarea están la X amarilla, que la cancela, y la papelera roja, que la elimina.",
+                    imagen: "cancelar-botones.webp",
+                    alt: "Una tarea con la X de cancelar y la papelera de eliminar resaltadas",
+                },
+                {
                     titulo: "Cancelar",
                     texto:
                         "La X amarilla saca la tarea de tu lista sin contarla como hecha. Pide confirmación, y «Volver» " +
@@ -444,8 +449,14 @@ export const GUIA_TAREAS: Contenido = {
                     imagen: "ficha.webp",
                     alt: "La ficha de una tarea abierta",
                 },
+                {
+                    titulo: "Ir a su conversación",
+                    texto: "El nombre del contacto, en azul, te lleva a su conversación en Chats.",
+                    imagen: "ficha-contacto.webp",
+                    alt: "La ficha con el nombre del contacto resaltado",
+                },
             ],
-            consejos: ["El nombre del contacto en la ficha abre su conversación en Chats."],
+            consejos: ["Pulsa fuera de la ficha o la X para volver a la lista."],
         },
     ],
 };
