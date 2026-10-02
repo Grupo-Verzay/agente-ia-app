@@ -103,6 +103,9 @@ export const CAMPO_DE_LA_TRANSICION = {
     pregunta: "¿A qué paso pasa cuando se completen los datos de este paso?",
     vacio: "Elegir paso…",
     ayuda: "Si no eliges ninguno, pasa al paso siguiente.",
+    /** En Preguntas, Productos y Extras: el destino es un paso de Inicio y no hay «siguiente». */
+    preguntaFueraDeInicio: "¿A qué paso de Inicio pasa la conversación después de esto?",
+    ayudaFueraDeInicio: "Elige un paso de Inicio. Si no eliges ninguno, no se agrega transición.",
 } as const;
 
 /**

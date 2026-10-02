@@ -39,21 +39,22 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     }
 
     // 4. Preguntas & Respuestas
-    const faqMd = buildFaqMarkdown(sections.faq);
+    const pasosDelInicio = sections.training?.steps ?? [];
+    const faqMd = buildFaqMarkdown(sections.faq, pasosDelInicio);
     if (nonEmpty(faqMd)) {
         out.push('\n---\n\n## ❓ PREGUNTAS & RESPUESTAS\n');
         out.push(faqMd);
     }
 
     // 5. Catálogo / Productos
-    const prodMd = buildProductsMarkdown(sections.products);
+    const prodMd = buildProductsMarkdown(sections.products, pasosDelInicio);
     if (nonEmpty(prodMd)) {
         out.push('\n---\n\n## 💎 CATÁLOGO DE: PRODUCTOS Y SERVICIOS\n');
         out.push(prodMd);
     }
 
     // 6. Extras
-    const extrasMd = buildExtrasMarkdown(sections.extras);
+    const extrasMd = buildExtrasMarkdown(sections.extras, pasosDelInicio);
     if (nonEmpty(extrasMd)) {
         out.push('\n---\n\n## ⚖️ EXTRAS / OBJECIONES\n');
         out.push(extrasMd);

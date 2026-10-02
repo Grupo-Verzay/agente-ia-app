@@ -344,7 +344,7 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
                 return !!trimOrUndefined(el.text);
             }
             return false;
-        }) || escribeCasosOTransicion(els, items, i);
+        }) || escribeCasosOTransicion(els, items, i, { pasosDelInicio: cfg.pasosDelInicio });
 
         if (hasActions || cfg.mode === "management") {
             if (cfg.mode !== "management") {
@@ -352,7 +352,7 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
             }
 
             blocks.push(...lineasDelPaso(els, items, i, (el, k) =>
-                formatElement(el, k, flowBehaviorText, cfg)));
+                formatElement(el, k, flowBehaviorText, cfg), { pasosDelInicio: cfg.pasosDelInicio }));
 
             blocks.push("---");
         }

@@ -21,6 +21,7 @@ import { Workflow } from "@prisma/client";
 import { useFaqAutosave, AutosaveStatus } from "./hooks/useFaqAutosave";
 import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
+import { esCaso } from "@/lib/casos-y-transicion-del-paso";
 import { buildFaqMarkdown } from "./helpers/actionsBuilders";
 import {
     AlertDialog,
@@ -122,7 +123,8 @@ export function FqaBuilder({
     initialItems,
     flows = [],
     notificationNumber,
-    registerSaveHandler
+    registerSaveHandler,
+    pasosDelInicio = [],
 }: FqaBuilderProps) {
     // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<QaItem[]>(
@@ -179,7 +181,7 @@ export function FqaBuilder({
         }
     }, [autosaveStatus]);
 
-    const prompt = useMemo(() => buildFaqMarkdown({ steps: items as any }), [items]);
+    const prompt = useMemo(() => buildFaqMarkdown({ steps: items as any }, pasosDelInicio), [items, pasosDelInicio]);
 
     useEffect(() => {
         if (values.faq !== prompt) {
@@ -302,6 +304,38 @@ export function FqaBuilder({
                             e.id === elId && e.kind === "function" && e.fn === "nota_interna"
                                 ? { ...e, nota }
                                 : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    // «Agregar caso» y «Agregar transición»: como en Inicio
+    // (`lib/casos-y-transicion-del-paso`); la transición va a un paso de Inicio.
+    const updateCaso = (faqId: string, elId: string, cambio: { escenario?: string; respuesta?: string }) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === faqId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "caso" ? { ...e, ...cambio } : e
+                        ),
+                    }
+                    : s
+            )
+        );
+    };
+
+    const updateTransicion = (faqId: string, elId: string, destino: string | null) => {
+        setItems((prev) =>
+            prev.map((s: any) =>
+                s.id === faqId
+                    ? {
+                        ...s,
+                        elements: s.elements.map((e: any) =>
+                            e.id === elId && e.kind === "function" && e.fn === "transicion" ? { ...e, destino } : e
                         ),
                     }
                     : s
@@ -617,6 +651,10 @@ export function FqaBuilder({
                                                                                                             onSubtypeChange={onSubtypeChange}
                                                                                                             updateSheetUrl={updateSheetUrl}
                                                                                                             updateNotaInterna={updateNotaInterna}
+                                                                                                            updateCaso={updateCaso}
+                                                                                                            updateTransicion={updateTransicion}
+                                                                                                            numeroDeCaso={(step.elements ?? []).filter(esCaso).findIndex((c) => c.id === el.id) + 1}
+                                                                                                            pasosDelInicio={pasosDelInicio}
                                                                                                         />
                                                                                                     </div>
                                                                                                 </div>
@@ -637,6 +675,7 @@ export function FqaBuilder({
                                                                                 step={step}
                                                                                 setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                                 notificationNumber={notificationNumber ?? ""}
+                                                                                conCasosYTransicion
                                                                             />
                                                                         </div>
                                                                     </div>

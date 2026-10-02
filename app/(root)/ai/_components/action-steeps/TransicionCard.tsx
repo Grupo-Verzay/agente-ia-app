@@ -29,16 +29,20 @@ export const TransicionCard: FC<{
     destino: string | null;
     onChange: (id: string) => void;
     onRemove: () => void;
-}> = ({ pasos, destino, onChange, onRemove }) => (
+    /** Fuera de Inicio el destino es un paso de Inicio y no hay «siguiente». */
+    fueraDeInicio?: boolean;
+}> = ({ pasos, destino, onChange, onRemove, fueraDeInicio = false }) => {
+    const pregunta = fueraDeInicio ? CAMPO_DE_LA_TRANSICION.preguntaFueraDeInicio : CAMPO_DE_LA_TRANSICION.pregunta;
+    return (
     <Card className="bg-muted/20 border-muted/60" data-tarjeta-transicion>
         <CardHeader className="py-2 px-3 flex-row items-center justify-between">
             <TituloDelElemento icono={ArrowRightLeft}>{CAMPO_DE_LA_TRANSICION.titulo}</TituloDelElemento>
             <ElementMenu onRemove={onRemove} label="Eliminar transición" />
         </CardHeader>
         <CardContent className="space-y-1 px-3 pb-3 pt-0">
-            <Label className="text-xs font-medium text-foreground/70">{CAMPO_DE_LA_TRANSICION.pregunta}</Label>
+            <Label className="text-xs font-medium text-foreground/70">{pregunta}</Label>
             <Select value={destino ?? undefined} onValueChange={onChange}>
-                <SelectTrigger aria-label={CAMPO_DE_LA_TRANSICION.pregunta} data-campo="destino">
+                <SelectTrigger aria-label={pregunta} data-campo="destino">
                     <SelectValue placeholder={CAMPO_DE_LA_TRANSICION.vacio} />
                 </SelectTrigger>
                 <SelectContent>
@@ -50,8 +54,9 @@ export const TransicionCard: FC<{
                 </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground" data-ayuda-transicion>
-                {CAMPO_DE_LA_TRANSICION.ayuda}
+                {fueraDeInicio ? CAMPO_DE_LA_TRANSICION.ayudaFueraDeInicio : CAMPO_DE_LA_TRANSICION.ayuda}
             </p>
         </CardContent>
     </Card>
-);
+    );
+};
