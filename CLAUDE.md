@@ -25120,6 +25120,44 @@ macros, las miniaturas en sus píxeles (`GUIA=recordatorios`), `fin-de-la-guia`
 y `menu-de-la-guia` y la guía servida a 390 y 1440. `MODO=roto` contra
 `ab6b110` afirma que no había guía y que el `@client_name` llegaba tal cual.
 
+### La vigesimosegunda guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
+
+`/guia/etiquetas` documenta Contactos › Etiquetas (`/tags`) con el mismo
+estándar: diez secciones —vista general, el tablero, arrastrar, calificar con
+IA, filtrar por puntaje, varios a la vez, y crear, editar, ordenar y eliminar
+una etiqueta—, una miniatura con enfoque por tarjeta y el vídeo narrado con
+Cedar al MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/tags`: «Aprende a organizar tus contactos con etiquetas en la plataforma».
+Se regenera con `npm run build && scripts/generar-guia-etiquetas.sh && npm run build`.
+
+Ninguna pieza propia salvo la IA de ejemplo que pone los puntajes
+(`fingido-guia-etiquetas.mjs`, cargado por el lanzador común): calificar es una
+llamada a OpenAI con la clave de la cuenta, y el banco no la tiene. El puntaje
+de cada contacto de ejemplo lo decide la semilla (`guia-etiquetas-datos.mjs`).
+
+Lo que se arregló en la pantalla al documentarla, con las reglas en
+`lib/etiquetas-de-la-pantalla.ts` (pura):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| pulsar el rango de puntaje puesto no lo quitaba: la «x» lo prometía y no había forma de volver a ver el tablero entero | `elFiltroDePuntaje`: otro clic en el mismo lo quita |
+| los cinco rangos vivían en tres copias (la barra, el filtro y el color de la insignia de cada tarjeta) | `RANGOS_DE_PUNTAJE`, una vez |
+| reordenar las etiquetas con una búsqueda puesta guardaba el orden de un TROZO y las escondidas desaparecían hasta recargar | con búsqueda no se arrastra, y se dice (`porQueNoSePuedenOrdenarLasEtiquetas`) |
+| eliminar una etiqueta preguntaba «Se eliminará ETIQUETA», sin decir cuál | dice «la etiqueta VIP» (`queSeElimina` de `GenericDeleteDialog`; sin él, las demás pantallas siguen igual) |
+| en la tarjeta del tablero el nombre del contacto se recortaba a «Ca…»: el puntaje, la hora y el destello iban en su misma fila | van en una fila debajo (`data-zona="medidas"`), y el nombre se queda la suya entera; la receta se cae si algo de una tarjeta sale con «…» (`queNadaSalgaRecortado`) |
+
+Y la pantalla expone sus marcas (`data-zona` en las barras, la cabecera de cada
+columna, cada parte de una tarjeta y la lista de Gestionar), que es lo que la
+receta usa: nada de coordenadas. El vídeo no borra nada: la ventana de eliminar
+una etiqueta se CANCELA y no abre el borrado de contactos.
+
+Lo prueba `scripts/banco-guia-etiquetas.sh`: los arreglos de la pantalla, el
+contenido contra el código (vistas, rangos, las dos barras, la cabecera de una
+columna, las seis partes de una tarjeta y el «⋯» sin registros), el vídeo, las
+miniaturas (`GUIA=etiquetas`), `fin-de-la-guia` y `menu-de-la-guia`, y la guía
+servida. `MODO=roto` contra `7767f6f` afirma que no había guía y los fallos de
+la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

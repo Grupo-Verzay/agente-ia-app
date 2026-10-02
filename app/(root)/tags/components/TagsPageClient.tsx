@@ -12,15 +12,13 @@ import { getCrmDashboardStatsByUserId } from '@/actions/registro-action';
 import type { DashboardStats } from '@/app/(root)/crm/dashboard/components/MainDashboard';
 import { CrmGlobalActionsMenu } from '@/app/(root)/crm/dashboard/components/CrmGlobalActionsMenu';
 
-const SCORE_RANGES = [
-    { key: 'bajo',     label: 'Bajo',     range: '0–25',   color: '#EF4444' },
-    { key: 'medio',    label: 'Medio',    range: '26–50',  color: '#F97316' },
-    { key: 'moderado', label: 'Moderado', range: '51–75',  color: '#F59E0B' },
-    { key: 'alto',     label: 'Alto',     range: '76–90',  color: '#22C55E' },
-    { key: 'listo',    label: 'Listo',    range: '91–100', color: '#16A34A' },
-] as const;
+import {
+    RANGOS_DE_PUNTAJE,
+    elFiltroDePuntaje,
+    elTramo,
+    type ClaveDePuntaje,
+} from '@/lib/etiquetas-de-la-pantalla';
 
-type ScoreKey = typeof SCORE_RANGES[number]['key'];
 type View = 'kanban' | 'gestionar';
 
 const DEFAULT_TAG_COLOR = '#64748B';
@@ -41,8 +39,9 @@ export function TagsPageClient({
     const allTagsKey = allTags.map(t => `${t.id}-${t.order}`).join(',');
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { setTags(allTags); }, [allTagsKey]);
-    const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreKey>>(new Set());
-    const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
+    // Un rango a la vez, y pulsar el que está puesto lo quita (elFiltroDePuntaje).
+    const [filtroDePuntaje, setFiltroDePuntaje] = useState<ClaveDePuntaje | null>(null);
+    const [scoreCounts, setScoreCounts] = useState<Partial<Record<ClaveDePuntaje, number>>>({});
     const [tagCounts, setTagCounts] = useState<Record<string, number>>({});
     const [stats, setStats] = useState<DashboardStats | null>(null);
 
@@ -67,8 +66,8 @@ export function TagsPageClient({
         return all.sort((a, b) => b.count - a.count).slice(0, 4);
     }, [tags, tagCounts]);
 
-    const toggleScoreRange = (key: ScoreKey) => {
-        setSelectedScoreRanges(new Set([key]));
+    const toggleScoreRange = (key: ClaveDePuntaje) => {
+        setFiltroDePuntaje((puesto) => elFiltroDePuntaje(puesto, key));
     };
 
     return (
@@ -88,9 +87,10 @@ export function TagsPageClient({
                     }
                 >
                     <>
-                        <div className="flex shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                        <div data-zona="vista" className="flex shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                             <button
                                 type="button"
+                                aria-pressed={view === 'kanban'}
                                 onClick={() => setView('kanban')}
                                 className={[
                                     'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -104,6 +104,7 @@ export function TagsPageClient({
                             </button>
                             <button
                                 type="button"
+                                aria-pressed={view === 'gestionar'}
                                 onClick={() => setView('gestionar')}
                                 className={[
                                     'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -123,6 +124,7 @@ export function TagsPageClient({
                             que van sin aspecto de pulsables. Y no repiten nada:
                             las pastillas de al lado son de SCORE, no de
                             etiqueta. */}
+                        <div data-zona="mas-usadas" className="contents">
                         <PastillasDeMetricas
                             metricas={topMetrics.map((m) => ({
                                 clave: m.id,
@@ -135,20 +137,23 @@ export function TagsPageClient({
                                     : `Contactos con etiqueta "${m.label}"`,
                             }))}
                         />
+                        </div>
 
                         {view === 'kanban' && (
-                            <div className="flex items-center gap-2">
+                            <div data-zona="filtro-de-puntaje" className="flex items-center gap-2">
                                 <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                                 <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                                    {SCORE_RANGES.map((range) => {
-                                        const active = selectedScoreRanges.has(range.key);
-                                        const count = scoreCounts[range.key] ?? 0;
+                                    {RANGOS_DE_PUNTAJE.map((range) => {
+                                        const active = filtroDePuntaje === range.clave;
+                                        const count = scoreCounts[range.clave] ?? 0;
                                         return (
                                             <button
-                                                key={range.key}
+                                                key={range.clave}
                                                 type="button"
-                                                title={`Score ${range.range}`}
-                                                onClick={() => toggleScoreRange(range.key)}
+                                                data-rango={range.clave}
+                                                aria-pressed={active}
+                                                title={active ? `Puntaje ${elTramo(range)} · pulsa otra vez para quitar el filtro` : `Puntaje ${elTramo(range)}`}
+                                                onClick={() => toggleScoreRange(range.clave)}
                                                 className="flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all"
                                                 style={{
                                                     color: active ? range.color : undefined,
@@ -157,7 +162,7 @@ export function TagsPageClient({
                                                 }}
                                             >
                                                 <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: range.color }} />
-                                                {range.label}
+                                                {range.nombre}
                                                 {count > 0 && (
                                                     <span
                                                         className="ml-1 rounded-full px-1 py-0 text-[10px] font-bold text-white"
@@ -183,7 +188,7 @@ export function TagsPageClient({
                             userId={userId}
                             advisorRole={advisorRole}
                             initialTags={tags}
-                            selectedScoreRanges={selectedScoreRanges}
+                            filtroDePuntaje={filtroDePuntaje}
                             onScoreCountsChange={setScoreCounts}
                             onTagCountsChange={setTagCounts}
                         />

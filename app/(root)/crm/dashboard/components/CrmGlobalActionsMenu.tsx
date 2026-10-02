@@ -189,7 +189,7 @@ export function CrmGlobalActionsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" aria-label="Acciones masivas" title="Acciones masivas">
             <MoreVertical/>
           </Button>
         </DropdownMenuTrigger>
