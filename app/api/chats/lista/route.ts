@@ -7,7 +7,7 @@ import { resolveInstanceOwner } from "@/lib/chat-persistence";
 import { refetchChatsManualAction } from "@/actions/chat-manual-actions";
 import { fetchChannelChats } from "@/actions/channel-chat-actions";
 import type { FetchChatsResult } from "@/actions/chat-actions";
-import { losSentimientosDeLasLineas } from "@/lib/sentimiento-db";
+import { losSentimientosDeLasLineas, lasLineasConSentimiento } from "@/lib/sentimiento-db";
 import type { SentimientoDeLaConversacion } from "@/lib/sentimiento";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +88,11 @@ export type RespuestaDeLaLista = {
    * de alerta de la conversacion abierta. Neutro no viaja: es lo de siempre.
    */
   sentimientos?: Record<string, SentimientoDeLaConversacion>;
+  /**
+   * De las lineas pedidas, las de una cuenta con la funcion de sentimiento
+   * ENCENDIDA. En las demas no se pinta ningun aro de sentimiento: nace apagada.
+   */
+  lineasConSentimiento?: string[];
 };
 
 export async function POST(request: Request) {
@@ -158,7 +163,7 @@ export async function POST(request: Request) {
   // El sentimiento se lee A LA VEZ que las lineas (es una consulta corta a una
   // tabla pequena), y acotado por `cuentas`: una linea de otra cuenta no trae
   // nada aunque se pida por su nombre. Un fallo aqui no puede tumbar la lista.
-  const [lineas, sentimientos] = await Promise.all([
+  const [lineas, sentimientos, lineasConSentimiento] = await Promise.all([
     Promise.all(
       pedidas.map(async (instanceName) => {
         const empezoEnMs = Date.now() - arrancoLaPeticion;
@@ -171,6 +176,7 @@ export async function POST(request: Request) {
       console.warn("[sentimiento] no se pudo leer el sentimiento de la bandeja", (error as Error)?.message);
       return {} as Record<string, SentimientoDeLaConversacion>;
     }),
+    lasLineasConSentimiento(pedidas),
   ]);
 
   // El sentimiento aqui solo se LEE. No se analiza nada en esta vuelta: la
@@ -193,7 +199,7 @@ export async function POST(request: Request) {
 
   // Comprimida: ver `lib/responder-json.ts`. Esta respuesta llego a pesar
   // 753 kB en crudo y sale cada 20 segundos por pestaña.
-  return responderJson(request, { lineas, sentimientos } satisfies RespuestaDeLaLista);
+  return responderJson(request, { lineas, sentimientos, lineasConSentimiento } satisfies RespuestaDeLaLista);
 }
 
 /** Una sola vez por arranque del contenedor: pesar cuesta otro `stringify`. */

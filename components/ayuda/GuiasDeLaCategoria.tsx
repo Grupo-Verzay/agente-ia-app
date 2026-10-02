@@ -32,6 +32,7 @@ export function GuiasDeLaCategoria({
     guias,
     raiz = RUTA_DEL_CENTRO_DE_AYUDA,
     alVolver,
+    alAbrirGuia,
     incrustado = false,
 }: {
     categoria: CategoriaDeAyuda;
@@ -40,10 +41,14 @@ export function GuiasDeLaCategoria({
     raiz?: string;
     /** La landing: la flecha vuelve a las categorías sin navegar. */
     alVolver?: () => void;
+    /** La landing: «Ver» abre la guía en la misma página, sin navegar. */
+    alAbrirGuia?: (modulo: string) => void;
     /** Dentro de una sección de la landing: sin relleno y con el alto de su contenido. */
     incrustado?: boolean;
 }) {
     const [consulta, setConsulta] = useState("");
+    // Fuera del JSX: la fila tiene que seguir siendo UNA etiqueta sin hijos.
+    const verLaGuia = (modulo: string) => (alAbrirGuia ? () => alAbrirGuia(modulo) : undefined);
     const queSeVen = guias.filter((g) => pasaElFiltroDeLaCategoria(g, consulta));
 
     return (
@@ -91,7 +96,7 @@ export function GuiasDeLaCategoria({
                 ) : (
                     <div className="grid gap-2" data-lista-de-guias>
                         {queSeVen.map((g) => (
-                            <FilaDeGuia key={g.modulo} data-guia-de-ayuda={g.modulo} titulo={g.titulo} descripcion={g.descripcion} url={g.url} />
+                            <FilaDeGuia key={g.modulo} data-guia-de-ayuda={g.modulo} titulo={g.titulo} descripcion={g.descripcion} url={g.url} alVer={verLaGuia(g.modulo)} />
                         ))}
                     </div>
                 )}

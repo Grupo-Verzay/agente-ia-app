@@ -16,6 +16,11 @@ export {
     losSentimientosDeLasLineas,
     lasCaidas,
     elDiaDe,
+    guardarLosAjustesDelSentimiento,
+    leerLosAjustesDelSentimiento,
+    lasLineasConSentimiento,
+    lasCuentasConSentimiento,
 } from "@/lib/sentimiento-db";
+export { getAjustesDelSentimiento, guardarSentimientoActivo } from "@/actions/sentimiento-ajustes-actions";
 export { getSentimientoCrmData } from "@/actions/sentimiento-actions";
 export { db } from "@/lib/db";

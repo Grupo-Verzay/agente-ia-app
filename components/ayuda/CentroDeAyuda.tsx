@@ -51,6 +51,7 @@ export function CentroDeAyuda({
     raiz = RUTA_DEL_CENTRO_DE_AYUDA,
     titulo = "Centro de ayuda",
     alElegirCategoria,
+    alAbrirGuia,
     incrustado = false,
 }: {
     guias: GuiaDeAyuda[];
@@ -63,6 +64,11 @@ export function CentroDeAyuda({
      * misma página (`TutorialesDeLaLanding`). Sin esto, cada una es un enlace.
      */
     alElegirCategoria?: (slug: string) => void;
+    /**
+     * La landing: un resultado del buscador abre la guía (o su sección) en la
+     * misma página, sin pestaña nueva. Sin esto, el resultado es un enlace.
+     */
+    alAbrirGuia?: (modulo: string, seccion: string | null) => void;
     /**
      * Dentro de una sección de la landing: sin título propio (lo pone la
      * sección), sin relleno y con el alto de su contenido. En el panel la
@@ -81,8 +87,13 @@ export function CentroDeAyuda({
     const hayConsulta = consulta.trim().length > 0;
     const seVeLaLista = abierto && hayConsulta;
 
-    const abrir = (url: string) => {
-        window.open(url, "_blank", "noopener,noreferrer");
+    const abrir = (r: (typeof resultados)[number]) => {
+        if (alAbrirGuia) {
+            setAbierto(false);
+            alAbrirGuia(r.guia.modulo, r.seccion?.slug ?? null);
+            return;
+        }
+        window.open(r.url, "_blank", "noopener,noreferrer");
     };
 
     const alTeclear = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -97,7 +108,7 @@ export function CentroDeAyuda({
             const r = resultados[marcado] ?? resultados[0];
             if (r) {
                 e.preventDefault();
-                abrir(r.url);
+                abrir(r);
             }
         } else if (e.key === "Escape") {
             setConsulta("");
@@ -172,7 +183,12 @@ export function CentroDeAyuda({
                                         // llegara al enlace.
                                         onMouseDown={(e) => e.preventDefault()}
                                         onMouseEnter={() => setMarcado(i)}
-                                        onClick={() => setAbierto(false)}
+                                        onClick={(e) => {
+                                            if (alAbrirGuia) {
+                                                e.preventDefault();
+                                                abrir(r);
+                                            } else setAbierto(false);
+                                        }}
                                         className={`flex items-start gap-3 rounded-md px-3 py-2 text-left ${i === marcado ? "bg-accent text-accent-foreground" : ""}`}
                                     >
                                         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
