@@ -16,11 +16,11 @@
     "asesor": "03f2e23dee2d6b8fa44a0bd7",
     "embudo": "b71c4063b597ecb676ace343",
     "reportes": "10cccdd7496541a1e3a65041",
+    "multiagente": "110ff9d10727063b048cdcfb",
     "resumen": "1ce4982e6238cea63eb3f443",
-    "avanzadas": "ea90489d4d3581f6109e2c71",
-    "cierre": "296f6dd90cc465fa5a3d6340"
+    "cierre": "10ab063fac620145c7c4981c"
   },
-  "duracionMs": 165065,
+  "duracionMs": 155306,
   "montaje": {
     "tarjetas": [
       "Tienda en línea",
@@ -37,7 +37,7 @@
       "ubicacion"
     ],
     "cierre": "y cualquier negocio que venda por WhatsApp",
-    "cierreMs": 8587,
+    "cierreMs": 8794,
     "cajas": {
       "video": {
         "x": 882,
@@ -52,176 +52,182 @@
         "h": 118
       }
     },
-    "cajasMs": 11561
+    "cajasMs": 11766
   },
+  "portada": {
+    "hastaMs": 500,
+    "jpgMs": 250
+  },
+  "marcaMs": 13435,
+  "lineasMs": 130268,
   "colocados": [
     {
       "clase": "narracion",
       "texto": "Cada minuto sin respuesta es una venta que se enfría. Tiendas en línea, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp, responde al instante.",
-      "inicioMs": 459,
-      "finMs": 13229
+      "inicioMs": 664,
+      "finMs": 13434
     },
     {
       "clase": "narracion",
       "texto": "Con Verzay, una inteligencia artificial les contesta al instante, entiende lo que piden y lo deja todo listo en tu CRM.",
-      "inicioMs": 13485,
-      "finMs": 21575
+      "inicioMs": 13445,
+      "finMs": 21535
     },
     {
       "clase": "narracion",
       "texto": "Mira la misma conversación en el celular del negocio, en WhatsApp Web y en el panel de Verzay, al mismo tiempo.",
-      "inicioMs": 22732,
-      "finMs": 29862
+      "inicioMs": 22447,
+      "finMs": 29577
     },
     {
       "clase": "aviso",
       "texto": "aviso M01",
-      "inicioMs": 24444,
-      "finMs": 24714
+      "inicioMs": 24166,
+      "finMs": 24436
     },
     {
       "clase": "narracion",
       "texto": "Laura pregunta por un blanqueamiento. La IA le da el precio, y su ficha se llena sola.",
-      "inicioMs": 30421,
-      "finMs": 36301
+      "inicioMs": 30135,
+      "finMs": 36015
     },
     {
       "clase": "aviso",
       "texto": "aviso M03",
-      "inicioMs": 38377,
-      "finMs": 38647
+      "inicioMs": 38085,
+      "finMs": 38355
     },
     {
       "clase": "nota",
       "texto": "nota clienta",
-      "inicioMs": 38663,
-      "finMs": 42363
+      "inicioMs": 38368,
+      "finMs": 42068
     },
     {
       "clase": "narracion",
       "texto": "¿Te manda una nota de voz? La escucha, la entiende y le contesta con su propia voz.",
-      "inicioMs": 42615,
-      "finMs": 47305
+      "inicioMs": 42322,
+      "finMs": 47012
     },
     {
       "clase": "nota",
       "texto": "nota ia",
-      "inicioMs": 47518,
-      "finMs": 51678
+      "inicioMs": 47249,
+      "finMs": 51409
     },
     {
       "clase": "narracion",
       "texto": "Y los datos de Laura también quedan guardados en tu Google Sheets.",
-      "inicioMs": 52479,
-      "finMs": 56769
+      "inicioMs": 52237,
+      "finMs": 56527
     },
     {
       "clase": "narracion",
       "texto": "Le envía la lista de precios, un video de la clínica, y entiende la imagen que Laura le manda.",
-      "inicioMs": 57884,
-      "finMs": 63034
+      "inicioMs": 57641,
+      "finMs": 62791
     },
     {
       "clase": "aviso",
       "texto": "aviso M07",
-      "inicioMs": 60262,
-      "finMs": 60532
+      "inicioMs": 60038,
+      "finMs": 60308
     },
     {
       "clase": "narracion",
       "texto": "Laura ya está interesada: queda calificada como caliente y etiquetada, sin que nadie toque nada.",
-      "inicioMs": 63993,
-      "finMs": 70693
+      "inicioMs": 63742,
+      "finMs": 70442
     },
     {
       "clase": "narracion",
       "texto": "Si Laura deja de responder, la IA insiste como tú decidas: con texto, nota de voz, un archivo o hasta una llamada.",
-      "inicioMs": 71308,
-      "finMs": 79618
+      "inicioMs": 71066,
+      "finMs": 79376
     },
     {
       "clase": "tono",
       "texto": "tono de llamada",
-      "inicioMs": 79936,
-      "finMs": 82636
+      "inicioMs": 79695,
+      "finMs": 82395
     },
     {
       "clase": "llamada",
       "texto": "¡Hola, Laura! Te habla Sofía, de Clínica Sonríe. ¿Pudiste ver los cupos para tu valoración?",
-      "inicioMs": 83194,
-      "finMs": 89224
+      "inicioMs": 82952,
+      "finMs": 88982
     },
     {
       "clase": "llamada",
       "texto": "¡Hola, Sofía! Sí, el jueves a las diez me queda perfecto.",
-      "inicioMs": 89576,
-      "finMs": 94216
+      "inicioMs": 89337,
+      "finMs": 93977
     },
     {
       "clase": "llamada",
       "texto": "¡Listo! Te la dejo agendada y te confirmo por WhatsApp.",
-      "inicioMs": 94569,
-      "finMs": 97939
+      "inicioMs": 94331,
+      "finMs": 97701
     },
     {
       "clase": "narracion",
       "texto": "Laura elige un horario, y la cita queda agendada en tu calendario.",
-      "inicioMs": 99221,
-      "finMs": 103691
+      "inicioMs": 98983,
+      "finMs": 103453
     },
     {
       "clase": "narracion",
       "texto": "Un día antes le llega el recordatorio. Confirma, y tú lo ves al instante.",
-      "inicioMs": 106211,
-      "finMs": 110961
+      "inicioMs": 105973,
+      "finMs": 110723
     },
     {
       "clase": "aviso",
       "texto": "aviso M14",
-      "inicioMs": 108257,
-      "finMs": 108527
+      "inicioMs": 108020,
+      "finMs": 108290
     },
     {
       "clase": "aviso",
       "texto": "aviso M15",
-      "inicioMs": 111472,
-      "finMs": 111742
+      "inicioMs": 111245,
+      "finMs": 111515
     },
     {
       "clase": "narracion",
       "texto": "Si la IA no sabe responder o Laura pide hablar con alguien, la conversación pasa directo a un asesor.",
-      "inicioMs": 111494,
-      "finMs": 117914
+      "inicioMs": 111255,
+      "finMs": 117675
     },
     {
       "clase": "narracion",
       "texto": "Cada cliente avanza solo por tu embudo, con toda su historia en su ficha.",
-      "inicioMs": 118719,
-      "finMs": 123749
+      "inicioMs": 118504,
+      "finMs": 123534
     },
     {
       "clase": "narracion",
       "texto": "Todo el historial queda resumido en reportes y analíticas, sin perseguir a nadie.",
-      "inicioMs": 124694,
-      "finMs": 129644
+      "inicioMs": 124484,
+      "finMs": 129434
+    },
+    {
+      "clase": "narracion",
+      "texto": "Si tu negocio crece, separas tus líneas: ventas, soporte y cobros, cada una con los asesores que necesite. Cada asesor ve solo sus chats, con su propio embudo.",
+      "inicioMs": 130277,
+      "finMs": 141367
     },
     {
       "clase": "narracion",
       "texto": "En resumen: todo esto trabaja por ti, en una sola plataforma.",
-      "inicioMs": 130758,
-      "finMs": 134968
+      "inicioMs": 142583,
+      "finMs": 146793
     },
     {
       "clase": "narracion",
-      "texto": "Y hay más: con el modo dueño le preguntas a tu WhatsApp cómo van tus ventas, citas y embudos. El puente con operarios de campo consulta otro WhatsApp y le traslada la respuesta a tu cliente. Y con el multiagente trabajas con varias líneas y asesores.",
-      "inicioMs": 135577,
-      "finMs": 151447
-    },
-    {
-      "clase": "narracion",
-      "texto": "Verzay responde, vende, agenda y hace seguimiento las veinticuatro horas. Agenda una reunión y míralo funcionando en tu negocio.",
-      "inicioMs": 152660,
-      "finMs": 162160
+      "texto": "Verzay responde, vende, agenda y hace seguimiento, las veinticuatro horas.",
+      "inicioMs": 147801,
+      "finMs": 153501
     }
   ]
 }

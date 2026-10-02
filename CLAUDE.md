@@ -25348,24 +25348,49 @@ como tú decidas: con texto, nota de voz, un archivo o hasta una llamada»)
 seguido de **una llamada de WhatsApp de verdad escrita en el panel** —Laura
 contesta y se oyen hablando, con dos voces del mismo modelo (`LA_LLAMADA`)—, la
 cita, el recordatorio, **el paso a un asesor**, el embudo y **los reportes**.
-Antes del cierre, un **resumen** con todas las píldoras mostradas (más «sincroniza
-con Google Sheets» y «hace llamadas con IA») y una **ráfaga de tres avanzadas**:
-modo dueño, puente con operarios de campo y multiagente (`AVANZADAS`). El botón
-«Escribir por WhatsApp» del cierre y de la página lleva el **+57 323 361 2620**
-(`LLAMADO.whatsapp`).
+Después de los reportes, **«13 · Trabaja en equipo»**: tres líneas de WhatsApp
+—Ventas (6 asesores), Soporte (3) y Cobros (2), `LINEAS_DEL_EQUIPO`— con sus
+asesores atendiendo a la vez, y el embudo **de verdad** filtrado por Andrea, la
+asesora de Ventas (`/embudos?asesor=`). Antes del cierre, un **resumen** con
+todas las píldoras, «Trabaja en equipo» incluida. **No hay ráfaga de «Y hay
+más»**: Modo dueño y Operarios de campo se quitaron.
 
-La hoja de Sheets, la llamada vista en el celular, el resumen y las avanzadas
+**El cierre es solo la marca y su frase, sin botones**: el vídeo se manda dentro
+de un flujo de WhatsApp y el llamado llega después por texto. La PÁGINA sí
+conserva sus dos llamados (agendar y escribir al **+57 323 361 2620**,
+`LLAMADO.whatsapp`).
+
+Tres cosas del montaje que hay que mantener:
+
+1. **El primer fotograma es una portada** (`#portada`: logo, nombre y un botón
+   de reproducir) durante `PORTADA_MS` (500 ms). WhatsApp usa el primer
+   fotograma como miniatura al compartir el archivo, y antes era negro. El
+   `.jpg` publicado (portada de la página y `og:image`) es un fotograma de esa
+   portada (`PORTADA_JPG_MS`). Más larga que ~0,8 s, la voz empieza tarde y el
+   banco de los huecos mudos se pone rojo.
+2. **De los cinco negocios a la marca no hay pausa**: `callar(0)` y la marca
+   entra deslizándose en medio segundo. Antes había un respiro y un fundido
+   lento, y se veía la pantalla quieta.
+3. **El esquema de las tres líneas es una recreación** (las líneas y los
+   asesores no se siembran); el embudo filtrado sí es la App. La página lo dice
+   en `LO_QUE_ES_EL_VIDEO`.
+
+La hoja de Sheets, la llamada vista en el celular, el resumen y las tres líneas
 son recreaciones, y la página lo dice (`LO_QUE_ES_EL_VIDEO`); la llamada queda
 escrita en el panel como una llamada de verdad (`messageType: 'call'`). El
 `MODO=roto` del banco lee la historia de `e2e0005` (pinchado) y afirma que allí
 la apertura decía otra cosa y no había ni Sheets, ni llamada, ni asesor, ni
-reportes, ni resumen, ni el WhatsApp en el cierre.
+reportes, ni resumen; y la de `6619c2e` (`ANTES_DEL_EQUIPO`) y afirma que no
+había portada ni escena del equipo, que estaba la ráfaga y que el cierre
+llevaba botones. El vídeo publicado se mide en sus fotogramas: el primero no es
+negro y enseña el botón de reproducir, la marca se mueve al entrar y las líneas
+se ven.
 
 ### La página
 
-`app/demo/`: el vídeo con su portada, qué es real y qué no, las doce capacidades
-en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, tres filas de cuatro o seis de
-dos) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
+`app/demo/`: el vídeo con su portada, qué es real y qué no, las trece capacidades
+en el orden del vídeo (`CAPACIDADES_DEL_VIDEO`, trece: filas llenas y la
+última centrada) y dos llamados del mismo tamaño —agendar y escribir por WhatsApp, con
 `noopener`—. Pública en el middleware y noindex por metadatos y por cabecera
 (`/demo/:path*`, también el vídeo).
 

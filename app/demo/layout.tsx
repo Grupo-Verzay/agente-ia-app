@@ -17,6 +17,14 @@ import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 export const metadata: Metadata = {
     title: "Verzay en acción",
     description: "Una conversación de WhatsApp atendida por la IA de Verzay, de principio a fin.",
+    // La miniatura al compartir el enlace: la portada del vídeo (el logo y el
+    // botón de reproducir), no un fotograma negro.
+    openGraph: {
+        title: "Verzay en acción",
+        description: "Una conversación de WhatsApp atendida por la IA de Verzay, de principio a fin.",
+        images: [{ url: "/demo/verzay-demo.jpg", width: 1920, height: 1080, alt: "Verzay · reproducir el vídeo" }],
+        type: "video.other",
+    },
     robots: {
         index: false,
         follow: false,

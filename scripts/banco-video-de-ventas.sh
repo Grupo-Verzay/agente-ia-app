@@ -9,8 +9,9 @@
 #      App, ninguna voz se pisa, la voz Cedar está entera, el guion dice cada
 #      frase y cada mensaje una vez, la página promete lo que el vídeo enseña,
 #      las escenas nuevas (la apertura, Google Sheets, la llamada, el asesor,
-#      los reportes, el resumen y las tres avanzadas) están en su orden, el
-#      botón de WhatsApp del cierre lleva el +57 323 361 2620, las pantallas
+#      los reportes, «Trabaja en equipo» y el resumen) están en su orden, el
+#      vídeo arranca con una portada (logo y botón de reproducir), la marca
+#      entra sin pausa, el cierre no lleva botones, las pantallas
 #      escondidas del portátil van con `visibility: hidden` (con cuatro capas y
 #      solo transparentes no se pintaba ninguna), y el vídeo publicado es un MP4
 #      de entre dos minutos y medio y tres, sin huecos mudos.
@@ -35,8 +36,9 @@
 # chocaban con las de una burbuja de video: la portada sale negra. Y lee la
 # historia de ANTES_DE_LAS_ESCENAS (pinchado) para afirmar que allí la apertura
 # decía otra cosa y no había ni Sheets, ni llamada, ni asesor, ni reportes, ni
-# resumen, ni el botón de WhatsApp en el cierre; y que sus capas escondidas
-# solo eran transparentes.
+# resumen; y que sus capas escondidas solo eran transparentes. Y la de
+# ANTES_DEL_EQUIPO (pinchado): sin portada, con la ráfaga de «Y hay más», sin
+# escena del equipo y con los botones en el cierre.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,7 +47,7 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
 export MODO ANTES_REF="${ANTES_REF:-316b70c}" ANTES_MONTAJE="${ANTES_MONTAJE:-1807a22}" ANTES_DEL_CIERRE="${ANTES_DEL_CIERRE:-a7e2b45}" \
-       ANTES_DE_LAS_ESCENAS="${ANTES_DE_LAS_ESCENAS:-e2e0005}"
+       ANTES_DE_LAS_ESCENAS="${ANTES_DE_LAS_ESCENAS:-e2e0005}" ANTES_DEL_EQUIPO="${ANTES_DEL_EQUIPO:-6619c2e}"
 OUT="lib/__tests__/.compilado/video-de-ventas"
 mkdir -p "$OUT"
 

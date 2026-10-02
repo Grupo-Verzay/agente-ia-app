@@ -28,7 +28,7 @@
  */
 import { SVG_FLECHA, SVG_MANO, PUNTA } from "../cursor-de-la-guia.mjs";
 import { comoDuracion } from "./banda-sonora.mjs";
-import { AVANZADAS, CAPACIDADES, CIERRE_DEL_MONTAJE, LA_HOJA, LEMA_DE_LA_MARCA, LLAMADO, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
+import { CAPACIDADES, CIERRE_DEL_MONTAJE, LA_HOJA, LEMA_DE_LA_MARCA, LINEAS_DEL_EQUIPO, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
 
 /** El cuadro del vídeo. */
 export const VISTA = Object.freeze({ ancho: 1920, alto: 1080 });
@@ -87,6 +87,7 @@ export const LIMITE_DE_ARRIBA = 96;
  * Lo que no sale en un plano no está en su objeto.
  */
 export const PLANOS = Object.freeze({
+    portada: { portada: true },
     montaje: { montaje: true },
     marca: { marca: true },
     tres: {
@@ -111,8 +112,8 @@ export const PLANOS = Object.freeze({
         sheets: { x: 920, y: 250, s: 0.88 },
         etiquetas: "arriba",
     },
+    lineas: { lineas: true },
     resumen: { resumen: true },
-    avanzadas: { avanzadas: true },
     cierre: { cierre: true },
 });
 
@@ -470,6 +471,8 @@ body::before {
 
 /* ---------- el montaje del arranque ---------- */
 #montaje { position: absolute; inset: 0; opacity: 0; transition: opacity .8s; }
+/* Al salir hacia la marca, el montaje se va rápido: nada de fundido largo. */
+#montaje:not(.sale) { transition: opacity .3s; }
 #montaje.sale { opacity: 1; }
 #montaje .titulo { position: absolute; top: 70px; width: 100%; text-align: center; font-size: 42px; font-weight: 800; letter-spacing: -1px; color: #fff; }
 #montaje .titulo span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -524,13 +527,24 @@ body::before {
 /* ---------- la marca y el cierre ---------- */
 .tarjeta { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; transform: scale(.97); transition: opacity .8s, transform 1.2s cubic-bezier(.2,.8,.2,1); }
 .tarjeta.sale { opacity: 1; transform: none; }
+/* La marca ENTRA con movimiento y rápido (desliza desde la derecha): pasa del
+   montaje a la promesa sin un segundo muerto. */
+#marca { transform: translateX(140px); transition: opacity .35s, transform .5s cubic-bezier(.2,.8,.2,1); }
+#marca .logo { transform: scale(.7); transition: transform .5s cubic-bezier(.2,.8,.2,1) .05s; }
+#marca.sale .logo { transform: none; }
+#marca.sale { transform: none; }
+/* La portada: lo primero que se ve (y la miniatura al compartir el vídeo). */
+#portada { background: radial-gradient(circle at 50% 42%, #10305f 0%, #071224 62%); transition: opacity .35s; }
+#portada .logo { width: 150px; height: 150px; }
+#portada .nombre { font-size: 92px; }
+#portada .lema { font-size: 32px; }
+#portada .play { margin-top: 44px; width: 168px; height: 168px; border-radius: 50%; display: grid; place-items: center;
+  background: #ffffff; box-shadow: 0 0 0 16px rgba(255,255,255,.18), 0 30px 80px rgba(0,0,0,.5); }
+#portada .play svg { width: 74px; height: 74px; margin-left: 12px; }
 .tarjeta .logo { width: 170px; height: 170px; filter: drop-shadow(0 20px 50px rgba(31,123,255,.45)); }
 .tarjeta .nombre { font-size: 104px; font-weight: 800; letter-spacing: -3px; margin-top: 10px; background: linear-gradient(90deg,#ffffff 30%,#9cc7ff); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1.05; }
 .tarjeta .lema { font-size: 38px; font-weight: 600; color: #dfe7f7; margin-top: 18px; letter-spacing: -.5px; }
 .tarjeta .lema span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.cta { margin-top: 46px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.cta .boton { padding: 22px 46px; border-radius: 40px; font-size: 30px; font-weight: 700; color: #04121f; background: linear-gradient(90deg,#4da3ff,#39e08b); box-shadow: 0 20px 50px rgba(57,224,139,.3); }
-.cta .web { font-size: 22px; color: #9fb0cf; font-weight: 500; }
 /* En el flujo, debajo del llamado: abajo del todo lo tapaba el subtítulo del cierre. */
 .aviso { margin-top: 30px; font-size: 16px; color: #6d7d9c; }
 
@@ -579,24 +593,36 @@ body::before {
 #sheets .pestanas span { background: #e6f4ea; color: #188038; font-size: 13px; font-weight: 600; padding: 8px 18px; border-radius: 0 0 6px 6px; }
 
 /* ---------- el resumen y la ráfaga del final ---------- */
-#resumen .titulo, #avanzadas .titulo { font-size: 56px; font-weight: 800; letter-spacing: -1.5px; color: #fff; }
-#resumen .titulo span, #avanzadas .titulo span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
-#resumen .pildoras { margin-top: 56px; display: grid; grid-template-columns: repeat(4, 360px); gap: 20px 22px; }
+#resumen .titulo { font-size: 56px; font-weight: 800; letter-spacing: -1.5px; color: #fff; }
+#resumen .titulo span { background: linear-gradient(90deg,#4da3ff,#39e08b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#resumen .pildoras { margin-top: 56px; width: 1560px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 22px; }
+#resumen .pildora { width: 360px; }
 #resumen .pildora { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-radius: 22px; text-align: left;
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); opacity: 0; transform: translateY(16px) scale(.96); transition: opacity .45s, transform .6s cubic-bezier(.2,.8,.2,1); }
 #resumen .pildora.sale { opacity: 1; transform: none; }
 #resumen .pildora .num { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; color: #04121f; background: linear-gradient(135deg,#4da3ff,#39e08b); }
 #resumen .pildora b { font-size: 20px; font-weight: 700; color: #fff; }
-#avanzadas .fichas { margin-top: 60px; display: flex; gap: 34px; }
-#avanzadas .ficha { width: 460px; padding: 34px 32px 30px; border-radius: 28px; text-align: left; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
-  opacity: 0; transform: translateY(24px); transition: opacity .5s, transform .7s cubic-bezier(.2,.8,.2,1); }
-#avanzadas .ficha.sale { opacity: 1; transform: none; }
-#avanzadas .ficha .icono { font-size: 44px; }
-#avanzadas .ficha b { display: block; margin-top: 14px; font-size: 32px; font-weight: 800; color: #fff; }
-#avanzadas .ficha p { margin-top: 10px; font-size: 21px; line-height: 1.4; color: #c9d5ea; }
-#avanzadas .ficha .ejemplo { margin-top: 20px; display: inline-block; padding: 10px 16px; border-radius: 12px 12px 12px 3px; background: #d9fdd3; color: #111b21; font-size: 17px; }
-.cta .fila { display: flex; gap: 22px; align-items: center; }
-.cta .boton.wa { background: #25d366; color: #fff; box-shadow: 0 20px 50px rgba(37,211,102,.3); }
+/* ---------- Multiagente: las tres líneas del equipo ---------- */
+#lineas { padding-bottom: 70px; }
+#lineas .columnas { display: flex; gap: 34px; align-items: flex-start; zoom: 1.15; }
+#lineas .linea { width: 470px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); text-align: left;
+  overflow: hidden; opacity: 0; transform: translateY(26px); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); }
+#lineas .linea.sale { opacity: 1; transform: none; }
+#lineas .cabLinea { display: flex; align-items: center; gap: 14px; padding: 22px 24px; border-bottom: 1px solid rgba(255,255,255,.1); }
+#lineas .cabLinea .wa { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #25d366; color: #fff; }
+#lineas .cabLinea b { flex: 1; font-size: 30px; font-weight: 800; color: #fff; }
+#lineas .cabLinea .badge { padding: 7px 14px; border-radius: 999px; font-size: 18px; font-weight: 700; color: #fff; }
+#lineas .asesor { display: flex; align-items: center; gap: 14px; padding: 13px 24px; opacity: 0; transform: translateX(-14px); transition: opacity .35s, transform .4s; }
+#lineas .asesor.sale { opacity: 1; transform: none; }
+#lineas .asesor .ini { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; font-weight: 800; color: #fff; }
+#lineas .asesor .quien { flex: 1; min-width: 0; }
+#lineas .asesor .quien b { display: block; font-size: 21px; font-weight: 700; color: #fff; white-space: nowrap; }
+#lineas .asesor .quien span { font-size: 16px; color: #9fb0cf; }
+#lineas .asesor .escribe { display: flex; gap: 4px; padding: 8px 11px; border-radius: 14px 14px 14px 4px; background: #d9fdd3; }
+#lineas .asesor .escribe i { width: 7px; height: 7px; border-radius: 50%; background: #1daa61; animation: punto 1.1s infinite; }
+#lineas .asesor .escribe i:nth-child(2) { animation-delay: .18s; }
+#lineas .asesor .escribe i:nth-child(3) { animation-delay: .36s; }
+@keyframes punto { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 #subtitulo .quien { color: #7cc4ff; font-weight: 700; margin-right: 6px; }
 
 /* ---------- lo que va encima ---------- */
@@ -912,7 +938,8 @@ function programa(DATOS) {
         $("#marca").classList.toggle("sale", !!p.marca);
         $("#cierre").classList.toggle("sale", !!p.cierre);
         $("#resumen").classList.toggle("sale", !!p.resumen);
-        $("#avanzadas").classList.toggle("sale", !!p.avanzadas);
+        $("#lineas").classList.toggle("sale", !!p.lineas);
+        $("#portada").classList.toggle("sale", !!p.portada);
     }
 
     /* ---------- Google Sheets, la llamada, el resumen y la ráfaga ---------- */
@@ -947,9 +974,12 @@ function programa(DATOS) {
     function resumen() {
         document.querySelectorAll("#resumen .pildora").forEach((p, i) => setTimeout(() => p.classList.add("sale"), 120 + i * 110));
     }
-    /** Una de las tres funciones avanzadas, cuando la voz la nombra. */
-    function avanzada(id) {
-        $(`#avanzadas .ficha[data-id="${id}"]`).classList.add("sale");
+    /** Multiagente: las tres líneas en cascada, y en cada una sus asesores atendiendo. */
+    function lineas() {
+        document.querySelectorAll("#lineas .linea").forEach((l, i) => {
+            setTimeout(() => l.classList.add("sale"), 100 + i * 260);
+            l.querySelectorAll(".asesor").forEach((a, j) => setTimeout(() => a.classList.add("sale"), 380 + i * 260 + j * 120));
+        });
     }
 
     /* ---------- el montaje ---------- */
@@ -1094,7 +1124,7 @@ function programa(DATOS) {
         hoja,
         llamada,
         resumen,
-        avanzada,
+        lineas,
         cursor: { mover: moverCursor, forma, clic, esconder: () => cursor.classList.remove("sale") },
         listo: true,
     };
@@ -1133,14 +1163,30 @@ export function laPaginaDelEstudio(datos) {
         Array.from({ length: 6 }, (_, i) => `<tr><td class="n">${LA_HOJA.filas.length + 3 + i}</td>${LA_HOJA.columnas.map(() => "<td></td>").join("")}</tr>`).join("") +
         `</table>`;
     const pildoras = CAPACIDADES.map((c, i) => `<div class="pildora"><span class="num">${i + 1}</span><b>${e(c.titulo)}</b></div>`).join("");
-    const fichas = AVANZADAS.map(
-        (a) => `<div class="ficha" data-id="${e(a.id)}"><div class="icono">${a.icono}</div><b>${e(a.titulo)}</b><p>${e(a.detalle)}</p><div class="ejemplo">${e(a.ejemplo)}</div></div>`,
+    const columnas = LINEAS_DEL_EQUIPO.map(
+        (l) =>
+            `<div class="linea" data-linea="${e(l.id)}"><div class="cabLinea"><span class="wa">${I.chats}</span><b>${e(l.nombre)}</b>` +
+            `<span class="badge" style="background:${l.color}">${l.asesores.length} asesores</span></div>` +
+            l.asesores
+                .map(
+                    (a, j) =>
+                        `<div class="asesor" data-asesor="${e(a.nombre)}"><span class="ini" style="background:${l.color};filter:brightness(${1 - (j % 3) * 0.12})">${e(lasIniciales(a.nombre))}</span>` +
+                        `<div class="quien"><b>${e(a.nombre)}</b><span>${a.chats} chats</span></div><span class="escribe"><i></i><i></i><i></i></span></div>`,
+                )
+                .join("") +
+            `</div>`,
     ).join("");
     // «WhatsApp», al final del cierre, con el degradado de la marca.
     const cierre = e(CIERRE_DEL_MONTAJE).replace(/WhatsApp$/, "<span>WhatsApp</span>");
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Verzay · video de ventas</title>
 <style>${CSS}</style></head><body>
 <div class="escena">
+  <div id="portada" class="tarjeta">
+    <img class="logo" src="${datos.logo}">
+    <div class="nombre">Verzay</div>
+    <div class="lema">${e(LEMA_DE_LA_MARCA.antes)}<span>${e(LEMA_DE_LA_MARCA.resaltado)}</span>${e(LEMA_DE_LA_MARCA.despues)}</div>
+    <div class="play" aria-label="Reproducir"><svg viewBox="0 0 24 24"><path d="M6 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 6 3.5Z" fill="#1f7bff"/></svg></div>
+  </div>
   <div id="montaje"><div class="titulo">Cada minuto sin respuesta es <span>una venta que se enfría</span></div><div class="tarjetas">${miniaturas}</div><div class="cierreMontaje">${cierre}</div></div>
 
   <div id="marca" class="tarjeta">
@@ -1204,7 +1250,7 @@ export function laPaginaDelEstudio(datos) {
     <div class="herr"></div>${hojaHtml}<div class="pestanas"><span>Pacientes</span></div></div>
 
   <div id="resumen" class="tarjeta"><div class="titulo">Todo esto, <span>en una sola plataforma</span></div><div class="pildoras">${pildoras}</div></div>
-  <div id="avanzadas" class="tarjeta"><div class="titulo">Y hay <span>más</span></div><div class="fichas">${fichas}</div></div>
+  <div id="lineas" class="tarjeta"><div class="columnas">${columnas}</div></div>
 
   <div id="etTel" class="etiqueta"><i></i>Celular del negocio</div>
   <div id="etWeb" class="etiqueta"><i></i>WhatsApp Web</div>
@@ -1215,7 +1261,6 @@ export function laPaginaDelEstudio(datos) {
     <img class="logo" src="${datos.logo}">
     <div class="nombre">Verzay</div>
     <div class="lema">Responde, vende, agenda y hace seguimiento. <span>24/7.</span></div>
-    <div class="cta"><div class="fila"><div class="boton">Agenda una reunión</div><div class="boton wa">Escribir por WhatsApp · ${e(comoTelefono(datos.whatsapp ?? LLAMADO.whatsapp))}</div></div><div class="web">${e(datos.web)}</div></div>
     <div class="aviso">Demostración con datos de ejemplo.</div>
   </div>
 
