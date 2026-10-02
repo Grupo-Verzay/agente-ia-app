@@ -713,7 +713,7 @@ async function video(navegador, estado) {
         await alDecir("dentro de Bandeja", 500);
         await mover(p, bandeja);
 
-        const [, , , buscarTodo, , soporte, campana] = lasPartesDeArriba(p);
+        const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
         await decir("barraDeArriba");
         await pulsar(p, flechas);
         await alDecir("el buscador general");
