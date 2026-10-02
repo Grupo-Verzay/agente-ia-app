@@ -3081,6 +3081,13 @@ empaquetados, el esquema, el orden, el menú y las tres pestañas); `MODO=roto`
 corre el constructor de `83159ac` y lee las pestañas de `8958372`, y afirma que
 no existían.
 
+Y `scripts/banco-menu-del-paso.sh` lo mide en Chromium con las cuatro
+pestañas REALES montadas: abre «Agregar acción» en Inicio, Preguntas,
+Productos y Extras y exige el MISMO menú —grupos, opciones y orden—, que el
+caso y la transición salgan con los mismos campos, una transición por paso y,
+fuera de Inicio, el destino entre los pasos de Inicio. `MODO=roto` monta las
+pestañas de `8958372` y afirma que solo Inicio los ofrecía.
+
 ## Agente: una prohibición que no viaja en el prompt no existe
 
 La **nota interna** de un paso es una instrucción que el modelo lee y obedece

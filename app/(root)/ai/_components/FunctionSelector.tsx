@@ -40,9 +40,10 @@ type Props = FunctionSelectorInterface & {
     showAction?: boolean;
     steps?: Array<{ id: string; title?: string }>;
     /**
-     * Ofrece «Agregar caso» y «Agregar transición». Solo el entrenamiento
-     * (Inicio): son de un paso del recorrido, y en Preguntas, Productos o
-     * Extras no hay recorrido al que transicionar.
+     * Ofrece «Agregar caso» y «Agregar transición». Lo llevan Inicio,
+     * Preguntas, Productos y Extras, con el MISMO menú y en el mismo orden
+     * (fuera de Inicio la transición va a un paso de Inicio). Gestión no: su
+     * menú solo captura datos. Lo prueba `scripts/banco-menu-del-paso.sh`.
      */
     conCasosYTransicion?: boolean;
 };
