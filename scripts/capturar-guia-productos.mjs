@@ -669,6 +669,9 @@ async function video(navegador, estado) {
     await alDecir("aparece en la tabla", 300);
     await mover(p, laFila(p, "Café Cauca 250 g"));
 
+    // La tabla bajó hasta la fila nueva: se sube para que la primera se vea entera.
+    await p.locator(`${TABLA} > div > div`).first().evaluate((el) => el.scrollTo({ top: 0, behavior: "smooth" }));
+    await espera(p, 600);
     const filaHuila = laFila(p, "Café Origen Huila 500 g");
     await decir("editar");
     await alDecir("Con el lápiz", 500);
