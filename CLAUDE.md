@@ -19415,6 +19415,44 @@ Postgres con la IA fingida y la franja en Chromium; `MODO=roto` lee `ANTES_REF`
 y afirma que no había nada de esto. Y `scripts/banco-cobro-de-ia.sh` prueba el
 cuándo y el cobro (ver la sección siguiente).
 
+### La calibración: se juzga lo ÚLTIMO del cliente, y nace APAGADO
+
+Medido en producción (2026-10-02): de las conversaciones en rojo, casi todas
+eran clientes dando un dato, contestando, objetando el precio o diciendo «no
+gracias». Tres causas, y las tres se arreglaron (`VERSION_DE_LA_CALIBRACION`,
+2):
+
+| causa | arreglo |
+| --- | --- |
+| la IA leía ocho líneas de contexto: una queja de hace días teñía el mensaje de hoy, aunque se le dijera «no lo juzgues». Aislados, esos mismos mensajes salían neutro | se juzga solo el último tramo del cliente (`losMensajesQueSeJuzgan`, hasta 5) y de contexto va UNA línea, lo último que dijo el negocio (`LINEAS_DE_CONTEXTO`) |
+| la instrucción no decía qué NO es negativo | lo dice, con ejemplos: un dato, una pregunta urgente, «muy caro», «no gracias», una falla técnica sin enojo son neutro; negativo es enojo CONTRA el negocio. «Ante la duda, neutro» |
+| «No es negativo, es neutro» se leía negativo (ganaba la primera palabra) | `leerElSentimiento` quita las palabras negadas |
+
+Sobre una muestra de 50 conversaciones en rojo, la calibración nueva dejó en
+rojo 24, y las que quedan son quejas de verdad («mentirosos», «nadie
+contesta», «llevo un año esperando»).
+
+**Los rojos de antes no se arrastran**: un negativo sin la versión nueva se
+pinta como neutro, vuelve a entrar en los pendientes UNA vez y, si ya no es
+negativo, su caída se borra del reporte (`recalibrando`). El reporte solo
+cuenta caídas de la calibración nueva.
+
+**Y la función nace APAGADA** para toda cuenta, también las que ya existían:
+`sentimiento_ajustes` (tabla de la App, sin columna en `User`), y sin fila es
+apagada. Lo enciende **solo el dueño de la cuenta** (`esElDuenoDeLaCuenta`,
+`lib/dueno-de-la-cuenta.ts`: el súper administrador de verdad, o quien entra
+con su propia fila sin colgar de nadie y sin «Ingresar») en Perfil ›
+Comportamiento › «Análisis de sentimiento»; la tarjeta no se pinta a nadie más
+y las dos acciones lo vuelven a preguntar. Apagada, para esa cuenta: no se
+analiza ni se cobra (`losPendientes` lo mira por la dueña de la LÍNEA), el aro
+vuelve al de antes y no hay franja (`lineasConSentimiento` de la lista), y el
+reporte del CRM dice que está apagada.
+
+Lo prueba `scripts/banco-sentimiento.sh`, que corre además
+`sentimiento-calibracion.test.mjs` (las reglas, el interruptor y la
+recalibración contra Postgres); `MODO=roto` compila `lib/sentimiento.ts` de
+`2114b64` y afirma los fallos.
+
 ## Todo uso de IA lo paga la cuenta DUEÑA de lo que se analiza
 
 **La regla, sin excepción**: todo uso de IA en la plataforma descuenta créditos
@@ -23418,7 +23456,29 @@ aparte (`/tutoriales`) cuyo logo llevaba a «/», o sea al login sin sesión.
 `lasGuiasDelCentroDeAyuda()`, igual que `/ayuda`, con dos props propias:
 `alElegirCategoria` / `alVolver` (cambian de vista en vez de navegar) e
 `incrustado` (sin cabecera ni scroll propio). Va bajo la clase `dark` para tomar
-los colores de la landing. Las guías siguen abriendo en otra pestaña.
+los colores de la landing.
+
+**Y la GUÍA también se abre dentro** (`#tutoriales/<categoria>/<modulo>[/<seccion>]`):
+«Ver» de una fila y un resultado del buscador ya no sacan a `/guia/<modulo>`
+—otra página, otro diseño, sin la barra de la landing—. La pinta
+`GuiaEnLaLanding` con las MISMAS piezas de `components/guia/Guia.tsx` (vídeo,
+introducción, `CuadriculaDeSecciones` y `ArticuloDeLaSeccion`), que aceptan
+callbacks opcionales (`alAbrir`, `alAbrirSeccion`, `alVerElVideo`): con ellos
+pintan un botón que cambia de vista; sin ellos, el `Link` de siempre, así
+`/guia/*` no cambia. Cinco cosas:
+
+- **El contenido se pide al abrir** (`laGuiaPublicaAction`, pública a propósito,
+  solo de lo que está en `GUIAS_PUBLICADAS`): las diecinueve guías son cientos
+  de KB que la landing no puede llevar a cuestas. Se recuerda por módulo, y un
+  fallo dice «Reintentar».
+- **Va en su recuadro CLARO** dentro de la sección oscura: sus capturas lo son.
+- **«Ir al vídeo» baja sin tocar el ancla**: `#demostracion` pisaría la de los
+  tutoriales y la vista se perdería.
+- **La flecha vuelve a SU categoría** («Volver a <categoría>»), y un ancla rota
+  cae en lo más cercano que exista (`laVistaDelAncla`: sección → índice de la
+  guía → categoría → portada).
+- `/guia/<modulo>` sigue existiendo: las tarjetas de «Ver tutoriales» del panel
+  y los enlaces ya repartidos llevan ahí.
 
 Cuatro cosas que hay que mantener:
 
@@ -23433,9 +23493,11 @@ Cuatro cosas que hay que mantener:
 
 Lo prueba `scripts/banco-tutoriales-publicos.sh` (con build): el código y la
 página servida sin sesión a 1440 y 390 —se navega sin salir de `/inicio`, la
-barra sigue arriba, el logo vuelve arriba, las direcciones viejas redirigen—.
+barra sigue arriba, el logo vuelve arriba, las direcciones viejas redirigen,
+«Ver» abre la guía y una sección con sus capturas sin salir, «Siguiente», la
+flecha a la categoría, el enlace directo a una sección y el buscador—.
 `MODO=roto` lee `ffe0583` y afirma la página aparte y el logo que no llevaba al
-inicio.
+inicio, y `2114b64` (`ANTES_GUIA_REF`) para afirmar que «Ver» abría otra pestaña.
 
 ### La barra de arriba lleva la demostración, y el vídeo va justo debajo
 
@@ -24964,7 +25026,64 @@ sus píxeles (`GUIA=flujos`), `fin-de-la-guia` y `menu-de-la-guia` y la guía
 servida a 390 y 1440. `MODO=roto` lee `7767f6f` y afirma que no había guía,
 que las pastillas no filtraban y que la pantalla no exponía sus marcas.
 
-### La vigésima guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
+### La vigésima guía, Agenda: el calendario, la página pública y sus ocho pestañas
+
+`/guia/agenda` documenta Contactos › Agenda (`/schedule`) con el estándar de las
+anteriores: diez secciones —vista general, el calendario, estado y reagendar,
+disponibilidad, el enlace público de reserva, el Kanban, los servicios, los
+recordatorios antes de la cita, el formulario de calificación con sus registros,
+y los ajustes (duración, enlace de reunión, anticipación y Google Calendar)—,
+una miniatura con enfoque por tarjeta y el vídeo narrado con la voz Cedar y el
+MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/schedule`
+(`GUIAS_PUBLICADAS`): «Aprende a gestionar tus citas y tu agenda en la
+plataforma».
+
+No trae ninguna pieza propia: contenido (`lib/guia-agenda.ts`, con `laGuiaDe`),
+semilla (`sembrar-guia-agenda.mjs`, sobre `sembrarElMarco`, con una clínica de
+ejemplo: citas en varios estados, servicios, recordatorios, preguntas y
+registros), receta (`capturar-guia-agenda.mjs`, sobre el taller) y narración. Se
+regenera con `npm run build && scripts/generar-guia-agenda.sh && npm run build`.
+
+**La guía se compara con el CÓDIGO** (`guia-agenda.test.mjs`): las pestañas con
+`PESTANAS_DE_LA_AGENDA` (`lib/pantalla-de-agenda.ts`, que la pantalla también
+lee), las cifras de arriba, los estados de la ficha y del Kanban, las vistas del
+calendario, los mandos de un periodo, los pasos de la página pública, los tipos
+de pregunta y los campos de Ajustes.
+
+Cinco cosas que hay que mantener:
+
+1. **La página pública se fotografía de verdad y NUNCA se pulsa su Confirmar**:
+   ese botón reserva. Elegir un día ya pasa solo a la hora (no hay «Continuar»
+   que pulsar). Las banderas del selector de país vienen de fuera, así que la
+   receta sirve una dibujada; y la foto se recorta a la tarjeta, que es una
+   columna estrecha.
+2. **El vídeo no cancela ni reserva nada**: señala «Sí, cancelar la cita» y
+   «Confirmar» sin pulsarlos (lo afirma el banco). Arrastra una tarjeta de
+   Pendiente a Confirmada, y por eso antes del vídeo se vuelve a sembrar.
+3. **Las fechas salen en español solo con `--lang=es-CO` y `LANG=es_CO.UTF-8`**:
+   el campo de fecha de Reagendar lo pinta el proceso de Chromium.
+4. **Cada carga dice «Agenda cargada con éxito»**: la receta quita el aviso al
+   cambiar de pestaña, fuera del vídeo (dentro está prohibido).
+5. **«Buscar pregunta…» también lleva la palabra «pregunta»**: el campo de una
+   pregunta nueva se busca por su ejemplo, o se escribe en el buscador.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el enlace de reserva llevaba `agente.ia-app.com` escrito a mano: desde el dominio de un reseller se compartía el de otro | `elEnlaceDeReserva` con el dominio de la página abierta |
+| copiar el enlace sin `try`: sin HTTPS el portapapeles lanza callado | en su `try`, y si falla dice qué hacer |
+| la confirmación de cancelar decía «Cancelar» (que NO cancela) y «Eliminar» (que cancela) | «Volver» y «Sí, cancelar la cita» |
+| la lista de recordatorios pintaba «days-1» | «1 día antes» (`formatReminderTime` entiende las cuatro unidades) |
+| «Estas», «Telefono», «accion», «cancelacion»… | con sus tildes |
+
+Lo prueba `scripts/banco-guia-agenda.sh`: el contenido contra el código, el
+vídeo medido como los demás, las miniaturas en sus píxeles (`GUIA=agenda`),
+`fin-de-la-guia` y `menu-de-la-guia` —que barren todas las guías— y la guía
+servida a 390 y 1440. `MODO=roto` lee `2c7b35e` y afirma que no había guía, ni
+marcas en la pantalla, y el enlace escrito a mano.
+
+### La vigesimoprimera guía, Etiquetas: el tablero y su Gestionar, y el filtro que no se quitaba
 
 `/guia/etiquetas` documenta Contactos › Etiquetas (`/tags`) con el mismo
 estándar: diez secciones —vista general, el tablero, arrastrar, calificar con

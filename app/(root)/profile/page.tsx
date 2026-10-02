@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { UserInformation } from '@/app/(root)/profile/_components/UserInformation';
 import { currentUser } from '@/lib/auth';
+import { esElDuenoDeLaCuenta } from '@/lib/dueno-de-la-cuenta';
 import { getCountryCodes } from '@/actions/get-country-action';
 import { Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
@@ -37,6 +38,8 @@ export interface UserInformationProps {
   autoSetup?: boolean;
   /** Solo lectura: agentes (no dueño ni administrador) ven el perfil sin poder editar. */
   readOnly?: boolean;
+  /** Solo el dueño de la cuenta ve el interruptor del análisis de sentimiento. */
+  esElDueno?: boolean;
 }
 
 // Adapta las funciones de tipo para manejar arrays
@@ -125,7 +128,7 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} wahaInstances={wahaInstances} hayServidorWaha={hayServidorWaha} puedeVolverAEvolution={Boolean(user.apiKeyId)} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={!!user.ownerId && user.advisorRole !== 'administrador'} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} wahaInstances={wahaInstances} hayServidorWaha={hayServidorWaha} puedeVolverAEvolution={Boolean(user.apiKeyId)} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={!!user.ownerId && user.advisorRole !== 'administrador'} esElDueno={esElDuenoDeLaCuenta(user)} />
     </>
   );
 }

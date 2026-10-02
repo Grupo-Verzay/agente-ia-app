@@ -41,6 +41,7 @@ import { SelectMultipleComboBox, CampaignSegmentPanel } from "../../campaigns/_c
 
 import { Reminders } from '@prisma/client';
 import { TimeInput } from "@/components/shared/TimeInput"
+import { ROTULO_DEL_TIEMPO_ANTES_DE_LA_CITA } from "@/lib/pantalla-de-agenda"
 import { Session } from "@prisma/client"
 
 type ReminderMediaPreview = {
@@ -449,6 +450,7 @@ export const ReminderForm = ({
                 ) : (
                     <TimeInput
                         className="text-xs text-muted-foreground"
+                        label={ROTULO_DEL_TIEMPO_ANTES_DE_LA_CITA}
                         onChange={handleTimeChange}
                         currentValue={initialData?.time ?? 'minutes-0'}
                     />

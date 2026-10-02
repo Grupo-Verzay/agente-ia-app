@@ -190,7 +190,7 @@ function DraggableCard({
         : undefined;
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} data-tarjeta-de-cita={card.id} className="cursor-grab active:cursor-grabbing">
             <AgendaCardItem card={card} isDragging={isDragging} insignia={insignia} onReagendar={onReagendar} />
         </div>
     );
@@ -216,6 +216,7 @@ function AgendaColumn({
 
     return (
         <div
+            data-columna-de-agenda={col.id}
             className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: col.borderColor + '52', backgroundColor: col.borderColor + '0A' }}
         >
@@ -227,6 +228,8 @@ function AgendaColumn({
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
                         title="Automatizaciones"
+                        aria-label={`Automatizaciones de ${col.label}`}
+                        data-automatizaciones-de-columna=""
                     >
                         <Settings2 className="h-3.5 w-3.5 text-white/80" />
                     </button>
@@ -409,6 +412,7 @@ export function AgendaKanban({
                             <input
                                 type="text"
                                 placeholder="Buscar por nombre o teléfono…"
+                                aria-label="Buscar cita"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"

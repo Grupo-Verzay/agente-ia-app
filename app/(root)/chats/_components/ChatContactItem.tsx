@@ -97,7 +97,7 @@ type ChatContactItemProps = {
    * neutro. Va como texto y no como objeto para que la fila memoizada no se
    * repinte en cada vuelta de la lista.
    */
-  sentimiento?: Sentimiento | null;
+  sentimiento?: Sentimiento | "apagado" | null;
   onArchive: (id: string, isArchived: boolean, instanceName?: string) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
   canDelete?: boolean;
