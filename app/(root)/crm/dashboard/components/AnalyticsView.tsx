@@ -29,6 +29,7 @@ import { getCallsCrmData } from "@/actions/calls-crm-actions";
 import { getNpsDelCrm } from "@/actions/encuesta-de-satisfaccion-actions";
 import { COLOR_DE_LA_CATEGORIA } from "@/lib/encuesta-de-satisfaccion";
 import { getSentimientoCrmData } from "@/actions/sentimiento-actions";
+import { REPORTE_APAGADO } from "@/lib/sentimiento";
 import { TagStatsCard } from "./TagStatsCard";
 import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
@@ -848,11 +849,15 @@ export function AnalyticsView({
                         <CardDescription>
                             {sentimientoLoading
                                 ? "Conversaciones que cayeron a negativo en el período."
-                                : `${sentimientoData?.total ?? 0} conversaciones cayeron a negativo en el período.`}
+                                : sentimientoData?.apagado
+                                    ? REPORTE_APAGADO
+                                    : `${sentimientoData?.total ?? 0} conversaciones cayeron a negativo en el período.`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : (sentimientoData?.porAsesor.length ?? 0) === 0
+                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : sentimientoData?.apagado
+                            ? <EmptyState text="Función apagada." />
+                            : (sentimientoData?.porAsesor.length ?? 0) === 0
                             ? <EmptyState text="Ninguna conversación cayó a negativo en el período." />
                             : <KpiList items={(sentimientoData?.porAsesor ?? []).map((a) => ({
                                 label: a.nombre,
@@ -867,7 +872,9 @@ export function AnalyticsView({
                         <CardDescription>Conversaciones cuyo cliente pasó a negativo cada día.</CardDescription>
                     </CardHeader>
                     <CardContent className={CHART_H}>
-                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : (sentimientoData?.total ?? 0) === 0
+                        {sentimientoLoading ? <EmptyState text="Cargando..." /> : sentimientoData?.apagado
+                            ? <EmptyState text="Función apagada." />
+                            : (sentimientoData?.total ?? 0) === 0
                             ? <EmptyState text="Sin caídas a negativo en el período." />
                             : (
                                 <ResponsiveContainer width="100%" height="100%">

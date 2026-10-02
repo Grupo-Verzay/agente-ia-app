@@ -27,26 +27,86 @@ export type SentimientoDeLaConversacion = {
 export const MENSAJES_DE_CONTEXTO = 8;
 /** Tope de caracteres del contexto: una conversación larga no puede ser una factura. */
 export const TOPE_DE_CARACTERES = 2400;
+/** Cuántos de los ÚLTIMOS mensajes del cliente se juzgan como mucho. */
+export const MENSAJES_QUE_SE_JUZGAN = 5;
+/**
+ * Cuántas líneas ANTERIORES se le enseñan a la IA como contexto: solo la
+ * última respuesta del negocio, que es lo que dice a qué contesta el cliente.
+ * Medido en producción: con ocho líneas de contexto, una queja de hace días
+ * teñía el «no gracias» de hoy aunque la instrucción dijera «no lo juzgues»;
+ * aislados, los mismos mensajes salían neutro.
+ */
+export const LINEAS_DE_CONTEXTO = 1;
 
-export const INSTRUCCION_DEL_SENTIMIENTO = `Eres un analista de atención al cliente. Lees un trozo de una conversación de WhatsApp entre un negocio y su cliente y clasificas CÓMO SE SIENTE EL CLIENTE en sus últimos mensajes.
-Responde con UNA sola palabra, sin nada más:
-- positivo: el cliente está contento, agradece, se muestra interesado o satisfecho.
-- neutro: pregunta, informa, saluda o no expresa ninguna emoción clara.
-- negativo: el cliente está molesto, frustrado, enojado, se queja, reclama, amenaza con irse o expresa decepción.
-Juzga SOLO al cliente, no al negocio. Ante la duda, responde neutro.`;
+/**
+ * La versión de la calibración. Sube cada vez que cambia CÓMO se clasifica
+ * (la instrucción, lo que se juzga): las conversaciones que quedaron en
+ * `negativo` con una versión anterior se vuelven a analizar una vez, y
+ * mientras tanto no pintan la franja (`elSentimientoQueSeEnsena`).
+ *
+ * - 1 (sin columna): la primera, que marcaba «molesto» a quien solo daba un
+ *   dato, decía «no gracias» o cambiaba de opinión. Medido en producción el
+ *   2026-10-02: de 711 negativos, la mayoría eran así.
+ * - 2: la instrucción define «negativo» como molestia DIRIGIDA al negocio y
+ *   solo se juzgan los últimos mensajes del cliente; lo anterior es contexto.
+ */
+export const VERSION_DE_LA_CALIBRACION = 2;
+
+/**
+ * Lo que se le pide a la IA. La calibración vive aquí y en ningún otro sitio.
+ *
+ * El fallo que corrige: «negativo» se describía con «se queja, reclama, expresa
+ * decepción», y la IA lo leía en cualquier mensaje con un «no» —«no gracias»,
+ * «ya no», «no hay disponibilidad», «tomé otra alternativa»— o en una mala
+ * noticia del cliente que no va contra nadie («tuve un accidente»). Y juzgaba
+ * la conversación ENTERA: una queja de hace diez mensajes teñía el «buenos
+ * días» de hoy, y hasta una disculpa del negocio («lamento que…») contaba como
+ * señal de que el cliente estaba molesto.
+ *
+ * Ahora: la mayoría de los mensajes son NEUTROS por definición (dar datos,
+ * preguntar, contestar, rechazar con educación), «negativo» exige una emoción
+ * de molestia dirigida al negocio, y la IA solo juzga los últimos mensajes del
+ * cliente —lo demás le llega marcado como contexto—.
+ */
+export const INSTRUCCION_DEL_SENTIMIENTO = `Eres un analista de atención al cliente. Lees un trozo de una conversación de WhatsApp entre un negocio y su cliente y clasificas la EMOCIÓN del cliente en sus ÚLTIMOS mensajes (los que vienen marcados para juzgar). Lo anterior es solo contexto: no lo juzgues. Los mensajes del negocio nunca deciden la emoción del cliente.
+
+Responde con UNA sola palabra, sin nada más: positivo, neutro o negativo.
+
+- neutro (la gran mayoría de los mensajes): el cliente da información o datos (nombre, número, ciudad, dirección, fechas, su situación), pregunta (precios, horarios, disponibilidad, cómo funciona), contesta lo que se le preguntó, saluda, confirma, envía un archivo, pide algo —aunque sea con prisa, en mayúsculas o repitiendo la pregunta («SU PRECIO POR FAVOR», «¿cuándo llega?»)—, opina sobre el precio («muy caro», «está caro, gracias»), dice que no le interesa, que ya no quiere, que lo pensará o que no puede ahora —aunque diga «no»—, se disculpa, o cuenta un problema, una falla técnica o una mala noticia SIN enojarse con el negocio («no tengo señal», «no me llegó el código», «no lo pudieron atender», «me hace falta para mi trabajo»).
+- positivo: agradece de forma expresa, se muestra contento, entusiasmado o satisfecho, elogia el servicio o confirma una compra con gusto.
+- negativo: SOLO si el cliente expresa de forma clara y explícita molestia, enojo o frustración CONTRA el negocio o su servicio: reclama con enojo por un mal servicio, una demora o un incumplimiento («llevo un año esperando y nunca llegó», «nadie me responde», «prometen y no cumplen»), acusa o dice que lo engañaron («es una estafa», «me enviaron otra cosa»), insulta, se burla o es sarcástico, amenaza con irse o denunciar, o reclama con exasperación que no lo atienden o no lo leen.
+
+Rechazar una oferta, decir «no», objetar el precio o no estar interesado NO es negativo. Contar un problema o una falla sin molestia contra el negocio NO es negativo. Pedir algo con urgencia NO es negativo. Ante la duda, responde neutro.
+
+Ejemplos:
+«no gracias» → neutro
+«ya no quiero nada» → neutro
+«me parece muy caro» → neutro
+«no tengo señal» → neutro
+«SU PRECIO POR FAVOR, URGENTE» → neutro
+«mi nombre es Ana, vivo en Lima» → neutro
+«¿ya me tienen alguna respuesta?» → neutro
+«muchas gracias, quedó perfecto» → positivo
+«llevo un año esperando y nunca me lo entregaron» → negativo
+«¿ustedes no leen? por tercera vez le digo» → negativo
+«prometen y no cumplen, son unos estafadores» → negativo`;
 
 /**
  * Lee lo que contestó la IA. Se queda con la PRIMERA de las tres palabras que
  * aparezca, sin acentos ni mayúsculas. Lo que no se entiende es `null` —«no se
  * pudo clasificar»—, NUNCA `neutro`: inventar un neutro borraría un negativo que
  * sí estaba, y la franja de alerta se iría sola sin que el cliente haya mejorado.
+ *
+ * Una palabra NEGADA no cuenta: «No es negativo, es neutro» es neutro. Antes
+ * ganaba la primera que apareciera y esa respuesta salía como negativo.
  */
 export function leerElSentimiento(respuesta: unknown): Sentimiento | null {
     if (typeof respuesta !== "string") return null;
     const limpio = respuesta
         .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase();
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\bno\s+(?:es\s+|son\s+|esta\s+|parece\s+|)(?:muy\s+)?(?:positivo|neutro|negativo)\b/g, " ");
     let mejor: { s: Sentimiento; i: number } | null = null;
     for (const s of SENTIMIENTOS) {
         const i = limpio.search(new RegExp(`\\b${s}\\b`));
@@ -61,24 +121,56 @@ export type MensajeParaAnalizar = {
     texto: string | null;
 };
 
+function comoLinea(m: MensajeParaAnalizar): string {
+    return `${m.fromMe ? "Negocio" : "Cliente"}: ${m.texto!.trim().replace(/\s+/g, " ")}`;
+}
+
+function conTexto(m: MensajeParaAnalizar): boolean {
+    return typeof m.texto === "string" && m.texto.trim().length > 0;
+}
+
 /**
- * El texto que se le manda a la IA, o `null` si no hay nada del CLIENTE que
- * leer (solo audios sin transcribir, stickers, imágenes sin pie): sin texto del
- * cliente no hay sentimiento que juzgar, y preguntar sería pagar por nada.
+ * Lo que se JUZGA: los últimos mensajes del cliente, los que vienen después
+ * de la última respuesta del negocio (con texto, como mucho
+ * `MENSAJES_QUE_SE_JUZGAN`). Llegan en orden cronológico.
  *
- * Llegan en orden cronológico. Se recorta por DELANTE —lo más viejo—, porque lo
- * que se juzga es cómo está el cliente AHORA.
+ * Si ese último tramo del cliente no trae ni un texto —un audio sin
+ * transcribir, una imagen sin pie— no hay nada NUEVO que juzgar: `[]`, y quien
+ * llama conserva lo que había. Juzgar otra vez lo de antes es justo lo que
+ * hacía que una queja vieja tiñera el mensaje de hoy.
+ */
+export function losMensajesQueSeJuzgan(mensajes: readonly MensajeParaAnalizar[]): MensajeParaAnalizar[] {
+    let i = mensajes.length;
+    while (i > 0 && !mensajes[i - 1].fromMe) i--;
+    return mensajes.slice(i).filter(conTexto).slice(-MENSAJES_QUE_SE_JUZGAN);
+}
+
+/**
+ * El texto que se le manda a la IA, o `null` si no hay nada NUEVO del cliente
+ * que juzgar (ver `losMensajesQueSeJuzgan`): sin eso no hay sentimiento que
+ * leer, y preguntar sería pagar por nada.
+ *
+ * Son dos bloques: el CONTEXTO —lo anterior, para entender de qué se habla— y
+ * lo que se JUZGA. El contexto se recorta por DELANTE —lo más viejo— para no
+ * pasar de `TOPE_DE_CARACTERES`; lo que se juzga no se recorta salvo que solo
+ * eso ya pase del tope.
  */
 export function elTextoParaAnalizar(mensajes: readonly MensajeParaAnalizar[]): string | null {
-    const lineas = mensajes
-        .filter((m) => typeof m.texto === "string" && m.texto.trim())
-        .slice(-MENSAJES_DE_CONTEXTO)
-        .map((m) => `${m.fromMe ? "Negocio" : "Cliente"}: ${m.texto!.trim().replace(/\s+/g, " ")}`);
-    if (!lineas.some((l) => l.startsWith("Cliente:"))) return null;
-    while (lineas.length > 1 && lineas.join("\n").length > TOPE_DE_CARACTERES) lineas.shift();
-    let texto = lineas.join("\n");
-    if (texto.length > TOPE_DE_CARACTERES) texto = texto.slice(texto.length - TOPE_DE_CARACTERES);
-    return `Conversación (lo más reciente al final):\n${texto}\n\n¿Cómo se siente el cliente? Responde positivo, neutro o negativo.`;
+    const juzgar = losMensajesQueSeJuzgan(mensajes);
+    if (!juzgar.length) return null;
+    let i = mensajes.length;
+    while (i > 0 && !mensajes[i - 1].fromMe) i--;
+    const antes = mensajes.slice(0, i).filter(conTexto).slice(-LINEAS_DE_CONTEXTO).map(comoLinea);
+
+    let juzgado = juzgar.map(comoLinea).join("\n");
+    if (juzgado.length > TOPE_DE_CARACTERES) juzgado = juzgado.slice(juzgado.length - TOPE_DE_CARACTERES);
+    const sitio = TOPE_DE_CARACTERES - juzgado.length;
+    while (antes.length && antes.join("\n").length > sitio) antes.shift();
+
+    const contexto = antes.length
+        ? `Contexto (mensajes anteriores, NO los juzgues):\n${antes.join("\n")}\n\n`
+        : "";
+    return `${contexto}Últimos mensajes del cliente (JUZGA SOLO ESTOS):\n${juzgado}\n\n¿Qué emoción expresa el cliente en estos últimos mensajes? Responde positivo, neutro o negativo.`;
 }
 
 /** Tipos de mensaje que no llevan texto propio (se usa su pie si lo traen). */
@@ -155,9 +247,25 @@ export const ANILLO_DEL_SENTIMIENTO: Record<Sentimiento, string> = {
  * cliente esté contento ni molesto. Así ningún avatar de la lista se queda sin
  * color; quien quiera saber si ya se analizó lo lee en `data-sentimiento`.
  */
-export function elAnilloDelAvatar(sentimiento: Sentimiento | null | undefined): string {
+export function elAnilloDelAvatar(sentimiento: Sentimiento | "apagado" | null | undefined): string {
+    if (sentimiento === "apagado") return ANILLO_SIN_SENTIMIENTO;
     return ANILLO_DEL_SENTIMIENTO[sentimiento ?? "neutro"] ?? ANILLO_DEL_SENTIMIENTO.neutro;
 }
+
+/**
+ * El aro de una conversación cuya cuenta tiene la función APAGADA: el de antes
+ * de que existiera el sentimiento, del color del fondo. No dice nada, que es lo
+ * correcto: la cuenta no pidió que se juzgara a nadie.
+ */
+export const ANILLO_SIN_SENTIMIENTO = "ring-background";
+
+/**
+ * La función de sentimiento es de la CUENTA y nace APAGADA. Sin fila en
+ * `sentimiento_ajustes` —todas las cuentas que existían antes de esto, y toda
+ * cuenta nueva— está apagada: ni se analiza, ni se cobra, ni se pinta, ni sale
+ * en el reporte.
+ */
+export const SENTIMIENTO_POR_DEFECTO = { activa: false } as const;
 
 /** El texto de la franja. Corto: se lee de reojo mientras se escribe. */
 export const TEXTO_DE_LA_FRANJA = "El cliente parece molesto";
@@ -205,7 +313,13 @@ export type ReporteDeSentimiento = {
     /** Día × asesor, para ver las tendencias de cada uno. */
     porDiaYAsesor: CaidaDelReporte[];
     total: number;
+    /** Ninguna de las cuentas consultadas tiene la función encendida. */
+    apagado?: boolean;
 };
+
+/** Lo que dice el reporte cuando la función está apagada en todas las cuentas. */
+export const REPORTE_APAGADO =
+    "El análisis de sentimiento está apagado. Lo enciende el dueño de la cuenta en Perfil › Comportamiento.";
 
 export const SIN_ASIGNAR = "Sin asignar";
 

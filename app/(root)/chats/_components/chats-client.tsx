@@ -1194,6 +1194,9 @@ export function ChatsClient({
    * Solo se reemplaza si cambio algo: ver `mismosSentimientos`.
    */
   const [sentimientos, setSentimientos] = useState<Record<string, SentimientoDeLaConversacion>>({});
+  // Las lineas cuya cuenta tiene la funcion de sentimiento ENCENDIDA. Nace
+  // apagada: en las demas no se pinta ningun aro de sentimiento.
+  const [lineasConSentimiento, setLineasConSentimiento] = useState<string[]>([]);
   const [presencias, setPresencias] = useState<Record<string, { estado: PresenciaContacto; hasta: number }>>({});
   useEffect(() => {
     if (!Object.keys(presencias).length) return;
@@ -2344,6 +2347,14 @@ export function ChatsClient({
     if (respuesta.sentimientos) {
       const nuevos = respuesta.sentimientos;
       setSentimientos((previos) => (mismosSentimientos(previos, nuevos) ? previos : nuevos));
+    }
+    if (respuesta.lineasConSentimiento) {
+      const encendidas = new Set(respuesta.lineasConSentimiento);
+      setLineasConSentimiento((previas) => {
+        // Solo cambia lo de las lineas pedidas en esta vuelta.
+        const siguientes = [...previas.filter((l) => !pedidas.includes(l)), ...pedidas.filter((l) => encendidas.has(l))].sort();
+        return siguientes.length === previas.length && siguientes.every((l, i) => l === previas[i]) ? previas : siguientes;
+      });
     }
     const porLinea = new Map(respuesta.lineas.map((l) => [l.instanceName, l]));
     const results: Array<{ instanceName: string; resultado: FetchChatsResult }> = pedidas.map(
@@ -5868,6 +5879,7 @@ export function ChatsClient({
           cuentaDeLaLineaDelFiltro={cuentaDeLaLineaDelFiltro}
           presencias={presenciasVisibles}
           sentimientos={sentimientos}
+          lineasConSentimiento={lineasConSentimiento}
           chatPreferences={chatPreferences}
           chatSessions={chatSessions}
           onArchiveChat={handleArchiveChat}

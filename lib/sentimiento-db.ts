@@ -8,6 +8,8 @@ import {
     elNegativoDesde,
     elTextoDelMensaje,
     llaveDelSentimiento,
+    SENTIMIENTO_POR_DEFECTO,
+    VERSION_DE_LA_CALIBRACION,
     type CaidaDelReporte,
     type MensajeParaAnalizar,
     type Sentimiento,
@@ -88,6 +90,26 @@ function asegurarLasTablas(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "sentimiento_caidas_cuenta_dia_idx"
             ON "sentimiento_caidas" ("userId", "dia")
         `);
+        // La versión de la calibración con la que se clasificó (ver
+        // `VERSION_DE_LA_CALIBRACION`). La tabla ya está en producción: entra
+        // con ADD COLUMN, no reescribiendo el CREATE. Sin valor = la 1.
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "sentimiento_de_conversacion" ADD COLUMN IF NOT EXISTS "calibracion" INTEGER
+        `);
+        // Y la de cada caída: el reporte solo cuenta las de la calibración
+        // vigente, así los falsos «molesto» de la v1 no salen en él.
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "sentimiento_caidas" ADD COLUMN IF NOT EXISTS "calibracion" INTEGER
+        `);
+        // El interruptor de la CUENTA. Sin fila = apagada: así nacen las
+        // cuentas nuevas y así quedan todas las que ya existían.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "sentimiento_ajustes" (
+                "cuentaId" TEXT PRIMARY KEY,
+                "activa" BOOLEAN NOT NULL DEFAULT false,
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -109,6 +131,76 @@ async function conLasTablas<T>(hacer: () => Promise<T>): Promise<T> {
         tablasListas = null;
         await asegurarLasTablas();
         return hacer();
+    }
+}
+
+/* ── El interruptor de la cuenta ─────────────────────────────────────── */
+
+/** Nunca falla: si no se puede leer, apagada — no se juzga a nadie que nadie pidió. */
+export async function leerLosAjustesDelSentimiento(cuentaId: string): Promise<{ activa: boolean }> {
+    try {
+        const filas = await conLasTablas(() => db.$queryRaw<{ activa: boolean }[]>`
+            SELECT "activa" FROM "sentimiento_ajustes" WHERE "cuentaId" = ${cuentaId}
+        `);
+        return { activa: filas[0]?.activa === true };
+    } catch (error) {
+        console.warn("[sentimiento] no se pudieron leer los ajustes", { cuentaId, error: String(error) });
+        return { ...SENTIMIENTO_POR_DEFECTO };
+    }
+}
+
+export async function guardarLosAjustesDelSentimiento(cuentaId: string, activa: boolean): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "sentimiento_ajustes" ("cuentaId", "activa", "actualizadoEn")
+        VALUES (${cuentaId}, ${activa}, NOW())
+        ON CONFLICT ("cuentaId") DO UPDATE SET "activa" = EXCLUDED."activa", "actualizadoEn" = NOW()
+    `);
+}
+
+/** De estas cuentas, las que tienen la función ENCENDIDA. Si falla, ninguna. */
+export async function lasCuentasConSentimiento(cuentas: readonly string[]): Promise<string[]> {
+    if (!cuentas.length) return [];
+    try {
+        const filas = await conLasTablas(() => db.$queryRaw<{ cuentaId: string }[]>`
+            SELECT "cuentaId" FROM "sentimiento_ajustes"
+            WHERE "activa" = true AND "cuentaId" = ANY(${[...cuentas]}::text[])
+        `);
+        return filas.map((f) => f.cuentaId);
+    } catch (error) {
+        console.warn("[sentimiento] no se pudo saber qué cuentas tienen la función", String(error));
+        return [];
+    }
+}
+
+/**
+ * La cuenta DUEÑA de una línea, en SQL: la de `Instancias`, prefiriendo la
+ * fila de la conversación si coincide; sin línea conocida, la de la fila. Es
+ * la misma regla con la que se elige quién paga (`pagador`), y por eso es
+ * también la que decide si la función está encendida para esa conversación.
+ */
+function laDuenaDeLaLinea(linea: Prisma.Sql, fila: Prisma.Sql): Prisma.Sql {
+    return Prisma.sql`COALESCE((
+        SELECT i."userId" FROM "Instancias" i
+        WHERE i."instanceName" = ${linea}
+        ORDER BY (i."userId" = ${fila}) DESC
+        LIMIT 1
+    ), ${fila})`;
+}
+
+/** De estas líneas, las que son de una cuenta con la función encendida. */
+export async function lasLineasConSentimiento(lineas: readonly string[]): Promise<string[]> {
+    if (!lineas.length) return [];
+    try {
+        const filas = await conLasTablas(() => db.$queryRaw<{ instanceName: string }[]>`
+            SELECT DISTINCT i."instanceName"
+            FROM "Instancias" i
+            JOIN "sentimiento_ajustes" a ON a."cuentaId" = i."userId" AND a."activa" = true
+            WHERE i."instanceName" = ANY(${[...lineas]}::text[])
+        `);
+        return filas.map((f) => f.instanceName);
+    } catch (error) {
+        console.warn("[sentimiento] no se pudo saber qué líneas tienen la función", String(error));
+        return [];
     }
 }
 
@@ -203,9 +295,18 @@ export async function losPendientes(opciones: {
           AND c."remoteJid" NOT LIKE '%@g.us'
           AND c."remoteJid" NOT LIKE '%@broadcast'
           AND c."remoteJid" NOT LIKE '%@newsletter'
-          AND (s."mensajeEn" IS NULL OR c."lastMessageTimestamp" IS NULL OR c."lastMessageTimestamp" > s."mensajeEn")
-          AND s."mensajeId" IS DISTINCT FROM u."messageId"
+          AND EXISTS (
+            SELECT 1 FROM "sentimiento_ajustes" a
+            WHERE a."cuentaId" = COALESCE(il."userId", c."userId") AND a."activa" = true
+          )
           AND (s."mensajeEn" IS NULL OR s."mensajeEn" <= u."messageTimestamp")
+          AND (
+            (
+              (s."mensajeEn" IS NULL OR c."lastMessageTimestamp" IS NULL OR c."lastMessageTimestamp" > s."mensajeEn")
+              AND s."mensajeId" IS DISTINCT FROM u."messageId"
+            )
+            OR (s."sentimiento" = 'negativo' AND COALESCE(s."calibracion", 1) < ${VERSION_DE_LA_CALIBRACION}::int)
+          )
           AND (
             s."analizandoId" IS NULL
             OR s."analizandoId" IS DISTINCT FROM u."messageId"
@@ -223,10 +324,10 @@ export async function losPendientes(opciones: {
  * análisis necesita para saber si «cayó»), o `null` si otro se adelantó.
  */
 export async function reclamarElAnalisis(p: Pendiente): Promise<
-    { sentimiento: Sentimiento | null; negativoDesde: Date | null } | null
+    { sentimiento: Sentimiento | null; negativoDesde: Date | null; recalibrando: boolean } | null
 > {
     const filas = await conLasTablas(() => db.$queryRaw<
-        { sentimiento: string | null; negativoDesde: Date | null }[]
+        { sentimiento: string | null; negativoDesde: Date | null; calibracion: number | null }[]
     >`
         INSERT INTO "sentimiento_de_conversacion" AS s
             ("userId", "instanceName", "remoteJid", "remoteJidAlt", "senderPn", "analizandoId", "analizandoDesde")
@@ -236,19 +337,24 @@ export async function reclamarElAnalisis(p: Pendiente): Promise<
             "analizandoDesde" = NOW(),
             "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", s."remoteJidAlt"),
             "senderPn" = COALESCE(EXCLUDED."senderPn", s."senderPn")
-        WHERE s."mensajeId" IS DISTINCT FROM EXCLUDED."analizandoId"
+        WHERE (
+            s."mensajeId" IS DISTINCT FROM EXCLUDED."analizandoId"
+            OR (s."sentimiento" = 'negativo' AND COALESCE(s."calibracion", 1) < ${VERSION_DE_LA_CALIBRACION}::int)
+          )
           AND (
             s."analizandoId" IS NULL
             OR s."analizandoId" IS DISTINCT FROM EXCLUDED."analizandoId"
             OR s."analizandoDesde" < NOW() - make_interval(secs => ${RECLAMO_CADUCA_SEGUNDOS}::int)
           )
-        RETURNING s."sentimiento", s."negativoDesde"
+        RETURNING s."sentimiento", s."negativoDesde", s."calibracion"
     `);
     if (!filas.length) return null;
     const s = filas[0].sentimiento;
+    const sentimiento = s === "positivo" || s === "neutro" || s === "negativo" ? s : null;
     return {
-        sentimiento: s === "positivo" || s === "neutro" || s === "negativo" ? s : null,
+        sentimiento,
         negativoDesde: filas[0].negativoDesde,
+        recalibrando: sentimiento === "negativo" && (filas[0].calibracion ?? 1) < VERSION_DE_LA_CALIBRACION,
     };
 }
 
@@ -286,7 +392,7 @@ export function elDiaDe(fecha: Date): string {
  */
 export async function guardarElAnalisis(
     p: Pendiente,
-    antes: { sentimiento: Sentimiento | null; negativoDesde: Date | null },
+    antes: { sentimiento: Sentimiento | null; negativoDesde: Date | null; recalibrando?: boolean },
     ahora: Sentimiento,
 ): Promise<{ guardado: boolean; cayo: boolean }> {
     const negativoDesde = elNegativoDesde(antes, ahora, p.messageTimestamp);
@@ -296,6 +402,7 @@ export async function guardarElAnalisis(
             "mensajeId" = ${p.messageId},
             "mensajeEn" = ${p.messageTimestamp},
             "negativoDesde" = ${negativoDesde},
+            "calibracion" = ${VERSION_DE_LA_CALIBRACION}::int,
             "analizandoId" = NULL,
             "analizandoDesde" = NULL,
             "actualizadoEn" = NOW()
@@ -304,6 +411,21 @@ export async function guardarElAnalisis(
           AND ("mensajeEn" IS NULL OR "mensajeEn" <= ${p.messageTimestamp})
     `);
     if (!tocadas) return { guardado: false, cayo: false };
+    // Una caída que solo existió por la calibración vieja y que con la nueva
+    // NO es negativa se borra del reporte: era un falso «molesto». Solo esa
+    // caída (por su fecha), nunca las demás de la conversación.
+    if (antes.recalibrando && ahora !== "negativo" && antes.negativoDesde) {
+        await conLasTablas(() => db.$executeRaw`
+            DELETE FROM "sentimiento_caidas"
+            WHERE "userId" = ${p.userId} AND "instanceName" = ${p.instanceName} AND "remoteJid" = ${p.remoteJid}
+              AND "sucedioEn" = ${antes.negativoDesde}
+        `).catch((error) => {
+            console.warn("[sentimiento] no se pudo quitar una caída de la calibración vieja", {
+                linea: p.instanceName,
+                motivo: (error as Error)?.message,
+            });
+        });
+    }
     if (!cayoANegativo(antes.sentimiento, ahora)) return { guardado: true, cayo: false };
 
     const asesorId = await elAsesorDeLaConversacion(p).catch((error) => {
@@ -314,8 +436,8 @@ export async function guardarElAnalisis(
         return null;
     });
     await conLasTablas(() => db.$executeRaw`
-        INSERT INTO "sentimiento_caidas" ("userId", "instanceName", "remoteJid", "dia", "asesorId", "sucedioEn")
-        VALUES (${p.userId}, ${p.instanceName}, ${p.remoteJid}, ${elDiaDe(p.messageTimestamp)}::date, ${asesorId}, ${p.messageTimestamp})
+        INSERT INTO "sentimiento_caidas" ("userId", "instanceName", "remoteJid", "dia", "asesorId", "sucedioEn", "calibracion")
+        VALUES (${p.userId}, ${p.instanceName}, ${p.remoteJid}, ${elDiaDe(p.messageTimestamp)}::date, ${asesorId}, ${p.messageTimestamp}, ${VERSION_DE_LA_CALIBRACION}::int)
         ON CONFLICT ("userId", "instanceName", "remoteJid", "dia") DO NOTHING
     `);
     return { guardado: true, cayo: true };
@@ -378,11 +500,19 @@ export async function losSentimientosDeLasLineas(
             negativoDesde: Date | null;
         }[]
     >`
-        SELECT "instanceName", "remoteJid", "remoteJidAlt", "senderPn", "sentimiento", "negativoDesde"
-        FROM "sentimiento_de_conversacion"
-        WHERE "userId" = ANY(${[...cuentas]}::text[])
-          AND "instanceName" = ANY(${[...lineas]}::text[])
-          AND "sentimiento" IN ('positivo', 'neutro', 'negativo')
+        SELECT s."instanceName", s."remoteJid", s."remoteJidAlt", s."senderPn",
+               CASE WHEN s."sentimiento" = 'negativo' AND COALESCE(s."calibracion", 1) < ${VERSION_DE_LA_CALIBRACION}::int
+                    THEN 'neutro' ELSE s."sentimiento" END AS "sentimiento",
+               s."negativoDesde"
+        FROM "sentimiento_de_conversacion" s
+        WHERE s."userId" = ANY(${[...cuentas]}::text[])
+          AND s."instanceName" = ANY(${[...lineas]}::text[])
+          AND s."sentimiento" IN ('positivo', 'neutro', 'negativo')
+          AND EXISTS (
+            SELECT 1 FROM "sentimiento_ajustes" a
+            WHERE a."activa" = true
+              AND a."cuentaId" = ${laDuenaDeLaLinea(Prisma.sql`s."instanceName"`, Prisma.sql`s."userId"`)}
+          )
     `);
     const salida: Record<string, SentimientoDeLaConversacion> = {};
     for (const f of filas) {
@@ -409,6 +539,7 @@ export async function lasCaidas(cuentas: readonly string[], desde: string): Prom
         LEFT JOIN "User" u ON u."id" = c."asesorId"
         WHERE c."userId" = ANY(${[...cuentas]}::text[])
           AND c."dia" >= ${desde}::date
+          AND COALESCE(c."calibracion", 1) >= ${VERSION_DE_LA_CALIBRACION}::int
         GROUP BY c."dia", c."asesorId"
         ORDER BY c."dia"
     `);

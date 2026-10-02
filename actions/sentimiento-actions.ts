@@ -2,7 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
-import { elDiaDe, lasCaidas } from '@/lib/sentimiento-db';
+import { elDiaDe, lasCaidas, lasCuentasConSentimiento } from '@/lib/sentimiento-db';
 import { armarElReporte, losDiasDelPeriodo, type ReporteDeSentimiento } from '@/lib/sentimiento';
 
 /**
@@ -22,7 +22,10 @@ export async function getSentimientoCrmData(params?: {
   const vacio = armarElReporte([], hoy, dias);
   const me = await currentUser();
   if (!me?.effectiveId) return vacio;
-  const cuentas = await lasCuentasQueConsultaElCrm(me.effectiveId, params?.cuentas);
+  const alcance = await lasCuentasQueConsultaElCrm(me.effectiveId, params?.cuentas);
+  // Solo las cuentas con la función ENCENDIDA: una apagada no se juzga ni se reporta.
+  const cuentas = await lasCuentasConSentimiento(alcance);
+  if (!cuentas.length) return { ...vacio, apagado: true };
   try {
     const desde = losDiasDelPeriodo(hoy, dias)[0];
     return armarElReporte(await lasCaidas(cuentas, desde), hoy, dias);

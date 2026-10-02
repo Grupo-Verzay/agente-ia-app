@@ -19415,6 +19415,44 @@ Postgres con la IA fingida y la franja en Chromium; `MODO=roto` lee `ANTES_REF`
 y afirma que no había nada de esto. Y `scripts/banco-cobro-de-ia.sh` prueba el
 cuándo y el cobro (ver la sección siguiente).
 
+### La calibración: se juzga lo ÚLTIMO del cliente, y nace APAGADO
+
+Medido en producción (2026-10-02): de las conversaciones en rojo, casi todas
+eran clientes dando un dato, contestando, objetando el precio o diciendo «no
+gracias». Tres causas, y las tres se arreglaron (`VERSION_DE_LA_CALIBRACION`,
+2):
+
+| causa | arreglo |
+| --- | --- |
+| la IA leía ocho líneas de contexto: una queja de hace días teñía el mensaje de hoy, aunque se le dijera «no lo juzgues». Aislados, esos mismos mensajes salían neutro | se juzga solo el último tramo del cliente (`losMensajesQueSeJuzgan`, hasta 5) y de contexto va UNA línea, lo último que dijo el negocio (`LINEAS_DE_CONTEXTO`) |
+| la instrucción no decía qué NO es negativo | lo dice, con ejemplos: un dato, una pregunta urgente, «muy caro», «no gracias», una falla técnica sin enojo son neutro; negativo es enojo CONTRA el negocio. «Ante la duda, neutro» |
+| «No es negativo, es neutro» se leía negativo (ganaba la primera palabra) | `leerElSentimiento` quita las palabras negadas |
+
+Sobre una muestra de 50 conversaciones en rojo, la calibración nueva dejó en
+rojo 24, y las que quedan son quejas de verdad («mentirosos», «nadie
+contesta», «llevo un año esperando»).
+
+**Los rojos de antes no se arrastran**: un negativo sin la versión nueva se
+pinta como neutro, vuelve a entrar en los pendientes UNA vez y, si ya no es
+negativo, su caída se borra del reporte (`recalibrando`). El reporte solo
+cuenta caídas de la calibración nueva.
+
+**Y la función nace APAGADA** para toda cuenta, también las que ya existían:
+`sentimiento_ajustes` (tabla de la App, sin columna en `User`), y sin fila es
+apagada. Lo enciende **solo el dueño de la cuenta** (`esElDuenoDeLaCuenta`,
+`lib/dueno-de-la-cuenta.ts`: el súper administrador de verdad, o quien entra
+con su propia fila sin colgar de nadie y sin «Ingresar») en Perfil ›
+Comportamiento › «Análisis de sentimiento»; la tarjeta no se pinta a nadie más
+y las dos acciones lo vuelven a preguntar. Apagada, para esa cuenta: no se
+analiza ni se cobra (`losPendientes` lo mira por la dueña de la LÍNEA), el aro
+vuelve al de antes y no hay franja (`lineasConSentimiento` de la lista), y el
+reporte del CRM dice que está apagada.
+
+Lo prueba `scripts/banco-sentimiento.sh`, que corre además
+`sentimiento-calibracion.test.mjs` (las reglas, el interruptor y la
+recalibración contra Postgres); `MODO=roto` compila `lib/sentimiento.ts` de
+`2114b64` y afirma los fallos.
+
 ## Todo uso de IA lo paga la cuenta DUEÑA de lo que se analiza
 
 **La regla, sin excepción**: todo uso de IA en la plataforma descuenta créditos
