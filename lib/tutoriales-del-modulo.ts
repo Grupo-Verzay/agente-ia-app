@@ -29,6 +29,7 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_CHATS } from "@/lib/guia-chats";
+import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
@@ -280,6 +281,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/chats",
         contenido: GUIA_CHATS,
         tarjeta: "Aprende a atender todas tus conversaciones de WhatsApp en la plataforma",
+    },
+    {
+        modulo: "correo",
+        ruta: "/correo",
+        contenido: GUIA_CORREO,
+        tarjeta: "Aprende a leer y responder los correos de tu negocio en la plataforma",
     },
     {
         modulo: "follow-ups",
