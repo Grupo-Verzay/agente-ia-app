@@ -17,6 +17,7 @@ export function FilaDeGuia({
     descripcion,
     url,
     conAsa = false,
+    alVer,
     children,
     className,
     ...resto
@@ -26,6 +27,11 @@ export function FilaDeGuia({
     url: string;
     /** Va dentro de una lista que se reordena: le deja sitio al asa a la izquierda. */
     conAsa?: boolean;
+    /**
+     * La landing: «Ver» abre la guía DENTRO de la misma página (sin salir a
+     * `/guia/<modulo>` ni perder la barra de arriba de la landing).
+     */
+    alVer?: () => void;
     /** Lo que va detrás de «Ver» (Documentación › Guías: «Editar introducción»). */
     children?: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
@@ -44,12 +50,19 @@ export function FilaDeGuia({
                 </p>
                 {descripcion ? <p className="text-xs text-muted-foreground">{descripcion}</p> : null}
             </div>
-            <Button variant="outline" size="sm" asChild>
-                <a href={url} target="_blank" rel="noopener noreferrer" data-ver-guia>
-                    <ExternalLink className="h-4 w-4" aria-hidden />
+            {alVer ? (
+                <Button variant="outline" size="sm" type="button" onClick={alVer} data-ver-guia>
+                    <BookOpen className="h-4 w-4" aria-hidden />
                     Ver
-                </a>
-            </Button>
+                </Button>
+            ) : (
+                <Button variant="outline" size="sm" asChild>
+                    <a href={url} target="_blank" rel="noopener noreferrer" data-ver-guia>
+                        <ExternalLink className="h-4 w-4" aria-hidden />
+                        Ver
+                    </a>
+                </Button>
+            )}
             {children}
         </div>
     );

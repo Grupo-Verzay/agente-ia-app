@@ -4,12 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CentroDeAyuda } from "@/components/ayuda/CentroDeAyuda";
 import { GuiasDeLaCategoria } from "@/components/ayuda/GuiasDeLaCategoria";
+import { GuiaEnLaLanding } from "@/components/guia/GuiaEnLaLanding";
 import { laCategoria, lasGuiasDeLaCategoria, type GuiaDeAyuda } from "@/lib/centro-de-ayuda";
-import {
-    ANCLA_DE_TUTORIALES,
-    elAnclaDeLaCategoria,
-    laCategoriaDelAncla,
-} from "@/lib/tutoriales-de-la-landing";
+import { elAnclaDeLaVista, laVistaDelAncla, type VistaDeTutoriales } from "@/lib/tutoriales-de-la-landing";
 
 /**
  * Los tutoriales DENTRO de la landing (`/inicio#tutoriales`), como sección
@@ -28,61 +25,92 @@ import {
  *   (`#tutoriales`) vuelve a las categorías.
  * - Va bajo la clase `dark`: los componentes son los del panel y con ella
  *   toman los colores oscuros de la landing en vez de tarjetas blancas.
- * - Las guías siguen abriendo en otra pestaña (`/guia/<modulo>`), así que la
- *   landing nunca se pierde.
+ * - «Ver» abre la GUÍA aquí mismo (`#tutoriales/<categoria>/<modulo>`, y una
+ *   sección `…/<modulo>/<seccion>`), con las mismas piezas que
+ *   `/guia/<modulo>` (`GuiaEnLaLanding`): antes salía a esa página, con otro
+ *   diseño y sin la barra de la landing. El buscador hace lo mismo.
  */
+const PORTADA: VistaDeTutoriales = { categoria: null, modulo: null, seccion: null };
+
 export function TutorialesDeLaLanding({ guias }: { guias: GuiaDeAyuda[] }) {
-    const [slug, setSlug] = useState<string | null>(null);
+    const [vista, setVista] = useState<VistaDeTutoriales>(PORTADA);
     const caja = useRef<HTMLDivElement>(null);
+    // El oyente del ancla se monta una vez y lee las guías por referencia.
+    const lasGuias = useRef(guias);
+    lasGuias.current = guias;
 
     // Lo que dice el ancla manda: al cargar y cada vez que cambia (el menú, o un
-    // enlace a `#tutoriales/<categoria>` estando ya en la landing).
+    // enlace a `#tutoriales/<categoria>/<guia>` estando ya en la landing).
     useEffect(() => {
-        const leer = (desplazar: boolean) => {
-            const desdeElAncla = laCategoriaDelAncla(window.location.hash);
+        const leer = () => {
+            const desdeElAncla = laVistaDelAncla(window.location.hash, lasGuias.current);
             if (desdeElAncla === undefined) return; // el ancla es de otra sección
-            setSlug(desdeElAncla);
-            if (desplazar && desdeElAncla) {
+            setVista(desdeElAncla);
+            // Un ancla de categoría o de guía no es el id de ningún elemento:
+            // el navegador no baja solo, así que se baja aquí.
+            if (desdeElAncla.categoria) {
                 requestAnimationFrame(() => caja.current?.scrollIntoView({ block: "start" }));
             }
         };
-        leer(true);
-        // Un ancla de categoría no es el id de ningún elemento: el navegador no
-        // baja solo, así que se baja aquí también al cambiar sin recargar.
-        const alCambiar = () => leer(true);
-        window.addEventListener("hashchange", alCambiar);
-        return () => window.removeEventListener("hashchange", alCambiar);
+        leer();
+        window.addEventListener("hashchange", leer);
+        return () => window.removeEventListener("hashchange", leer);
     }, []);
 
-    const irA = useCallback((nuevo: string | null) => {
-        setSlug(nuevo);
+    const irA = useCallback((nueva: VistaDeTutoriales) => {
+        setVista(nueva);
         try {
-            const url = `${window.location.pathname}${window.location.search}${nuevo ? elAnclaDeLaCategoria(nuevo) : `#${ANCLA_DE_TUTORIALES}`}`;
+            const url = `${window.location.pathname}${window.location.search}${elAnclaDeLaVista(nueva)}`;
             window.history.replaceState(window.history.state, "", url);
         } catch {
             // Sin historial (un marco con restricciones): la vista cambia igual.
         }
-        // La lista de una categoría es más corta que las diez tarjetas: sin
-        // esto, quien bajó hasta la última se quedaría mirando lo de debajo.
+        // Cada vista mide distinto: quien bajó hasta el final de una guía no
+        // puede quedarse mirando lo de debajo de la sección al cambiar.
         requestAnimationFrame(() => {
             const el = caja.current;
             if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start", behavior: "smooth" });
         });
     }, []);
 
-    const categoria = slug ? laCategoria(slug) : null;
+    const categoria = vista.categoria ? laCategoria(vista.categoria) : null;
+    const guia = categoria && vista.modulo ? guias.find((g) => g.modulo === vista.modulo) ?? null : null;
+    const abrirGuia = (modulo: string, seccion: string | null = null) => {
+        const g = guias.find((x) => x.modulo === modulo);
+        if (g?.categoria) irA({ categoria: g.categoria, modulo, seccion });
+    };
 
     return (
-        <div ref={caja} className="dark scroll-mt-20" data-tutoriales-de-la-landing data-vista={categoria ? categoria.slug : "portada"}>
-            {categoria ? (
+        <div
+            ref={caja}
+            className="dark scroll-mt-20"
+            data-tutoriales-de-la-landing
+            data-vista={guia ? `${categoria!.slug}/${guia.modulo}${vista.seccion ? `/${vista.seccion}` : ""}` : categoria ? categoria.slug : "portada"}
+        >
+            {categoria && guia ? (
+                <GuiaEnLaLanding
+                    guia={guia}
+                    nombreDeLaCategoria={categoria.nombre}
+                    seccion={vista.seccion}
+                    alVolver={() => irA({ categoria: categoria.slug, modulo: null, seccion: null })}
+                    alAbrirSeccion={(s) => irA({ categoria: categoria.slug, modulo: guia.modulo, seccion: s })}
+                />
+            ) : categoria ? (
                 <GuiasDeLaCategoria
                     categoria={categoria}
                     guias={lasGuiasDeLaCategoria(guias, categoria.slug)}
-                    alVolver={() => irA(null)}
+                    alVolver={() => irA(PORTADA)}
+                    alAbrirGuia={(m) => abrirGuia(m)}
                     incrustado
                 />
             ) : (
-                <CentroDeAyuda guias={guias} titulo="Tutoriales" alElegirCategoria={(s) => irA(s)} incrustado />
+                <CentroDeAyuda
+                    guias={guias}
+                    titulo="Tutoriales"
+                    alElegirCategoria={(s) => irA({ categoria: s, modulo: null, seccion: null })}
+                    alAbrirGuia={abrirGuia}
+                    incrustado
+                />
             )}
         </div>
     );
