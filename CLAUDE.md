@@ -24839,6 +24839,45 @@ Panel › API keys: «IA CRM» contestó que no le quedan créditos en OpenAI y
 «Grupo Verzay» que la llave no vale. Si una guía nueva necesita voz, se prueba
 por nombre hasta la que conteste.
 
+### La decimoséptima guía, Productos: y documentarla destapó productos que nacían agotados
+
+`/guia/productos` documenta Entrenamiento › Productos (`/products`) con el
+mismo estándar: diez secciones —vista general, buscar, las cifras, ver el
+catálogo, crear, fotos, precio, categoría y código, inventario, y editar,
+ordenar y eliminar—, una miniatura con enfoque por tarjeta y el vídeo con la
+voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/products` (`GUIAS_PUBLICADAS`). Ninguna pieza propia: contenido con
+`laGuiaDe` (`lib/guia-productos.ts`), semilla sobre `sembrarElMarco`, receta
+sobre el taller (las fotos del catálogo las sirve `imagenes-guia-catalogo.mjs`).
+Se regenera con `npm run build && scripts/generar-guia-productos.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla (las reglas, puras, en
+`lib/productos.ts`):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| el interruptor de inventario nacía en «Sin límite» y el formulario en 0: un producto nuevo se guardaba **agotado** y en el catálogo perdía su botón de WhatsApp | los dos nacen de `elInventarioAlAbrir` (sin límite si es nuevo) |
+| «Sin stock» contaba los de inventario sin límite (`stock <= 0` incluye el -1) | cuenta CERO unidades (`estaAgotado`) |
+| Guardar con la categoría vacía no hacía nada | el campo enseña su error y sale `porQueNoSeGuardaElProducto` |
+| abrir un producto con código decía «Este código ya está registrado» sobre el suyo | `checkIfSkuExists` excluye el que se edita; y un código repetido no se guarda |
+| el buscador solo miraba el nombre | nombre, código y categoría (`dondeBusca`) |
+| arrastrar en la página 2 (o con una búsqueda) escribía `0..n` sobre ese trozo y lo subía por delante de la página 1 | `elOrdenCompleto`: lo movido se coloca en los sitios que ya ocupaba |
+| borrar un producto lo dejaba en el catálogo público | se revalida `/catalogo` |
+| el botón de crear decía «+ Agregar» y el pie del formulario era un `div` a mano | `BotonDeCrear` («Nuevo») y `DialogFooter` |
+
+Y de la receta, lo que vale para las siguientes: **una marca con rótulo solo
+donde hay hueco**. En un formulario de dos columnas cada rótulo cae sobre el
+campo de al lado; ahí va solo el recuadro y lo explica el texto de la guía. Y
+antes de cada foto se suelta el foco (`sinFoco`): al cerrar un diálogo el foco
+vuelve al lápiz de la fila y su anillo se lee como otra marca.
+
+Lo prueba `scripts/banco-guia-productos.sh`: el contenido contra la pantalla
+(columnas, cifras y campos leídos del código), las reglas, el vídeo, las
+miniaturas en sus píxeles (`GUIA=productos`), `fin-de-la-guia` y
+`menu-de-la-guia` —que barren todas las guías— y la guía servida a 390 y 1440.
+`MODO=roto` lee `7767f6f` y afirma que no había guía y los fallos del
+formulario y de la cifra.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
