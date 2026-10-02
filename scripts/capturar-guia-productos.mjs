@@ -657,6 +657,9 @@ async function video(navegador, estado) {
     await unidades.pressSequentially("12", { delay: 90 });
     await alDecir("una descripción", 500);
     const descripcion = elCampo(p, "Descripción").locator("textarea");
+    // Pegada al pie del formulario: se trae al centro, con su desplazamiento suave.
+    await descripcion.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+    await espera(p, 500);
     await pulsar(p, descripcion);
     await descripcion.pressSequentially("Notas de caramelo.", { delay: 40 });
 
