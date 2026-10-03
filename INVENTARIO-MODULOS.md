@@ -785,7 +785,7 @@ uno, se elige qué columnas ver y se confirma el cobro.
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| **Planes** | `/panel/planes` | Crear los planes que se venden: nombre visible, precio, créditos incluidos, características (una por línea), etiqueta ("Más popular"), colores, imágenes, orden, textos para buscadores y redes, enlace de demo y de reunión, y mensaje pre-escrito de WhatsApp. Hay planes para clientes directos y planes para revendedores. |
+| **Planes** | `/panel/planes` | Crear los planes que se venden: nombre visible, precio, créditos incluidos, sus funciones (una por fila, con interruptor, categoría, descripción y tutorial, ordenables arrastrando), etiqueta ("Más popular"), y en la pestaña de detalle el video del plan, sus preguntas frecuentes, los botones y los textos para buscadores. Lo que se guarda aquí es lo que enseña la página pública de cada plan. Hay planes para clientes directos y planes para revendedores. |
 | **Suscripciones** | `/panel/suscripciones` | Ver las altas que piden los clientes y aprobarlas o rechazarlas con motivo, con fecha de inicio y vencimiento. |
 | **Métodos de pago** | `/panel/pagos` | Crear las formas de pago que ve el cliente: nombre, emoji, datos de la cuenta e instrucciones. |
 
@@ -901,7 +901,7 @@ colores del negocio que la reparte.
 | **Landing de venta** | `/inicio` | La página comercial: qué hace el agente, para qué negocios sirve, testimonios, precios y botón de crear agente. |
 | **Landing del revendedor** | `/r/<marca>` | La misma página, con la marca, los colores y los planes de ese revendedor. |
 | **Programa de revendedores** | `/resellers` | Página de captación: beneficios, cómo funciona, ejemplo de margen y preguntas frecuentes. |
-| **Detalle de un plan** | `/planes/<plan>` | Qué incluye el plan, capturas del panel, testimonios y preguntas frecuentes. |
+| **Detalle de un plan** | `/planes/<plan>` | Pública. En este orden: el video del plan, su capacidad (créditos, catálogo y asistencia), sus funciones encendidas agrupadas por categoría con su tutorial, y sus preguntas frecuentes. Todo sale en vivo del panel de Planes; un plan apagado no tiene página. |
 | **Enlace corto de venta** | `/plan/<nivel>` | El que se dicta por teléfono o se pega en WhatsApp: lleva al alta con el plan ya puesto. |
 | **Enlace corto de pago** | `/p/<código>` | El que llega en el aviso de cobro. Calcula el precio al abrirse, así que si cambia el precio el aviso viejo sigue cobrando lo correcto. |
 | **Alta de cuenta** | `/completar-registro` | Crear la cuenta con los datos mínimos. |

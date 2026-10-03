@@ -1,49 +1,43 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getPlanDetailBySlug } from "@/actions/plan-detail-actions";
-import { getSiteConfig } from "@/actions/admin/site-config-actions";
+import { laPaginaDelPlan } from "@/lib/pagina-de-plan.server";
 import { PlanDetailPage } from "./_components/PlanDetailPage";
 
-const PLAN_LABELS: Record<string, string> = {
-  lite: "Nivel 1", basico: "Nivel 2", intermedio: "Nivel 3",
-  avanzado: "Nivel 4", enterprise: "Nivel 5", personalizado: "Nivel 6",
-};
+/**
+ * `/planes/<plan>?tipo=IA|HUMANO`: la página pública de un plan. Es PÚBLICA
+ * (`middleware.ts`), así que solo enseña planes ACTIVOS de la plataforma: uno
+ * apagado da 404, igual que no sale en la landing.
+ *
+ * Todo lo que se ve se arma en cada petición con lo que hay hoy en el panel de
+ * Planes (`lib/pagina-de-plan.server.ts`), y guardar en el panel la revalida.
+ */
+
+// Lo que enseña cambia en cuanto se guarda el panel: nada de foto estática.
+export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ tipo?: string }> };
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const { tipo = "IA" } = await searchParams;
-  const [res, siteConfig] = await Promise.all([
-    getPlanDetailBySlug(slug, tipo),
-    getSiteConfig(),
-  ]);
-  const favicon = siteConfig.faviconUrl?.trim() || "/favicon.ico";
-  if (!res.success || !res.plan) return { title: "Plan | Agente IA", icons: { icon: favicon } };
-
-  const planName = PLAN_LABELS[res.plan.plan] ?? res.plan.plan;
-  const detail = res.data;
-
+  const { tipo } = await searchParams;
+  const pagina = await laPaginaDelPlan(slug, tipo ?? null);
+  if (!pagina) return { title: "Plan no disponible", robots: { index: false } };
   return {
-    title: detail?.metaTitle ?? `Plan ${planName} | Agente IA`,
-    description: detail?.metaDescription ?? `Todo lo que incluye el plan ${planName} de Agente IA`,
-    icons: { icon: favicon },
-    openGraph: detail?.ogImageUrl ? { images: [{ url: detail.ogImageUrl }] } : undefined,
+    title: pagina.meta.titulo,
+    description: pagina.meta.descripcion,
+    icons: { icon: pagina.favicon ?? "/favicon.ico" },
+    openGraph: {
+      title: pagina.meta.titulo,
+      description: pagina.meta.descripcion,
+      ...(pagina.meta.imagen ? { images: [{ url: pagina.meta.imagen }] } : {}),
+    },
   };
 }
 
 export default async function PlanSlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { tipo = "IA" } = await searchParams;
-  const res = await getPlanDetailBySlug(slug, tipo);
-
-  if (!res.success || !res.plan) notFound();
-
-  return (
-    <PlanDetailPage
-      plan={res.plan}
-      detail={res.data}
-      planLabel={PLAN_LABELS[res.plan.plan] ?? res.plan.plan}
-    />
-  );
+  const { tipo } = await searchParams;
+  const pagina = await laPaginaDelPlan(slug, tipo ?? null);
+  if (!pagina) notFound();
+  return <PlanDetailPage pagina={pagina} />;
 }
