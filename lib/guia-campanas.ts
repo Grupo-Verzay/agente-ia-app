@@ -25,7 +25,7 @@ export type { Paso, Seccion } from "@/lib/guia-de-modulo";
 export { PARTES_DE_LA_BARRA_DE_ARRIBA } from "@/lib/guia-de-modulo";
 
 /** Dónde vive Campañas en el menú. El banco lo compara con el menú sembrado. */
-export const MODULO_DE_CAMPANAS = "Automatizaciones";
+export const MODULO_DE_CAMPANAS = "Creación de Flujos";
 
 /** Las cuatro ZONAS de la pantalla, en el orden en que se leen. */
 export const ZONAS_DE_LA_PANTALLA = [
@@ -123,10 +123,10 @@ export const GUIA_CAMPANAS: Contenido = {
                 {
                     titulo: "El menú de la plataforma",
                     texto:
-                        "Todos los módulos de la plataforma. Campañas está dentro de Automatizaciones. Al entrar a " +
+                        "Todos los módulos de la plataforma. Campañas está dentro de Creación de Flujos. Al entrar a " +
                         "una pantalla el menú se recoge en sus iconos; las dos flechas de arriba lo abren entero.",
                     imagen: "menu-lateral.webp",
-                    alt: "El menú de la izquierda abierto, con Campañas dentro de Automatizaciones",
+                    alt: "El menú de la izquierda abierto, con Campañas dentro de Creación de Flujos",
                 },
                 {
                     titulo: "La barra de arriba",
@@ -150,7 +150,7 @@ export const GUIA_CAMPANAS: Contenido = {
                 },
             ],
             consejos: [
-                "El menú y la barra de arriba son los mismos en todas las pantallas: desde cualquiera llegas a Campañas por Automatizaciones.",
+                "El menú y la barra de arriba son los mismos en todas las pantallas: desde cualquiera llegas a Campañas por Creación de Flujos.",
                 "Una campaña sale por WhatsApp, por la línea de tu cuenta, a cada contacto que elijas.",
             ],
         },

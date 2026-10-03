@@ -25509,7 +25509,7 @@ campos, confirmaciones), el vídeo, las miniaturas (`GUIA=tareas`),
 
 ### La vigesimoctava guía, Campañas: y documentarla destapó campañas que no hacían lo que decían
 
-`/guia/campanas` documenta Automatizaciones › Campañas (`/campaigns`) con el
+`/guia/campanas` documenta Creación de Flujos › Campañas (`/campaigns`) con el
 estándar de las anteriores: once secciones —vista general, la lista, el tablero
 Kanban (Pendientes, Para hoy, Mañana, Recurrentes, Enviados, Vencidos), crear
 una campaña con mensaje y variables, adjunto o audio grabado, fecha y hora,

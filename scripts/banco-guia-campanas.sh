@@ -3,17 +3,15 @@
 # Mismo estándar que las demás guías, y las mismas piezas:
 #
 #   1. `lib/__tests__/guia-campanas.test.mjs`: la guía documenta EXACTAMENTE
-#      las vistas, las cifras, las columnas del tablero, los campos de la
-#      ventana en modo campaña, las variables, los archivos, el panel de
-#      segmentación, la pausa y el aviso de riesgo, las partes de una campaña,
-#      su historial y el «⋯» (leídos del código); cada captura existe, es
-#      pública y no indexable, y sus dos páginas son las de Leads con otro
-#      nombre, letra por letra.
+#      las vistas, las cifras, las columnas del tablero, los archivos, las
+#      variables, los campos de la ventana, el panel de segmentación, las
+#      partes de una campaña, su historial, el aviso de riesgo y el «⋯»
+#      (leídos del código); cada captura existe, es pública y no indexable, y
+#      sus dos páginas son las de Leads con otro nombre, letra por letra.
 #   2. `lib/__tests__/video-guia-campanas.test.mjs`: la narración (Cedar, a
-#      ritmo de conversación, la frase de la barra de arriba igual que en
-#      Leads), el guion (cada acción en la palabra que la nombra, la grabadora
-#      propia, la ventana de eliminar se CANCELA) y el vídeo publicado, medido.
-#   3. `lib/__tests__/miniaturas-guia-leads.test.mjs` con `GUIA=campanas`.
+#      ritmo de conversación), el guion y el vídeo publicado, medido.
+#   3. `miniaturas-guia-leads.test.mjs` con `GUIA=campanas`: cada tarjeta de
+#      Secciones con su enfoque, medido en los píxeles.
 #   4. `fin-de-la-guia` y `menu-de-la-guia`, que barren TODAS las guías.
 #   5. `probar-guia.mjs` con `GUIA=campanas`: la guía SERVIDA, sin sesión y
 #      sin base, en Chromium a 390 y 1440 (hace falta el build).
@@ -33,13 +31,13 @@ MODO="${MODO:-bueno}"
 export MODO ANTES_CAM_REF="${ANTES_CAM_REF:-ab6b110}"
 
 # Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
-for G in leads catalogo diagramas reuniones notas mis-datos google-sheets integraciones agente-ia usuarios respuestas-rapidas macros formularios copiloto ai-imagenes finanzas llamadas productos flujos agenda recordatorios campanas etiquetas conexion chats; do
-  [ -f "lib/guia-$G.ts" ] || continue
+for G in leads catalogo diagramas reuniones notas mis-datos google-sheets integraciones agente-ia usuarios respuestas-rapidas macros formularios copiloto ai-imagenes finanzas llamadas productos flujos agenda recordatorios campanas etiquetas conexion chats tareas correo follow-ups; do
   OUT="lib/__tests__/.compilado/guia-$G"
   mkdir -p "$OUT"
   npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning
   npx esbuild lib/cierre-de-la-guia.ts --bundle --platform=node --format=esm --outfile="$OUT/cierre-de-la-guia.mjs" --log-level=warning
 done
+npx esbuild lib/campanas.ts --bundle --platform=node --format=esm --outfile=lib/__tests__/.compilado/guia-campanas/campanas.mjs --log-level=warning
 
 if [ "$MODO" = "roto" ]; then
   node --test lib/__tests__/guia-campanas.test.mjs lib/__tests__/video-guia-campanas.test.mjs
@@ -47,7 +45,6 @@ if [ "$MODO" = "roto" ]; then
   exit 0
 fi
 
-npx esbuild lib/campanas.ts --bundle --platform=node --format=esm --outfile=lib/__tests__/.compilado/guia-campanas/campanas.mjs --log-level=warning
 node --test lib/__tests__/guia-campanas.test.mjs
 node --test lib/__tests__/video-guia-campanas.test.mjs
 GUIA=campanas node --test lib/__tests__/miniaturas-guia-leads.test.mjs

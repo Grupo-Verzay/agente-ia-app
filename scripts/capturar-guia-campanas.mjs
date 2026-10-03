@@ -738,7 +738,7 @@ async function capturas(p) {
     await p.keyboard.press("Escape");
     await espera(p, 400);
 
-    await elMarcoDeLaPantalla(p, guardar, { modulo: "Automatizaciones", texto: "Campañas está en Automatizaciones" });
+    await elMarcoDeLaPantalla(p, guardar, { modulo: "Creación de Flujos", texto: "Campañas está en Creación de Flujos" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -804,14 +804,14 @@ async function video(navegador, estado) {
     await alDecir("a muchos contactos", 200);
     await mover(p, laParte(p, A_EDITAR, "contacto"));
 
-    // El menú: se abre con las dos flechas, se señala Automatizaciones y se
+    // El menú: se abre con las dos flechas, se señala Creación de Flujos y se
     // vuelve a recoger al empezar la frase de la barra de arriba.
     const flechas = p.locator('[data-inicio-de-la-barra] [data-sidebar="trigger"]');
-    const automatizaciones = elMenuLateral(p).locator('[data-sidebar="menu-button"]', { hasText: "Automatizaciones" }).first();
+    const automatizaciones = elMenuLateral(p).locator('[data-sidebar="menu-button"]', { hasText: "Creación de Flujos" }).first();
     await decir("menu");
     await alDecir("con estas dos flechas");
     await pulsar(p, flechas);
-    await alDecir("dentro de Automatizaciones", 600);
+    await alDecir("dentro de Creación de Flujos", 600);
     await mover(p, automatizaciones);
 
     const [, , , buscarTodo, , soporte, campana] = lasPartesDeArriba(p);

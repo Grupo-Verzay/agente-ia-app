@@ -22,8 +22,8 @@ export const NARRACION = {
         texto: "Esta es la pantalla de Campañas: aquí mandas un mismo mensaje de WhatsApp a muchos contactos, sin escribirles uno por uno.",
     },
     menu: {
-        rotulo: "El menú: está en Automatizaciones",
-        texto: "A la izquierda está el menú: con estas dos flechas lo abres, y Campañas lo encuentras dentro de Automatizaciones.",
+        rotulo: "El menú: está en Creación de Flujos",
+        texto: "A la izquierda está el menú: con estas dos flechas lo abres, y Campañas lo encuentras dentro de Creación de Flujos.",
     },
     barraDeArriba: {
         rotulo: "La barra de arriba, la misma en todas las pantallas",
@@ -67,7 +67,7 @@ export const NARRACION = {
     },
     cierre: {
         rotulo: "Edítala o elimínala cuando quieras",
-        texto: "Con el lápiz la editas, y con la papelera la eliminas, siempre con confirmación. Así se trabaja con Campañas.",
+        texto: "Con el lápiz la editas y con la papelera la eliminas, siempre con confirmación; y así de fácil se trabaja con Campañas.",
     },
 };
 
