@@ -29,7 +29,7 @@ MODO="${MODO:-bueno}"
 export MODO ANTES_PROYECTOS_REF="${ANTES_PROYECTOS_REF:-84f98e5}"
 
 # Todas las guías se compilan: `menu-de-la-guia` las compara entre sí.
-for G in $(ls lib/guia-*.ts | sed -E "s#lib/guia-(.*)\.ts#\1#" | grep -v "^de-modulo$") reportes; do
+for G in $(ls lib/guia-*.ts | sed -E "s#lib/guia-(.*)\.ts#\1#" | grep -v "^de-modulo$"); do
   OUT="lib/__tests__/.compilado/guia-$G"
   mkdir -p "$OUT"
   npx esbuild "lib/guia-$G.ts" --bundle --platform=node --format=esm --outfile="$OUT/guia-$G.mjs" --log-level=warning
