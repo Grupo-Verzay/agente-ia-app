@@ -25646,6 +25646,38 @@ Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
 vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
 la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no había
 guía.
+### La trigesimoprimera guía, Calificación: el tablero por etapa, y los rangos de puntaje son UNO
+
+`/guia/calificacion` documenta Bandeja › Calificación (`/crm/kanban`) con el
+estándar de las anteriores: siete secciones —vista general, el tablero (Sin
+clasificar, Frío, Tibio, Caliente, Finalizado y Descartado), buscar, arrastrar
+entre columnas, calificar con IA (uno o todos), filtrar por puntaje y las
+automatizaciones por etapa—, una miniatura con enfoque por tarjeta y el vídeo
+con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del
+módulo» de `/crm/kanban`: «Aprende a calificar tus contactos por etapa en la
+plataforma». Ninguna pieza propia salvo la IA de ejemplo que pone los puntajes
+(`fingido-guia-calificacion.mjs`, como la de Etiquetas). Se regenera con
+`npm run build && scripts/generar-guia-calificacion.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| los cinco rangos de puntaje estaban copiados aquí, y el color de la insignia en una tercera copia con otros cortes | salen de `lib/etiquetas-de-la-pantalla.ts`, los del tablero de Etiquetas (`elRangoDelPuntaje`, `pasaElFiltroDePuntaje`, `cuantasPorRango`) |
+| pulsar el rango puesto no lo quitaba | otro clic lo quita, como en Etiquetas |
+| el nombre del contacto se recortaba a «Ca…» con el puntaje, los avisos y la hora al lado | el nombre va solo en su fila y lo de medir debajo |
+| agarrar el teléfono o el destello de una tarjeta empezaba un arrastre | `onPointerDown` los detiene |
+
+La pantalla expone sus marcas (`data-zona`, `data-tarjeta-del-tablero`) y la
+receta no usa coordenadas. **Ni las capturas ni el vídeo cambian una
+automatización**: la ventana de una acción nueva se cancela, y el banco lo lee
+del guion.
+
+Lo prueba `scripts/banco-guia-calificacion.sh` (las columnas, los rangos, las
+barras, las partes de una tarjeta y las acciones de una automatización contra
+el código, el vídeo, las miniaturas con `GUIA=calificacion`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida); `MODO=roto` contra `84f98e5` afirma que
+no había guía ni marcas.
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
