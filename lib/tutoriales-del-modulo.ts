@@ -42,6 +42,7 @@ import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
+import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
 import { GUIA_TAREAS } from "@/lib/guia-tareas";
 import { GUIA_ETIQUETAS } from "@/lib/guia-etiquetas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
@@ -266,6 +267,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/reminders",
         contenido: GUIA_RECORDATORIOS,
         tarjeta: "Aprende a programar recordatorios por WhatsApp en la plataforma",
+    },
+    {
+        modulo: "campanas",
+        ruta: "/campaigns",
+        contenido: GUIA_CAMPANAS,
+        tarjeta: "Aprende a enviar campañas por WhatsApp a tus contactos en la plataforma",
     },
     {
         modulo: "etiquetas",
