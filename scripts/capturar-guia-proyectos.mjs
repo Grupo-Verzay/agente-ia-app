@@ -265,7 +265,11 @@ async function miniaturas(p) {
         "adjuntos-y-comentarios",
         async () => {
             await abrirLaTarea(p);
-            return unir(await caja(p, campoTarea(p, "adjuntos")), await caja(p, campoTarea(p, "comentarios")));
+            // Los comentarios siguen por debajo del pliegue: la zona es lo que
+            // SE VE, o el recuadro se saldría de la miniatura.
+            const z = unir(await caja(p, campoTarea(p, "adjuntos")), await caja(p, campoTarea(p, "comentarios")));
+            const alto = p.viewportSize().height - 16;
+            return { ...z, h: Math.min(z.h, alto - z.y) };
         },
         () => cerrarLaTarea(p),
     );
@@ -708,9 +712,10 @@ async function video(navegador, estado) {
     await pulsar(p, campoProyecto(p, "equipo").getByRole("button", { name: "Andrés Ruiz" }));
     await callar();
     await pulsar(p, LA_VENTANA_PROYECTO(p).getByRole("button", { name: "Crear proyecto" }));
-    await elProyecto(p, "Feria de proveedores").waitFor({ state: "visible", timeout: 30000 });
-
+    // La frase arranca mientras se guarda: esperar al proyecto en silencio
+    // dejaba un hueco mudo de más de un segundo.
     await decir("tablero");
+    await elProyecto(p, "Feria de proveedores").waitFor({ state: "visible", timeout: 30000 });
     await alDecir("Al pulsar una tarjeta");
     await pulsar(p, laParte(p, TIENDA, "nombre"));
     await laColumna(p, "pending").waitFor({ state: "visible", timeout: 30000 });

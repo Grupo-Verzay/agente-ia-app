@@ -104,7 +104,7 @@ export const CAMPOS_DE_LA_TAREA = [
 ] as const;
 
 /** Las cuatro formas de adjuntar (los botones de `BloqueDeAdjuntos`). */
-export const ADJUNTOS_DOCUMENTADOS = ["Imagen", "Video", "Audio", "Documento"] as const;
+export const ADJUNTOS_DOCUMENTADOS = ["Imagen", "Video", "Audio", "Doc."] as const;
 
 const enLinea = (lista: readonly string[]) => lista.map((x, i) => `${i + 1} ${x}`).join(" · ");
 
@@ -337,7 +337,7 @@ export const GUIA_PROYECTOS: Contenido = {
                 {
                     titulo: "Moverla de columna",
                     texto:
-                        "Arrastra la tarjeta a otra columna. Al soltarla en «Hecho» te pide cuánto tiempo tomó, y así " +
+                        "Arrastra la tarjeta a otra columna. Al soltarla en «Hecho» se abre «Dar por hecha», que te pide cuánto tiempo tomó, y así " +
                         "queda contado el trabajo.",
                     imagen: "tablero-hecho.webp",
                     alt: "La ventana Dar por hecha al soltar una tarea en Hecho",
@@ -429,7 +429,7 @@ export const GUIA_PROYECTOS: Contenido = {
                 {
                     titulo: "Adjuntar",
                     texto:
-                        `${ADJUNTOS_DOCUMENTADOS.join(", ")}: elige el archivo, arrástralo a la caja o pega una captura con Ctrl+V.`,
+                        `${ADJUNTOS_DOCUMENTADOS.join(", ")} (documento): elige el archivo, arrástralo a la caja o pega una captura con Ctrl+V.`,
                     imagen: "adjuntos.webp",
                     alt: "La sección de adjuntos con una imagen y un PDF",
                 },
