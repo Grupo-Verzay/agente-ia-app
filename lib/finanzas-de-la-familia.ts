@@ -107,6 +107,39 @@ export function comoParametroDeCuentas(ids: readonly string[]): string {
     return ids.join(",");
 }
 
+/**
+ * ¿Se está mirando SOLO la cuenta propia?
+ *
+ * No es lo contrario de `estaConsolidando`, y ahí estaba el fallo: el selector
+ * deja elegir **una sola cuenta que no es la propia** —se desmarca la propia y
+ * se marca la hija—, y eso no es consolidar (es una) ni es «lo de siempre» (no
+ * es la tuya). Preguntando `estaConsolidando` para decidir «¿es lo de
+ * siempre?», ese caso caía en el lado equivocado: los enlaces soltaban la
+ * selección y la pantalla volvía a la cuenta propia sin que nadie lo pidiera.
+ */
+export function esSoloLaPropia(elegidas: readonly string[], propia: string): boolean {
+    return elegidas.length === 1 && elegidas[0] === propia;
+}
+
+/**
+ * Lo que tiene que viajar en `?cuentas=` para que un enlace **siga en las
+ * cuentas que se están mirando**. `null` cuando no hace falta ningún parámetro.
+ *
+ * Es la regla del selector (`SelectorDeCuentas`) contada al revés: el selector
+ * QUITA el parámetro solo cuando se vuelve a la cuenta propia y sola, así que
+ * un enlace lo tiene que llevar siempre que no sea ese caso — una cuenta ajena
+ * sola incluida. Con la condición escrita en cada enlace, uno lo olvida y desde
+ * fuera eso se ve como que la plataforma «se cambia de cuenta» al pulsar.
+ */
+export function laSeleccionQueViajaEnElEnlace(
+    elegidas: readonly string[],
+    propia: string,
+): string | null {
+    const limpias = elegidas.map((c) => String(c ?? "").trim()).filter(Boolean);
+    if (limpias.length === 0 || esSoloLaPropia(limpias, propia)) return null;
+    return comoParametroDeCuentas(limpias);
+}
+
 /* ───────────────────── Lo que se está mirando ahora ─────────────────────── */
 
 /**

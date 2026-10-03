@@ -3978,8 +3978,10 @@ existen es la que nadie prueba.
    `linked_accounts` NO es un árbol: es una MALLA, con ciclos*. **Si el selector
    vuelve a no salir, se mira ahí antes que aquí**: estas tres condiciones son
    una línea que no tiene nada que decidir por su cuenta.
-4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual.** Sin eso,
-   pulsar un mes deshacía la consolidación sin decir nada.
+4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual, SIEMPRE
+   que no sean la propia y sola** —también UNA cuenta hija—. Sin eso, pulsar
+   un mes devolvía la pantalla a la cuenta propia sin decir nada. Ver *pulsar
+   un mes del resumen no cambia de cuenta*, abajo.
 5. **Vaciar sigue siendo SOLO de la cuenta propia.** `wipeFinanceTransactions`
    no recibe ninguna cuenta y escopa por `getFinanceUser()`. Que se puedan
    *mirar* cinco cuentas a la vez no puede convertir ese botón en uno que borre
@@ -4057,9 +4059,10 @@ y no uno —con tres, el cuarto es por donde se cuela—:
    gatea también. Un diálogo que se abre y falla al guardar es peor que uno que
    no se abre.
 
-Y «Eliminar todas» **desaparece mientras se consolida**: esa acción acota por
-la cuenta propia, así que debajo de una lista de tres cuentas prometería lo que
-no hace.
+Y «Eliminar todas» **desaparece en cuanto lo que se mira no es la cuenta
+propia y sola** —consolidando o con UNA cuenta ajena—: esa acción acota por la
+cuenta propia, así que debajo de la lista de otra prometería lo que no hace y
+borraría lo que no se está viendo.
 
 Quién decide es `esDeOtraCuenta(dueñoDeLaFila, propia)`, puro, y **sin dueño no
 es ajena**: se pintaría un «—» donde hay una fila perfectamente editable, y el
@@ -4108,6 +4111,44 @@ el fallo que `BarraDeAcciones` ya arregló una vez: la flecha corre la fila de
 punta a punta y el buscador se va de la pantalla. Medido a 390 px con la barra
 de antes, el carril sobraba 140 px **con el buscador dentro**; ahora va en su
 hueco `buscador` y sobra 0.
+
+#### Pulsar un mes del resumen no cambia de cuenta: «la propia y sola» NO es «no consolidar»
+
+Con UNA cuenta hija elegida en el selector, pulsar un mes (o la flecha de año)
+del resumen anual devolvía la pantalla a la cuenta madre. Los enlaces de la
+rejilla llevaban `?cuentas=` solo «consolidando» —`elegidas.length > 1`—, y el
+selector escribe `?cuentas=<hija>` para una sola cuenta ajena: el enlace salía
+sin el parámetro y el servidor volvía a la cuenta propia. Ni error ni aviso: la
+pantalla cambiaba de cuenta.
+
+> **Son dos preguntas y no se responden con la misma condición.**
+> `estaConsolidando` (más de una cuenta) decide lo que SUMA: el desglose, la
+> columna «Cuenta», el «Sumando N cuentas». `esSoloLaPropia` decide si se mira
+> lo de siempre: si los enlaces llevan la selección, si una fila es ajena y si
+> sale «Eliminar todas». Con una cuenta ajena sola, la primera dice «no» y la
+> segunda también, y usar la primera para la segunda es exactamente el fallo.
+
+1. **El enlace lo arma `elEnlaceDelResumen` (`lib/accesos-de-finanzas.ts`)**
+   con `laSeleccionQueViajaEnElEnlace` (`lib/finanzas-de-la-familia.ts`, pura):
+   la regla del selector al revés —solo se calla con la propia y sola, que es
+   cuando el selector QUITA el parámetro—. Los tres enlaces de la rejilla
+   pasan por ahí; **si se añade otro enlace que mantenga la pantalla, va igual**.
+2. **En las listas, una fila es ajena por su dueño, no por consolidar**
+   (`esDeOtraCuenta(fila.userId, userId)` a secas). Con una cuenta hija sola,
+   el lápiz llamaba a una acción que acota por la cuenta propia y contestaba
+   «no encontrada».
+3. **«Eliminar todas» va detrás de `esSoloLaPropia`**: borra la cuenta propia,
+   así que con la lista de una hija delante borraba lo que no se estaba viendo.
+
+Lo prueban `scripts/banco-cuenta-del-resumen.sh` —las reglas, la ida y vuelta
+selector → servidor → enlace → servidor para cada selección posible, y un
+barrido del resumen y las tres listas— y `scripts/banco-cuenta-del-resumen-navegador.sh`,
+sobre la página servida con una madre y dos hijas de importes distintos: elegir
+una hija, pulsar mayo y la flecha de año, y leer la cifra, la URL y el selector;
+y en Ventas, que las filas de la hija no se editan ni sale «Eliminar todas».
+Los dos con `MODO=roto` contra `fd21c8f` (el navegador, con `BUILD_ANTES`), que
+afirma que pulsar mayo volvía a la madre y que las filas de la hija se ofrecían
+para editar.
 
 #### Un fallo latente que salió al escribir el banco
 

@@ -11,6 +11,7 @@ import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
 import {
   esDeOtraCuenta,
+  esSoloLaPropia,
   estaConsolidando,
   lasCuentasElegidas,
   nombresPorCuenta,
@@ -236,8 +237,11 @@ export default function MainFinanceContacts({
   // una fila ajena contestaría «no encontrada». Se ve, y para tocarla se entra
   // a esa cuenta.
   const filaAjena = useCallback(
-    (fila: FinanceContactRow) => consolidando && esDeOtraCuenta(fila.userId, userId),
-    [consolidando, userId],
+    // Sin mirar `consolidando`: con UNA cuenta ajena elegida tampoco se
+    // consolida y aun así toda la lista es de otra cuenta. `esDeOtraCuenta`
+    // ya contesta «no» a una fila propia, así que lo de siempre no cambia.
+    (fila: FinanceContactRow) => esDeOtraCuenta(fila.userId, userId),
+    [userId],
   );
 
   const columns = useMemo(
