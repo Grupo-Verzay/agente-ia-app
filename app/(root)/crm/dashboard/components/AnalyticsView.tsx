@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import {
     ResponsiveContainer,
@@ -9,7 +9,7 @@ import {
     XAxis, YAxis, Tooltip, CartesianGrid,
     PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Columns3, Download, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Columns3, Download, Search, SlidersHorizontal } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,14 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    SECCIONES_DE_INFORMES,
+    LLAVE_DE_LAS_PLEGADAS,
+    alternarPlegada,
+    comoPlegadas,
+    laSeccionPasaLaBusqueda,
+    type ClaveDeSeccion,
+} from "@/lib/secciones-de-informes";
 import { Tooltip as UiTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,23 +42,7 @@ import { TagStatsCard } from "./TagStatsCard";
 import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
 
-const ANALYTICS_SECTIONS = {
-    actividad:    "Actividad",
-    rendimiento:  "Rendimiento del Agente IA",
-    leads:        "Leads y seguimientos",
-    citas:        "Citas",
-    llamadas:     "Llamadas",
-    satisfaccion: "Satisfacción (NPS)",
-    sentimiento:  "Sentimiento",
-    sesiones:     "Sesiones",
-    flujos:       "Flujos",
-    etiquetas:    "Etiquetas y madurez",
-    ventas:       "Ventas y gastos",
-    productos:    "Productos",
-    sistema:      "Créditos IA",
-} as const;
-
-type SectionKey = keyof typeof ANALYTICS_SECTIONS;
+type SectionKey = ClaveDeSeccion;
 
 /* --- colores --- */
 const LEAD_COLORS: Record<string, string> = {
@@ -95,11 +87,46 @@ const EmptyState = ({ text }: { text: string }) => (
     </div>
 );
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
-        {children}
-    </p>
-);
+/*
+ * Una sección de Informes: su cabecera PLIEGA y despliega lo de dentro. Plegada
+ * no se monta (no hay nada vivo que conservar: son gráficas), y una sección
+ * escondida desde «Secciones» o que no pasa la búsqueda no se pinta.
+ */
+function SeccionPlegable({
+    clave,
+    titulo,
+    visible,
+    plegada,
+    alAlternar,
+    children,
+}: {
+    clave: SectionKey;
+    titulo: string;
+    visible: boolean;
+    plegada: boolean;
+    alAlternar: (clave: SectionKey) => void;
+    children: React.ReactNode;
+}) {
+    if (!visible) return null;
+    return (
+        <section data-seccion-de-informes={clave} className="space-y-4">
+            <button
+                type="button"
+                onClick={() => alAlternar(clave)}
+                aria-expanded={!plegada}
+                title={plegada ? `Desplegar ${titulo}` : `Plegar ${titulo}`}
+                className="flex w-full items-center gap-1.5 pt-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            >
+                <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${plegada ? "-rotate-90" : ""}`}
+                    aria-hidden
+                />
+                {titulo}
+            </button>
+            {!plegada && children}
+        </section>
+    );
+}
 
 /* Lista vertical de KPIs dentro de una card */
 function KpiList({ items }: {
@@ -223,15 +250,50 @@ export function AnalyticsView({
 
     const [searchValue, setSearchValue] = useState("");
     const [leadFilter, setLeadFilter] = useState<string>("__all__");
-    const [fechaDesde, setFechaDesde] = useState("");
-    const [fechaHasta, setFechaHasta] = useState("");
-    const advFilterCount = (leadFilter !== "__all__" ? 1 : 0) + (fechaDesde || fechaHasta ? 1 : 0);
+    const advFilterCount = leadFilter !== "__all__" ? 1 : 0;
 
     const resetAdvFilters = () => {
         setLeadFilter("__all__");
-        setFechaDesde("");
-        setFechaHasta("");
     };
+
+    /* Las secciones plegadas se recuerdan en este navegador. Se leen DESPUÉS de
+       montar: en el servidor no hay `localStorage` y las dos salidas no
+       coincidirían. Cada acceso va en su `try` (ventana privada). */
+    const [plegadas, setPlegadas] = useState<Set<SectionKey>>(() => new Set());
+    useEffect(() => {
+        try {
+            const guardado = window.localStorage.getItem(LLAVE_DE_LAS_PLEGADAS);
+            if (guardado) setPlegadas(comoPlegadas(JSON.parse(guardado)));
+        } catch {
+            /* sin almacenamiento: todo desplegado */
+        }
+    }, []);
+    const alternar = (clave: SectionKey) => {
+        setPlegadas((antes) => {
+            const nuevas = alternarPlegada(antes, clave);
+            try {
+                window.localStorage.setItem(LLAVE_DE_LAS_PLEGADAS, JSON.stringify([...nuevas]));
+            } catch {
+                /* sin almacenamiento: se pliega igual, solo no se recuerda */
+            }
+            return nuevas;
+        });
+    };
+
+    /* Qué secciones se ven: las encendidas en «Secciones» y que pasan la búsqueda. */
+    const seVe = (clave: SectionKey) => {
+        const seccion = SECCIONES_DE_INFORMES.find((x) => x.clave === clave)!;
+        return visibleSections[clave] && laSeccionPasaLaBusqueda(seccion, searchValue);
+    };
+    const laSeccion = (clave: SectionKey) => ({
+        clave,
+        titulo: SECCIONES_DE_INFORMES.find((x) => x.clave === clave)!.titulo,
+        visible: seVe(clave),
+        plegada: plegadas.has(clave),
+        alAlternar: alternar,
+    });
+    const ningunaCoincide =
+        searchValue.trim() !== "" && !SECCIONES_DE_INFORMES.some((x) => seVe(x.clave));
 
     const handleExport = () => {
         if (!a) return;
@@ -364,7 +426,7 @@ export function AnalyticsView({
                 <div className="flex flex-1 flex-row items-center gap-2">
 
                     {/* Búsqueda — izquierda, ocupa el espacio; en sm+ ancho fijo */}
-                    <div className="relative flex-1 min-w-0 sm:w-64 sm:flex-none">
+                    <div data-zona="buscador" className="relative flex-1 min-w-0 sm:w-64 sm:flex-none">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
@@ -382,7 +444,7 @@ export function AnalyticsView({
                             <UiTooltip>
                                 <TooltipTrigger asChild>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" size="sm" className="relative h-9 gap-1.5 sm:flex-none">
+                                        <Button data-zona="filtros" variant="outline" size="sm" className="relative h-9 gap-1.5 sm:flex-none">
                                             <SlidersHorizontal className="h-4 w-4 shrink-0" />
                                             <span className="hidden sm:inline">Filtros</span>
                                             {advFilterCount > 0 && (
@@ -400,7 +462,7 @@ export function AnalyticsView({
                                     <div className="space-y-4 p-4">
                                         <div>
                                             <p className="text-sm font-medium">Filtros de analíticas</p>
-                                            <p className="text-xs text-muted-foreground">Afectan las gráficas de leads y embudo.</p>
+                                            <p className="text-xs text-muted-foreground">Afectan las gráficas de leads y del embudo.</p>
                                         </div>
                                         <div className="grid gap-2">
                                             <label className="text-xs font-medium text-muted-foreground">Estado del lead</label>
@@ -416,16 +478,6 @@ export function AnalyticsView({
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="grid gap-2">
-                                                <label className="text-xs font-medium text-muted-foreground">Desde</label>
-                                                <Input type="date" className="h-9" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
-                                            </div>
-                                            <div className="grid gap-2">
-                                                <label className="text-xs font-medium text-muted-foreground">Hasta</label>
-                                                <Input type="date" className="h-9" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
-                                            </div>
-                                        </div>
                                         <div className="flex justify-end">
                                             <Button variant="ghost" size="sm" onClick={resetAdvFilters}>Limpiar filtros</Button>
                                         </div>
@@ -438,7 +490,7 @@ export function AnalyticsView({
                             <UiTooltip>
                                 <TooltipTrigger asChild>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0 sm:flex-none">
+                                        <Button data-zona="secciones" variant="outline" size="sm" className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0 sm:flex-none">
                                             <Columns3 className="h-4 w-4 shrink-0" />
                                             <span className="hidden sm:inline">Secciones</span>
                                         </Button>
@@ -447,7 +499,7 @@ export function AnalyticsView({
                                 <TooltipContent side="bottom">Mostrar / ocultar secciones</TooltipContent>
                             </UiTooltip>
                             <DropdownMenuContent align="start">
-                                {(Object.entries(ANALYTICS_SECTIONS) as [SectionKey, string][]).map(([key, label]) => (
+                                {SECCIONES_DE_INFORMES.map(({ clave: key, titulo: label }) => (
                                     <DropdownMenuCheckboxItem
                                         key={key}
                                         checked={visibleSections[key]}
@@ -462,6 +514,7 @@ export function AnalyticsView({
                         <UiTooltip>
                             <TooltipTrigger asChild>
                                 <Button
+                                    data-zona="exportar"
                                     variant="outline"
                                     size="sm"
                                     className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0 sm:flex-none"
@@ -479,7 +532,7 @@ export function AnalyticsView({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="h-9 rounded-md px-3 text-xs border-border">
+                    <Badge data-zona="totales" variant="outline" className="h-9 rounded-md px-3 text-xs border-border">
                         <span className="hidden sm:inline">
                             {loading
                                 ? "Cargando…"
@@ -493,12 +546,14 @@ export function AnalyticsView({
             </div>
 
             {/* --- Contenido principal --- */}
-            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70 bg-background p-4">
+            <div data-zona="secciones-de-informes" className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70 bg-background p-4">
                 <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pb-4 pr-1">
+            {ningunaCoincide && (
+                <EmptyState text={`Ninguna sección coincide con «${searchValue.trim()}».`} />
+            )}
 
             {/* --- ? ACTIVIDAD --- */}
-            {visibleSections.actividad && (<>
-            <SectionLabel>Actividad</SectionLabel>
+            <SeccionPlegable {...laSeccion("actividad")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border">
                     <CardHeader className="pb-2">
@@ -544,11 +599,10 @@ export function AnalyticsView({
                 </Card>
             </div>
 
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? RENDIMIENTO DEL AGENTE IA --- */}
-            {visibleSections.rendimiento && (<>
-            <SectionLabel>Rendimiento del Agente IA</SectionLabel>
+            <SeccionPlegable {...laSeccion("rendimiento")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border bg-muted/10">
                     <CardHeader className="pb-2">
@@ -603,11 +657,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? LEADS Y SEGUIMIENTOS --- */}
-            {visibleSections.leads && (<>
-            <SectionLabel>Leads y seguimientos</SectionLabel>
+            <SeccionPlegable {...laSeccion("leads")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border">
                     <CardHeader className="pb-2">
@@ -624,7 +677,7 @@ export function AnalyticsView({
                 <Card className="border-border">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-base">Embudo de conversión</CardTitle>
-                        <CardDescription>Progresión de leads: Frío ? Tibio ? Caliente ? Finalizado.</CardDescription>
+                        <CardDescription>Progresión de leads: Frío → Tibio → Caliente → Finalizado.</CardDescription>
                     </CardHeader>
                     <CardContent className={CHART_H}>
                         {loading ? <EmptyState text="Cargando..." /> : funnelData.length === 0
@@ -686,11 +739,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? CITAS --- */}
-            {visibleSections.citas && (<>
-            <SectionLabel>Citas agendadas</SectionLabel>
+            <SeccionPlegable {...laSeccion("citas")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border">
                     <CardHeader className="pb-2">
@@ -727,11 +779,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? LLAMADAS --- */}
-            {visibleSections.llamadas && (<>
-            <SectionLabel>Llamadas</SectionLabel>
+            <SeccionPlegable {...laSeccion("llamadas")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border bg-muted/10">
                     <CardHeader className="pb-2">
@@ -774,11 +825,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? SATISFACCIÓN (NPS) --- */}
-            {visibleSections.satisfaccion && (<>
-            <SectionLabel>Satisfacción (NPS)</SectionLabel>
+            <SeccionPlegable {...laSeccion("satisfaccion")}>
             <div className="grid gap-4 lg:grid-cols-2" data-seccion-nps>
                 <Card className="border-border bg-muted/10">
                     <CardHeader className="pb-2">
@@ -837,11 +887,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- SENTIMIENTO: conversaciones que cayeron a negativo --- */}
-            {visibleSections.sentimiento && (<>
-            <SectionLabel>Sentimiento</SectionLabel>
+            <SeccionPlegable {...laSeccion("sentimiento")}>
             <div className="grid gap-4 lg:grid-cols-2" data-reporte-de-sentimiento>
                 <Card className="border-border bg-muted/10">
                     <CardHeader className="pb-2">
@@ -890,11 +939,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? SESIONES --- */}
-            {visibleSections.sesiones && (<>
-            <SectionLabel>Sesiones</SectionLabel>
+            <SeccionPlegable {...laSeccion("sesiones")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border">
                     <CardHeader className="pb-2">
@@ -922,11 +970,10 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? FLUJOS --- */}
-            {visibleSections.flujos && (<>
-            <SectionLabel>Flujos</SectionLabel>
+            <SeccionPlegable {...laSeccion("flujos")}>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="border-border">
                     <CardHeader className="pb-2">
@@ -963,18 +1010,16 @@ export function AnalyticsView({
                     </CardContent>
                 </Card>
             </div>
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? ETIQUETAS Y MADUREZ --- */}
-            {visibleSections.etiquetas && (<>
-            <SectionLabel>Etiquetas y madurez</SectionLabel>
+            <SeccionPlegable {...laSeccion("etiquetas")}>
             <TagStatsCard userId={userId} />
-            </>)}
+            </SeccionPlegable>
 
             {/* --- ? VENTAS Y GASTOS --- */}
-            {visibleSections.ventas && a && (a.sales.total > 0 || a.expenses.total > 0) && (
-                <>
-                    <SectionLabel>Ventas y gastos</SectionLabel>
+            {a && (a.sales.total > 0 || a.expenses.total > 0) && (
+                <SeccionPlegable {...laSeccion("ventas")}>
 
                     {/* Resumen financiero + Gastos por categoría */}
                     <div className="grid gap-4 lg:grid-cols-2">
@@ -1065,13 +1110,12 @@ export function AnalyticsView({
                             </CardContent>
                         </Card>
                     )}
-                </>
+                </SeccionPlegable>
             )}
 
             {/* --- ? PRODUCTOS — condicional --- */}
-            {visibleSections.productos && a && a.products.total > 0 && (
-                <>
-                    <SectionLabel>Productos</SectionLabel>
+            {a && a.products.total > 0 && (
+                <SeccionPlegable {...laSeccion("productos")}>
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Card className="border-border">
                             <CardHeader className="pb-2">
@@ -1140,13 +1184,11 @@ export function AnalyticsView({
                             </CardContent>
                         </Card>
                     </div>
-                </>
+                </SeccionPlegable>
             )}
 
             {/* --- ? CRÉDITOS IA --- */}
-            {visibleSections.sistema && (
-                <>
-                    <SectionLabel>Créditos IA</SectionLabel>
+            <SeccionPlegable {...laSeccion("sistema")}>
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Card className="border-border bg-muted/10">
                             <CardHeader className="pb-2">
@@ -1196,8 +1238,7 @@ export function AnalyticsView({
                             </Card>
                         )}
                     </div>
-                </>
-            )}
+                </SeccionPlegable>
                 </div>
             </div>
         </div>

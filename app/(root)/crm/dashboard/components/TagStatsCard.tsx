@@ -25,7 +25,7 @@ export function TagStatsCard({ userId }: { userId: string }) {
         return (
             <Card className="h-full">
                 <CardHeader>
-                    <CardTitle>Embudo por Tags</CardTitle>
+                    <CardTitle>Etiquetas y madurez</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <p className="text-xs text-muted-foreground">Cargando...</p>
@@ -38,7 +38,7 @@ export function TagStatsCard({ userId }: { userId: string }) {
         return (
             <Card className="h-full">
                 <CardHeader>
-                    <CardTitle>Embudo por Tags</CardTitle>
+                    <CardTitle>Etiquetas y madurez</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <p className="text-xs text-destructive">
@@ -55,7 +55,7 @@ export function TagStatsCard({ userId }: { userId: string }) {
         return (
             <Card className="h-full">
                 <CardHeader>
-                    <CardTitle>Embudo por Tags</CardTitle>
+                    <CardTitle>Etiquetas y madurez</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <p className="text-xs text-muted-foreground">
