@@ -20168,6 +20168,102 @@ vigilante de verdad contra una API de GitHub fingida y los dos flujos—;
 `MODO=roto` lee los flujos de `a147eaf` y afirma que nada volvía a mirar un push
 perdido ni ponía las construcciones en fila.
 
+
+## YouTube: el agente sube un video PROGRAMADO, y el permiso vive SELLADO en la App
+
+El agente toma un video terminado —con su título, descripción, etiquetas y
+miniatura— y lo sube al canal de la casa **programado**: privado con su
+`publishAt`, para que YouTube lo publique solo ese día. Lo hace con
+`scripts/youtube/youtube.mjs`, y la autorización se da UNA vez:
+
+```
+node scripts/youtube/youtube.mjs estado
+node scripts/youtube/youtube.mjs guardar-cliente credenciales.json
+node scripts/youtube/youtube.mjs autorizar          # dice qué pulsar en el navegador
+node scripts/youtube/youtube.mjs terminar "<dirección pegada>"   # solo un cliente «installed»
+node scripts/youtube/youtube.mjs subir --video v.mp4 --titulo "…" --descripcion d.txt \
+     --miniatura m.jpg --publicar "2026-10-10 18:00" [--etiquetas "a, b"] [--sin-avisar] [--forzar] [--probar]
+node scripts/youtube/youtube.mjs miniatura --video-id ID --archivo m.jpg
+```
+
+**La fecha va en hora de Colombia** y tiene que estar al menos 15 minutos en
+el futuro; `--probar` lo comprueba todo —archivos, fecha, permiso y canal— sin
+subir nada.
+
+### Dónde vive cada secreto, que es la decisión de la que cuelga todo
+
+| qué | dónde | por qué |
+| --- | --- | --- |
+| el JSON del cliente (client_id y secreto) | `youtube_canal`, **sellado** | se lee en el contenedor de la App, nunca en el entorno del agente |
+| el permiso PERMANENTE (refresh token) | `youtube_canal`, **sellado**, y **no sale nunca del contenedor** | es lo que da acceso al canal para siempre |
+| el permiso de UNA hora (access token) | en memoria del agente, mientras dura la subida | es lo único que viaja; no se imprime ni se escribe |
+
+El sello es AES-256-GCM con una llave derivada de `AUTH_SECRET` (HKDF,
+contexto propio). **Sin variable nueva en el stack**, y si `AUTH_SECRET`
+cambia el acceso no se abre y se DICE (`sin_descifrar`), no se confunde con
+«sin credenciales». El repositorio es **público**: ni una credencial entra en
+git, y el banco comprueba que nada de lo impreso lleva el permiso permanente,
+el secreto ni un permiso de una hora.
+
+El agente no llega a `agente.ia-app.com` ni a la base: habla con el
+contenedor de la App por **Portainer** (`PORTAINER_URL` y `PORTAINER_TOKEN`,
+servicio `agente-app_verzay_app`), donde corre un conductor
+(`scripts/youtube/contenedor.mjs`) que **lleva su código dentro** —el módulo
+viaja inline—, así que funciona sin depender de qué versión esté desplegada. Y
+el video **no pasa por el contenedor**: sube directo del agente a Google.
+
+### Dos tipos de cliente, y la vuelta de cada uno
+
+- **«Web»**: la autorización empieza en `/api/youtube/conectar` (la abre solo
+  el **súper administrador de verdad**; con «Ingresar» no) y vuelve a
+  `/api/youtube/oauth`, que exige el `state` firmado, su cookie del viaje
+  (`httpOnly`, 10 min) y la MISMA persona. Esa dirección de vuelta tiene que
+  estar registrada en el cliente de Google; si no, `autorizar` y la propia
+  ruta lo dicen con la dirección exacta.
+- **«Installed»** (escritorio): `autorizar` da el enlace, Google vuelve a
+  `localhost` —que no carga— y esa dirección se pega a `terminar`.
+
+**Una cuenta de servicio se rechaza** diciendo cuál hace falta: es la de
+Google Sheets y la que más fácil se confunde, y con ella no se sube a un canal.
+Guardar OTRO cliente tira el permiso (no sirve con otro); el mismo lo conserva.
+
+### Las cuatro cosas de Google que no arregla el código, y se dicen
+
+1. **YouTube Data API v3** tiene que estar habilitada en el proyecto.
+2. **La pantalla de consentimiento en «En producción»**, no en «Prueba»: en
+   prueba el permiso permanente caduca a los 7 días. Un `invalid_grant` se lee
+   así y lo dice.
+3. **Un proyecto sin AUDITAR deja todo lo subido en privado, sin fecha**:
+   YouTube ignora el `publishAt`. Por eso después de subir **se lee el video**
+   (`comoQuedo`) y no se da por programado: si quedó sin fecha, la herramienta
+   lo dice con la palabra «auditoría» y **sale con código 2**.
+4. **La miniatura personalizada pide el canal VERIFICADO**
+   (youtube.com/verify). Si no la admite, el video queda subido igual y se dice
+   el comando para reintentarla.
+
+### Cinco cosas que hay que mantener
+
+1. **La subida es por trozos de 8 MiB (múltiplos de 256 KiB, como pide Google) y se REANUDA**: un trozo cortado
+   pregunta dónde iba (`bytes */total`) y sigue; un permiso de una hora que
+   caduca a mitad se renueva sin empezar de cero.
+2. **No se sube dos veces lo mismo**: la huella (sha256 del archivo + título +
+   fecha) queda en `youtube_subidas`; con `--forzar` sí.
+3. **Todo lo que está mal se dice JUNTO y antes de abrir ninguna subida**:
+   cada subida gasta cuota diaria de YouTube (unas 6 al día).
+4. **Dos tablas de la App** (`youtube_canal`, `youtube_subidas`), con
+   `CREATE TABLE IF NOT EXISTS`, `ddl()` para las dos réplicas, reintento ante
+   un `42P01` y sin clave foránea. Ni una columna en `User`.
+5. **`YOUTUBE_GOOGLE_FALSO` solo vale fuera de producción**: es lo que deja al
+   banco hablar con un Google de mentira, y en producción se ignora.
+
+Lo prueba `scripts/banco-youtube.sh`: las reglas puras y, contra Postgres y un
+Google de mentira con la forma del de verdad, guardar el JSON, autorizar por
+las dos vías, subir programado comprobando el sha256 y el `publishAt`, la
+reanudación, la renovación, la miniatura que no se admite, el proyecto sin
+auditar (código 2), la huella, la puerta de las dos rutas y otra
+`AUTH_SECRET`. `MODO=roto` lee el árbol de `64e8f95` y afirma que no había
+nada de esto.
+
 # Pendientes
 
 Lo que queda abierto en la plataforma. Actualizar aquí cuando se cierre algo.
