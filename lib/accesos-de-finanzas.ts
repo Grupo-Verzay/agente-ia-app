@@ -20,6 +20,8 @@
  * Panel. Todas las demás pantallas del módulo tenían su acceso y esta no.
  */
 
+import { laSeleccionQueViajaEnElEnlace } from "./finanzas-de-la-familia";
+
 export type IdDeAcceso =
     | "summary"
     | "clients"
@@ -70,6 +72,24 @@ export function elEnlaceDelAcceso(acceso: AccesoDeFinanzas, mes: string): string
     if (acceso.conMes && mes) partes.push(`month=${mes}`);
     if (acceso.crea) partes.push("create=1");
     return partes.length ? `${acceso.ruta}?${partes.join("&")}` : acceso.ruta;
+}
+
+/**
+ * Adónde lleva un mes —o un año— del resumen anual: el mismo resumen, en ese
+ * mes, **y en las mismas cuentas que se están mirando**.
+ *
+ * Los tres enlaces del bloque —cada mes de la rejilla y las dos flechas de
+ * año— pasan por aquí. Antes llevaban las cuentas solo «consolidando» (más de
+ * una), así que con UNA cuenta elegida que no era la propia el enlace salía sin
+ * `?cuentas=`, el servidor volvía a la cuenta propia y la pantalla cambiaba de
+ * cuenta al pulsar un mes. Quién lleva el parámetro lo decide
+ * `laSeleccionQueViajaEnElEnlace`, la regla del selector contada al revés.
+ */
+export function elEnlaceDelResumen(mes: string, elegidas: readonly string[], propia: string): string {
+    const cuentas = laSeleccionQueViajaEnElEnlace(elegidas, propia);
+    const partes = [`month=${mes}`];
+    if (cuentas) partes.push(`cuentas=${cuentas}`);
+    return `${RUTA_DE_FINANZAS}?${partes.join("&")}`;
 }
 
 /**

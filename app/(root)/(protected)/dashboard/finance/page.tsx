@@ -9,6 +9,7 @@ import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
 import { consolidar } from '@/lib/finanzas-de-la-familia';
 import { nombreDeLaCuenta } from '@/lib/nombre-de-la-cuenta';
 import { elMesDeOtroAno } from '@/lib/periodo-de-finanzas';
+import { elEnlaceDelResumen } from '@/lib/accesos-de-finanzas';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
@@ -204,8 +205,10 @@ export default async function FinanceHomePage({
   }
 
   // El mes viaja en los enlaces de la rejilla anual; las cuentas elegidas
-  // también, o pulsar un mes deshacía la consolidación sin decir nada.
-  const cuentasEnElEnlace = consolidando ? `&cuentas=${elegidas.join(',')}` : '';
+  // también —SIEMPRE que no sean solo la propia, también una sola cuenta
+  // ajena—, o pulsar un mes devolvía la pantalla a la cuenta propia sin que
+  // nadie lo pidiera. Lo decide `elEnlaceDelResumen`, no una condición aquí.
+  const enlaceDelMes = (mes: string) => elEnlaceDelResumen(mes, elegidas, me.id);
   // El año de al lado, con el mismo mes: la rejilla solo cambia de mes.
   const mesActual = monthInputValue(selectedMonth);
   const anoAnterior = elMesDeOtroAno(mesActual, -1);
@@ -249,7 +252,7 @@ export default async function FinanceHomePage({
                   <div className="flex items-center gap-0.5">
                     {anoAnterior ? (
                       <Link
-                        href={`/dashboard/finance?month=${anoAnterior}${cuentasEnElEnlace}`}
+                        href={enlaceDelMes(anoAnterior)}
                         aria-label={`Ver ${selectedMonth.getFullYear() - 1}`}
                         title={`Ver ${selectedMonth.getFullYear() - 1}`}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -260,7 +263,7 @@ export default async function FinanceHomePage({
                     <span className="text-sm font-semibold tabular-nums">{selectedMonth.getFullYear()}</span>
                     {anoSiguiente ? (
                       <Link
-                        href={`/dashboard/finance?month=${anoSiguiente}${cuentasEnElEnlace}`}
+                        href={enlaceDelMes(anoSiguiente)}
                         aria-label={`Ver ${selectedMonth.getFullYear() + 1}`}
                         title={`Ver ${selectedMonth.getFullYear() + 1}`}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -281,7 +284,7 @@ export default async function FinanceHomePage({
                   <MesDelResumenAnual
                     key={row.key}
                     mes={row}
-                    href={`/dashboard/finance?month=${row.key}${cuentasEnElEnlace}`}
+                    href={enlaceDelMes(row.key)}
                     formato={formatPreferred}
                   />
                 ))}
