@@ -814,7 +814,8 @@ async function video(navegador, estado) {
     await alDecir("dentro de Creación de Flujos", 600);
     await mover(p, automatizaciones);
 
-    const [, , , buscarTodo, , soporte, campana] = lasPartesDeArriba(p);
+    const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
+    void ayuda; // la frase de la barra no la nombra: la misma de todas las guías
     await decir("barraDeArriba");
     await pulsar(p, flechas);
     await alDecir("el buscador general");
