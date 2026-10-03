@@ -74,6 +74,10 @@ import {
   type AdjuntoEnElAire,
 } from "./BloqueDeAdjuntos";
 import { TaskCard } from "./TarjetaDeProyecto";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function personLabel(person: { name: string | null; email: string | null }) {
   return person.name?.trim() || person.email || "Sin nombre";
@@ -137,6 +141,7 @@ function BoardColumn({
 
   return (
     <div
+      data-columna={status}
       className="flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded-xl border-2 shadow-sm"
       style={{ borderColor: `${color}52`, backgroundColor: `${color}0A` }}
     >
@@ -474,8 +479,8 @@ export function ProjectBoard({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
+      <div data-zona="cabecera-del-tablero" className="flex items-start justify-between gap-3">
+        <div data-zona="proyecto" className="flex min-w-0 items-start gap-2">
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack} title="Volver">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -490,7 +495,7 @@ export function ProjectBoard({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div data-zona="mandos-del-tablero" className="flex shrink-0 items-center gap-2">
           <SelectorDeVencimiento valor={filtro} onCambio={(v) => setFiltro(comoFiltroDeVencimiento(v))} />
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => void load()} title="Actualizar">
             <RefreshCw className="h-3.5 w-3.5" />
@@ -521,7 +526,7 @@ export function ProjectBoard({
           }
           onDragEnd={handleDragEnd}
         >
-          <div className="min-h-0 flex-1 overflow-x-auto pb-2">
+          <div data-zona="columnas" className="min-h-0 flex-1 overflow-x-auto pb-2">
             <div className="flex h-full gap-3" style={{ width: "max-content", minWidth: "100%" }}>
               {BOARD_COLUMNS.map((col) => (
                 <BoardColumn
@@ -665,6 +670,9 @@ function TaskDialog({
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Eliminar pide confirmación: era de un clic, y una tarea con su hilo y sus
+  // adjuntos no vuelve. Es la misma regla que ya cumplía eliminar un proyecto.
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
   const [adjuntos, setAdjuntos] = useState<AdjuntoDeTarea[]>([]);
   // Los que subieron antes de que la tarea existiera. Se enganchan al crear
   // y se borran del bucket si se cancela.
@@ -854,7 +862,7 @@ function TaskDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div data-campo="titulo" className="space-y-1.5">
             <Label htmlFor="task-title">Título</Label>
             {/* Un `Input` y no un textarea, a propósito: esto es lo que se
                 lee en la tarjeta del tablero, en `/tareas` y en la campanita,
@@ -869,7 +877,7 @@ function TaskDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div data-campo="detalle" className="space-y-1.5">
             <Label htmlFor="task-detalle">Qué hay que hacer</Label>
             {/* Aquí sí un textarea: lo que se pega son varias líneas
                 —«Empresa: … Fecha: … Tarea: …»— y en una sola no se ve el
@@ -888,7 +896,7 @@ function TaskDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <div data-campo="tipo" className="space-y-1.5">
               <Label htmlFor="task-type">Tipo</Label>
               <select
                 id="task-type"
@@ -901,7 +909,7 @@ function TaskDialog({
               </select>
             </div>
 
-            <div className="space-y-1.5">
+            <div data-campo="fecha" className="space-y-1.5">
               <Label htmlFor="task-due">Para cuándo</Label>
               <Input
                 id="task-due"
@@ -913,6 +921,7 @@ function TaskDialog({
             </div>
           </div>
 
+          <div data-campo="adjuntos">
           <BloqueDeAdjuntos
             taskId={task?.id ?? null}
             userId={userId}
@@ -921,6 +930,7 @@ function TaskDialog({
             enElAire={enElAire}
             onCambioEnElAire={setEnElAire}
           />
+          </div>
 
           {/* El hilo sale SIEMPRE, también al crear.
               Antes iba detrás de un `task &&` porque un comentario cuelga de un
@@ -932,12 +942,14 @@ function TaskDialog({
               Se pinta para todo el mundo, también para quien no puede editar:
               es el asignado quien tiene que poder leer y contestar, y abrirlo es
               lo que apaga su punto. */}
+          <div data-campo="comentarios">
           <HiloDeLaTarea
             taskId={task?.id ?? null}
             userId={userId}
             texto={comentario}
             onTexto={setComentario}
           />
+          </div>
 
           {/* El otro sentido de una mención: los documentos donde se nombró
               esta tarea. No pinta nada mientras no haya ninguno, así que en el
@@ -945,7 +957,7 @@ function TaskDialog({
               exactamente igual que antes. */}
           <DocumentosQueLoNombran tipo="tarea" refId={task?.id ?? null} />
 
-          <div className="space-y-1.5">
+          <div data-campo="responsable" className="space-y-1.5">
             <Label htmlFor="task-assignee">Responsable</Label>
             <select
               id="task-assignee"
@@ -965,7 +977,7 @@ function TaskDialog({
 
           {!recibido && (
           <>
-          <div className="space-y-1.5">
+          <div data-campo="cuenta" className="space-y-1.5">
             <Label htmlFor="task-cliente">Cuenta</Label>
             <select
               id="task-cliente"
@@ -987,7 +999,7 @@ function TaskDialog({
           {/* Va pegado a Cuenta porque los dos contestan a la misma pregunta:
               a quién se le dedica el rato y para qué. Separados, se rellena uno
               y se olvida el otro, y entonces el reparto no puede cruzar nada. */}
-          <div className="space-y-1.5">
+          <div data-campo="tipo-de-trabajo" className="space-y-1.5">
             <Label htmlFor="task-tipo-trabajo">Tipo de trabajo</Label>
             <select
               id="task-tipo-trabajo"
@@ -1033,7 +1045,7 @@ function TaskDialog({
           {task && puedeBorrar && (
             <Button
               variant="ghost"
-              onClick={() => void handleDelete()}
+              onClick={() => setConfirmarBorrado(true)}
               disabled={saving || deleting}
               className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
             >
@@ -1053,6 +1065,27 @@ function TaskDialog({
           )}
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirmarBorrado} onOpenChange={setConfirmarBorrado}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar tarea</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`Se eliminará «${task?.title ?? ""}» con sus comentarios. No se puede deshacer.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); setConfirmarBorrado(false); void handleDelete(); }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -25,6 +25,10 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
+import { GUIA_COBROS } from "@/lib/guia-cobros";
+import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
+import { GUIA_INFORMES } from "@/lib/guia-informes";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
 import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
 import { GUIA_TAREAS } from "@/lib/guia-tareas";
@@ -32,6 +36,7 @@ import { GUIA_CONEXION } from "@/lib/guia-conexion";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
+import { GUIA_CALIFICACION } from "@/lib/guia-calificacion";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -89,6 +94,9 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     flujos: { titulo: GUIA_FLUJOS.titulo, subtitulo: GUIA_FLUJOS.subtitulo, descripcion: GUIA_FLUJOS.descripcion },
     agenda: { titulo: GUIA_AGENDA.titulo, subtitulo: GUIA_AGENDA.subtitulo, descripcion: GUIA_AGENDA.descripcion },
     multiagenda: { titulo: GUIA_MULTIAGENDA.titulo, subtitulo: GUIA_MULTIAGENDA.subtitulo, descripcion: GUIA_MULTIAGENDA.descripcion },
+    proyectos: { titulo: GUIA_PROYECTOS.titulo, subtitulo: GUIA_PROYECTOS.subtitulo, descripcion: GUIA_PROYECTOS.descripcion },
+    informes: { titulo: GUIA_INFORMES.titulo, subtitulo: GUIA_INFORMES.subtitulo, descripcion: GUIA_INFORMES.descripcion },
+    cobros: { titulo: GUIA_COBROS.titulo, subtitulo: GUIA_COBROS.subtitulo, descripcion: GUIA_COBROS.descripcion },
     recordatorios: {
         titulo: GUIA_RECORDATORIOS.titulo,
         subtitulo: GUIA_RECORDATORIOS.subtitulo,
@@ -100,6 +108,8 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     tareas: { titulo: GUIA_TAREAS.titulo, subtitulo: GUIA_TAREAS.subtitulo, descripcion: GUIA_TAREAS.descripcion },
     correo: { titulo: GUIA_CORREO.titulo, subtitulo: GUIA_CORREO.subtitulo, descripcion: GUIA_CORREO.descripcion },
     "follow-ups": { titulo: GUIA_FOLLOW_UPS.titulo, subtitulo: GUIA_FOLLOW_UPS.subtitulo, descripcion: GUIA_FOLLOW_UPS.descripcion },
+    embudos: { titulo: GUIA_EMBUDOS.titulo, subtitulo: GUIA_EMBUDOS.subtitulo, descripcion: GUIA_EMBUDOS.descripcion },
+    calificacion: { titulo: GUIA_CALIFICACION.titulo, subtitulo: GUIA_CALIFICACION.subtitulo, descripcion: GUIA_CALIFICACION.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

@@ -25614,6 +25614,175 @@ Postgres), `scripts/banco-guia-campanas.sh` (contenido, vídeo, miniaturas,
 `scripts/banco-campana-en-el-motor.sh`. Los tres con `MODO=roto` contra un
 commit pinchado que afirma los fallos de la tabla.
 
+### La trigésima guía, Embudos: el tablero, sus siete etapas y la papelera de Perdido
+
+`/guia/embudos` documenta Panel › Embudos (`/embudos`) con el estándar de las
+anteriores: la vista general, el tablero (una columna por etapa, una tarjeta
+por conversación), arrastrar, los tres selectores (embudo, cuenta y asesor), el
+embudo de ventas sembrado de siete etapas, crear, renombrar, usar por defecto y
+eliminar un embudo, editar etapas (nombre, color y orden, con candado en Nuevo,
+Ganado y Perdido), asignar un embudo a cada asesor y la columna Perdido con su
+papelera de 30 días; una miniatura con enfoque por tarjeta y el vídeo narrado
+con Cedar al MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/embudos`: «Aprende a organizar tus conversaciones por etapas en la
+plataforma». Ninguna pieza propia: contenido en `lib/guia-embudos.ts`, semilla
+`sembrar-guia-embudos.mjs` (dos embudos, cuatro personas y una cuenta hija),
+receta `capturar-guia-embudos.mjs` y narración. Se regenera con
+`npm run build && scripts/generar-guia-embudos.sh && npm run build`.
+
+Tres cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo cambian nada**: crear, etapas y asesores se
+   CANCELAN, y no se pulsa Eliminar, Vaciar, Restaurar ni Restaurar todo. El
+   banco lo lee del guion; arrastrar sí mueve una tarjeta, y antes del vídeo se
+   vuelve a sembrar.
+2. **La pantalla expone marcas para la receta** (`data-tarjeta`,
+   `data-columna`, `data-cabeza-de-columna`, `data-selector="embudo"`,
+   `data-hoja`), y las recetas no usan coordenadas.
+3. **Un nombre largo no se recorta**: el del asesor en «Asesores y su embudo»
+   parte en dos líneas, y el selector de embudo mide hasta 18rem.
+
+Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
+
+### La trigesimoprimera guía, Cobros: la cartera, sus tres avisos y nada que se cobre de verdad
+
+`/guia/cobros` documenta Panel › Cobros (`/cobros`) con el estándar de las
+anteriores: diez secciones —vista general, la cartera y sus filtros por
+situación, Cobrar ahora, comprobante recibido, confirmar el pago, el historial
+de ciclos, crear una deuda (con sus datos de pago propios y adjuntos), editar y
+eliminar, cuándo se recuerda (antes, el día y después) y los mensajes con sus
+variables—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/cobros`
+(`GUIAS_PUBLICADAS`). Los nombres que comparten pantalla y guía salen de
+`lib/pantalla-de-cobros.ts`. Se regenera con
+`npm run build && scripts/generar-guia-cobros.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Nada se manda ni se borra**: «Cobrar ahora» se señala y no se pulsa,
+   eliminar se cierra con «Volver» y la configuración con «Cancelar». Lo lee
+   el banco del guion.
+2. **La línea de WhatsApp de ejemplo sale CONECTADA** gracias al doble
+   `fingido-guia-cobros.mjs` (un Waha de ejemplo, cargado dentro de
+   `next start`) y al `siteConfig` que siembra `sembrar-guia-cobros.mjs`. Sin
+   él la cartera pinta «no tiene una línea de WhatsApp conectada».
+3. **El botón del formulario dice «Crear» en una deuda nueva y «Guardar» al
+   editar**, y la guía lo nombra así.
+4. **Las capturas crean, marcan y confirman deudas**: antes del vídeo se vuelve
+   a sembrar, y las fechas son relativas a hoy en la zona de la cuenta.
+
+Lo prueba `scripts/banco-guia-cobros.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=cobros`, `fin-de-la-guia`, `menu-de-la-guia` y
+la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no había
+guía.
+### La trigesimoprimera guía, Calificación: el tablero por etapa, y los rangos de puntaje son UNO
+
+`/guia/calificacion` documenta Bandeja › Calificación (`/crm/kanban`) con el
+estándar de las anteriores: siete secciones —vista general, el tablero (Sin
+clasificar, Frío, Tibio, Caliente, Finalizado y Descartado), buscar, arrastrar
+entre columnas, calificar con IA (uno o todos), filtrar por puntaje y las
+automatizaciones por etapa—, una miniatura con enfoque por tarjeta y el vídeo
+con la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del
+módulo» de `/crm/kanban`: «Aprende a calificar tus contactos por etapa en la
+plataforma». Ninguna pieza propia salvo la IA de ejemplo que pone los puntajes
+(`fingido-guia-calificacion.mjs`, como la de Etiquetas). Se regenera con
+`npm run build && scripts/generar-guia-calificacion.sh && npm run build`.
+### La vigesimonovena guía, Informes: trece secciones plegables, y el buscador que no buscaba
+
+`/guia/informes` documenta Panel › Estadísticas (`/crm/dashboard`) con el
+estándar de las anteriores: ocho secciones —vista general, periodo y cuentas de
+la familia, la barra (buscar, filtrar, mostrar u ocultar, exportar y plegar),
+actividad y agente IA, leads con seguimientos y citas, llamadas con NPS y
+sentimiento, sesiones con flujos y etiquetas, y ventas con productos y
+créditos—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/crm/dashboard`: «Aprende a leer los números de tu negocio en la plataforma».
+Se regenera con `npm run build && scripts/generar-guia-informes.sh && npm run build`.
+
+> **Las trece secciones, sus tarjetas y los periodos viven en
+> `lib/secciones-de-informes.ts` (pura)**, y de ahí salen el menú «Secciones»,
+> la cabecera de cada sección, el buscador, el selector de periodo y la guía.
+> Con los nombres escritos dos veces, el menú decía una cosa y la cabecera
+> otra.
+
+Lo que se arregló en la pantalla al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| los cinco rangos de puntaje estaban copiados aquí, y el color de la insignia en una tercera copia con otros cortes | salen de `lib/etiquetas-de-la-pantalla.ts`, los del tablero de Etiquetas (`elRangoDelPuntaje`, `pasaElFiltroDePuntaje`, `cuantasPorRango`) |
+| pulsar el rango puesto no lo quitaba | otro clic lo quita, como en Etiquetas |
+| el nombre del contacto se recortaba a «Ca…» con el puntaje, los avisos y la hora al lado | el nombre va solo en su fila y lo de medir debajo |
+| agarrar el teléfono o el destello de una tarjeta empezaba un arrastre | `onPointerDown` los detiene |
+
+La pantalla expone sus marcas (`data-zona`, `data-tarjeta-del-tablero`) y la
+receta no usa coordenadas. **Ni las capturas ni el vídeo cambian una
+automatización**: la ventana de una acción nueva se cancela, y el banco lo lee
+del guion.
+
+Lo prueba `scripts/banco-guia-calificacion.sh` (las columnas, los rangos, las
+barras, las partes de una tarjeta y las acciones de una automatización contra
+el código, el vídeo, las miniaturas con `GUIA=calificacion`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida); `MODO=roto` contra `84f98e5` afirma que
+no había guía ni marcas.
+| «Buscar en analíticas» no filtraba nada | deja las secciones cuyo nombre o el de una de sus gráficas coincide, sin tildes ni mayúsculas (`laSeccionPasaLaBusqueda`), y dice cuando no queda ninguna |
+| las secciones no se podían plegar | se pliegan por su título (`aria-expanded`) y se recuerda en `localStorage` (`LLAVE_DE_LAS_PLEGADAS`); lo raro cae en «nada plegado» |
+| el menú «Secciones» y la cabecera nombraban distinto la misma sección | los dos de `SECCIONES_DE_INFORMES` |
+
+Tres cosas que hay que mantener:
+
+1. **La pantalla expone sus marcas** (`data-zona` pestanas-del-crm, periodo, cuentas,
+   buscador, filtros, secciones, exportar, totales, secciones-de-informes, y
+   `data-seccion-de-informes` en cada sección) y la receta no usa coordenadas.
+2. **El vídeo no descarga el CSV**: señala «Exportar» y no lo pulsa; y pliega y
+   despliega la misma sección, así no deja nada cambiado.
+3. **La semilla es una clínica con dos cuentas hijas**, para que «Cuentas de la
+   familia» tenga qué ofrecer y «Solo mi cuenta» cambie las cifras.
+
+Lo prueba `scripts/banco-guia-informes.sh`: el contenido contra el código (vistas,
+periodos, opciones de cuentas, mandos, estados del filtro y las trece
+secciones), las reglas, el vídeo, las miniaturas (`GUIA=informes`),
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida a 390 y 1440. `MODO=roto`
+contra `84f98e5` afirma que no había guía, que el buscador no filtraba y que las
+secciones no se plegaban.
+
+### La guía de Proyectos: la lista, el tablero y la ventana de una tarea
+
+`/guia/proyectos` documenta Panel › Proyectos (`/proyectos`) con el estándar de
+las anteriores: nueve secciones —vista general, buscar y filtrar, carpetas y
+orden, crear, editar/compartir/eliminar, el tablero por columnas, el filtro de
+vencimiento, la tarea (título, tipo, fecha, responsable) y sus adjuntos y
+comentarios—, una miniatura con enfoque por tarjeta y el vídeo con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/proyectos`: «Aprende a organizar tus proyectos y sus tareas en la
+plataforma». Ninguna pieza propia: contenido en `lib/guia-proyectos.ts`,
+semilla `sembrar-guia-proyectos.mjs`, receta `capturar-guia-proyectos.mjs` y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-proyectos.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **La pantalla expone sus marcas** (`data-proyecto`, `data-tarea`,
+   `data-columna`, `data-campo` en las dos ventanas y `data-zona` en la barra,
+   la tarjeta, el tablero y el distintivo de vencimiento), y el banco compara
+   la guía con ellas: las partes de la tarjeta, sus botones por su `title`, los
+   campos de «Nuevo proyecto» y de una tarea en su orden, las columnas
+   (`BOARD_COLUMNS`) y el filtro de vencimiento.
+2. **Nada se confirma**: eliminar un proyecto o una tarea se cierra con
+   «Cancelar» o «Volver», y soltar una tarea en Hecho abre «Dar por hecha», que
+   también se cancela. Las capturas crean un proyecto y mueven una tarea, así
+   que antes del vídeo se vuelve a sembrar.
+3. **Los botones de una tarjeta salen al pasar el ratón** (`opacity-0`): la
+   receta se pone encima antes de medirlos, y mide los desplegables de Radix
+   ANTES de abrirlos (fuera queda `aria-hidden`).
+4. **Los adjuntos de ejemplo los sirve la receta** (`archivos.ejemplo.co`): no
+   hay bucket en el banco.
+
+Lo prueba `scripts/banco-guia-proyectos.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=proyectos`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida a 390 y 1440); `MODO=roto` contra
+`84f98e5` afirma que no había guía ni marcas en la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

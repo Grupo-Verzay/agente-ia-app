@@ -29,14 +29,19 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
+import { GUIA_COBROS } from "@/lib/guia-cobros";
+import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
+import { GUIA_CALIFICACION } from "@/lib/guia-calificacion";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
 import { GUIA_AI_IMAGENES } from "@/lib/guia-ai-imagenes";
 import { GUIA_FINANZAS } from "@/lib/guia-finanzas";
+import { GUIA_INFORMES } from "@/lib/guia-informes";
 import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
@@ -238,6 +243,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         tarjeta: "Aprende a registrar ventas y gastos y ver tu balance en la plataforma",
     },
     {
+        modulo: "informes",
+        ruta: "/crm/dashboard",
+        contenido: GUIA_INFORMES,
+        tarjeta: "Aprende a leer los números de tu negocio en la plataforma",
+    },
+    {
         modulo: "llamadas",
         ruta: "/crm/llamadas",
         contenido: GUIA_LLAMADAS,
@@ -298,10 +309,28 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         tarjeta: "Aprende a gestionar las citas de tu equipo en la plataforma",
     },
     {
+        modulo: "embudos",
+        ruta: "/embudos",
+        contenido: GUIA_EMBUDOS,
+        tarjeta: "Aprende a organizar tus conversaciones por etapas en la plataforma",
+    },
+    {
+        modulo: "proyectos",
+        ruta: "/proyectos",
+        contenido: GUIA_PROYECTOS,
+        tarjeta: "Aprende a organizar tus proyectos y sus tareas en la plataforma",
+    },
+    {
         modulo: "tareas",
         ruta: "/tareas",
         contenido: GUIA_TAREAS,
         tarjeta: "Aprende a organizar y completar tus tareas en la plataforma",
+    },
+    {
+        modulo: "cobros",
+        ruta: "/cobros",
+        contenido: GUIA_COBROS,
+        tarjeta: "Aprende a cobrar con recordatorios por WhatsApp en la plataforma",
     },
     {
         modulo: "correo",
@@ -314,6 +343,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/crm/rules",
         contenido: GUIA_FOLLOW_UPS,
         tarjeta: "Aprende a hacer seguimiento automático a tus leads en la plataforma",
+    },
+    {
+        modulo: "calificacion",
+        ruta: "/crm/kanban",
+        contenido: GUIA_CALIFICACION,
+        tarjeta: "Aprende a calificar tus contactos por etapa en la plataforma",
     },
 ];
 

@@ -33,6 +33,7 @@ export function TaskCard({
 
   return (
     <div
+      data-tarea={tituloDeLaTarjeta(task.title)}
       className={cn(
         // `flex flex-col gap-2` y no `space-y-2`, por el punto de aviso.
         //
@@ -82,6 +83,7 @@ export function TaskCard({
           Y el `title` del elemento lleva las DOS partes: posar el cursor sigue
           diciendo todo lo que decía antes. */}
       <p
+        data-zona="titulo"
         title={textoCompletoDeLaTarea(task.title, task.detalle)}
         className={cn(
           "line-clamp-2 min-h-[2.75em] break-words text-sm font-medium leading-snug",
@@ -92,8 +94,8 @@ export function TaskCard({
       </p>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-        <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px]">{task.type}</Badge>
-        <span className="flex items-center gap-1">
+        <Badge data-zona="tipo" variant="outline" className="h-4 px-1.5 py-0 text-[10px]">{task.type}</Badge>
+        <span data-zona="responsable" className="flex items-center gap-1">
           <User className="h-2.5 w-2.5" />
           {task.assignedToName ?? "Sin asignar"}
         </span>
@@ -104,6 +106,7 @@ export function TaskCard({
             aquí solo pedía ancho. El archivo se abre igual al abrir la tarea. */}
         {(task.adjuntos?.length ?? 0) > 0 && (
           <span
+            data-zona="adjuntos"
             className="inline-flex items-center gap-0.5"
             title={`${task.adjuntos!.length} ${task.adjuntos!.length === 1 ? "archivo adjunto" : "archivos adjuntos"}`}
           >

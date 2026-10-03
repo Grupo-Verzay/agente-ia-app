@@ -54,14 +54,25 @@ const ACTION_TYPES: { value: StageActionType; label: string; icon: React.ReactNo
   { value: "AI_CALL",        label: "Llamar con IA (voz)",     icon: <Phone className="h-4 w-4" /> },
 ];
 
-function actionLabel(type: StageActionType, cfg: StageActionConfig): string {
+/** El nombre de la etiqueta, no su número: «Agregar tag #12» no le dice nada a nadie. */
+function nombreDelTag(cfg: StageActionConfig, tags: { id: number; name: string }[]): string {
+  const tag = tags.find((t) => t.id === Number(cfg.tagId));
+  return tag ? tag.name : `#${cfg.tagId ?? "?"}`;
+}
+
+/** Un texto largo se corta con «…»; uno corto se lee entero, sin puntos de más. */
+function recortar(texto: string, tope: number): string {
+  return texto.length > tope ? `${texto.slice(0, tope).trimEnd()}…` : texto;
+}
+
+function actionLabel(type: StageActionType, cfg: StageActionConfig, tags: { id: number; name: string }[] = []): string {
   switch (type) {
-    case "TAG_ADD":        return `Agregar tag #${cfg.tagId ?? "?"}`;
-    case "TAG_REMOVE":     return `Quitar tag #${cfg.tagId ?? "?"}`;
+    case "TAG_ADD":        return `Agregar tag ${nombreDelTag(cfg, tags)}`;
+    case "TAG_REMOVE":     return `Quitar tag ${nombreDelTag(cfg, tags)}`;
     case "ASSIGN":         return `Asignar a asesor`;
     case "TASK":           return `Tarea: ${String(cfg.title ?? "sin título")}`;
     case "EXECUTE_FLOW":   return `Flujo: ${String(cfg.workflowName ?? "?")}`;
-    case "MESSAGE":        return `Mensaje: "${String(cfg.text ?? "").slice(0, 30)}..."`;
+    case "MESSAGE":        return `Mensaje: «${recortar(String(cfg.text ?? ""), 30)}»`;
     case "REMINDER":       return `Recordatorio en ${cfg.delayMinutes ?? 0} min`;
     case "NOTIFY_ADVISOR": return "Notificar asesor asignado";
     case "TOGGLE_AI":      return cfg.enabled ? "Activar IA" : "Desactivar IA";
@@ -344,24 +355,26 @@ function AutomationCard({
   const [editAction, setEditAction] = useState<StageAutomationActionRow | null>(null);
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-3">
+    <div data-zona="automatizacion" className="rounded-lg border bg-card p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-sm">{automation.name}</span>
         <div className="flex items-center gap-2">
           <Switch
+            data-zona="encendida"
+            aria-label={`Encender o apagar ${automation.name}`}
             checked={automation.enabled}
             onCheckedChange={(v) => onToggle(automation.id, v)}
           />
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(automation.id)}>
+          <Button variant="ghost" size="icon" data-zona="eliminar-automatizacion" aria-label={`Eliminar ${automation.name}`} className="h-7 w-7 text-destructive" onClick={() => onDelete(automation.id)}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div data-zona="acciones" className="space-y-1.5">
         {automation.actions.map((action) => (
-          <div key={action.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
-            <span className="text-muted-foreground truncate">{actionLabel(action.type, action.config)}</span>
+          <div key={action.id} data-zona="accion" className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+            <span className="text-muted-foreground truncate">{actionLabel(action.type, action.config, tags)}</span>
             <div className="flex items-center gap-1 shrink-0">
               {action.delayMinutes > 0 && (
                 <Badge variant="outline" className="text-[10px] h-4">{action.delayMinutes}m</Badge>
@@ -377,7 +390,7 @@ function AutomationCard({
         ))}
       </div>
 
-      <Button variant="outline" size="sm" className="w-full text-xs h-7" onClick={() => setAddOpen(true)}>
+      <Button variant="outline" size="sm" data-zona="agregar-accion" className="w-full text-xs h-7" onClick={() => setAddOpen(true)}>
         <Plus className="h-3 w-3 mr-1" /> Agregar acción
       </Button>
 
@@ -536,9 +549,10 @@ export function StageAutomationsPanel({ userId, initialStage }: { userId: string
             />
           ))}
 
-          <div className="flex gap-2 pt-1">
+          <div data-zona="nueva-automatizacion" className="flex gap-2 pt-1">
             <Input
               className="h-8 text-sm"
+              aria-label="Nombre de la automatización"
               placeholder="Nombre de la automatización..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
