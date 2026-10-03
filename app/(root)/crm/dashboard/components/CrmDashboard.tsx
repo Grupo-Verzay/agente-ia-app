@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { RegistroWithSession, TipoRegistro } from "@/types/session";
 import { SelectorDeCuentas } from "@/components/shared/SelectorDeCuentas";
+import { PERIODOS_DE_INFORMES, PERIODO_POR_DEFECTO } from "@/lib/secciones-de-informes";
 import { elCrmVaUnificado, nombresDeLasCuentas } from "@/lib/crm-de-la-familia";
 import type { CuentasDelCrm } from "@/lib/cuentas-del-crm";
 import {
@@ -44,12 +45,10 @@ import { LoQueLaIaNoSupoView } from "./LoQueLaIaNoSupoView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
 import { CalidadView } from "./CalidadView";
 
-const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
-    { label: "7 días", value: "7d" },
-    { label: "30 días", value: "30d" },
-    { label: "90 días", value: "90d" },
-    { label: "Todo", value: "all" },
-];
+const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = PERIODOS_DE_INFORMES.map((p) => ({
+    label: p.rotulo,
+    value: p.valor,
+}));
 
 /*
  * Los cinco rangos de puntaje NO viven aquí: son los de
@@ -99,7 +98,7 @@ export const CrmDashboard = ({
 }) => {
     const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas" | "calidad">(initialView ?? "analiticas");
-    const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
+    const [period, setPeriod] = useState<AnalyticsPeriod>(PERIODO_POR_DEFECTO);
     const [filtroDePuntaje, setFiltroDePuntaje] = useState<ClaveDePuntaje | null>(null);
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
 
@@ -304,7 +303,7 @@ export const CrmDashboard = ({
                         {/* Calidad trae su propio periodo en su barra: el «Todo» de aquí no
                             tiene sentido sobre evaluaciones que se guardan por días. */}
                         {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && viewMode !== "calidad" && (
-                            <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                            <div data-zona="periodo" className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                                 {ANALYTICS_PERIODS.map((p) => (
                                     <button
                                         key={p.value}
@@ -333,12 +332,14 @@ export const CrmDashboard = ({
                           * la lista vacia y aqui no sale nada.
                           */}
                         {cuentas.puedeElegir && (
-                            <SelectorDeCuentas
-                                disponibles={cuentas.disponibles}
-                                elegidas={cuentas.elegidas}
-                                porDefecto="todas"
-                                conMoneda={false}
-                            />
+                            <div data-zona="cuentas" className="contents">
+                                <SelectorDeCuentas
+                                    disponibles={cuentas.disponibles}
+                                    elegidas={cuentas.elegidas}
+                                    porDefecto="todas"
+                                    conMoneda={false}
+                                />
+                            </div>
                         )}
 
                         {viewMode === "kanban" && (
