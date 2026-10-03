@@ -25565,6 +25565,55 @@ Y el taller común reescribe también el `value` de los campos con
 `conElDominioDeLaGuia` (el enlace público de Ajustes va en un `<input>` y salía
 con `localhost`).
 
+### La vigesimoctava guía, Campañas: y documentarla destapó campañas que no hacían lo que decían
+
+`/guia/campanas` documenta Creación de Flujos › Campañas (`/campaigns`) con el
+estándar de las anteriores: once secciones —vista general, la lista, el tablero
+Kanban (Pendientes, Para hoy, Mañana, Recurrentes, Enviados, Vencidos), crear
+una campaña con mensaje y variables, adjunto o audio grabado, fecha y hora,
+segmentar por estado y etiquetas, varios contactos, flujo asociado, pausa entre
+envíos con su aviso de riesgo, y el historial con reintentar, pausar y
+reanudar—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/campaigns`: «Aprende a enviar campañas por WhatsApp a tus contactos en la
+plataforma». Ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Se regenera con
+`npm run build && scripts/generar-guia-campanas.sh && npm run build`.
+
+> **Las reglas de una campaña viven en `lib/campanas.ts` (puro)**: las
+> variables, la pausa, las horas de cada envío, qué se reprograma al editar y
+> cómo se nombra a quién le llega. Las usan las acciones, la tarjeta y la guía.
+
+Lo que se arregló al documentarla, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| una campaña de UN contacto se guardaba como recordatorio y desaparecía de Campañas | lo decide la pantalla desde la que se crea (`esUnaCampana`) |
+| la repetición se ofrecía y el motor repetía el texto crudo, sin variables, archivo ni pausa | una campaña sale UNA vez (`LA_CAMPANA_NO_SE_REPITE`); «Recurrentes» queda para las de antes |
+| editar una campaña no cambiaba lo que salía | lo pendiente o pausado se reprograma (`elPlanDeLaEdicion`); lo ya enviado o fallido no se toca, y nadie recibe dos veces |
+| eliminar una campaña dejaba sus `camping-<id>-<n>` saliendo | se borran con ella (`reminderSeguimientoWhere`), también en «Eliminar todas» |
+| reintentar y reanudar ponían todos los envíos a la misma hora | escalonados desde ahora con la pausa (`lasHorasEscalonadas`) |
+| la tarjeta pintaba los nombres y los números pegados por comas, con un enlace al chat roto | «N contactos», con la lista en el `title` (`losContactosDeLaCampana`) |
+| segmentar usaba el id de la persona: a alguien del equipo no le encontraba a nadie | la cuenta activa (`effectiveId`) |
+| **el flujo asociado no se ejecutaba nunca**, y el motor BORRABA cada envío: el historial decía siempre 0 enviados y no había qué reintentar | en `api-webhook` (`envio-de-campana.ts`): el flujo corre y el envío se queda como `sent` o `failed` |
+
+Tres cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara columnas, cifras,
+   campos, variables, archivos, estados del segmento, partes de una tarjeta y
+   botones del historial con el código, y los topes de la pausa con
+   `PAUSA_MINIMA`/`PAUSA_MAXIMA`.
+2. **Ni las capturas ni el vídeo envían nada**: el aviso de riesgo y las
+   confirmaciones se CANCELAN, y la línea y el servidor son de ejemplo.
+3. **Las capturas crean una campaña**, así que antes del vídeo se vuelve a
+   sembrar.
+
+Lo prueban `scripts/banco-campanas.sh` (las reglas y las acciones contra
+Postgres), `scripts/banco-guia-campanas.sh` (contenido, vídeo, miniaturas,
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida) y, en `api-webhook`,
+`scripts/banco-campana-en-el-motor.sh`. Los tres con `MODO=roto` contra un
+commit pinchado que afirma los fallos de la tabla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
