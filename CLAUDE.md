@@ -25428,7 +25428,44 @@ vídeo, las miniaturas con `GUIA=correo`, `fin-de-la-guia`, `menu-de-la-guia` y
 la guía servida a 390 y 1440); `MODO=roto` contra `400482e` afirma que no había
 guía.
 
-### La vigesimosexta guía, Mis tareas: y la cifra y la lista no decían lo mismo
+### La vigesimosexta guía, Follow-ups IA: el asistente del sintetizador, la clasificación y los follow-ups por estado
+
+`/guia/follow-ups` documenta Bandeja › Follow-ups IA (`/crm/rules`) con el
+estándar de las anteriores: la vista general, **el sintetizador** (sus cuatro
+pasos: marco base, reglas globales, tipos CRM y previsualización), **la
+clasificación de leads** (marco, definiciones, criterios y previsualización) y
+**los follow-ups por estado**: tiempos e intentos, horario, mensajes (objetivo,
+prompt y respaldo), la biblioteca de archivos, el flujo por estado y el resumen
+antes de guardar; una miniatura con enfoque por tarjeta y el vídeo con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/crm/rules`. Ninguna pieza propia: contenido en `lib/guia-follow-ups.ts`,
+semilla `sembrar-guia-follow-ups.mjs`, receta `capturar-guia-follow-ups.mjs` y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-follow-ups.sh && npm run build`.
+
+> **Lo que la pantalla y la guía dicen igual sale de
+> `lib/follow-ups-de-la-pantalla.ts`**: las tres pestañas, los campos de la
+> regla de un estado (con su `data-zona`) y la línea del resumen. Una pestaña o
+> un campo renombrado en un solo sitio pone el banco en rojo.
+
+Lo que se arregló en la pantalla al documentarla: la pestaña decía
+«Clasificacion lead» y los campos «Max intentos», «Dias habilitados» y «Mensaje
+fallback» (ahora con tildes y «Mensaje de respaldo»); «Restaurar defaults» pasó
+a «Restaurar valores de fábrica»; el límite de la biblioteca decía «8/8» escrito
+a mano (ahora `MAX_MEDIA_PER_STATUS`) y en voseo; y el horario enseñaba la zona
+del servidor en vez de la de la cuenta.
+
+Dos cosas de la receta: las marcas de un campo van SIN rótulo (el rótulo del
+propio campo ya lo dice y encima lo tapaba), y en una rejilla de tarjetas los
+números van `sinRecuadro`; el recorte deja aire arriba (`conAireArriba`) para
+que el número no quede cortado.
+
+Lo prueba `scripts/banco-guia-follow-ups.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=follow-ups`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida a 390 y 1440); `MODO=roto` contra `400482e`
+afirma que no había guía ni marcas en la pantalla.
+
+### La vigesimoséptima guía, Mis tareas: y la cifra y la lista no decían lo mismo
 
 `/guia/tareas` documenta Bandeja › Mis tareas (`/tareas`) con el estándar de
 las anteriores: la vista Lista agrupada por fecha, el Kanban por tipo con sus

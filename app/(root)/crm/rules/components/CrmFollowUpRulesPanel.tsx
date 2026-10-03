@@ -1,5 +1,7 @@
 "use client";
 
+import { elNombreDeLaPestana } from "@/lib/follow-ups-de-la-pantalla";
+
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 
 import {
@@ -49,15 +51,15 @@ export function CrmFollowUpRulesPanel({
     }> = [];
 
     if (features.enabledSynthesizer) {
-      tabs.push({ value: "leadFunnel", label: "Sintetizador" });
+      tabs.push({ value: "leadFunnel", label: elNombreDeLaPestana("leadFunnel") });
     }
 
     if (features.enabledLeadStatusClassifier) {
-      tabs.push({ value: "leadStatus", label: "Clasificacion lead" });
+      tabs.push({ value: "leadStatus", label: elNombreDeLaPestana("leadStatus") });
     }
 
     if (features.enabledCrmFollowUps) {
-      tabs.push({ value: "followUps", label: "Follow-ups" });
+      tabs.push({ value: "followUps", label: elNombreDeLaPestana("followUps") });
     }
 
     return tabs;
@@ -297,9 +299,9 @@ export function CrmFollowUpRulesPanel({
       }
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <TabsList className="flex justify-start shrink-0 flex-wrap">
+      <TabsList data-zona="pestanas" className="flex justify-start shrink-0 flex-wrap">
         {availableTabs.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value} className="font-semibold">
+          <TabsTrigger key={tab.value} value={tab.value} data-pestana={tab.value} className="font-semibold">
             {tab.label}
           </TabsTrigger>
         ))}
@@ -330,7 +332,7 @@ export function CrmFollowUpRulesPanel({
         className="mt-0 flex-1 min-h-0 min-w-0 overflow-hidden"
       >
         {promptsLoading && !promptRecords?.leadStatus ? (
-          <LoadingState label="Cargando wizard de clasificacion..." />
+          <LoadingState label="Cargando la clasificación de leads..." />
         ) : promptRecords?.leadStatus ? (
           <CrmLeadStatusPromptWizard
             userId={userId}
@@ -347,7 +349,7 @@ export function CrmFollowUpRulesPanel({
             }
           />
         ) : (
-          <LoadingState label="Sin configuracion disponible." />
+          <LoadingState label="Sin configuración disponible." />
         )}
       </TabsContent>
 
@@ -356,7 +358,7 @@ export function CrmFollowUpRulesPanel({
         className="mt-0 flex-1 min-h-0 min-w-0 overflow-hidden"
       >
         {promptsLoading && !promptRecords?.leadFunnel ? (
-          <LoadingState label="Cargando wizard del sintetizador..." />
+          <LoadingState label="Cargando el sintetizador..." />
         ) : promptRecords?.leadFunnel ? (
           <CrmLeadFunnelPromptWizard
             userId={userId}
@@ -373,7 +375,7 @@ export function CrmFollowUpRulesPanel({
             }
           />
         ) : (
-          <LoadingState label="Sin configuracion disponible." />
+          <LoadingState label="Sin configuración disponible." />
         )}
       </TabsContent>
 

@@ -123,7 +123,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div data-zona="flujo" className="flex flex-col gap-2">
       <div className="rounded-xl border border-border/70 overflow-hidden divide-y divide-border/70 bg-muted/20">
         {LEAD_STATUSES.filter(s => !filterStatus || s.value === filterStatus).map(({ value, label, icon, iconCn, rowCn, labelCn }) => {
           const config = getConfig(value);
@@ -151,7 +151,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
                     disabled={isPending}
                   >
                     <SelectTrigger className="h-8 w-full bg-background text-sm sm:w-64 sm:shrink-0">
-                      <SelectValue placeholder="Seleciona flujo para estado" />
+                      <SelectValue placeholder="Selecciona un flujo" />
                     </SelectTrigger>
                     <SelectContent className="max-w-[288px]">
                       {workflows.map((wf) => (
@@ -169,6 +169,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
                       onClick={() => handleRemove(value)}
                       disabled={isPending}
                       title="Quitar flujo"
+                      aria-label="Quitar flujo"
                     >
                       <XCircle className="h-4 w-4" />
                     </Button>
