@@ -25,6 +25,7 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
 import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
 import { GUIA_TAREAS } from "@/lib/guia-tareas";
@@ -100,6 +101,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     tareas: { titulo: GUIA_TAREAS.titulo, subtitulo: GUIA_TAREAS.subtitulo, descripcion: GUIA_TAREAS.descripcion },
     correo: { titulo: GUIA_CORREO.titulo, subtitulo: GUIA_CORREO.subtitulo, descripcion: GUIA_CORREO.descripcion },
     "follow-ups": { titulo: GUIA_FOLLOW_UPS.titulo, subtitulo: GUIA_FOLLOW_UPS.subtitulo, descripcion: GUIA_FOLLOW_UPS.descripcion },
+    embudos: { titulo: GUIA_EMBUDOS.titulo, subtitulo: GUIA_EMBUDOS.subtitulo, descripcion: GUIA_EMBUDOS.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

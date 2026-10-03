@@ -25614,6 +25614,39 @@ Postgres), `scripts/banco-guia-campanas.sh` (contenido, vídeo, miniaturas,
 `scripts/banco-campana-en-el-motor.sh`. Los tres con `MODO=roto` contra un
 commit pinchado que afirma los fallos de la tabla.
 
+### La trigésima guía, Embudos: el tablero, sus siete etapas y la papelera de Perdido
+
+`/guia/embudos` documenta Panel › Embudos (`/embudos`) con el estándar de las
+anteriores: la vista general, el tablero (una columna por etapa, una tarjeta
+por conversación), arrastrar, los tres selectores (embudo, cuenta y asesor), el
+embudo de ventas sembrado de siete etapas, crear, renombrar, usar por defecto y
+eliminar un embudo, editar etapas (nombre, color y orden, con candado en Nuevo,
+Ganado y Perdido), asignar un embudo a cada asesor y la columna Perdido con su
+papelera de 30 días; una miniatura con enfoque por tarjeta y el vídeo narrado
+con Cedar al MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/embudos`: «Aprende a organizar tus conversaciones por etapas en la
+plataforma». Ninguna pieza propia: contenido en `lib/guia-embudos.ts`, semilla
+`sembrar-guia-embudos.mjs` (dos embudos, cuatro personas y una cuenta hija),
+receta `capturar-guia-embudos.mjs` y narración. Se regenera con
+`npm run build && scripts/generar-guia-embudos.sh && npm run build`.
+
+Tres cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo cambian nada**: crear, etapas y asesores se
+   CANCELAN, y no se pulsa Eliminar, Vaciar, Restaurar ni Restaurar todo. El
+   banco lo lee del guion; arrastrar sí mueve una tarjeta, y antes del vídeo se
+   vuelve a sembrar.
+2. **La pantalla expone marcas para la receta** (`data-tarjeta`,
+   `data-columna`, `data-cabeza-de-columna`, `data-selector="embudo"`,
+   `data-hoja`), y las recetas no usan coordenadas.
+3. **Un nombre largo no se recorta**: el del asesor en «Asesores y su embudo»
+   parte en dos líneas, y el selector de embudo mide hasta 18rem.
+
+Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
+la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no había
+guía.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`
