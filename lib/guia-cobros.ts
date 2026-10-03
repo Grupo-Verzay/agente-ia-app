@@ -337,7 +337,7 @@ export const GUIA_COBROS: Contenido = {
                     titulo: "Sus propios datos de pago",
                     texto:
                         "Si este cliente paga a otra cuenta o con otro enlace, escríbelo en «Datos de pago de este " +
-                        "cobro». Va al final de cada mensaje.",
+                        "cobro». Va al final de cada mensaje. Después pulsa «Crear».",
                     imagen: "crear-nota.webp",
                     alt: "El campo Datos de pago de este cobro escrito",
                 },

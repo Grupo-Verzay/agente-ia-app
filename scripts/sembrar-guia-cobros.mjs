@@ -32,6 +32,15 @@ const dueno = await sembrarElMarco(db, {
 });
 await db.user.update({ where: { id: dueno.id }, data: { timezone: "America/Bogota" } });
 
+/* El servidor de WhatsApp de EJEMPLO: sin él la línea sale «sin conectar» y la
+   cartera pinta el aviso de que los cobros no van a salir. Lo contesta el
+   doble cargado en `next start` (`fingido-guia-cobros.mjs`). */
+await db.siteConfig.upsert({
+    where: { id: 1 },
+    update: { wahaUrl: "https://waha.minegocio.co", wahaApiKey: "clave-de-ejemplo" },
+    create: { id: 1, wahaUrl: "https://waha.minegocio.co", wahaApiKey: "clave-de-ejemplo" },
+});
+
 /* ── Las tablas son de la App: se crean como las crea `lib/cobros-db.ts` ─── */
 const ddl = [
     `CREATE TABLE IF NOT EXISTS "cobros" (

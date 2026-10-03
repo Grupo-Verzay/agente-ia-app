@@ -273,8 +273,11 @@ async function miniaturas(p) {
             return caja(p, laConfirmacion(p, "confirmar").getByRole("button", { name: "Sí, confirmar el pago" }));
         },
         async () => {
-            await laConfirmacion(p, "confirmar").getByRole("button", { name: "Volver" }).click();
-            await espera(p, 500);
+            // `cerrarLoAbierto` ya la pudo cerrar con Escape (que es «Volver»).
+            const volver = laConfirmacion(p, "confirmar").getByRole("button", { name: "Volver" });
+            if (await volver.isVisible()) await volver.click();
+            await laConfirmacion(p, "confirmar").waitFor({ state: "hidden", timeout: 10000 });
+            await espera(p, 300);
         },
     );
     await mini(
@@ -527,7 +530,7 @@ async function capturas(p) {
     await marcar(p, [{ c: await aLaVistaYMedir(p, enElFormulario(p, "nota")), texto: "Va al final de cada mensaje", lado: "arriba" }]);
     await guardar(p, "crear-nota.webp", holgura(await caja(p, EL_FORMULARIO), 10, vista));
     await desmarcar(p);
-    await p.locator(EL_FORMULARIO).getByRole("button", { name: "Guardar" }).click();
+    await p.locator(EL_FORMULARIO).getByRole("button", { name: "Crear" }).click();
     await p.locator(EL_FORMULARIO).waitFor({ state: "hidden", timeout: 20000 });
     await laFila(p, "Diana Torres").waitFor({ state: "visible", timeout: 20000 });
     await espera(p, 1000);
@@ -751,7 +754,7 @@ async function video(navegador, estado) {
 
     const eliminar = laConfirmacion(p, "eliminar");
     await decir("editarYEliminar");
-    await pulsar(p, p.locator(EL_FORMULARIO).getByRole("button", { name: "Guardar" }));
+    await pulsar(p, p.locator(EL_FORMULARIO).getByRole("button", { name: "Crear" }));
     await p.locator(EL_FORMULARIO).waitFor({ state: "hidden", timeout: 20000 });
     await alDecir("la editas", 0);
     await pulsar(p, elMenuDe(p, "Julián Vargas"));
