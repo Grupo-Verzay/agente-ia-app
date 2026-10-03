@@ -11,6 +11,17 @@ import { filtrarPorPeriodo, laFechaDeUnoNuevo, elDiaDeHoy, unPeriodo, type Perio
 import { comoImporte, elConceptoDelGasto, elProveedorDelGasto, formatoDeDinero } from '@/lib/tabla-de-finanzas';
 import { CABECERA_DEL_DETALLE, CUERPO_DEL_DETALLE, DIALOGO_DEL_DETALLE, REJILLA_DEL_DETALLE } from '@/lib/detalle-de-finanzas';
 import { buildExpenseColumns, type ExpenseRow } from './columns';
+import { SelectorDeProveedor, type ProveedorElegido } from './SelectorDeProveedor';
+import {
+  elProveedorDeLaReferencia,
+  elProveedorQueSeManda,
+  laDireccionSinCrear,
+  esUnaCompra,
+  losTextosDelFormulario,
+  porQueNoSeGuarda,
+  type FormularioDeGasto,
+  type ProveedorDeLaLista,
+} from '@/lib/compras-de-finanzas';
 import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
 import {
@@ -70,7 +81,10 @@ type Props = {
   expenses: ExpenseRow[];
   primaryCurrencyCode: string;
   initialMonth?: string;
-  autoOpenCreate?: boolean;
+  /** El formulario que se abre al entrar (`?create=`): un gasto o una COMPRA. */
+  formularioAlEntrar?: FormularioDeGasto | null;
+  /** La lista de Proveedores de la cuenta, de la que sale el de una compra. */
+  proveedores?: ProveedorDeLaLista[];
   /** Las cuentas de la familia entre las que se puede elegir. Vacía: sin selector. */
   cuentasDisponibles?: CuentaDeFinanzas[];
   /** Las que están puestas ahora mismo, ya resueltas en el servidor. */
@@ -156,7 +170,8 @@ export default function MainExpenses({
   expenses,
   primaryCurrencyCode,
   initialMonth,
-  autoOpenCreate = false,
+  formularioAlEntrar = null,
+  proveedores = [],
   cuentasDisponibles = [],
   cuentasElegidas = [],
 }: Props) {
@@ -190,6 +205,15 @@ export default function MainExpenses({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseRow | null>(null);
   const didAutoOpenCreate = useRef(false);
+
+  // Una COMPRA es un gasto con proveedor (`lib/compras-de-finanzas.ts`): el
+  // mismo formulario, con el proveedor de la lista delante. «Nuevo» de esta
+  // pantalla abre un gasto, como siempre; el acceso «Compras» abre una compra.
+  const [modo, setModo] = useState<FormularioDeGasto>('gasto');
+  const [proveedor, setProveedor] = useState<ProveedorElegido>({ id: null, nombre: '' });
+  const [listaDeProveedores, setListaDeProveedores] = useState<ProveedorDeLaLista[]>(proveedores);
+  useEffect(() => setListaDeProveedores(proveedores), [proveedores]);
+  const textos = losTextosDelFormulario(modo, Boolean(editing));
 
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -238,17 +262,32 @@ export default function MainExpenses({
     });
   };
 
-  const openCreate = () => {
+  const openCreate = (cual: FormularioDeGasto = 'gasto') => {
     setEditing(null);
+    setModo(cual);
+    setProveedor({ id: null, nombre: '' });
     resetForm();
     setAttachments([]);
     setOpen(true);
   };
 
   useEffect(() => {
-    if (!autoOpenCreate || didAutoOpenCreate.current) return;
+    // Sin `?create=` se vuelve a poder abrir: así «Compras» abre otra compra
+    // cada vez que se pulsa, y no solo la primera.
+    if (!formularioAlEntrar) {
+      didAutoOpenCreate.current = false;
+      return;
+    }
+    if (didAutoOpenCreate.current) return;
     didAutoOpenCreate.current = true;
+    // El `?create=` se quita de la dirección en cuanto se usa: con él puesto,
+    // pulsar «Compras» otra vez llevaría a la MISMA dirección y no abriría
+    // nada. Y una recarga no vuelve a abrir el formulario.
+    const sinCrear = laDireccionSinCrear(window.location.pathname, window.location.search);
+    if (sinCrear) router.replace(sinCrear, { scroll: false });
     setEditing(null);
+    setModo(formularioAlEntrar);
+    setProveedor({ id: null, nombre: '' });
     setForm({
       occurredAt: laFechaDeUnoNuevo(periodo),
       amount: '',
@@ -260,10 +299,14 @@ export default function MainExpenses({
     });
     setAttachments([]);
     setOpen(true);
-  }, [autoOpenCreate, defaultAccountId, defaultCurrency, periodo]);
+  }, [formularioAlEntrar, defaultAccountId, defaultCurrency, periodo]);
 
   const openEdit = (row: ExpenseRow) => {
     setEditing(row);
+    // Un gasto con proveedor se abre como la compra que es: si no, editarlo
+    // escondería el proveedor y no habría forma de cambiarlo.
+    setModo(esUnaCompra(row) ? 'compra' : 'gasto');
+    setProveedor({ id: elProveedorDeLaReferencia(row.reference), nombre: row.counterparty ?? '' });
 
     // mantiene moneda del registro (solo lectura), si no hay, usa defaultCurrency
     setForm({
@@ -324,9 +367,8 @@ export default function MainExpenses({
   }
 
   const onSave = () => {
-    if (!form.accountId) return toast.error('Selecciona una cuenta');
-    if (!form.title?.trim()) return toast.error('Ingresa el concepto');
-    if (!form.amount) return toast.error('Ingresa un monto');
+    const motivo = porQueNoSeGuarda(modo, form, { id: proveedor.id, nombreActual: proveedor.nombre });
+    if (motivo) return toast.error(motivo);
 
     startTransition(() => {
       void (async () => {
@@ -339,6 +381,9 @@ export default function MainExpenses({
           categoryId: form.categoryId,
           title: form.title?.trim() || null,
           description: form.description?.trim() || null,
+          // Solo el ID: el nombre lo pone el servidor, que comprueba que el
+          // proveedor sea de la lista de esta cuenta. Al editar, solo si cambió.
+          proveedorId: elProveedorQueSeManda(modo, proveedor.id, editing?.reference),
         };
 
         // Separado en dos ramas a proposito: solo `createExpense` devuelve el
@@ -370,7 +415,7 @@ export default function MainExpenses({
           if (!attachRes.success) return toast.error(attachRes.message);
         }
 
-        toast.success(editing ? 'Gasto actualizado' : 'Gasto creado');
+        toast.success(editing ? textos.actualizado : textos.creado);
         setOpen(false);
         setEditing(null);
         setAttachments([]);
@@ -486,7 +531,7 @@ export default function MainExpenses({
                   {selectorDeCuentas}
                 </>
               }
-              crear={<BotonDeCrear onClick={openCreate} disabled={isPending}>Nuevo</BotonDeCrear>}
+              crear={<BotonDeCrear onClick={() => openCreate('gasto')} disabled={isPending}>Nuevo</BotonDeCrear>}
               acciones={(seleccionados, limpiar) => (
                 <AccionesMasivas
                   seleccionados={seleccionados}
@@ -536,7 +581,7 @@ export default function MainExpenses({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <DialogTitle className="text-base sm:text-lg font-semibold truncate">
-                    Detalle del gasto
+                    {esUnaCompra(detailRow ?? {}) ? 'Detalle de la compra' : 'Detalle del gasto'}
                   </DialogTitle>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Visualiza el resumen, el proveedor y los soportes.
@@ -545,7 +590,7 @@ export default function MainExpenses({
 
                 {detailRow ? (
                   <AccionesDeLaFila
-                    queEs="el gasto"
+                    queEs={esUnaCompra(detailRow) ? 'la compra' : 'el gasto'}
                     nombre={elConceptoDelGasto(detailRow)}
                     ajena={filaAjena(detailRow)}
                     ocupado={isPending}
@@ -677,10 +722,14 @@ export default function MainExpenses({
 
         {/* Modal Create/Edit (MISMO DISEÑO QUE SALES: left form + right resumen sticky) */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="flex flex-col overflow-hidden rounded-2xl sm:max-w-[1000px]">
+          <DialogContent
+            className="flex flex-col overflow-hidden rounded-2xl sm:max-w-[1000px]"
+            data-formulario-de-gasto={modo}
+          >
             <DialogHeader className="shrink-0 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <DialogTitle className="text-base">{editing ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle>
+                {/* El título sale de `losTextosDelFormulario`: «Nuevo gasto» o «Nueva compra». */}
+                <DialogTitle className="text-base">{textos.titulo}</DialogTitle>
                 <Badge variant="secondary" className="h-6 text-[11px]">
                   {editing ? 'Edición' : 'Registro'}
                 </Badge>
@@ -695,18 +744,34 @@ export default function MainExpenses({
                 : 'Sin categoría';
 
               const totalText = formatoDeDinero(currencies, form.currencyCode, comoImporte(form.amount));
+              const proveedorDelResumen =
+                (proveedor.id ? listaDeProveedores.find((p) => p.id === proveedor.id)?.name : undefined) ??
+                proveedor.nombre.trim();
 
               return (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
                   {/* LEFT */}
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {modo === 'compra' ? (
+                        <div className="sm:col-span-2">
+                          <SelectorDeProveedor
+                            userId={userId}
+                            proveedores={listaDeProveedores}
+                            valor={proveedor}
+                            alCambiar={setProveedor}
+                            alCrear={(p) => setListaDeProveedores((prev) => [p, ...prev.filter((x) => x.id !== p.id)])}
+                            ocupado={isPending}
+                          />
+                        </div>
+                      ) : null}
+
                       <MiniField label="Concepto">
                         <Input
                           value={form.title}
                           onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
                           className="h-9 text-sm"
-                          placeholder="Ej: Nómina / Publicidad / Servidor"
+                          placeholder={textos.placeholderDelConcepto}
                         />
                       </MiniField>
 
@@ -774,7 +839,7 @@ export default function MainExpenses({
                         Cancelar
                       </Button>
                       <Button variant="save" onClick={onSave} size="sm" disabled={isPending || uploading} className="h-9">
-                        {editing ? 'Guardar cambios' : 'Guardar gasto'}
+                        {textos.guardar}
                       </Button>
                     </div>
                   </div>
@@ -814,6 +879,14 @@ export default function MainExpenses({
                           <p className="truncate text-sm font-medium">{form.title?.trim() ? form.title.trim() : '—'}</p>
 
                           <div className="mt-2 flex flex-wrap gap-2">
+                            {modo === 'compra' ? (
+                              <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
+                                <span className="inline-flex items-center gap-1">
+                                  <Truck className="h-3.5 w-3.5" />
+                                  <span className="truncate max-w-[170px]">{proveedorDelResumen || 'Sin proveedor'}</span>
+                                </span>
+                              </Badge>
+                            ) : null}
                             <Badge variant="outline" className="h-6 whitespace-nowrap text-[11px]">
                               {previewAccountName}
                             </Badge>

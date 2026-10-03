@@ -9,9 +9,17 @@
  *    pone en rojo.
  * 2. **Cuál está marcado** se decide con la RUTA, y hay dos accesos que
  *    comparten la de otro —«Compras» abre Gastos con el formulario de un gasto
- *    nuevo, y «Recibos de caja» Ventas con el de una venta—. Esos dos son un
+ *    nuevo —ahora una compra—, y «Recibos de caja» Ventas con el de una venta—. Esos dos son un
  *    atajo para CREAR, no una pantalla: nunca se marcan, o al entrar a Gastos
  *    saldrían dos accesos encendidos a la vez.
+ *
+ * # «Compras» abre una COMPRA, no un gasto
+ *
+ * Abría Gastos con `create=1`, que es el formulario de un gasto cualquiera
+ * («Nuevo gasto», sin proveedor). Ahora pide `create=compra`
+ * (`lib/compras-de-finanzas.ts`): el formulario «Nueva compra», con el
+ * proveedor elegido de la lista de Proveedores. Lo que se guarda sigue siendo
+ * un gasto —con su proveedor—, así que sigue saliendo en Gastos.
  *
  * # Por qué hay «Resumen»
  *
@@ -20,6 +28,7 @@
  * Panel. Todas las demás pantallas del módulo tenían su acceso y esta no.
  */
 
+import { CREAR_UNA_COMPRA } from "@/lib/compras-de-finanzas";
 import { laSeleccionQueViajaEnElEnlace } from "./finanzas-de-la-familia";
 
 export type IdDeAcceso =
@@ -42,8 +51,10 @@ export type AccesoDeFinanzas = {
     ruta: string;
     /** Lleva el mes que se está mirando (`?month=`), para no perderlo al cambiar de pantalla. */
     conMes: boolean;
-    /** Abre el formulario de algo nuevo (`&create=1`): es un atajo para crear, no una pantalla. */
+    /** Abre el formulario de algo nuevo (`&create=…`): es un atajo para crear, no una pantalla. */
     crea: boolean;
+    /** Qué formulario pide (`?create=`). Sin él, `1`: el de siempre de esa pantalla. */
+    queCrea?: string;
 };
 
 export const RUTA_DE_FINANZAS = "/dashboard/finance";
@@ -57,7 +68,7 @@ export const ACCESOS_DE_FINANZAS: readonly AccesoDeFinanzas[] = [
     { id: "proposals", etiqueta: "Propuestas", ruta: "/cotizaciones", conMes: false, crea: false },
     { id: "sales", etiqueta: "Ventas", ruta: `${RUTA_DE_FINANZAS}/sales`, conMes: true, crea: false },
     { id: "expenses", etiqueta: "Gastos", ruta: `${RUTA_DE_FINANZAS}/expenses`, conMes: true, crea: false },
-    { id: "purchases", etiqueta: "Compras", ruta: `${RUTA_DE_FINANZAS}/expenses`, conMes: true, crea: true },
+    { id: "purchases", etiqueta: "Compras", ruta: `${RUTA_DE_FINANZAS}/expenses`, conMes: true, crea: true, queCrea: CREAR_UNA_COMPRA },
     { id: "cash-receipts", etiqueta: "Recibos de caja", ruta: `${RUTA_DE_FINANZAS}/sales`, conMes: true, crea: true },
     { id: "notes", etiqueta: "Notas", ruta: "/notas", conMes: false, crea: false },
     { id: "accounts", etiqueta: "Cuentas", ruta: `${RUTA_DE_FINANZAS}/accounts`, conMes: true, crea: false },
@@ -70,7 +81,7 @@ export const ORDEN_DE_LOS_ACCESOS: readonly IdDeAcceso[] = ACCESOS_DE_FINANZAS.m
 export function elEnlaceDelAcceso(acceso: AccesoDeFinanzas, mes: string): string {
     const partes: string[] = [];
     if (acceso.conMes && mes) partes.push(`month=${mes}`);
-    if (acceso.crea) partes.push("create=1");
+    if (acceso.crea) partes.push(`create=${acceso.queCrea ?? "1"}`);
     return partes.length ? `${acceso.ruta}?${partes.join("&")}` : acceso.ruta;
 }
 

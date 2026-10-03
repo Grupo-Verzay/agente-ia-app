@@ -73,6 +73,12 @@ export const CAMPOS_DE_UNA_VENTA = [
     "Descripción",
 ] as const;
 export const CAMPOS_DE_UN_GASTO = ["Concepto", "Monto", "Cuenta", "Categoría", "Descripción"] as const;
+/**
+ * Los de una COMPRA: los de un gasto con el proveedor delante. Una compra es un
+ * gasto con proveedor (`lib/compras-de-finanzas.ts`), elegido de la lista de
+ * Proveedores, igual que una venta elige su contacto.
+ */
+export const CAMPOS_DE_UNA_COMPRA = ["Proveedor", ...CAMPOS_DE_UN_GASTO] as const;
 
 /** Los campos de fábrica de la ficha de un cliente (el primero es «Proveedor» en un proveedor). */
 export const CAMPOS_DE_UN_CONTACTO = [
@@ -150,7 +156,7 @@ export const GUIA_FINANZAS: Contenido = {
             ],
             consejos: [
                 "Los accesos se reordenan arrastrándolos, y el orden se queda para la próxima vez.",
-                "Compras y Recibos de caja son atajos: abren Gastos y Ventas con el formulario de uno nuevo ya abierto.",
+                "Compras y Recibos de caja son atajos: Compras abre una compra nueva, con el proveedor de tu lista de Proveedores, y Recibos de caja una venta nueva.",
             ],
         },
         {
@@ -278,7 +284,10 @@ export const GUIA_FINANZAS: Contenido = {
                     alt: "El detalle de un gasto",
                 },
             ],
-            consejos: ["Compras, en los accesos de arriba, abre Gastos con el formulario ya abierto."],
+            consejos: [
+                "Compras, en los accesos de arriba, abre una compra nueva: un gasto con su proveedor, elegido de tu lista de Proveedores o creado ahí mismo.",
+                "Una compra se guarda en Gastos como cualquier otro gasto, con el proveedor debajo del concepto.",
+            ],
         },
         {
             slug: "periodo",

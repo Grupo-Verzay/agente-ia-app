@@ -7,6 +7,8 @@ import { getAllExpenses, getExpensesMeta } from "@/actions/finance-expenses-acti
 import MainExpenses from "./_components/MainExpenses";
 import { serializePrisma } from "@/lib/serialize-prisma";
 import { resolverLasCuentasDeFinanzas } from "@/lib/cuentas-de-finanzas";
+import { getFinanceContacts } from "@/actions/finance-contacts-actions";
+import { elFormularioAlEntrar } from "@/lib/compras-de-finanzas";
 
 export default async function ExpensesPage({
   searchParams,
@@ -24,9 +26,18 @@ export default async function ExpensesPage({
   // vuelve a pasar por la misma puerta dentro de `getAllExpenses`.
   const cuentas = await resolverLasCuentasDeFinanzas(user.id, searchParams?.cuentas);
 
-  const [metaRes, listRes] = await Promise.all([
+  // Los proveedores de una compra son los de la cuenta PROPIA, sin consolidar:
+  // es donde se guarda la compra, y el servidor comprueba que el proveedor sea
+  // de esa misma cuenta (`createExpense`).
+  const [metaRes, listRes, proveedoresRes] = await Promise.all([
     getExpensesMeta(user.id),
     getAllExpenses(user.id, cuentas.elegidas),
+    // Una lista de proveedores que no se pudo leer no puede tumbar Gastos.
+    getFinanceContacts(user.id, "SUPPLIER").catch((e) => ({
+      success: false,
+      message: e instanceof Error ? e.message : String(e),
+      data: [],
+    })),
   ]);
 
   if (!metaRes.success)
@@ -37,6 +48,12 @@ export default async function ExpensesPage({
   // CLAVE: convertir Decimal/Date -> plain objects
   const meta = serializePrisma(metaRes.data!);
   const expenses = serializePrisma(listRes.data || []);
+  // Una lista de proveedores que no se pudo leer no puede tumbar Gastos: la
+  // compra dirá que no hay proveedores, y se dice aquí por qué.
+  if (!proveedoresRes.success) console.warn("[finanzas] no se pudieron leer los proveedores", proveedoresRes.message);
+  const proveedores = ((proveedoresRes.data as { id: string; name: string; code: string | null; phone: string | null }[] | undefined) ?? []).map(
+    (p) => ({ id: p.id, name: p.name, code: p.code ?? null, phone: p.phone ?? null }),
+  );
 
   // usar la moneda guardada en settings (igual que Sales)
   const preferredCurrencyCode = user.preferredCurrencyCode || "COP";
@@ -50,7 +67,8 @@ export default async function ExpensesPage({
       expenses={expenses}
       primaryCurrencyCode={preferredCurrencyCode}
       initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
-      autoOpenCreate={(Array.isArray(searchParams?.create) ? searchParams?.create[0] : searchParams?.create) === "1"}
+      formularioAlEntrar={elFormularioAlEntrar(searchParams?.create)}
+      proveedores={proveedores}
       cuentasDisponibles={cuentas.disponibles}
       cuentasElegidas={cuentas.elegidas}
     />
