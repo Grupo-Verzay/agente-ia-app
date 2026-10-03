@@ -29,6 +29,14 @@
 # arriba, sin «para quién», sin plan superior y la tarjeta con TODAS). Y
 # ANTES_DE_LOS_BLOQUES (la cabecera con nombre y precio encima del video, las
 # funciones agrupadas por categoría, «No incluido» y la ventana intermedia).
+#
+# Y un cuarto (`plan-configurable.test.mjs`): la tarjeta de la landing en su
+# orden (precio, créditos «incluidos», puntos, «Ver todo» y el botón), la
+# landing abriendo en mensual, el párrafo de agencias alineado con su ícono, los
+# recuadros de capacidad como una LISTA del panel (cuántos y cuáles, por plan,
+# sin depender de las funciones; vacía no enseña ninguno), el tutorial a la
+# derecha del nombre, los títulos sin el nombre del plan y el video con marco.
+# Su «antes» es ANTES_DE_LO_CONFIGURABLE.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -44,6 +52,8 @@ ANTES_DE_LO_NUEVO="${ANTES_DE_LO_NUEVO:-fd21c8f}"
 export ANTES_DE_LO_NUEVO
 ANTES_DE_LOS_BLOQUES="${ANTES_DE_LOS_BLOQUES:-0b7c21f}"
 export ANTES_DE_LOS_BLOQUES
+ANTES_DE_LO_CONFIGURABLE="${ANTES_DE_LO_CONFIGURABLE:-df810cd}"
+export ANTES_DE_LO_CONFIGURABLE
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
@@ -155,15 +165,50 @@ if [ "$MODO" = "roto" ]; then
   (cd "$ANTES3" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
     lib/__tests__/fingido/tarjeta-de-plan-harness.tsx "$RAIZ/$OUT/tarjeta-bloques-antes.js" "${ALIAS_TARJETA[@]}")
   git worktree remove --force "$ANTES3" 2>/dev/null || rm -rf "$ANTES3"
+
+  # El código de antes de lo configurable: los tres recuadros fijos, el tutorial
+  # debajo del nombre y la tarjeta con «gratis». El bloque de agencias vivía
+  # dentro de `LandingClient`: se le añade un export con SU marcado, sin tocarlo.
+  ANTES4="$RAIZ/lib/__tests__/.antes/plan-configurable"
+  git worktree remove --force "$ANTES4" 2>/dev/null || rm -rf "$ANTES4"
+  git worktree add --detach "$ANTES4" "$ANTES_DE_LO_CONFIGURABLE" >/dev/null 2>&1
+  ln -s "$RAIZ/node_modules" "$ANTES4/node_modules"
+  cp lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
+     lib/__tests__/fingido/minio-de-video.ts \
+     lib/__tests__/fingido/next-server.ts \
+     "$ANTES4/lib/__tests__/fingido/"
+  python3 - "$ANTES4/app/(public)/inicio/_components/LandingClient.tsx" <<'PY'
+import sys, re
+p = sys.argv[1]
+s = open(p, encoding="utf8").read()
+i = s.index("¿Tienes un equipo o eres una agencia?")
+ini = s.rindex("<FadeIn", 0, i)
+ini = s.index(">", ini) + 1
+fin = s.index("</FadeIn>", i)
+bloque = s[ini:fin]
+s += "\nexport function BloqueDeAgencias({ whatsappNumber }: { whatsappNumber?: string | null }) {\n  return (<>" + bloque + "</>);\n}\n"
+open(p, "w", encoding="utf8").write(s)
+PY
+  (cd "$ANTES4" && npx esbuild lib/__tests__/fingido/entrada-de-pagina-de-plan.ts --bundle \
+    --platform=node --format=esm --outfile="$RAIZ/$OUT/entrada-configurable-antes.js" \
+    --banner:js="$BANNER_ESM" "${ALIAS_NODO[@]}")
+  sed -i '/server-only/d' "$OUT/entrada-configurable-antes.js"
+  (cd "$ANTES4" && npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=iife \
+    --outfile="$RAIZ/$OUT/harness-configurable-antes.js" --jsx=automatic \
+    --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
+    --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error)
+  (cd "$ANTES4" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+    lib/__tests__/fingido/tarjeta-de-plan-harness.tsx "$RAIZ/$OUT/tarjeta-configurable-antes.js" "${ALIAS_TARJETA[@]}")
+  git worktree remove --force "$ANTES4" 2>/dev/null || rm -rf "$ANTES4"
   git worktree prune
 
-  # Los tres ficheros comparten la base: uno detrás de otro, nunca a la vez.
-  node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs "$@"
+  # Los cuatro ficheros comparten la base: uno detrás de otro, nunca a la vez.
+  node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs lib/__tests__/plan-configurable.test.mjs "$@"
   exit $?
 fi
 
 # 1. La regla pura (y las guías publicadas, para comprobar que existen).
-npx esbuild lib/pagina-de-plan.ts lib/tutoriales-del-modulo.ts lib/video-subido.ts --bundle --platform=node --format=esm \
+npx esbuild lib/pagina-de-plan.ts lib/tutoriales-del-modulo.ts lib/video-subido.ts lib/tarjeta-de-plan.ts lib/creditos-incluidos.ts --bundle --platform=node --format=esm \
   --outdir="$OUT" --external:@prisma/client --log-level=error
 
 # 2. Las acciones y la página armada, contra Postgres.
@@ -181,4 +226,4 @@ npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=i
 node scripts/empaquetar-con-acciones-mudas.mjs lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
   "$OUT/tarjeta.js" "${ALIAS_TARJETA[@]}"
 
-node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs "$@"
+node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs lib/__tests__/plan-configurable.test.mjs "$@"

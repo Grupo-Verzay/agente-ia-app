@@ -3,16 +3,14 @@ import "server-only";
 import { db } from "@/lib/db";
 import {
     comoOrdenDeBloques,
-    comoRecuadros,
     esElOrdenDeFabrica,
-    esElRecuadroSinTocar,
+    laListaQueSeGuarda,
     type BloqueDeLaPagina,
-    type RecuadrosDelPlan,
 } from "@/lib/pagina-de-plan";
 
 /**
  * Cómo se arma la página pública de cada plan: el ORDEN de sus bloques y los
- * recuadros de catálogo y asistencia escritos en el panel. `plan_pagina`,
+ * recuadros del resumen de capacidad, escritos en el panel. `plan_pagina`,
  * tabla de la App con `CREATE TABLE IF NOT EXISTS` y **sin clave foránea**. Ni
  * una columna en `plan_details` ni en `subscription_plans`: son del BACKEND (él
  * lleva sus migraciones) y añadirles columnas desde aquí es lo que reventó el
@@ -20,9 +18,15 @@ import {
  *
  * Un plan sin fila se pinta en el orden de fábrica y con los recuadros de
  * fábrica: «sin fila» es lo único que significa «lo de siempre».
+ *
+ * `recuadros` es la LISTA tal cual la escribió el panel, o `null`: sin tocar,
+ * que la página arma con los datos del plan (`laListaDeRecuadros`). Una lista
+ * vacía es una decisión —el resumen no sale— y se guarda como lista vacía.
+ * Una fila de la forma de antes (un objeto con catálogo y asistencia) se
+ * devuelve tal cual y `comoListaDeRecuadros` la entiende.
  */
 
-export type PaginaGuardada = { orden: BloqueDeLaPagina[]; recuadros: RecuadrosDelPlan };
+export type PaginaGuardada = { orden: BloqueDeLaPagina[]; recuadros: unknown };
 
 let tablaLista: Promise<void> | null = null;
 
@@ -85,12 +89,20 @@ export async function laPaginaGuardada(subscriptionPlanId: string): Promise<Pagi
         `,
     );
     const fila = filas[0];
-    return fila ? { orden: comoOrdenDeBloques(fila.orden), recuadros: comoRecuadros(fila.recuadros) } : null;
+    if (!fila) return null;
+    const crudo = fila.recuadros;
+    const recuadros = Array.isArray(crudo)
+        ? laListaQueSeGuarda(crudo)
+        : crudo && typeof crudo === "object"
+          ? crudo
+          : null;
+    return { orden: comoOrdenDeBloques(fila.orden), recuadros };
 }
 
 /**
- * Escribe SOLO lo que llega (`undefined` deja lo que había). Si lo que queda es
- * el orden de fábrica y los dos recuadros sin tocar, la fila se borra.
+ * Escribe SOLO lo que llega (`undefined` deja lo que había). `recuadros: null`
+ * vuelve a los de fábrica. Si lo que queda es el orden de fábrica y los
+ * recuadros sin tocar, la fila se borra.
  */
 export async function guardarLaPagina(
     subscriptionPlanId: string,
@@ -98,16 +110,18 @@ export async function guardarLaPagina(
 ): Promise<PaginaGuardada> {
     const previo = await laPaginaGuardada(subscriptionPlanId);
     const orden = cambios.orden !== undefined ? comoOrdenDeBloques(cambios.orden) : comoOrdenDeBloques(previo?.orden);
-    const recuadros = cambios.recuadros !== undefined ? comoRecuadros(cambios.recuadros) : comoRecuadros(previo?.recuadros);
+    // Lo que llega del navegador solo puede ser una lista (saneada) o «sin
+    // tocar». Lo que ya estaba guardado se deja como estaba.
+    const recuadros = cambios.recuadros !== undefined ? laListaQueSeGuarda(cambios.recuadros) : (previo?.recuadros ?? null);
 
-    if (esElOrdenDeFabrica(orden) && esElRecuadroSinTocar(recuadros.catalogo) && esElRecuadroSinTocar(recuadros.asistencia)) {
+    if (esElOrdenDeFabrica(orden) && recuadros === null) {
         await conLaTabla(
             () => db.$executeRaw`DELETE FROM "plan_pagina" WHERE "subscriptionPlanId" = ${subscriptionPlanId}`,
         );
         return { orden, recuadros };
     }
     const ordenJson = JSON.stringify(orden);
-    const recuadrosJson = JSON.stringify(recuadros);
+    const recuadrosJson = recuadros === null ? null : JSON.stringify(recuadros);
     await conLaTabla(
         () => db.$executeRaw`
             INSERT INTO "plan_pagina" ("subscriptionPlanId", "orden", "recuadros", "actualizadoEn")

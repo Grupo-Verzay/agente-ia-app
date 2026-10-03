@@ -6,7 +6,7 @@ import {
   Check, Zap, Users, Star, MessageCircle, Bot, Calendar,
   ArrowRight, Menu, X, XCircle, Bell, FileSpreadsheet, Mic,
   LayoutTemplate, GitBranch, BrainCircuit, ChevronDown, ChevronUp,
-  Quote, ImageIcon, Loader2, ShieldCheck, Building2,
+  Quote, ImageIcon, Loader2, ShieldCheck, Building2, Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { elVideoDelPlan } from "@/lib/pagina-de-plan";
+import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
+import { elPeriodoDeEntrada, losCreditosDeLaTarjeta, losPuntosDeLaTarjeta } from "@/lib/tarjeta-de-plan";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
 import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
@@ -223,10 +225,9 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   if (showBillingYearly) availablePeriods.push("yearly");
   const showPricing = availablePeriods.length > 0;
   const showBillingToggle = availablePeriods.length > 1;
-  const defaultPeriod: BillingPeriod =
-    availablePeriods.includes("yearly") ? "yearly"
-      : availablePeriods.includes("quarterly") ? "quarterly"
-        : "monthly";
+  // Abre en MENSUAL: el precio de partida es el de un mes, y el descuento de
+  // trimestral o anual lo elige quien lo quiera ver (`elPeriodoDeEntrada`).
+  const defaultPeriod: BillingPeriod = elPeriodoDeEntrada(availablePeriods);
 
   const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>(defaultPeriod);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -760,38 +761,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-4">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
-            <div className="flex flex-col items-center gap-6 rounded-2xl border border-white/10 bg-white/5 px-8 py-8 sm:flex-row sm:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
-                  <Building2 className="h-6 w-6 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">¿Tienes un equipo o eres una agencia?</h3>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Tenemos planes para múltiples usuarios/cuentas y agencias que gestionan varios negocios.<br className="hidden sm:block" />
-                    Escríbenos y te armamos un plan a la medida para tu empresa o agencia.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2 sm:flex-nowrap">
-                    {["Múltiples usuarios/cuentas", "Gestión centralizada CRM/IA", "Precios mayoristas/resellers"].map((f) => (
-                      <span key={f} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                        <Check className="h-3 w-3 text-blue-400 shrink-0" /> {f}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="shrink-0">
-                <a
-                  href={`https://wa.me/${(whatsappNumber ?? "").replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa *hablar con un asesor* para un plan empresarial/agencia")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Hablar con un asesor
-                </a>
-              </div>
-            </div>
+            <BloqueDeAgencias whatsappNumber={whatsappNumber} />
           </FadeIn>
         </div>
       </section>
@@ -997,6 +967,48 @@ export function VideoDeLaLanding({ valor }: { valor: string }) {
   );
 }
 
+/**
+ * «¿Tienes un equipo o eres una agencia?»: el icono y el título en una fila, y
+ * el párrafo y las píldoras DEBAJO, empezando en el mismo filo que el icono,
+ * en escritorio y en un móvil. Va suelto para que el banco pinte el de VERDAD.
+ */
+export function BloqueDeAgencias({ whatsappNumber }: { whatsappNumber?: string | null }) {
+  return (
+      <div className="flex flex-col items-stretch gap-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-8 sm:px-8 md:flex-row md:items-center md:justify-between" data-bloque-de-agencias>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-4" data-zona="titulo-de-agencias">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
+              <Building2 className="h-6 w-6 text-blue-400" />
+            </div>
+            <h3 className="text-lg font-bold text-white">¿Tienes un equipo o eres una agencia?</h3>
+          </div>
+          <p className="mt-3 text-sm text-slate-400" data-zona="parrafo-de-agencias">
+            Tenemos planes para múltiples usuarios/cuentas y agencias que gestionan varios negocios.<br className="hidden sm:block" />
+            Escríbenos y te armamos un plan a la medida para tu empresa o agencia.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2" data-zona="pildoras-de-agencias">
+            {["Múltiples usuarios/cuentas", "Gestión centralizada CRM/IA", "Precios mayoristas/resellers"].map((f) => (
+              <span key={f} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                <Check className="h-3 w-3 text-blue-400 shrink-0" /> {f}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="shrink-0">
+          <a
+            href={`https://wa.me/${(whatsappNumber ?? "").replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa *hablar con un asesor* para un plan empresarial/agencia")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500 md:inline-flex md:w-auto"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Hablar con un asesor
+          </a>
+        </div>
+      </div>
+  );
+}
+
 export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, enOtraPestana = false }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
   whatsappNumber?: string | null;
@@ -1023,7 +1035,10 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
   // Panel › Planes. «Ver todo lo que incluye» lleva DIRECTO a la página del
   // plan, que enseña todas las encendidas (`features`). No hay ventana
   // intermedia: era un segundo resumen que repetía la tarjeta.
-  const resumen = plan.destacadas ?? plan.features;
+  // Los créditos dicen «incluidos», nunca «gratis», y la línea que solo repite
+  // los créditos del plan se quita: ya salen resaltados junto al precio.
+  const resumen = losPuntosDeLaTarjeta(plan.destacadas ?? plan.features, plan.credits);
+  const creditos = losCreditosDeLaTarjeta(plan.credits);
   const billedNote = billingPeriod === "monthly"
     ? "Facturado mensualmente"
     : billingPeriod === "quarterly"
@@ -1047,9 +1062,15 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
               : <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" />Asistencia humana</span>}
           </Badge>
         </div>
-        {plan.description && <p className="mt-1 text-xs text-slate-500">{plan.description}</p>}
+        {plan.description && (
+          <p className="mt-1.5 text-sm leading-snug text-slate-300" data-descripcion-de-la-tarjeta>
+            {conCreditosIncluidos(plan.description)}
+          </p>
+        )}
       </div>
-      <div className="mb-4">
+      {/* De arriba abajo: precio (con sus créditos), puntos clave, «ver todo»
+          y, al final, el botón. Leer primero y comprar después. */}
+      <div className="mb-4" data-precio-de-la-tarjeta>
         {isCustom ? (
           <div className="text-2xl font-bold text-slate-400">A consultar</div>
         ) : (
@@ -1061,7 +1082,15 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
             <p className="mt-0.5 text-xs text-slate-500">{billedNote}</p>
           </>
         )}
-        <p className="mt-0.5 text-xs text-slate-500">{plan.credits.toLocaleString()} créditos incluidos</p>
+        {creditos && (
+          <p
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-200"
+            data-creditos-de-la-tarjeta
+          >
+            <Coins className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+            {creditos}
+          </p>
+        )}
       </div>
       {resumen.length > 0 && (
         <ul className="mb-5 flex-1 space-y-1.5" data-funciones-de-la-tarjeta>
@@ -1072,7 +1101,15 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
           ))}
         </ul>
       )}
-      <div className="mt-auto space-y-2">
+      <div className="mt-auto space-y-2.5">
+        <Link
+          href={`/planes/${plan.plan}?tipo=${assistanceType}`}
+          {...(enOtraPestana ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500/10 py-2 text-sm font-semibold text-blue-300 transition-colors hover:border-blue-400/70 hover:bg-blue-500/20 hover:text-blue-200"
+          data-ver-el-plan
+        >
+          Ver todo lo que incluye <ArrowRight className="h-4 w-4" />
+        </Link>
         {isCustom ? (
           <a href={checkoutUrl ?? (whatsappNumber ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}` : "#")} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10">
@@ -1095,14 +1132,6 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
             </Button>
           </Link>
         )}
-        <Link
-          href={`/planes/${plan.plan}?tipo=${assistanceType}`}
-          {...(enOtraPestana ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-          className="block w-full py-1 text-center text-xs text-slate-500 transition-colors hover:text-slate-300"
-          data-ver-el-plan
-        >
-          Ver todo lo que incluye →
-        </Link>
       </div>
     </div>
   );

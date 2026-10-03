@@ -6,25 +6,22 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Bot,
   Briefcase,
   Check,
   ChevronDown,
   ChevronUp,
-  Coins,
   ExternalLink,
-  Package,
   Play,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { elDibujoDelRecuadro } from "@/components/shared/DibujoDelRecuadro";
 import { cn } from "@/lib/utils";
 import {
   conReproduccionAutomatica,
   type BloqueDeLaPagina,
   type BotonDelPlan,
   type PreguntaDelPlan,
-  type TarjetaDeCapacidad,
 } from "@/lib/pagina-de-plan";
 import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
 
@@ -36,8 +33,9 @@ import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
  *
  *   1. el video de ESE plan (enlace o archivo subido), si tiene;
  *   2. para quién es, con un caso típico de negocio;
- *   3. el resumen de capacidad: créditos, y catálogo y asistencia tal como se
- *      escribieron en el panel (un plan sin catálogo no tiene ese recuadro);
+ *   3. el resumen de capacidad: los recuadros que el panel haya puesto a ESE
+ *      plan, con su icono y su dato (un recuadro sin dato no sale, nunca un
+ *      «No incluido»);
  *   4. qué incluye: UNA tarjeta por función encendida, en una sola columna y
  *      en el orden del editor de funciones;
  *   5. las preguntas frecuentes de ese plan, si tiene;
@@ -58,12 +56,6 @@ const COLOR_DEL_PLAN: Record<string, string> = {
   avanzado: "from-violet-500 to-violet-600",
   enterprise: "from-amber-500 to-amber-600",
   personalizado: "from-rose-500 to-rose-600",
-};
-
-const ICONO_DE_CAPACIDAD: Record<TarjetaDeCapacidad["clave"], typeof Coins> = {
-  creditos: Coins,
-  catalogo: Package,
-  asistencia: Bot,
 };
 
 /** Un enlace de la plataforma va en la misma pestaña; uno de fuera, en otra y sin `opener`. */
@@ -118,7 +110,7 @@ function VideoDelPlan({ video }: { video: NonNullable<PaginaDelPlan["video"]> })
 
   if (video.tipo === "archivo") {
     return (
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black" data-video="archivo">
+      <div className="overflow-hidden rounded-lg bg-black" data-video="archivo">
         <video
           src={video.url}
           poster={video.miniatura ?? undefined}
@@ -134,7 +126,7 @@ function VideoDelPlan({ video }: { video: NonNullable<PaginaDelPlan["video"]> })
 
   if (reproduciendo || !video.miniatura) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black" data-video="iframe">
+      <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black" data-video="iframe">
         <iframe
           src={reproduciendo ? conReproduccionAutomatica(video.url) : video.url}
           title={video.titulo}
@@ -151,7 +143,7 @@ function VideoDelPlan({ video }: { video: NonNullable<PaginaDelPlan["video"]> })
     <button
       type="button"
       onClick={() => setReproduciendo(true)}
-      className="group relative block aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black text-left"
+      className="group relative block aspect-video w-full overflow-hidden rounded-lg bg-black text-left"
       aria-label={`Reproducir: ${video.titulo}`}
       data-video="miniatura"
     >
@@ -162,8 +154,37 @@ function VideoDelPlan({ video }: { video: NonNullable<PaginaDelPlan["video"]> })
           <Play className="h-6 w-6 fill-slate-900 text-slate-900" />
         </span>
       </span>
-      <span className="absolute bottom-4 left-4 right-4 text-sm font-medium text-white drop-shadow">{video.titulo}</span>
     </button>
+  );
+}
+
+/**
+ * El marco del video: se distingue del fondo oscuro de la página para que se
+ * lea como un VIDEO y no como una imagen más o un hueco negro. Un borde con el
+ * color del plan, un fondo más claro que la página y una fila arriba con el
+ * icono de reproducir y el título. El video va dentro, sin borde propio.
+ */
+function MarcoDelVideo({
+  titulo,
+  gradiente,
+  children,
+}: {
+  titulo: string;
+  gradiente: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("rounded-2xl bg-gradient-to-br p-px shadow-2xl shadow-black/60", gradiente)} data-marco-del-video>
+      <div className="rounded-[15px] bg-slate-800/95 p-2 sm:p-3">
+        <div className="flex items-center gap-2.5 px-1 pb-2 sm:pb-3" data-cabecera-del-video>
+          <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br", gradiente)}>
+            <Play className="h-3.5 w-3.5 fill-white text-white" />
+          </span>
+          <span className="min-w-0 text-sm font-semibold leading-snug text-white">{titulo}</span>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -197,11 +218,18 @@ function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
   );
 }
 
-/** Cuántas columnas lleva el resumen: tantas como recuadros (uno, dos o tres). Clases literales: Tailwind no ve las compuestas. */
+/**
+ * Cuántas columnas lleva el resumen según cuántos recuadros haya (de uno a
+ * `TOPE_DE_RECUADROS`): filas llenas, nunca una última fila con uno suelto.
+ * Clases literales: Tailwind no ve las compuestas.
+ */
 const COLUMNAS_DE_CAPACIDAD: Record<number, string> = {
   1: "mx-auto max-w-sm",
   2: "sm:grid-cols-2",
   3: "sm:grid-cols-3",
+  4: "sm:grid-cols-2 lg:grid-cols-4",
+  5: "sm:grid-cols-2 lg:grid-cols-3",
+  6: "sm:grid-cols-2 lg:grid-cols-3",
 };
 
 export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
@@ -216,7 +244,9 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.video ? (
           <section key={clave} className="px-4 py-10" data-seccion="video">
             <div className="mx-auto max-w-4xl">
-              <VideoDelPlan video={pagina.video} />
+              <MarcoDelVideo titulo={pagina.video.titulo} gradiente={gradiente}>
+                <VideoDelPlan video={pagina.video} />
+              </MarcoDelVideo>
             </div>
           </section>
         ) : null;
@@ -246,14 +276,24 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
           <section key={clave} className="bg-white/[0.02] px-4 py-10" data-seccion="capacidad">
             <div className={cn("mx-auto grid max-w-5xl gap-4", COLUMNAS_DE_CAPACIDAD[pagina.capacidad.length] ?? "sm:grid-cols-3")}>
               {pagina.capacidad.map((t) => {
-                const Icono = ICONO_DE_CAPACIDAD[t.clave];
+                const Icono = elDibujoDelRecuadro(t.icono);
                 return (
-                  <div key={t.clave} className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-capacidad={t.clave}>
-                    <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-                      <Icono className="h-4 w-4" /> {t.titulo}
+                  <div
+                    key={t.id}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+                    data-capacidad={t.id}
+                    data-icono={t.icono}
+                  >
+                    {t.titulo && (
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+                        <Icono className="h-4 w-4 shrink-0" /> {t.titulo}
+                      </div>
+                    )}
+                    <div className={cn("text-2xl font-bold text-white", t.titulo ? "mt-2" : "flex items-center gap-2")}>
+                      {!t.titulo && <Icono className="h-5 w-5 shrink-0 text-slate-400" />}
+                      {t.valor}
                     </div>
-                    <div className="mt-2 text-2xl font-bold text-white">{t.valor}</div>
-                    <p className="mt-1 text-sm text-slate-400">{t.detalle}</p>
+                    {t.detalle && <p className="mt-1 text-sm text-slate-400">{t.detalle}</p>}
                   </div>
                 );
               })}
@@ -265,7 +305,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.funciones.length > 0 ? (
           <section key={clave} className="px-4 py-12" data-seccion="funciones">
             <div className="mx-auto max-w-3xl">
-              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Qué incluye el plan {pagina.nombre}</h2>
+              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Qué incluye este plan</h2>
               <ul className="space-y-3" data-lista-de-funciones>
                 {pagina.funciones.map((f) => (
                   <li
@@ -274,21 +314,26 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
                     data-funcion={f.id}
                   >
                     <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
-                    <div className="min-w-0">
-                      <p className="text-base font-medium text-white">{f.nombre}</p>
+                    <div className="min-w-0 flex-1">
+                      {/* El nombre y su guía en la MISMA fila: la guía pegada a la derecha. */}
+                      <div className="flex items-start justify-between gap-3" data-fila-de-la-funcion>
+                        <p className="min-w-0 flex-1 text-base font-medium text-white" data-nombre-de-la-funcion>
+                          {f.nombre}
+                        </p>
+                        {f.tutorial && (
+                          <Enlace
+                            url={f.tutorial.url}
+                            externo={f.tutorial.externo}
+                            className="mt-0.5 inline-flex max-w-[45%] shrink-0 items-center gap-1 text-right text-xs font-medium text-blue-400 hover:text-blue-300"
+                            data-tutorial={f.tutorial.url}
+                          >
+                            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                            <span>{f.tutorial.externo ? "Ver tutorial" : f.tutorial.titulo}</span>
+                            {f.tutorial.externo && <ExternalLink className="h-3 w-3 shrink-0" />}
+                          </Enlace>
+                        )}
+                      </div>
                       {f.descripcion && <p className="mt-1 text-sm leading-relaxed text-slate-400">{f.descripcion}</p>}
-                      {f.tutorial && (
-                        <Enlace
-                          url={f.tutorial.url}
-                          externo={f.tutorial.externo}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300"
-                          data-tutorial={f.tutorial.url}
-                        >
-                          <BookOpen className="h-3.5 w-3.5" />
-                          {f.tutorial.externo ? "Ver tutorial" : f.tutorial.titulo}
-                          {f.tutorial.externo && <ExternalLink className="h-3 w-3" />}
-                        </Enlace>
-                      )}
                     </div>
                   </li>
                 ))}
@@ -301,7 +346,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.preguntas.length > 0 ? (
           <section key={clave} className="px-4 py-12" data-seccion="preguntas">
             <div className="mx-auto max-w-3xl">
-              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes sobre {pagina.nombre}</h2>
+              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes</h2>
               <Preguntas preguntas={pagina.preguntas} />
             </div>
           </section>

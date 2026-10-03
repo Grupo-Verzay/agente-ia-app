@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
+import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
+import { elPeriodoDeEntrada } from "@/lib/tarjeta-de-plan";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
@@ -351,7 +353,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
         <ul className="mb-5 flex-1 space-y-1.5">
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-              <Check className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", brand ? "brand-text" : "text-blue-400")} />{f}
+              <Check className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", brand ? "brand-text" : "text-blue-400")} />{conCreditosIncluidos(f)}
             </li>
           ))}
         </ul>
@@ -430,11 +432,9 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
   if (showBillingYearly) availablePeriods.push("yearly");
   const showPricing = availablePeriods.length > 0;
   const showBillingToggle = availablePeriods.length > 1;
-  // Preferencia por defecto: anual → trimestral → mensual (el primero habilitado).
-  const defaultPeriod: BillingPeriod =
-    availablePeriods.includes("yearly") ? "yearly"
-      : availablePeriods.includes("quarterly") ? "quarterly"
-        : "monthly";
+  // Abre en mensual, como la landing principal: el descuento lo elige quien
+  // lo quiera ver (`elPeriodoDeEntrada`).
+  const defaultPeriod: BillingPeriod = elPeriodoDeEntrada(availablePeriods);
 
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(hasIA ? "IA" : "HUMANO");
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(defaultPeriod);

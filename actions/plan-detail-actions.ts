@@ -7,10 +7,11 @@ import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 import {
   comoOrdenDeBloques,
   comoParaQuien,
-  comoRecuadros,
+  esLaListaDeFabrica,
+  laListaQueSeGuarda,
+  losDatosDelPlan,
   type BloqueDeLaPagina,
   type ParaQuienDelPlan,
-  type RecuadrosDelPlan,
 } from "@/lib/pagina-de-plan";
 import { guardarLaPagina, laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado, guardarElParaQuien } from "@/lib/plan-para-quien-db";
@@ -113,7 +114,9 @@ function parsePlanDetail(raw: Record<string, unknown>): PlanDetailData {
  * El detalle de un plan y, aparte, lo escrito en «Para quién es este plan»
  * (`plan_para_quien`, tabla de la App: `null` es «nunca se escribió», y la
  * página enseña lo de fábrica) y el orden de los bloques de la página con los
- * recuadros de catálogo y asistencia (`plan_pagina`; sin fila, lo de fábrica).
+ * recuadros del resumen de capacidad (`plan_pagina`; sin fila, lo de fábrica).
+ * Los recuadros viajan CRUDOS (`null`: sin tocar): el panel los arma con los
+ * datos del plan, que ya tiene delante (`laListaDeRecuadros`).
  * Si una de esas tablas no se puede leer, el detalle sale igual y se dice: el
  * panel no se queda sin video ni preguntas por eso.
  */
@@ -135,7 +138,7 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
       data: detail ? parsePlanDetail(detail as unknown as Record<string, unknown>) : null,
       paraQuien: paraQuien as ParaQuienDelPlan | null,
       orden: (pagina?.orden ?? comoOrdenDeBloques(null)) as BloqueDeLaPagina[],
-      recuadros: (pagina?.recuadros ?? comoRecuadros(null)) as RecuadrosDelPlan,
+      recuadros: (pagina?.recuadros ?? null) as unknown,
     };
   } catch (e) {
     console.error("[getPlanDetailBySubscriptionPlanId]", e);
@@ -144,7 +147,7 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
       data: null,
       paraQuien: null as ParaQuienDelPlan | null,
       orden: comoOrdenDeBloques(null) as BloqueDeLaPagina[],
-      recuadros: comoRecuadros(null) as RecuadrosDelPlan,
+      recuadros: null as unknown,
     };
   }
 }
@@ -190,7 +193,7 @@ export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPla
   caso?: string;
   /** En qué orden van los bloques de la página. Vive en `plan_pagina`. */
   orden?: unknown;
-  /** Los recuadros de catálogo y asistencia, al lado del orden. */
+  /** Los recuadros del resumen de capacidad, al lado del orden: una lista, o `null` para los de fábrica. */
   recuadros?: unknown;
 };
 
@@ -248,7 +251,16 @@ export async function upsertPlanDetail(
     // El orden y los recuadros, igual: solo lo que llega, y saneado en
     // `guardarLaPagina` (lo que llega del navegador no decide qué se guarda).
     if (entrada.orden !== undefined || entrada.recuadros !== undefined) {
-      await guardarLaPagina(subscriptionPlanId, { orden: entrada.orden, recuadros: entrada.recuadros });
+      let recuadros: unknown = entrada.recuadros;
+      // Una lista que dice exactamente lo de fábrica se guarda como «sin
+      // tocar»: así sigue al plan cuando cambie (un plan que gana catálogo
+      // gana su recuadro de catálogo sin que nadie lo escriba).
+      const lista = recuadros === undefined ? null : laListaQueSeGuarda(recuadros);
+      if (lista) {
+        const plan = await db.subscriptionPlan.findUnique({ where: { id: subscriptionPlanId } });
+        if (plan && esLaListaDeFabrica(lista, losDatosDelPlan(plan, []))) recuadros = null;
+      }
+      await guardarLaPagina(subscriptionPlanId, { orden: entrada.orden, recuadros });
     }
 
     revalidatePath("/planes");

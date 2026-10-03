@@ -33,7 +33,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { VideoUploader } from "@/components/ui/video-uploader";
@@ -42,38 +41,41 @@ import {
   upsertPlanDetail,
   type UpsertPlanDetailInput,
 } from "@/actions/plan-detail-actions";
+import { elDibujoDelRecuadro } from "@/components/shared/DibujoDelRecuadro";
 import {
   BLOQUES_DE_LA_PAGINA,
   DATOS_QUE_SE_PUEDEN_USAR,
+  ICONOS_DE_RECUADRO,
   PARA_QUIEN_DE_FABRICA,
-  RECUADROS_EDITABLES,
   TOPES_DEL_RECUADRO,
+  TOPE_DE_RECUADROS,
   TOPE_DEL_CASO,
   TOPE_DEL_PARA_QUIEN,
   comoEnlaceDelBoton,
   comoOrdenDeBloques,
-  comoRecuadros,
-  elPlanTraeCatalogo,
   elVideoDelPlan,
+  esLaListaDeFabrica,
+  laListaDeRecuadros,
   losAvisosDelBoton,
   losAvisosDelParaQuien,
-  losAvisosDelRecuadro,
   losAvisosDelTexto,
   losRecuadrosDeFabrica,
+  revisarLosRecuadros,
+  unRecuadroNuevo,
   type BloqueDeLaPagina,
-  type ClaveDelRecuadro,
   type DatosDelPlan,
-  type FuncionDelPlan,
+  type IconoDeRecuadro,
   type ParaQuienDelPlan,
-  type RecuadroEditable,
-  type RecuadrosDelPlan,
+  type RecuadroDeCapacidad,
+  type TarjetaDeCapacidad,
 } from "@/lib/pagina-de-plan";
 
 /**
  * Lo que es SOLO de un plan en su página pública: el ORDEN de sus bloques
  * (arrastrando), el video (enlace o archivo subido), «para quién es este plan»
- * con su caso típico, los recuadros de catálogo y asistencia, sus preguntas
- * frecuentes, los botones y el título de la pestaña.
+ * con su caso típico, los recuadros del resumen de capacidad (cuántos, en qué
+ * orden y qué dato destaca cada uno), sus preguntas frecuentes, los botones y
+ * el título de la pestaña.
  *
  * Todo lo demás de la página —el nombre, el precio, los créditos, el tope del
  * catálogo y las funciones, una tarjeta por función en el orden en que se
@@ -177,19 +179,23 @@ export function PlanDetailTab({
   datos,
   enlaceDeLaPagina,
   planActivo,
-  funciones = [],
 }: {
   subscriptionPlanId: string;
   datos: DatosDelPlan;
   enlaceDeLaPagina: string;
   planActivo: boolean;
-  /** Las del formulario de Configuración: de ahí sale el detalle de fábrica de «Asistencia». */
-  funciones?: FuncionDelPlan[];
 }) {
   const [form, setForm] = useState<Detalle>(VACIO);
   const [paraQuien, setParaQuien] = useState<ParaQuienDelPlan>({ paraQuien: "", caso: "" });
   const [orden, setOrden] = useState<BloqueDeLaPagina[]>(() => comoOrdenDeBloques(null));
-  const [recuadros, setRecuadros] = useState<RecuadrosDelPlan>(() => comoRecuadros(null));
+  /**
+   * Los recuadros tal cual llegaron de la base (`null`: sin tocar) y, aparte,
+   * los que se están escribiendo (`null` mientras no se toque nada). Sin
+   * tocar, la lista se arma con el plan del formulario y guardar NO la manda:
+   * así un plan sin recuadros escritos sigue diciendo sus datos de hoy.
+   */
+  const [recuadrosGuardados, setRecuadrosGuardados] = useState<unknown>(null);
+  const [recuadrosEscritos, setRecuadrosEscritos] = useState<RecuadroDeCapacidad[] | null>(null);
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [hayDeAntes, setHayDeAntes] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -219,7 +225,8 @@ export function PlanDetailTab({
         });
         setParaQuien({ paraQuien: res.paraQuien?.paraQuien ?? "", caso: res.paraQuien?.caso ?? "" });
         setOrden(comoOrdenDeBloques(res.orden));
-        setRecuadros(comoRecuadros(res.recuadros));
+        setRecuadrosGuardados(res.recuadros ?? null);
+        setRecuadrosEscritos(null);
         const faqs = Array.isArray(d?.faqs) ? (d!.faqs as unknown[]) : [];
         setPreguntas(
           faqs.map((f) => {
@@ -266,8 +273,31 @@ export function PlanDetailTab({
       return de < 0 || a < 0 || a >= lista.length ? lista : arrayMove(lista, de, a);
     });
 
-  const cambiarRecuadro = (clave: ClaveDelRecuadro, patch: Partial<RecuadroEditable>) =>
-    setRecuadros((r) => ({ ...r, [clave]: { ...r[clave], ...patch } }));
+  const recuadros = recuadrosEscritos ?? laListaDeRecuadros(recuadrosGuardados, datos);
+
+  /** Cualquier cambio arranca de la lista que se está viendo y la deja «tocada». */
+  const tocarLosRecuadros = (cambio: (lista: RecuadroDeCapacidad[]) => RecuadroDeCapacidad[]) =>
+    setRecuadrosEscritos((escritos) => cambio(escritos ?? laListaDeRecuadros(recuadrosGuardados, datos)));
+
+  const cambiarRecuadro = (id: string, patch: Partial<RecuadroDeCapacidad>) =>
+    tocarLosRecuadros((lista) => lista.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const moverRecuadro = (id: string, paso: -1 | 1) =>
+    tocarLosRecuadros((lista) => {
+      const de = lista.findIndex((r) => r.id === id);
+      const a = de + paso;
+      return de < 0 || a < 0 || a >= lista.length ? lista : arrayMove(lista, de, a);
+    });
+
+  const alSoltarUnRecuadro = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    tocarLosRecuadros((lista) => {
+      const de = lista.findIndex((r) => r.id === active.id);
+      const a = lista.findIndex((r) => r.id === over.id);
+      return de < 0 || a < 0 ? lista : arrayMove(lista, de, a);
+    });
+  };
 
   const alSoltar = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -287,15 +317,23 @@ export function PlanDetailTab({
       paraQuien: paraQuien.paraQuien,
       caso: paraQuien.caso,
       orden,
-      recuadros,
+      // Solo si se tocaron: sin tocar, la página sigue armándolos con el plan.
+      ...(recuadrosEscritos ? { recuadros: recuadrosEscritos } : {}),
       faqs: preguntas
         .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
         .filter((p) => p.question || p.answer),
     };
     try {
       const res = await upsertPlanDetail(subscriptionPlanId, datosAGuardar);
-      if (res.success) toast.success(res.message);
-      else toast.error(res.message);
+      if (res.success) {
+        toast.success(res.message);
+        if (recuadrosEscritos) {
+          // Lo que dice lo de fábrica se guardó como «sin tocar» (la acción lo
+          // decide igual): desde ahora sigue al plan.
+          setRecuadrosGuardados(esLaListaDeFabrica(recuadrosEscritos, datos) ? null : recuadrosEscritos);
+          setRecuadrosEscritos(null);
+        }
+      } else toast.error(res.message);
     } catch (e) {
       console.error("[planes] no se pudo guardar el detalle del plan", e);
       toast.error("No se pudo guardar el detalle. Revisa la conexión y vuelve a intentarlo.");
@@ -318,11 +356,13 @@ export function PlanDetailTab({
     (PARA_QUIEN_DE_FABRICA as Record<string, ParaQuienDelPlan>)[datos.plan] ?? PARA_QUIEN_DE_FABRICA.personalizado;
   const avisosDelParaQuien = losAvisosDelParaQuien(paraQuien, datos);
   const aviso = (lista: string[]) => (lista.length ? [`No sale en la página (sale el de fábrica): ${lista.join(" ")}`] : []);
-  const recuadrosDeFabrica = losRecuadrosDeFabrica(datos, funciones);
-  const traeCatalogo = elPlanTraeCatalogo(datos);
+  const revisados = revisarLosRecuadros(recuadros, datos);
+  const cuantosSalen = revisados.filter((r) => r.comoSale).length;
+  const sonLosDeFabrica = esLaListaDeFabrica(recuadros, datos);
   /** Por qué un bloque no va a salir aunque esté en el orden. */
   const porQueNoSale: Partial<Record<BloqueDeLaPagina, string>> = {
     ...(video ? {} : { video: "Sin video: no sale." }),
+    ...(cuantosSalen > 0 ? {} : { capacidad: "Sin recuadros con dato: no sale." }),
     ...(preguntas.some((p) => p.question.trim() && p.answer.trim()) ? {} : { preguntas: "Sin preguntas: no sale." }),
   };
 
@@ -462,67 +502,73 @@ export function PlanDetailTab({
       </Bloque>
 
       <Bloque
-        titulo="Recuadros de capacidad"
+        titulo={`Recuadros de capacidad (${recuadros.length} de ${TOPE_DE_RECUADROS})`}
         ayuda={
           <>
-            El resumen de capacidad lleva tres recuadros. Los créditos salen siempre del plan (pestaña
-            Configuración); el de catálogo y el de asistencia se escriben aquí. Un campo vacío dice lo de
-            fábrica, armado con el plan de hoy. Puedes escribir {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")}.
+            Tú decides cuántos recuadros salen en el resumen de este plan, en qué orden y qué dato destaca cada
+            uno; no dependen de las funciones. Un recuadro sin dato no sale, y nunca sale «No incluido». Puedes
+            escribir {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")} y salen con el dato de hoy.
           </>
         }
       >
-        {RECUADROS_EDITABLES.map(({ clave, nombre }) => {
-          const r = recuadros[clave];
-          const deFabrica = recuadrosDeFabrica[clave];
-          const sinCatalogo = clave === "catalogo" && !traeCatalogo;
-          const avisos = losAvisosDelRecuadro(clave, r, datos);
-          return (
-            <div key={clave} className="space-y-2 rounded-md border border-border p-2" data-recuadro={clave}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold">{nombre}</p>
-                {!sinCatalogo && (
-                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    {r.visible ? "Se enseña" : "No se enseña"}
-                    <Switch
-                      checked={r.visible}
-                      onCheckedChange={(v) => cambiarRecuadro(clave, { visible: v })}
-                      aria-label={`Enseñar el recuadro de ${nombre}`}
-                      data-recuadro-visible
-                    />
-                  </label>
-                )}
-              </div>
-              {sinCatalogo ? (
-                <p className="text-[11px] text-muted-foreground" data-recuadro-sin-catalogo>
-                  Este plan no trae catálogo: el recuadro no sale en la página.
-                </p>
-              ) : !r.visible ? (
-                <p className="text-[11px] text-muted-foreground" data-recuadro-apagado>
-                  Apagado: el recuadro no sale en la página.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {(["titulo", "valor", "detalle"] as const).map((campo) => (
-                    <div key={campo} className={`space-y-1 ${campo === "detalle" ? "sm:col-span-3" : ""}`}>
-                      <Label className="text-[11px]">
-                        {campo === "titulo" ? "Título" : campo === "valor" ? "Dato grande" : "Detalle"}
-                      </Label>
-                      <Input
-                        value={r[campo]}
-                        maxLength={TOPES_DEL_RECUADRO[campo]}
-                        onChange={(e) => cambiarRecuadro(clave, { [campo]: e.target.value })}
-                        placeholder={deFabrica?.[campo] ?? ""}
-                        className="h-8 text-xs"
-                        data-campo-del-recuadro={`${clave}-${campo}`}
-                      />
-                      <Avisos avisos={aviso(avisos[campo])} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {recuadros.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground" data-sin-recuadros>
+            Sin recuadros: el resumen de capacidad no sale en la página.
+          </p>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={alSoltarUnRecuadro}>
+            <SortableContext items={recuadros.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+              <ol className="space-y-2" data-lista-de-recuadros>
+                {revisados.map(({ recuadro, motivos, comoSale }, i) => (
+                  <FilaDeRecuadro
+                    key={recuadro.id}
+                    recuadro={recuadro}
+                    posicion={i + 1}
+                    motivos={motivos}
+                    comoSale={comoSale}
+                    primero={i === 0}
+                    ultimo={i === recuadros.length - 1}
+                    onCambiar={(patch) => cambiarRecuadro(recuadro.id, patch)}
+                    onSubir={() => moverRecuadro(recuadro.id, -1)}
+                    onBajar={() => moverRecuadro(recuadro.id, 1)}
+                    onQuitar={() => tocarLosRecuadros((lista) => lista.filter((r) => r.id !== recuadro.id))}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          </DndContext>
+        )}
+        {recuadros.length > 0 && cuantosSalen === 0 && (
+          <Avisos avisos={["Ningún recuadro tiene dato: el resumen de capacidad no sale en la página."]} />
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            disabled={recuadros.length >= TOPE_DE_RECUADROS}
+            onClick={() => tocarLosRecuadros((lista) => [...lista, unRecuadroNuevo(lista)])}
+            data-agregar-recuadro
+          >
+            <Plus className="h-3.5 w-3.5" /> Agregar recuadro
+          </Button>
+          {!sonLosDeFabrica && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-xs"
+              onClick={() => setRecuadrosEscritos(losRecuadrosDeFabrica(datos))}
+              data-restaurar-recuadros
+            >
+              Volver a los de fábrica
+            </Button>
+          )}
+          {recuadros.length >= TOPE_DE_RECUADROS && (
+            <span className="text-[11px] text-muted-foreground">Caben {TOPE_DE_RECUADROS} como mucho.</span>
+          )}
+        </div>
       </Bloque>
 
       <Bloque
@@ -757,6 +803,169 @@ function FilaDeBloque({
             <ChevronDown className="mx-auto h-4 w-4" />
           </button>
         )}
+      </div>
+    </li>
+  );
+}
+
+function FilaDeRecuadro({
+  recuadro: r,
+  posicion,
+  motivos,
+  comoSale,
+  primero,
+  ultimo,
+  onCambiar,
+  onSubir,
+  onBajar,
+  onQuitar,
+}: {
+  recuadro: RecuadroDeCapacidad;
+  posicion: number;
+  motivos: string[];
+  comoSale: TarjetaDeCapacidad | null;
+  primero: boolean;
+  ultimo: boolean;
+  onCambiar: (patch: Partial<RecuadroDeCapacidad>) => void;
+  onSubir: () => void;
+  onBajar: () => void;
+  onQuitar: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.id });
+  const nombre = r.titulo.trim() || r.valor.trim() || `el recuadro ${posicion}`;
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex gap-2 rounded-md border border-border bg-background p-2 ${isDragging ? "z-10 opacity-80 shadow-md" : ""}`}
+      data-recuadro={r.id}
+    >
+      <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+        <button
+          type="button"
+          className="h-6 w-5 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+          title="Arrastrar para reordenar"
+          aria-label={`Arrastrar ${nombre}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="text-[11px] tabular-nums text-muted-foreground">{posicion}</span>
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="space-y-1">
+          <Label className="text-[11px]">Icono</Label>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Icono del recuadro" data-iconos-del-recuadro>
+            {ICONOS_DE_RECUADRO.map((icono) => {
+              const Dibujo = elDibujoDelRecuadro(icono.clave);
+              const puesto = r.icono === icono.clave;
+              return (
+                <button
+                  key={icono.clave}
+                  type="button"
+                  onClick={() => onCambiar({ icono: icono.clave as IconoDeRecuadro })}
+                  className={`flex h-7 w-7 items-center justify-center rounded-md border ${
+                    puesto
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={icono.nombre}
+                  aria-label={`Icono: ${icono.nombre}`}
+                  aria-pressed={puesto}
+                  data-icono-del-recuadro={icono.clave}
+                >
+                  <Dibujo className="h-3.5 w-3.5" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-[11px]">Título</Label>
+            <Input
+              value={r.titulo}
+              maxLength={TOPES_DEL_RECUADRO.titulo}
+              onChange={(e) => onCambiar({ titulo: e.target.value })}
+              placeholder="Créditos de IA"
+              className="h-8 text-xs"
+              data-campo-del-recuadro="titulo"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">Dato que destaca</Label>
+            <Input
+              value={r.valor}
+              maxLength={TOPES_DEL_RECUADRO.valor}
+              onChange={(e) => onCambiar({ valor: e.target.value })}
+              placeholder="{creditos}"
+              className="h-8 text-xs"
+              data-campo-del-recuadro="valor"
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label className="text-[11px]">Detalle (opcional)</Label>
+            <Input
+              value={r.detalle}
+              maxLength={TOPES_DEL_RECUADRO.detalle}
+              onChange={(e) => onCambiar({ detalle: e.target.value })}
+              placeholder="Incluidos cada mes con tu plan"
+              className="h-8 text-xs"
+              data-campo-del-recuadro="detalle"
+            />
+          </div>
+        </div>
+        {comoSale ? (
+          <p className="flex items-start gap-1 text-[11px] text-emerald-600 dark:text-emerald-400" data-recuadro-sale>
+            <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              Sale así: <strong>{comoSale.valor}</strong>
+              {comoSale.titulo ? ` · ${comoSale.titulo}` : ""}
+            </span>
+          </p>
+        ) : (
+          <div data-recuadro-no-sale>
+            <Avisos avisos={[`No sale en la página: ${motivos.join(" ")}`]} />
+          </div>
+        )}
+      </div>
+      {/* Lo que no se puede mover no se pinta apagado: se quita. */}
+      <div className="flex shrink-0 flex-col items-center">
+        {!primero && (
+          <button
+            type="button"
+            onClick={onSubir}
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title="Subir"
+            aria-label={`Subir ${nombre}`}
+            data-subir-recuadro
+          >
+            <ChevronUp className="mx-auto h-4 w-4" />
+          </button>
+        )}
+        {!ultimo && (
+          <button
+            type="button"
+            onClick={onBajar}
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title="Bajar"
+            aria-label={`Bajar ${nombre}`}
+            data-bajar-recuadro
+          >
+            <ChevronDown className="mx-auto h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onQuitar}
+          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+          title="Quitar recuadro"
+          aria-label={`Quitar ${nombre}`}
+          data-quitar-recuadro
+        >
+          <Trash2 className="mx-auto h-4 w-4" />
+        </button>
       </div>
     </li>
   );
