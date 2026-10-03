@@ -219,6 +219,7 @@ function TarjetaArrastrable({
             ref={setNodeRef}
             {...listeners}
             {...attributes}
+            data-tarjeta={tarjeta.id}
             className={cn(puedeMover ? 'cursor-grab active:cursor-grabbing' : 'cursor-default', isDragging && 'opacity-40')}
         >
             <KanbanCardItem card={comoTarjetaDelKanban(tarjeta)} pie={pie} />
@@ -266,10 +267,12 @@ function Columna({
     const esPerdido = manda && sePuedeVaciarLaColumna(etapa);
     return (
         <div
+            data-columna={etapa.nombre}
             className="flex h-full w-[260px] min-w-[260px] shrink-0 flex-col overflow-hidden rounded-xl border-2 shadow-sm"
             style={{ borderColor: color + '52', backgroundColor: color + '0A' }}
         >
             <div
+                data-cabeza-de-columna
                 className="flex shrink-0 items-center justify-between px-3 py-2"
                 style={{ backgroundColor: color }}
             >
@@ -999,7 +1002,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
     const selector = !actual ? null : manda ? (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-10 max-w-[16rem] shrink-0 justify-start gap-2">
+                <Button variant="outline" data-selector="embudo" className="h-10 max-w-[18rem] shrink-0 justify-start gap-2">
                     <Kanban className="h-4 w-4 shrink-0" />
                     <span className="min-w-0 truncate">Embudo: {actual.nombre}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
@@ -1333,7 +1336,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
 
             {/* ─── Editar etapas ─── */}
             <Sheet open={etapasAbierto} onOpenChange={(v) => !guardando && setEtapasAbierto(v)}>
-                <SheetContent side="right" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
+                <SheetContent side="right" data-hoja="etapas" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
                     <SheetHeader>
                         <SheetTitle>Etapas del embudo</SheetTitle>
                         <p className="text-xs text-muted-foreground">
@@ -1533,7 +1536,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                 pendiente que `doc_espacios` dejó escrito.
             */}
             <Sheet open={papeleraAbierta} onOpenChange={(v) => !guardando && setPapeleraAbierta(v)}>
-                <SheetContent side="right" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
+                <SheetContent side="right" data-hoja="papelera" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
                     <SheetHeader>
                         <SheetTitle>Papelera de Perdido</SheetTitle>
                         <p className="text-xs text-muted-foreground">
@@ -1591,7 +1594,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
 
             {/* ─── Asignar asesores ─── */}
             <Sheet open={asesoresAbierto} onOpenChange={(v) => !guardando && setAsesoresAbierto(v)}>
-                <SheetContent side="right" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
+                <SheetContent side="right" data-hoja="asesores" className="flex w-[22rem] max-w-full flex-col gap-4 sm:max-w-[22rem]">
                     <SheetHeader>
                         <SheetTitle>Asesores y su embudo</SheetTitle>
                         <p className="text-xs text-muted-foreground">
@@ -1609,7 +1612,7 @@ export function EmbudosClient({ inicial }: { inicial: TableroDeEmbudo }) {
                                     {iniciales(p.nombre)}
                                 </span>
                                 <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm" title={p.nombre}>
+                                    <p className="break-words text-sm leading-snug" title={p.nombre}>
                                         {p.nombre}
                                     </p>
                                     <p className="text-[11px] text-muted-foreground">

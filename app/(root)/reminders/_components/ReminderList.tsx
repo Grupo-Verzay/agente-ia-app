@@ -10,6 +10,7 @@ import TooltipWrapper from "@/components/TooltipWrapper"
 import { fmtPhone } from "@/lib/whatsapp-jid"
 import { ReminderListInterface } from "@/schema/reminder"
 import { elNombreDeLaRepeticion, laHoraDelEnvio } from "@/lib/repeticion-del-recordatorio"
+import { aQuienLeLlega, losContactosDeLaCampana } from "@/lib/campanas"
 import { cancelReminderPendingDeliveries, resumeReminderCanceledDeliveries, retryReminderFailedDeliveries } from "@/actions/reminders-actions"
 import { openDeleteDialog, openEditDialog } from "@/stores"
 import { toast } from "sonner"
@@ -25,6 +26,7 @@ import {
     Repeat2,
     Trash2,
     User,
+    Users,
     XCircle,
 } from "lucide-react"
 
@@ -74,7 +76,16 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
     const router = useRouter()
     const isRecurring = Boolean(reminder.repeatType && reminder.repeatType !== "NONE")
     const isSent = Boolean(reminder.sentAt)
-    const phone = fmtPhone(reminder.remoteJid)
+    // Una campaña guarda VARIOS contactos separados por comas: se nombran
+    // («3 contactos», con la lista entera al pasar el ratón) y no se arma un
+    // teléfono ni un enlace al chat con todos los números pegados.
+    const contactosDeLaCampana = reminder.isCampaign ? losContactosDeLaCampana(reminder.remoteJid, reminder.pushName) : null
+    const variosContactos = Boolean(contactosDeLaCampana && contactosDeLaCampana.length > 1)
+    const quien = contactosDeLaCampana ? aQuienLeLlega(contactosDeLaCampana) : (reminder.pushName ?? "")
+    const quienEntero = contactosDeLaCampana ? contactosDeLaCampana.map((c) => c.nombre).join(", ") : (reminder.pushName ?? "")
+    const jidDelChat = contactosDeLaCampana ? (variosContactos ? null : contactosDeLaCampana[0]?.jid ?? null) : reminder.remoteJid
+    const phone = jidDelChat ? fmtPhone(jidDelChat) : ""
+    const queEs = reminder.isCampaign ? "campaña" : "recordatorio"
     const repeatLabel = elNombreDeLaRepeticion(reminder.repeatType)
     const mainStatus = getMainStatus(deliverySummary)
     const StatusIcon = mainStatus ? statusConfig[mainStatus].Icon : null
@@ -82,7 +93,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
     const hasMedia = Boolean(deliverySummary?.items.some((item) => item.media))
 
     const goToChat = () => {
-        if (reminder.remoteJid) window.location.href = `/chats?jid=${encodeURIComponent(reminder.remoteJid)}`
+        if (jidDelChat) window.location.href = `/chats?jid=${encodeURIComponent(jidDelChat)}`
     }
 
     const runDeliveryAction = (action: () => Promise<{ success: boolean; message: string }>) => {
@@ -145,14 +156,14 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             )}
                         </div>
 
-                        {reminder.pushName && (
+                        {quien && (
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span className="flex min-w-0 items-center gap-1">
-                                    <User className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{reminder.pushName}</span>
+                                <span className="flex min-w-0 items-center gap-1" title={quienEntero}>
+                                    {variosContactos ? <Users className="h-3 w-3 shrink-0" /> : <User className="h-3 w-3 shrink-0" />}
+                                    <span className="truncate">{quien}</span>
                                 </span>
                                 <TooltipWrapper content="Editar">
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label="Editar recordatorio" data-boton="editar">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label={`Editar ${queEs}`} data-boton="editar">
                                         <Pencil className="h-3 w-3" />
                                     </Button>
                                 </TooltipWrapper>
@@ -172,7 +183,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                                 {formatReminderTime(reminder.time)}
                             </span>
                             <TooltipWrapper content="Eliminar">
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label="Eliminar recordatorio" data-boton="eliminar">
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label={`Eliminar ${queEs}`} data-boton="eliminar">
                                     <Trash2 className="h-3 w-3" />
                                 </Button>
                             </TooltipWrapper>
@@ -197,10 +208,10 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                         <div className="min-w-0 flex-1">
                             <h3 className="app-item-title truncate text-foreground uppercase" data-zona="titulo">{reminder.title}</h3>
                             <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
-                                {reminder.pushName && (
-                                    <span className="flex items-center gap-1" data-zona="contacto">
-                                        <User className="h-3 w-3 shrink-0" />
-                                        <span className="max-w-[180px] truncate">{reminder.pushName}</span>
+                                {quien && (
+                                    <span className="flex items-center gap-1" data-zona="contacto" title={quienEntero}>
+                                        {variosContactos ? <Users className="h-3 w-3 shrink-0" /> : <User className="h-3 w-3 shrink-0" />}
+                                        <span className="max-w-[180px] truncate">{quien}</span>
                                     </span>
                                 )}
                                 {phone && (
@@ -241,12 +252,12 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
                             <div className="flex items-center gap-0.5" data-zona="mandos">
                                 <TooltipWrapper content="Editar">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label="Editar recordatorio" data-boton="editar">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600" onClick={() => openEditDialog(reminder.id, reminder)} aria-label={`Editar ${queEs}`} data-boton="editar">
                                         <Pencil className="h-3.5 w-3.5" />
                                     </Button>
                                 </TooltipWrapper>
                                 <TooltipWrapper content="Eliminar">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label="Eliminar recordatorio" data-boton="eliminar">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openDeleteDialog(reminder.id)} aria-label={`Eliminar ${queEs}`} data-boton="eliminar">
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                 </TooltipWrapper>
