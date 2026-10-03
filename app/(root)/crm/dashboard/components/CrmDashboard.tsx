@@ -210,9 +210,10 @@ export const CrmDashboard = ({
                     Llamadas: ver `esLaPantallaDeLlamadas` arriba. */}
                 {!esLaPantallaDeLlamadas && (
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
+                        <div data-pestanas-del-crm className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
                             <button
                                 type="button"
+                                data-pestana="analiticas"
                                 onClick={() => setViewMode("analiticas")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -226,6 +227,7 @@ export const CrmDashboard = ({
                             </button>
                             <button
                                 type="button"
+                                data-pestana="registros"
                                 onClick={() => setViewMode("registros")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -239,6 +241,7 @@ export const CrmDashboard = ({
                             </button>
                             <button
                                 type="button"
+                                data-pestana="llamadas"
                                 onClick={() => setViewMode("llamadas")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -252,6 +255,7 @@ export const CrmDashboard = ({
                             </button>
                             <button
                                 type="button"
+                                data-pestana="kanban"
                                 onClick={() => setViewMode("kanban")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -265,6 +269,7 @@ export const CrmDashboard = ({
                             </button>
                             <button
                                 type="button"
+                                data-pestana="reportes"
                                 onClick={() => setViewMode("reportes")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -281,6 +286,7 @@ export const CrmDashboard = ({
                                 misma forma que las otras cinco. */}
                             <button
                                 type="button"
+                                data-pestana="calidad"
                                 onClick={() => setViewMode("calidad")}
                                 className={[
                                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",

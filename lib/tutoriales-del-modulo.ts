@@ -29,6 +29,7 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_REPORTES } from "@/lib/guia-reportes";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
@@ -307,6 +308,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/crm/rules",
         contenido: GUIA_FOLLOW_UPS,
         tarjeta: "Aprende a hacer seguimiento automático a tus leads en la plataforma",
+    },
+    {
+        modulo: "reportes",
+        ruta: "/crm/reportes",
+        contenido: GUIA_REPORTES,
+        tarjeta: "Aprende a revisar el resumen semanal de tu negocio en la plataforma",
     },
 ];
 

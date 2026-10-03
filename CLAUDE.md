@@ -25565,6 +25565,44 @@ Y el taller común reescribe también el `value` de los campos con
 `conElDominioDeLaGuia` (el enlace público de Ajustes va en un `<input>` y salía
 con `localhost`).
 
+### La vigesimonovena guía, Reportes: el resumen semanal, lo que la IA no supo y la Calidad
+
+`/guia/reportes` documenta Bandeja › Reportes (`/crm/reportes`, en el menú
+«Resumen» dentro de Panel) con el estándar de las anteriores: diez secciones
+—vista general, generar un reporte, leerlo (resumen, métricas, calidad y
+actividad), el envío por WhatsApp, exportar a Excel, borrar, «Lo que la IA no
+supo responder», los registros filtrados por tipo, y Calidad por asesor y por
+conversación—, una miniatura con enfoque por tarjeta y el vídeo con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/crm/reportes` (`GUIAS_PUBLICADAS`): «Aprende a revisar el resumen semanal de
+tu negocio en la plataforma». Ninguna pieza propia: contenido en
+`lib/guia-reportes.ts`, semilla `sembrar-guia-reportes.mjs`, receta
+`capturar-guia-reportes.mjs` y narración. Se regenera con
+`npm run build && scripts/generar-guia-reportes.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Generar un reporte es una llamada a la IA y un WhatsApp**, y en la guía los
+   contesta un doble (`fingido-guia-reportes.mjs`, cargado dentro de
+   `next start`): el reporte sale «Enviado» sin que a nadie le llegue nada.
+2. **Ni las capturas ni el vídeo borran nada**: la papelera abre su
+   confirmación y se cierra con «Volver»; «Eliminar todos» solo se señala. Lo
+   afirma el banco leyendo el guion.
+3. **La pantalla expone sus marcas** (`data-zona`, `data-reporte`,
+   `data-boton`, `data-pregunta`, `data-pestana`, `data-confirmar-borrado`) y
+   la receta no usa coordenadas. «Abrir la conversación» de Calidad es un
+   ENLACE, no un botón, y su columna es la última de una tabla que se desplaza
+   a lo ancho: se trae a la vista antes de medir.
+4. **La guía se compara con el código**: las pestañas del CRM, los botones de
+   la barra, los bloques y métricas de un reporte, las columnas del Excel, los
+   periodos de «Lo que la IA no supo», los tipos, columnas y acciones de
+   Registros y las columnas de Calidad.
+
+Lo prueba `scripts/banco-guia-reportes.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=reportes`, `fin-de-la-guia`, `menu-de-la-guia`
+y la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no
+había guía ni marcas en la pantalla.
+
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 
 Panel › Propuestas crea propuestas con página pública `/propuesta/<token>`

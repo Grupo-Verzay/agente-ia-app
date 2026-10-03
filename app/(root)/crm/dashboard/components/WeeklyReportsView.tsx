@@ -7,6 +7,16 @@ import { esDeOtraCuentaDelCrm } from '@/lib/crm-de-la-familia';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { lasLineasDeLaCalidad } from '@/lib/calidad-de-conversaciones';
 import {
@@ -47,6 +57,48 @@ const TIPO_LABELS: Record<string, { emoji: string; label: string }> = {
     PRODUCTO:  { emoji: '🛍️', label: 'Productos' },
 };
 
+// ─── Confirmar un borrado ─────────────────────────────────────────────────────
+
+/**
+ * Borrar un reporte —o todos— no se deshace, así que se pregunta antes, con la
+ * misma ventana en los dos casos. Antes la papelera de cada reporte borraba al
+ * primer clic y «Eliminar todos» usaba el `confirm` del navegador, que no se
+ * parece a nada de la plataforma.
+ */
+function ConfirmarBorrado({
+    abierto,
+    alCambiar,
+    titulo,
+    texto,
+    alConfirmar,
+}: {
+    abierto: boolean;
+    alCambiar: (v: boolean) => void;
+    titulo: string;
+    texto: string;
+    alConfirmar: () => void;
+}) {
+    return (
+        <AlertDialog open={abierto} onOpenChange={alCambiar}>
+            <AlertDialogContent data-confirmar-borrado onClick={(e) => e.stopPropagation()}>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{titulo}</AlertDialogTitle>
+                    <AlertDialogDescription>{texto}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Volver</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={alConfirmar}
+                    >
+                        Eliminar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 // ─── Report Card ──────────────────────────────────────────────────────────────
 
 function ReportCard({
@@ -69,10 +121,11 @@ function ReportCard({
 }) {
     const [expanded, setExpanded] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [confirmando, setConfirmando] = useState(false);
     const m = report.metrics;
 
-    const handleDelete = async (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleDelete = async () => {
+        setConfirmando(false);
         setDeleting(true);
         const res = await deleteWeeklyReport(report.id);
         if (res.success) {
@@ -87,9 +140,10 @@ function ReportCard({
     const actividadEntries = Object.entries(m.registrosByTipo ?? {}).filter(([tipo, count]) => count > 0 && TIPO_LABELS[tipo]);
 
     return (
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div data-reporte className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
             {/* Header */}
             <div
+                data-zona="cabecera-del-reporte"
                 className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
                 onClick={() => setExpanded((v) => !v)}
             >
@@ -105,19 +159,23 @@ function ReportCard({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
+                    <div data-zona="cifras-del-reporte" className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1" title="Leads">
                             <Users className="h-3 w-3" />
                             {m.totalLeads}
                         </span>
-                        <span className="flex items-center gap-1 text-green-600">
+                        <span className="flex items-center gap-1 text-green-600" title="Finalizados">
                             <CheckCheck className="h-3 w-3" />
                             {m.conversions}
                         </span>
                     </div>
 
                     {report.sentAt && (
-                        <Badge variant="outline" className="text-[10px] gap-1 border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                        <Badge
+                            data-zona="enviado"
+                            variant="outline"
+                            title={`Enviado por WhatsApp el ${fmtDate(report.sentAt)}`}
+                            className="text-[10px] gap-1 border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
                             <Send className="h-2.5 w-2.5" />
                             Enviado
                         </Badge>
@@ -125,8 +183,15 @@ function ReportCard({
 
                     {!ajeno && (
                         <button
-                            onClick={handleDelete}
+                            type="button"
+                            data-zona="eliminar-reporte"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmando(true);
+                            }}
                             disabled={deleting}
+                            aria-label="Eliminar este reporte"
+                            title="Eliminar este reporte"
                             className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                         >
                             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -140,12 +205,20 @@ function ReportCard({
                 </div>
             </div>
 
+            <ConfirmarBorrado
+                abierto={confirmando}
+                alCambiar={setConfirmando}
+                titulo="¿Eliminar este reporte?"
+                texto={`Se borra el reporte del ${fmtPeriod(report.periodStart, report.periodEnd)}. No se puede deshacer, pero puedes generar otro cuando quieras.`}
+                alConfirmar={() => void handleDelete()}
+            />
+
             {/* Expanded content */}
             {expanded && (
-                <div className="px-4 pb-4 space-y-4 border-t border-border/50">
+                <div data-zona="contenido-del-reporte" className="px-4 pb-4 space-y-4 border-t border-border/50">
                     {/* AI Summary */}
                     {report.summary && (
-                        <div className="pt-4">
+                        <div data-zona="resumen" className="pt-4">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                 <Sparkles className="h-3.5 w-3.5" />
                                 Resumen generado por IA
@@ -157,7 +230,7 @@ function ReportCard({
                     )}
 
                     {/* Metrics grid */}
-                    <div className={report.summary ? '' : 'pt-4'}>
+                    <div data-zona="metricas" className={report.summary ? '' : 'pt-4'}>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                             Métricas de la semana
                         </p>
@@ -171,7 +244,7 @@ function ReportCard({
 
                     {/* Score distribution */}
                     {m.leadsByScore.sinScore < m.totalLeads && (
-                        <div>
+                        <div data-zona="puntuacion">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Distribución de puntuación
                             </p>
@@ -207,7 +280,7 @@ function ReportCard({
 
                     {/* Actividad por tipo */}
                     {actividadEntries.length > 0 && (
-                        <div>
+                        <div data-zona="actividad">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Actividad de la semana
                             </p>
@@ -282,6 +355,7 @@ export function WeeklyReportsView({
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [deletingAll, setDeletingAll] = useState(false);
+    const [confirmandoTodos, setConfirmandoTodos] = useState(false);
 
     // `join` y no el arreglo: llega uno nuevo en cada pintado del padre, asi
     // que con el arreglo en las dependencias esto se recargaria sin parar.
@@ -336,7 +410,7 @@ export function WeeklyReportsView({
     };
 
     const handleDeleteAll = async () => {
-        if (!confirm('¿Eliminar todos los reportes? Esta acción no se puede deshacer.')) return;
+        setConfirmandoTodos(false);
         setDeletingAll(true);
         const res = await deleteAllWeeklyReports();
         if (res.success) {
@@ -349,17 +423,17 @@ export function WeeklyReportsView({
     };
 
     return (
-        <div className="flex flex-col gap-4">
+        <div data-vista-reportes className="flex flex-col gap-4">
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between gap-2">
+            <div data-zona="barra-de-reportes" className="flex items-center justify-between gap-2">
                 <p className="hidden sm:block text-sm text-muted-foreground">
                     Últimos <span className="font-medium text-foreground">{reports.length}</span> reportes generados por IA
                 </p>
                 {/* En móvil, botones solo-icono (max-sm:w-9) para no desbordar */}
                 <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
                     {reports.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Exportar">
+                        <Button variant="outline" size="sm" onClick={handleExport} data-boton="exportar" className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Exportar">
                             <Download className="h-3.5 w-3.5 shrink-0" />
                             <span className="hidden sm:inline">Exportar</span>
                         </Button>
@@ -368,21 +442,29 @@ export function WeeklyReportsView({
                         la cuenta propia, asi que debajo de una lista de tres cuentas
                         prometeria lo que no hace. */}
                     {reports.length > 0 && !unificado && (
-                        <Button variant="outline" size="sm" onClick={handleDeleteAll} disabled={deletingAll} className="gap-1.5 text-destructive hover:text-destructive max-sm:w-9 max-sm:px-0" title="Eliminar todos">
+                        <Button variant="outline" size="sm" onClick={() => setConfirmandoTodos(true)} disabled={deletingAll} data-boton="eliminar-todos" className="gap-1.5 text-destructive hover:text-destructive max-sm:w-9 max-sm:px-0" title="Eliminar todos">
                             {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 shrink-0" />}
                             <span className="hidden sm:inline">Eliminar todos</span>
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Actualizar">
+                    <Button variant="outline" size="sm" onClick={load} disabled={loading} data-boton="actualizar" className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Actualizar">
                         <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', loading && 'animate-spin')} />
                         <span className="hidden sm:inline">Actualizar</span>
                     </Button>
-                    <Button size="sm" onClick={handleGenerate} disabled={generating} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Generar reporte">
+                    <Button size="sm" onClick={handleGenerate} disabled={generating} data-boton="generar" className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Generar reporte">
                         {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 shrink-0" />}
                         <span className="hidden sm:inline">Generar reporte</span>
                     </Button>
                 </div>
             </div>
+
+            <ConfirmarBorrado
+                abierto={confirmandoTodos}
+                alCambiar={setConfirmandoTodos}
+                titulo="¿Eliminar todos los reportes?"
+                texto={`Se borran los ${reports.length} reportes de esta cuenta. No se puede deshacer.`}
+                alConfirmar={() => void handleDeleteAll()}
+            />
 
             {/* List */}
             {loading ? (
@@ -402,7 +484,7 @@ export function WeeklyReportsView({
                     </Button>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div data-zona="lista-de-reportes" className="space-y-3">
                     {reports.map((r) => (
                         <ReportCard
                             key={r.id}
