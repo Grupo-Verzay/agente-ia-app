@@ -25,6 +25,7 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
 import { GUIA_TAREAS } from "@/lib/guia-tareas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
@@ -88,6 +89,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     flujos: { titulo: GUIA_FLUJOS.titulo, subtitulo: GUIA_FLUJOS.subtitulo, descripcion: GUIA_FLUJOS.descripcion },
     agenda: { titulo: GUIA_AGENDA.titulo, subtitulo: GUIA_AGENDA.subtitulo, descripcion: GUIA_AGENDA.descripcion },
     multiagenda: { titulo: GUIA_MULTIAGENDA.titulo, subtitulo: GUIA_MULTIAGENDA.subtitulo, descripcion: GUIA_MULTIAGENDA.descripcion },
+    proyectos: { titulo: GUIA_PROYECTOS.titulo, subtitulo: GUIA_PROYECTOS.subtitulo, descripcion: GUIA_PROYECTOS.descripcion },
     recordatorios: {
         titulo: GUIA_RECORDATORIOS.titulo,
         subtitulo: GUIA_RECORDATORIOS.subtitulo,
