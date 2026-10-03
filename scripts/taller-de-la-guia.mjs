@@ -107,12 +107,22 @@ export async function conElDominioDeLaGuia(contexto, base) {
                 const recorrido = document.createTreeWalker(nodo, NodeFilter.SHOW_TEXT);
                 for (let t = recorrido.nextNode(); t; t = recorrido.nextNode()) if (t.data.includes(local)) t.data = t.data.split(local).join(dominio);
             };
+            // Un campo enseña su `value`, que no es un nodo de texto ni avisa al
+            // cambiar (el enlace público de Multiagenda va en un <input>): se
+            // repasa a cada rato. Solo lo que se LEE; ningún enlace se toca.
+            const arreglarLosCampos = () => {
+                for (const c of document.querySelectorAll("input, textarea")) {
+                    if (typeof c.value === "string" && c.value.includes(local)) c.value = c.value.split(local).join(dominio);
+                }
+            };
             new MutationObserver((cambios) => {
                 for (const c of cambios) {
                     if (c.type === "characterData") arreglar(c.target);
                     for (const n of c.addedNodes) arreglar(n);
                 }
+                arreglarLosCampos();
             }).observe(document, { childList: true, subtree: true, characterData: true });
+            setInterval(arreglarLosCampos, 200);
         },
         { local, dominio: DOMINIO_DE_LA_GUIA },
     );

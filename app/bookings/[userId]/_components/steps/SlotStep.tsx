@@ -42,7 +42,7 @@ export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setS
         : '';
 
     return (
-        <Card className="border-muted/50">
+        <Card className="border-muted/50" data-paso-publico="hora">
             <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     <CardTitle className="text-lg">Elige un horario</CardTitle>
@@ -63,7 +63,7 @@ export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setS
                                 if (!group.length) return null;
                                 const labels = { morning: 'Mañana', afternoon: 'Tarde', evening: 'Noche' };
                                 return (
-                                    <div key={period}>
+                                    <div key={period} data-franja-publica={period}>
                                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
                                             {labels[period]}
                                         </div>
@@ -73,6 +73,7 @@ export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setS
                                                     key={s.startTime}
                                                     variant={selectedSlot?.startsWith(s.startTime) ? 'default' : 'outline'}
                                                     className="rounded-xl text-xs px-1"
+                                                    data-hora-publica={s.startTime}
                                                     onClick={() => setSelectedSlot(`${s.startTime}|${s.endTime}`)}
                                                 >
                                                     {s.label}
@@ -92,7 +93,7 @@ export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setS
                 </div>
                 <div className="flex justify-between gap-2">
                     <Button variant="outline" onClick={() => setStep(2)}>← Atrás</Button>
-                    <Button disabled={!selectedSlot} onClick={() => setStep(nextStep)}>Continuar</Button>
+                    <Button data-continuar-publico disabled={!selectedSlot} onClick={() => setStep(nextStep)}>Continuar</Button>
                 </div>
             </CardContent>
         </Card>

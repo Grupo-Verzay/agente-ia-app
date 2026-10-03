@@ -18,7 +18,7 @@ interface Props {
 
 export function MemberStep({ members, selectedMember, setSelectedMember, setStep }: Props) {
     return (
-        <Card className="border-muted/50">
+        <Card className="border-muted/50" data-paso-publico="especialista">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Elige un especialista</CardTitle>
             </CardHeader>
@@ -31,6 +31,7 @@ export function MemberStep({ members, selectedMember, setSelectedMember, setStep
                 {members.map((m) => (
                     <button
                         key={m.id}
+                        data-especialista-publico={m.id}
                         type="button"
                         onClick={() => {
                             setSelectedMember(m.id);

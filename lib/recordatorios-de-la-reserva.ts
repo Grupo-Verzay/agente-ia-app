@@ -31,7 +31,34 @@ export function esRecordatorioDeReserva(idNodo: string | null | undefined): bool
     return PREFIJOS_DE_RECORDATORIO_DE_RESERVA.some((p) => texto.startsWith(p));
 }
 
-export type RecordatorioDelServicio = { timeMinutes: number; message: string };
+export type RecordatorioDelServicio = {
+    timeMinutes: number;
+    message: string;
+    /** El archivo que se elige en Multiagenda › Recordatorios: dirección en el bucket. */
+    media?: string;
+    mediaType?: string;
+    nameFile?: string;
+};
+
+/** Los tipos de archivo que el motor de seguimientos sabe mandar. */
+const TIPOS_DE_ARCHIVO = ["image", "video", "audio", "document"] as const;
+
+/**
+ * Cómo se guarda un recordatorio en `seguimientos`: texto a secas, o
+ * `seguimiento-<tipo>` con su archivo —la MISMA forma que Recordatorios
+ * (`reminders-actions`)—. Antes el archivo se guardaba en el servicio y el
+ * seguimiento salía siempre como `text`: al cliente no le llegaba nunca.
+ * Un tipo que no se reconoce sale como documento, que WhatsApp abre siempre.
+ */
+export function elTipoDelSeguimiento(r: Pick<RecordatorioDelServicio, "media" | "mediaType">): {
+    tipo: string;
+    media: string | null;
+} {
+    const media = typeof r.media === "string" && r.media.trim() ? r.media.trim() : null;
+    if (!media) return { tipo: "text", media: null };
+    const clase = (TIPOS_DE_ARCHIVO as readonly string[]).includes(String(r.mediaType)) ? String(r.mediaType) : "document";
+    return { tipo: `seguimiento-${clase}`, media };
+}
 
 /** Los recordatorios propios del servicio, saneados: lo que no tiene minutos o texto no cuenta. */
 export function losRecordatoriosDelServicio(config: unknown): RecordatorioDelServicio[] {
@@ -45,7 +72,15 @@ export function losRecordatoriosDelServicio(config: unknown): RecordatorioDelSer
     );
 }
 
-export type RecordatorioDeReserva = { idNodo: string; cuando: string; mensaje: string };
+export type RecordatorioDeReserva = {
+    idNodo: string;
+    cuando: string;
+    mensaje: string;
+    /** `text`, o `seguimiento-<tipo>` si lleva archivo. */
+    tipo: string;
+    media: string | null;
+    nameFile: string | null;
+};
 
 export function losRecordatoriosDeLaReserva(
     args: {
@@ -66,10 +101,14 @@ export function losRecordatoriosDeLaReserva(
         propios.forEach((r, idx) => {
             const cuando = inicio - r.timeMinutes * 60_000;
             if (cuando <= ahora.getTime()) return;
+            const { tipo, media } = elTipoDelSeguimiento(r);
             salida.push({
                 idNodo: `booking-svc-reminder-${args.servicioId}-${idx}`,
                 cuando: new Date(cuando).toISOString(),
                 mensaje: elTextoDelRecordatorio(r.message, args.datos),
+                tipo,
+                media,
+                nameFile: media && typeof r.nameFile === "string" && r.nameFile ? r.nameFile : null,
             });
         });
         return salida;
@@ -84,6 +123,9 @@ export function losRecordatoriosDeLaReserva(
             idNodo: `booking-reminder-${p.id}`,
             cuando: new Date(cuando).toISOString(),
             mensaje: elTextoDelRecordatorio(p.description ?? p.title ?? "", args.datos),
+            tipo: "text",
+            media: null,
+            nameFile: null,
         });
     }
     return salida;

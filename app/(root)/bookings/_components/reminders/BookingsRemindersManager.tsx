@@ -20,6 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { TimeInput } from '@/components/shared/TimeInput';
 import { getTeamServices, updateTeamService } from '@/actions/bookings-actions';
 import TooltipWrapper from '@/components/TooltipWrapper';
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -195,7 +199,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
 
     return (
         <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md" data-dialogo-de-recordatorio="">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? 'Editar recordatorio' : 'Crear recordatorio'}</DialogTitle>
                 </DialogHeader>
@@ -226,7 +230,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
                     </div>
 
                     {/* Archivo multimedia */}
-                    <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
+                    <div data-archivo-del-recordatorio="" className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -300,6 +304,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
 
                     {/* Duración de retraso */}
                     <TimeInput
+                        label="Cuánto antes de la cita"
                         currentValue={timeValue}
                         onChange={setTimeValue}
                     />
@@ -335,6 +340,9 @@ function ServiceSection({
     const [saving, setSaving] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editIdx, setEditIdx] = useState<number | null>(null);
+    // Borrar un recordatorio se pregunta antes, como en el resto de la
+    // pantalla: era de un clic y no se deshace.
+    const [aBorrar, setABorrar] = useState<number | null>(null);
 
     const reminders: ServiceReminder[] = Array.isArray(service.remindersConfig)
         ? service.remindersConfig
@@ -380,7 +388,7 @@ function ServiceSection({
     if (search && filteredReminders.length === 0) return null;
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-2" data-recordatorios-del-servicio={service.id}>
             {/* Service header */}
             <div className="flex items-center gap-2">
                 <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: service.color ?? '#3B82F6' }} />
@@ -399,24 +407,26 @@ function ServiceSection({
                     type="button"
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-nuevo-recordatorio=""
                     onClick={openAdd}
                     disabled={saving}
                 >
-                    + Agregar
+                    <Plus className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Nuevo</span>
                 </Button>
             </div>
 
             {/* Reminder list */}
             {filteredReminders.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
-                    Sin recordatorios — se usarán los globales del módulo Recordatorios.
+                    Sin recordatorios propios: se usan los de Agenda › Recordatorios.
                 </p>
             ) : (
                 <div className="flex flex-col gap-2">
                     {filteredReminders.map((rem) => {
                         const realIdx = reminders.indexOf(rem);
                         return (
-                            <Card
+                            <Card data-recordatorio=""
                                 key={realIdx}
                                 className="group w-full rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md"
                             >
@@ -452,6 +462,7 @@ function ServiceSection({
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
+                                                    aria-label="Editar recordatorio"
                                                     onClick={() => openEdit(realIdx)}
                                                     disabled={saving}
                                                 >
@@ -463,7 +474,8 @@ function ServiceSection({
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
-                                                    onClick={() => handleDelete(realIdx)}
+                                                    aria-label="Eliminar recordatorio"
+                                                    onClick={() => setABorrar(realIdx)}
                                                     disabled={saving}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -477,6 +489,27 @@ function ServiceSection({
                     })}
                 </div>
             )}
+
+            <AlertDialog open={aBorrar !== null} onOpenChange={(v) => { if (!v) setABorrar(null); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Eliminar recordatorio</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {aBorrar !== null && reminders[aBorrar]
+                                ? `¿Eliminar «${reminderDisplayTitle(reminders[aBorrar])}» de ${service.name}? Las reservas nuevas dejarán de llevarlo.`
+                                : '¿Eliminar este recordatorio?'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => { if (aBorrar !== null) handleDelete(aBorrar); setABorrar(null); }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <ReminderFormDialog
                 open={dialogOpen}
@@ -542,7 +575,7 @@ export function BookingsRemindersManager({ teamId, userId }: { teamId: string; u
         <div className="space-y-5">
             {/* Toolbar */}
             <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative w-72">
+                <div className="relative w-72" data-buscador-de-recordatorios="">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar recordatorios..."

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateTeam } from '@/actions/bookings-actions';
+import { elEnlaceDeReservaDelEquipo } from '@/lib/pantalla-de-multiagenda';
 
 type NoticeUnit = 'minutes' | 'hours' | 'days';
 const noticeToMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -28,9 +29,11 @@ interface Team {
 export function BookingTeamSettings({ userId, team }: { userId: string; team: Team }) {
     const router = useRouter();
 
-    const publicUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/bookings/${userId}`
-        : `/bookings/${userId}`;
+    // El dominio de la página abierta, leído DESPUÉS de montar: leerlo al
+    // pintar daría una dirección en el servidor y otra en el navegador.
+    const [origen, setOrigen] = useState('');
+    useEffect(() => { setOrigen(window.location.origin); }, []);
+    const publicUrl = elEnlaceDeReservaDelEquipo(origen, userId);
 
     const { value: initVal, unit: initUnit } = fromMinutes(team.minNoticeMinutes);
     const [noticeValue, setNoticeValue] = useState<number>(initVal);
@@ -43,9 +46,14 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
         setNoticeUnit(unit);
     }, [team.minNoticeMinutes]);
 
-    const copyLink = () => {
-        navigator.clipboard.writeText(publicUrl);
-        toast.success('Enlace copiado al portapapeles');
+    const copyLink = async () => {
+        // Sin HTTPS el portapapeles lanza: se dice qué hacer en vez de fallar callado.
+        try {
+            await navigator.clipboard.writeText(publicUrl);
+            toast.success('Enlace copiado al portapapeles');
+        } catch {
+            toast.error('No se pudo copiar. Selecciona el enlace y cópialo con Ctrl+C.');
+        }
     };
 
     const handleCancel = () => {
@@ -71,7 +79,7 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
     return (
         <div className="max-w-lg mx-auto space-y-6 py-4">
             {/* Enlace público */}
-            <Card>
+            <Card data-tarjeta-de-ajustes="enlace">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base">Enlace público de reservas</CardTitle>
                 </CardHeader>
@@ -80,12 +88,12 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
                         Comparte este enlace con tus clientes para que agenden citas directamente.
                     </p>
                     <div className="flex items-center gap-2">
-                        <Input value={publicUrl} readOnly className="text-xs" />
-                        <Button variant="outline" size="icon" onClick={copyLink}>
+                        <Input value={publicUrl} readOnly className="text-xs" data-enlace-publico="" />
+                        <Button variant="outline" size="icon" onClick={copyLink} title="Copiar enlace" aria-label="Copiar enlace" data-copiar-enlace="">
                             <Copy className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="icon" asChild>
-                            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                            <a href={publicUrl} target="_blank" rel="noopener noreferrer" title="Abrir la página de reservas" aria-label="Abrir la página de reservas" data-abrir-enlace="">
                                 <ExternalLink className="h-4 w-4" />
                             </a>
                         </Button>
@@ -94,7 +102,7 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
             </Card>
 
             {/* Configuración avanzada */}
-            <Card>
+            <Card data-tarjeta-de-ajustes="anticipacion">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base">Configuración avanzada</CardTitle>
                 </CardHeader>
@@ -126,7 +134,7 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Default global del equipo. Cada especialista puede sobrescribir este valor.
+                                Vale para todo el equipo. Cada especialista puede tener el suyo en su configuración.
                             </p>
                         </div>
 

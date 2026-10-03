@@ -199,7 +199,7 @@ function ServiceFormDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <span onClick={() => setOpen(true)}>{trigger}</span>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-lg" data-dialogo-de-servicio="">
                 <DialogHeader>
                     <DialogTitle>{mode === 'create' ? 'Nuevo servicio' : 'Editar servicio'}</DialogTitle>
                     <DialogDescription>Define el servicio que ofrecerán los especialistas de tu equipo.</DialogDescription>
@@ -298,7 +298,7 @@ function ServiceCard({
 
     return (
         <>
-            <Card className="border-border">
+            <Card className="border-border" data-servicio={service.id}>
                 <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-3 min-w-0">
@@ -308,12 +308,12 @@ function ServiceCard({
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <Badge variant="outline" className="text-xs">{service.duration} min</Badge>
                                     <Badge variant="outline" className="text-xs">
-                                        {service.members.length === 0 ? 'Todos los especialistas' : `${service.members.length} especialista(s)`}
+                                        {service.members.length === 0 ? 'Todos los especialistas' : `${service.members.length} ${service.members.length === 1 ? 'especialista' : 'especialistas'}`}
                                     </Badge>
                                     {reminders.length > 0 && (
                                         <Badge variant="outline" className="text-xs">
                                             <Bell className="h-2.5 w-2.5 mr-1" />
-                                            {reminders.length} recordatorio(s)
+                                            {reminders.length} {reminders.length === 1 ? 'recordatorio' : 'recordatorios'}
                                         </Badge>
                                     )}
                                     {service.description && (
@@ -329,7 +329,7 @@ function ServiceCard({
                                 initial={service}
                                 onSaved={onUpdated}
                                 trigger={
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar servicio" aria-label="Editar servicio">
                                         <Pencil className="h-3.5 w-3.5" />
                                     </Button>
                                 }
@@ -338,11 +338,13 @@ function ServiceCard({
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-destructive hover:text-destructive"
+                                title="Eliminar servicio"
+                                aria-label="Eliminar servicio"
                                 onClick={() => setConfirmDelete(true)}
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded((p) => !p)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" data-abrir-servicio="" aria-expanded={expanded} title="Especialistas del servicio" aria-label="Especialistas del servicio" onClick={() => setExpanded((p) => !p)}>
                                 {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                             </Button>
                         </div>
@@ -423,13 +425,13 @@ export function BookingServicesManager({ teamId }: { teamId: string }) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{services.length} servicio(s)</p>
+                <p className="text-sm text-muted-foreground" data-cuantos-servicios="">{services.length} {services.length === 1 ? 'servicio' : 'servicios'}</p>
                 <ServiceFormDialog
                     teamId={teamId}
                     mode="create"
                     onSaved={upsert}
                     trigger={
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button size="sm" data-nuevo-servicio="" className="bg-blue-600 hover:bg-blue-700 text-white">
                             <Plus className="h-4 w-4 sm:mr-2" />
                             <span className="hidden sm:inline">Nuevo</span>
                         </Button>
