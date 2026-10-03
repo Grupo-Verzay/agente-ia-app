@@ -224,7 +224,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 !isScheduleView ? (
                   <AccionesMasivas
                     seleccionados={[]}
-                    queSon="recordatorios"
+                    queSon={isCampaignPage ? "campañas" : "recordatorios"}
                     extras={
                       reminders.length > 0
                         ? [{
@@ -352,7 +352,8 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
           itemName="Si"
           itemId={selectedReminderId}
           mutationFn={() => deleteReminder(selectedReminderId)}
-          entityLabel={`${isCampaignPage ? 'la campaña' : 'recordatorio'}`}
+          entityLabel={`${isCampaignPage ? 'campaña' : 'recordatorio'}`}
+          queSeElimina={isCampaignPage ? 'ESTA CAMPAÑA' : undefined}
         />
       }
 
@@ -362,7 +363,8 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
         itemName="Si"
         itemId="all"
         mutationFn={() => deleteAllReminders(user.id, isCampaignPage)}
-        entityLabel={`todos los ${isCampaignPage ? 'campañas' : 'recordatorios'}`}
+        entityLabel={isCampaignPage ? 'campañas' : 'todos los recordatorios'}
+        queSeElimina={isCampaignPage ? 'TODAS TUS CAMPAÑAS' : undefined}
       />
     </div>
   );

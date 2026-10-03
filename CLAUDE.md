@@ -25565,7 +25565,87 @@ Y el taller común reescribe también el `value` de los campos con
 `conElDominioDeLaGuia` (el enlace público de Ajustes va en un `<input>` y salía
 con `localhost`).
 
-### La vigesimonovena guía, Cobros: la cartera, sus tres avisos y nada que se cobre de verdad
+### La vigesimoctava guía, Campañas: y documentarla destapó campañas que no hacían lo que decían
+
+`/guia/campanas` documenta Creación de Flujos › Campañas (`/campaigns`) con el
+estándar de las anteriores: once secciones —vista general, la lista, el tablero
+Kanban (Pendientes, Para hoy, Mañana, Recurrentes, Enviados, Vencidos), crear
+una campaña con mensaje y variables, adjunto o audio grabado, fecha y hora,
+segmentar por estado y etiquetas, varios contactos, flujo asociado, pausa entre
+envíos con su aviso de riesgo, y el historial con reintentar, pausar y
+reanudar—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/campaigns`: «Aprende a enviar campañas por WhatsApp a tus contactos en la
+plataforma». Ninguna pieza propia (contenido con `laGuiaDe`, semilla sobre
+`sembrarElMarco`, receta sobre el taller). Se regenera con
+`npm run build && scripts/generar-guia-campanas.sh && npm run build`.
+
+> **Las reglas de una campaña viven en `lib/campanas.ts` (puro)**: las
+> variables, la pausa, las horas de cada envío, qué se reprograma al editar y
+> cómo se nombra a quién le llega. Las usan las acciones, la tarjeta y la guía.
+
+Lo que se arregló al documentarla, que no daba ningún error:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| una campaña de UN contacto se guardaba como recordatorio y desaparecía de Campañas | lo decide la pantalla desde la que se crea (`esUnaCampana`) |
+| la repetición se ofrecía y el motor repetía el texto crudo, sin variables, archivo ni pausa | una campaña sale UNA vez (`LA_CAMPANA_NO_SE_REPITE`); «Recurrentes» queda para las de antes |
+| editar una campaña no cambiaba lo que salía | lo pendiente o pausado se reprograma (`elPlanDeLaEdicion`); lo ya enviado o fallido no se toca, y nadie recibe dos veces |
+| eliminar una campaña dejaba sus `camping-<id>-<n>` saliendo | se borran con ella (`reminderSeguimientoWhere`), también en «Eliminar todas» |
+| reintentar y reanudar ponían todos los envíos a la misma hora | escalonados desde ahora con la pausa (`lasHorasEscalonadas`) |
+| la tarjeta pintaba los nombres y los números pegados por comas, con un enlace al chat roto | «N contactos», con la lista en el `title` (`losContactosDeLaCampana`) |
+| segmentar usaba el id de la persona: a alguien del equipo no le encontraba a nadie | la cuenta activa (`effectiveId`) |
+| **el flujo asociado no se ejecutaba nunca**, y el motor BORRABA cada envío: el historial decía siempre 0 enviados y no había qué reintentar | en `api-webhook` (`envio-de-campana.ts`): el flujo corre y el envío se queda como `sent` o `failed` |
+
+Tres cosas que hay que mantener:
+
+1. **La guía dice lo que la pantalla tiene**: el banco compara columnas, cifras,
+   campos, variables, archivos, estados del segmento, partes de una tarjeta y
+   botones del historial con el código, y los topes de la pausa con
+   `PAUSA_MINIMA`/`PAUSA_MAXIMA`.
+2. **Ni las capturas ni el vídeo envían nada**: el aviso de riesgo y las
+   confirmaciones se CANCELAN, y la línea y el servidor son de ejemplo.
+3. **Las capturas crean una campaña**, así que antes del vídeo se vuelve a
+   sembrar.
+
+Lo prueban `scripts/banco-campanas.sh` (las reglas y las acciones contra
+Postgres), `scripts/banco-guia-campanas.sh` (contenido, vídeo, miniaturas,
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida) y, en `api-webhook`,
+`scripts/banco-campana-en-el-motor.sh`. Los tres con `MODO=roto` contra un
+commit pinchado que afirma los fallos de la tabla.
+
+### La trigésima guía, Embudos: el tablero, sus siete etapas y la papelera de Perdido
+
+`/guia/embudos` documenta Panel › Embudos (`/embudos`) con el estándar de las
+anteriores: la vista general, el tablero (una columna por etapa, una tarjeta
+por conversación), arrastrar, los tres selectores (embudo, cuenta y asesor), el
+embudo de ventas sembrado de siete etapas, crear, renombrar, usar por defecto y
+eliminar un embudo, editar etapas (nombre, color y orden, con candado en Nuevo,
+Ganado y Perdido), asignar un embudo a cada asesor y la columna Perdido con su
+papelera de 30 días; una miniatura con enfoque por tarjeta y el vídeo narrado
+con Cedar al MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/embudos`: «Aprende a organizar tus conversaciones por etapas en la
+plataforma». Ninguna pieza propia: contenido en `lib/guia-embudos.ts`, semilla
+`sembrar-guia-embudos.mjs` (dos embudos, cuatro personas y una cuenta hija),
+receta `capturar-guia-embudos.mjs` y narración. Se regenera con
+`npm run build && scripts/generar-guia-embudos.sh && npm run build`.
+
+Tres cosas que hay que mantener:
+
+1. **Ni las capturas ni el vídeo cambian nada**: crear, etapas y asesores se
+   CANCELAN, y no se pulsa Eliminar, Vaciar, Restaurar ni Restaurar todo. El
+   banco lo lee del guion; arrastrar sí mueve una tarjeta, y antes del vídeo se
+   vuelve a sembrar.
+2. **La pantalla expone marcas para la receta** (`data-tarjeta`,
+   `data-columna`, `data-cabeza-de-columna`, `data-selector="embudo"`,
+   `data-hoja`), y las recetas no usan coordenadas.
+3. **Un nombre largo no se recorta**: el del asesor en «Asesores y su embudo»
+   parte en dos líneas, y el selector de embudo mide hasta 18rem.
+
+Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
+
+### La trigesimoprimera guía, Cobros: la cartera, sus tres avisos y nada que se cobre de verdad
 
 `/guia/cobros` documenta Panel › Cobros (`/cobros`) con el estándar de las
 anteriores: diez secciones —vista general, la cartera y sus filtros por
