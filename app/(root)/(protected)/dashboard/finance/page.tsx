@@ -9,11 +9,13 @@ import { resolverLasCuentasDeFinanzas } from '@/lib/cuentas-de-finanzas';
 import { consolidar } from '@/lib/finanzas-de-la-familia';
 import { nombreDeLaCuenta } from '@/lib/nombre-de-la-cuenta';
 import { elMesDeOtroAno } from '@/lib/periodo-de-finanzas';
+import { elEnlaceDelResumen } from '@/lib/accesos-de-finanzas';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 import { BarraDeFinanzas } from './_components/BarraDeFinanzas';
 import { DesgloseDeCuentas } from './_components/DesgloseDeCuentas';
+import { MesDelResumenAnual, type MesDelResumen } from './_components/MesDelResumenAnual';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -179,7 +181,7 @@ export default async function FinanceHomePage({
   }
 
   const monthLabel = selectedMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
-  const annualRows = Array.from({ length: 12 }, (_, index) => {
+  const annualRows: MesDelResumen[] = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(selectedMonth.getFullYear(), index, 1);
     return {
       key: monthInputValue(monthDate),
@@ -203,8 +205,10 @@ export default async function FinanceHomePage({
   }
 
   // El mes viaja en los enlaces de la rejilla anual; las cuentas elegidas
-  // también, o pulsar un mes deshacía la consolidación sin decir nada.
-  const cuentasEnElEnlace = consolidando ? `&cuentas=${elegidas.join(',')}` : '';
+  // también —SIEMPRE que no sean solo la propia, también una sola cuenta
+  // ajena—, o pulsar un mes devolvía la pantalla a la cuenta propia sin que
+  // nadie lo pidiera. Lo decide `elEnlaceDelResumen`, no una condición aquí.
+  const enlaceDelMes = (mes: string) => elEnlaceDelResumen(mes, elegidas, me.id);
   // El año de al lado, con el mismo mes: la rejilla solo cambia de mes.
   const mesActual = monthInputValue(selectedMonth);
   const anoAnterior = elMesDeOtroAno(mesActual, -1);
@@ -248,7 +252,7 @@ export default async function FinanceHomePage({
                   <div className="flex items-center gap-0.5">
                     {anoAnterior ? (
                       <Link
-                        href={`/dashboard/finance?month=${anoAnterior}${cuentasEnElEnlace}`}
+                        href={enlaceDelMes(anoAnterior)}
                         aria-label={`Ver ${selectedMonth.getFullYear() - 1}`}
                         title={`Ver ${selectedMonth.getFullYear() - 1}`}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -259,7 +263,7 @@ export default async function FinanceHomePage({
                     <span className="text-sm font-semibold tabular-nums">{selectedMonth.getFullYear()}</span>
                     {anoSiguiente ? (
                       <Link
-                        href={`/dashboard/finance?month=${anoSiguiente}${cuentasEnElEnlace}`}
+                        href={enlaceDelMes(anoSiguiente)}
                         aria-label={`Ver ${selectedMonth.getFullYear() + 1}`}
                         title={`Ver ${selectedMonth.getFullYear() + 1}`}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -277,23 +281,12 @@ export default async function FinanceHomePage({
             <CardContent className="px-2 pb-2 pt-0">
               <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border sm:grid-cols-3 lg:grid-cols-6">
                 {annualRows.map((row) => (
-                  <Link
+                  <MesDelResumenAnual
                     key={row.key}
-                    href={`/dashboard/finance?month=${row.key}${cuentasEnElEnlace}`}
-                    title={`Ingresos: ${formatPreferred(row.sales)} | Gastos: ${formatPreferred(row.expenses)}`}
-                    className={`min-h-[62px] overflow-hidden border-border transition hover:bg-muted/40 lg:border-r [&:nth-child(-n+6)]:border-b lg:[&:nth-child(6n)]:border-r-0 ${
-                      row.active ? 'bg-sky-50 ring-1 ring-inset ring-sky-400' : 'bg-background'
-                    }`}
-                  >
-                    <div className="flex h-7 items-center justify-center bg-slate-950 px-2 text-xs font-semibold uppercase text-white">
-                      {row.label}
-                    </div>
-                    <div className="flex h-9 items-center justify-center px-2 text-center">
-                      <span className={`text-sm font-semibold leading-none ${row.balance < 0 ? 'text-destructive' : ''}`}>
-                        {formatPreferred(row.balance)}
-                      </span>
-                    </div>
-                  </Link>
+                    mes={row}
+                    href={enlaceDelMes(row.key)}
+                    formato={formatPreferred}
+                  />
                 ))}
               </div>
             </CardContent>

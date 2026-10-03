@@ -14,6 +14,7 @@ import { etiquetasDePlanesParaMarca } from "@/lib/plan-pricing";
 import {
   comoFunciones,
   lasFuncionesDelPlan,
+  lasFuncionesDestacadas,
   losFeaturesDeLasFunciones,
   type FuncionDelPlan,
 } from "@/lib/pagina-de-plan";
@@ -48,6 +49,13 @@ export type SubscriptionPlanItem = {
    * la casa); el resto de pantallas leen `features`, que son las encendidas.
    */
   funciones?: FuncionDelPlan[];
+  /**
+   * Las funciones que salen en la tarjeta CORTA de la landing: las encendidas
+   * que tienen la estrella puesta, en su orden. Solo la trae
+   * `getActiveSubscriptionPlans`; la página del plan y el detalle enseñan
+   * TODAS las encendidas (`features`).
+   */
+  destacadas?: string[];
 };
 
 /**
@@ -95,13 +103,32 @@ export async function getAllSubscriptionPlans() {
 // no viaja es el mayorista.
 export async function getActiveSubscriptionPlans() {
   try {
-    return {
-      success: true,
-      data: await leerLosPlanes({ isActive: true, isResellerPlan: false }, { conMayorista: false }),
-    };
-  } catch {
+    const planes = await leerLosPlanes({ isActive: true, isResellerPlan: false }, { conMayorista: false });
+    return { success: true, data: await conSusDestacadas(planes) };
+  } catch (e) {
+    console.error("[planes] no se pudieron leer los planes activos", e);
     return { success: false, data: [] as SubscriptionPlanItem[] };
   }
+}
+
+/**
+ * Le pone a cada plan las funciones de su tarjeta corta (`destacadas`). Si
+ * `plan_funciones` no se puede leer, la tarjeta enseña todas las encendidas
+ * —que es lo que enseñaba antes de existir la estrella— y se dice: la landing
+ * no se queda sin planes por eso.
+ */
+async function conSusDestacadas(planes: SubscriptionPlanItem[]): Promise<SubscriptionPlanItem[]> {
+  let guardadas = new Map<string, unknown>();
+  try {
+    guardadas = await lasFuncionesGuardadas(planes.map((p) => p.id));
+  } catch (e) {
+    console.error("[planes] no se pudieron leer las funciones destacadas; la tarjeta enseña todas", e);
+    return planes.map((p) => ({ ...p, destacadas: p.features ?? [] }));
+  }
+  return planes.map((p) => ({
+    ...p,
+    destacadas: lasFuncionesDestacadas(lasFuncionesDelPlan(p.features ?? [], guardadas.get(p.id))),
+  }));
 }
 
 export async function getActiveResellerAccessPlans() {

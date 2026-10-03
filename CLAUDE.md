@@ -3978,8 +3978,10 @@ existen es la que nadie prueba.
    `linked_accounts` NO es un árbol: es una MALLA, con ciclos*. **Si el selector
    vuelve a no salir, se mira ahí antes que aquí**: estas tres condiciones son
    una línea que no tiene nada que decidir por su cuenta.
-4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual.** Sin eso,
-   pulsar un mes deshacía la consolidación sin decir nada.
+4. **Las cuentas elegidas viajan en los enlaces de la rejilla anual, SIEMPRE
+   que no sean la propia y sola** —también UNA cuenta hija—. Sin eso, pulsar
+   un mes devolvía la pantalla a la cuenta propia sin decir nada. Ver *pulsar
+   un mes del resumen no cambia de cuenta*, abajo.
 5. **Vaciar sigue siendo SOLO de la cuenta propia.** `wipeFinanceTransactions`
    no recibe ninguna cuenta y escopa por `getFinanceUser()`. Que se puedan
    *mirar* cinco cuentas a la vez no puede convertir ese botón en uno que borre
@@ -4057,9 +4059,10 @@ y no uno —con tres, el cuarto es por donde se cuela—:
    gatea también. Un diálogo que se abre y falla al guardar es peor que uno que
    no se abre.
 
-Y «Eliminar todas» **desaparece mientras se consolida**: esa acción acota por
-la cuenta propia, así que debajo de una lista de tres cuentas prometería lo que
-no hace.
+Y «Eliminar todas» **desaparece en cuanto lo que se mira no es la cuenta
+propia y sola** —consolidando o con UNA cuenta ajena—: esa acción acota por la
+cuenta propia, así que debajo de la lista de otra prometería lo que no hace y
+borraría lo que no se está viendo.
 
 Quién decide es `esDeOtraCuenta(dueñoDeLaFila, propia)`, puro, y **sin dueño no
 es ajena**: se pintaría un «—» donde hay una fila perfectamente editable, y el
@@ -4108,6 +4111,44 @@ el fallo que `BarraDeAcciones` ya arregló una vez: la flecha corre la fila de
 punta a punta y el buscador se va de la pantalla. Medido a 390 px con la barra
 de antes, el carril sobraba 140 px **con el buscador dentro**; ahora va en su
 hueco `buscador` y sobra 0.
+
+#### Pulsar un mes del resumen no cambia de cuenta: «la propia y sola» NO es «no consolidar»
+
+Con UNA cuenta hija elegida en el selector, pulsar un mes (o la flecha de año)
+del resumen anual devolvía la pantalla a la cuenta madre. Los enlaces de la
+rejilla llevaban `?cuentas=` solo «consolidando» —`elegidas.length > 1`—, y el
+selector escribe `?cuentas=<hija>` para una sola cuenta ajena: el enlace salía
+sin el parámetro y el servidor volvía a la cuenta propia. Ni error ni aviso: la
+pantalla cambiaba de cuenta.
+
+> **Son dos preguntas y no se responden con la misma condición.**
+> `estaConsolidando` (más de una cuenta) decide lo que SUMA: el desglose, la
+> columna «Cuenta», el «Sumando N cuentas». `esSoloLaPropia` decide si se mira
+> lo de siempre: si los enlaces llevan la selección, si una fila es ajena y si
+> sale «Eliminar todas». Con una cuenta ajena sola, la primera dice «no» y la
+> segunda también, y usar la primera para la segunda es exactamente el fallo.
+
+1. **El enlace lo arma `elEnlaceDelResumen` (`lib/accesos-de-finanzas.ts`)**
+   con `laSeleccionQueViajaEnElEnlace` (`lib/finanzas-de-la-familia.ts`, pura):
+   la regla del selector al revés —solo se calla con la propia y sola, que es
+   cuando el selector QUITA el parámetro—. Los tres enlaces de la rejilla
+   pasan por ahí; **si se añade otro enlace que mantenga la pantalla, va igual**.
+2. **En las listas, una fila es ajena por su dueño, no por consolidar**
+   (`esDeOtraCuenta(fila.userId, userId)` a secas). Con una cuenta hija sola,
+   el lápiz llamaba a una acción que acota por la cuenta propia y contestaba
+   «no encontrada».
+3. **«Eliminar todas» va detrás de `esSoloLaPropia`**: borra la cuenta propia,
+   así que con la lista de una hija delante borraba lo que no se estaba viendo.
+
+Lo prueban `scripts/banco-cuenta-del-resumen.sh` —las reglas, la ida y vuelta
+selector → servidor → enlace → servidor para cada selección posible, y un
+barrido del resumen y las tres listas— y `scripts/banco-cuenta-del-resumen-navegador.sh`,
+sobre la página servida con una madre y dos hijas de importes distintos: elegir
+una hija, pulsar mayo y la flecha de año, y leer la cifra, la URL y el selector;
+y en Ventas, que las filas de la hija no se editan ni sale «Eliminar todas».
+Los dos con `MODO=roto` contra `fd21c8f` (el navegador, con `BUILD_ANTES`), que
+afirma que pulsar mayo volvía a la madre y que las filas de la hija se ofrecían
+para editar.
 
 #### Un fallo latente que salió al escribir el banco
 
@@ -4179,6 +4220,38 @@ otra vez, sin proveedor no guarda, la compra queda con su proveedor, uno nuevo
 se crea desde el formulario y sale en Proveedores, y «Nuevo gasto» sigue donde
 estaba. Los dos con `MODO=roto` pinchado a `fd21c8f`, que afirma que «Compras»
 abría «Nuevo gasto» sin proveedor.
+
+## Finanzas: un fondo claro FIJO necesita su tono de modo oscuro
+
+En «Resumen anual por mes» el valor del mes seleccionado no se veía en modo
+oscuro. La casilla elegida iba con `bg-sky-50` —un celeste claro que no cambia
+con el tema— y su número no lleva color propio: hereda el del texto de la
+tarjeta, que en oscuro es casi blanco. Medido en Chromium: **1,02 de
+contraste**, blanco sobre blanco. En claro se veía bien, y por eso no saltaba.
+
+Y al lado había otro igual de mudo: un mes en pérdidas usaba `text-destructive`,
+que en el tema oscuro es un rojo OSCURO (es el `--destructive` de los botones de
+borrar, que llevan texto blanco encima): **2,00** sobre la tarjeta oscura.
+
+> **La casilla es `MesDelResumenAnual`** (`dashboard/finance/_components/`), y
+> sus dos colores son constantes con su tono de oscuro al lado:
+> `FONDO_DEL_MES_ELEGIDO` (`dark:bg-sky-950`) y `CIFRA_NEGATIVA`
+> (`dark:text-red-400`). En claro no cambia ni un color.
+
+Dos cosas que hay que mantener:
+
+1. **Un fondo de color claro (`bg-*-50`, `bg-*-100`) sobre un texto que hereda
+   el del tema necesita su `dark:`**: el texto sí cambia con el tema y el fondo
+   no. Es la forma más corta de pintar blanco sobre blanco sin un solo error.
+2. **No se arregla tocando `--destructive` del tema oscuro**: ese token es el
+   fondo de los botones de borrar. Se pone el rojo claro donde el rojo es TEXTO.
+
+Lo prueba `scripts/banco-resumen-anual-oscuro.sh`: monta la casilla de verdad y
+la de antes (su JSX sacado de `fd21c8f` con `git show`) sobre el CSS del build,
+en claro y en oscuro a 1440 y 390, y mide el contraste del número contra el
+fondo que de verdad tiene detrás. Exige ≥ 4,5 en oscuro, el mes elegido
+todavía marcado, y en claro los mismos colores que antes. `MODO=roto` afirma el
+blanco sobre blanco y el rojo ilegible.
 
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 
@@ -26216,6 +26289,54 @@ créditos, apagar el plan, un cliente que intenta guardar) y la página real en
 Chromium sobre el CSS del build a 1440 y 390. `MODO=roto` corre lo mismo contra
 `88ade1f` y afirma el texto viejo, el plan apagado servido, los testimonios
 pintados y el guardado que los borraba.
+
+### Y la segunda vuelta: el botón al FINAL, «para quién», el plan superior, destacar y el video subido
+
+La página tiene ahora seis bloques: **hero · para quién es este plan ·
+capacidad · funciones · preguntas · comenzar**. Cinco reglas, y cada una con
+su porqué:
+
+1. **El botón de comenzar sale UNA vez, en «comenzar», después de las
+   preguntas**, con el precio otra vez encima. La barra fija de arriba solo
+   lleva «Volver a planes»: el botón al lado del nombre y el precio pedía
+   comprar antes de leer.
+2. **«Para quién es este plan» son dos textos cortos** —a quién le sirve y un
+   caso típico de negocio— en `plan_para_quien`, tabla de la App (sin clave
+   foránea, ni una columna en `plan_details`). Lo decide `elParaQuienQueSale`,
+   **campo por campo**: lo escrito sale si no tiene avisos (con los datos
+   vivos `{plan}`, `{creditos}`…); si no hay nada o ya no cuadra, sale el de
+   fábrica de su nivel (`PARA_QUIEN_DE_FABRICA`, sin números escritos, así no
+   envejece). Guardar solo uno de los dos no borra el otro; vaciar los dos
+   borra la fila.
+3. **La línea hacia el plan inmediato superior es discreta y va al final**,
+   debajo del botón («Conoce el plan X»). `elPlanSuperior` toma el siguiente
+   nivel ACTIVO y no de reseller, prefiere el mismo tipo de asistencia y, si
+   ese está apagado, cae al otro. El plan más alto no lleva línea.
+4. **«Activa en el plan» y «destacada en la tarjeta corta» son dos marcas.**
+   Apagar quita la función de TODO (página, modal, `features`); destacar solo
+   decide si sale en la tarjeta corta de la landing (`lasFuncionesDestacadas`:
+   activa Y destacada). Una función de antes sin la marca nace destacada, así
+   la tarjeta no pierde nada. La tarjeta lee `plan.destacadas ?? plan.features`
+   (`conSusDestacadas`, que si no puede leer cae a todas y lo dice); el modal
+   y la página siguen con todas las activas.
+5. **El video se puede SUBIR como archivo** (mp4, webm, mov), en el detalle de
+   cada plan y en la landing general, con el mismo patrón que la miniatura
+   (`VideoUploader`). Lo recibe `/api/upload-plan-video`, que **va FUERA del
+   `matcher` del middleware a propósito** —Next 14 guarda entero el cuerpo de
+   toda petición por la que pasa el middleware— y por eso lleva su propia
+   puerta (`quienMandaEnLaCasa`). Lee los primeros bytes para saber qué es
+   (`elVideoDeLaCabecera`, nunca el nombre ni el tipo que diga el navegador),
+   pasa el resto al bucket sin cargarlo en memoria, y topa en
+   `TOPE_DEL_VIDEO_SUBIDO` (150 MB). Una dirección que acaba en un video se
+   pinta con `<video>` (`elVideoDelPlan`, `VideoDeLaLanding`); un enlace de
+   YouTube o Vimeo sigue como antes.
+
+Lo prueba el mismo banco con un segundo fichero (`plan-al-final.test.mjs`):
+las reglas, la ruta con un bucket de mentira (sin sesión, un cliente, una
+imagen, 200 MB, un WebM llamado `.mp4`), las acciones contra Postgres y la
+página y la tarjeta reales en Chromium. Su `MODO=roto` corre contra `fd21c8f`
+y afirma los dos botones con uno fijo arriba, la falta de «para quién» y de
+plan superior, la tarjeta con todas y la landing sin video subido.
 
 ## Cómo reportar al terminar
 

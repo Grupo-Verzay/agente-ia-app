@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface ImageUploaderProps {
@@ -21,10 +22,18 @@ export function ImageUploader({ value, onChange, className, placeholder = "Subir
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload-plan-image", { method: "POST", body: fd });
-      const json = await res.json() as { url?: string; error?: string };
-      if (json.url) onChange(json.url);
-    } catch {
-      // silently ignore upload errors
+      const json = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      if (res.ok && json.url) {
+        onChange(json.url);
+      } else {
+        // Antes un fallo se tragaba en silencio: el botón volvía a su sitio y
+        // parecía que la imagen no se había elegido.
+        console.error("[imagen] no se pudo subir la imagen", { status: res.status, error: json.error });
+        toast.error(json.error || "No se pudo subir la imagen.");
+      }
+    } catch (e) {
+      console.error("[imagen] no se pudo subir la imagen", e);
+      toast.error("No se pudo subir la imagen: se cortó la conexión.");
     } finally {
       setUploading(false);
     }

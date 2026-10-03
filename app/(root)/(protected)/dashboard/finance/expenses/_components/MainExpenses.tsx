@@ -26,6 +26,7 @@ import { SelectorDeCuentas } from '@/components/shared/SelectorDeCuentas';
 import { columnaDeCuenta } from '@/components/shared/ColumnaDeCuenta';
 import {
   esDeOtraCuenta,
+  esSoloLaPropia,
   estaConsolidando,
   lasCuentasElegidas,
   nombresPorCuenta,
@@ -464,8 +465,11 @@ export default function MainExpenses({
   // una fila ajena contestaría «no encontrada». Se ve, y para tocarla se entra
   // a esa cuenta.
   const filaAjena = useCallback(
-    (fila: ExpenseRow) => consolidando && esDeOtraCuenta(fila.userId, userId),
-    [consolidando, userId],
+    // Sin mirar `consolidando`: con UNA cuenta ajena elegida tampoco se
+    // consolida y aun así toda la lista es de otra cuenta. `esDeOtraCuenta`
+    // ya contesta «no» a una fila propia, así que lo de siempre no cambia.
+    (fila: ExpenseRow) => esDeOtraCuenta(fila.userId, userId),
+    [userId],
   );
 
   const columns = useMemo(
@@ -539,8 +543,9 @@ export default function MainExpenses({
                   }}
                   extras={
                     // Borrar todos acota por la cuenta propia: debajo de una
-                    // lista consolidada prometería lo que no hace.
-                    consolidando || rows.length === 0
+                    // lista consolidada —o de UNA cuenta ajena— prometería lo que
+                    // no hace: borraría lo de la propia, que no se está viendo.
+                    !esSoloLaPropia(cuentasElegidas, userId) || rows.length === 0
                       ? []
                       : [
                           {
