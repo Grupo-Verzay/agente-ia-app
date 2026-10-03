@@ -4133,6 +4133,38 @@ largo a 1024 el carril sobra 218 px y **se desplaza con flechas**, que es lo
 que hace esta barra desde el #815; lo que no pasa en ninguna es que la barra
 crezca de alto ni que el buscador se pierda.
 
+## Finanzas: un fondo claro FIJO necesita su tono de modo oscuro
+
+En «Resumen anual por mes» el valor del mes seleccionado no se veía en modo
+oscuro. La casilla elegida iba con `bg-sky-50` —un celeste claro que no cambia
+con el tema— y su número no lleva color propio: hereda el del texto de la
+tarjeta, que en oscuro es casi blanco. Medido en Chromium: **1,02 de
+contraste**, blanco sobre blanco. En claro se veía bien, y por eso no saltaba.
+
+Y al lado había otro igual de mudo: un mes en pérdidas usaba `text-destructive`,
+que en el tema oscuro es un rojo OSCURO (es el `--destructive` de los botones de
+borrar, que llevan texto blanco encima): **2,00** sobre la tarjeta oscura.
+
+> **La casilla es `MesDelResumenAnual`** (`dashboard/finance/_components/`), y
+> sus dos colores son constantes con su tono de oscuro al lado:
+> `FONDO_DEL_MES_ELEGIDO` (`dark:bg-sky-950`) y `CIFRA_NEGATIVA`
+> (`dark:text-red-400`). En claro no cambia ni un color.
+
+Dos cosas que hay que mantener:
+
+1. **Un fondo de color claro (`bg-*-50`, `bg-*-100`) sobre un texto que hereda
+   el del tema necesita su `dark:`**: el texto sí cambia con el tema y el fondo
+   no. Es la forma más corta de pintar blanco sobre blanco sin un solo error.
+2. **No se arregla tocando `--destructive` del tema oscuro**: ese token es el
+   fondo de los botones de borrar. Se pone el rojo claro donde el rojo es TEXTO.
+
+Lo prueba `scripts/banco-resumen-anual-oscuro.sh`: monta la casilla de verdad y
+la de antes (su JSX sacado de `fd21c8f` con `git show`) sobre el CSS del build,
+en claro y en oscuro a 1440 y 390, y mide el contraste del número contra el
+fondo que de verdad tiene detrás. Exige ≥ 4,5 en oscuro, el mes elegido
+todavía marcado, y en claro los mismos colores que antes. `MODO=roto` afirma el
+blanco sobre blanco y el rojo ilegible.
+
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 
 La barra del panel del súper administrador —Informes, Actividad, Operaciones,

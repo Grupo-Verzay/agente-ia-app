@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 import { BarraDeFinanzas } from './_components/BarraDeFinanzas';
 import { DesgloseDeCuentas } from './_components/DesgloseDeCuentas';
+import { MesDelResumenAnual, type MesDelResumen } from './_components/MesDelResumenAnual';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -179,7 +180,7 @@ export default async function FinanceHomePage({
   }
 
   const monthLabel = selectedMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
-  const annualRows = Array.from({ length: 12 }, (_, index) => {
+  const annualRows: MesDelResumen[] = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(selectedMonth.getFullYear(), index, 1);
     return {
       key: monthInputValue(monthDate),
@@ -277,23 +278,12 @@ export default async function FinanceHomePage({
             <CardContent className="px-2 pb-2 pt-0">
               <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border sm:grid-cols-3 lg:grid-cols-6">
                 {annualRows.map((row) => (
-                  <Link
+                  <MesDelResumenAnual
                     key={row.key}
+                    mes={row}
                     href={`/dashboard/finance?month=${row.key}${cuentasEnElEnlace}`}
-                    title={`Ingresos: ${formatPreferred(row.sales)} | Gastos: ${formatPreferred(row.expenses)}`}
-                    className={`min-h-[62px] overflow-hidden border-border transition hover:bg-muted/40 lg:border-r [&:nth-child(-n+6)]:border-b lg:[&:nth-child(6n)]:border-r-0 ${
-                      row.active ? 'bg-sky-50 ring-1 ring-inset ring-sky-400' : 'bg-background'
-                    }`}
-                  >
-                    <div className="flex h-7 items-center justify-center bg-slate-950 px-2 text-xs font-semibold uppercase text-white">
-                      {row.label}
-                    </div>
-                    <div className="flex h-9 items-center justify-center px-2 text-center">
-                      <span className={`text-sm font-semibold leading-none ${row.balance < 0 ? 'text-destructive' : ''}`}>
-                        {formatPreferred(row.balance)}
-                      </span>
-                    </div>
-                  </Link>
+                    formato={formatPreferred}
+                  />
                 ))}
               </div>
             </CardContent>
