@@ -315,7 +315,7 @@ async function capturas(p) {
     // Las tres de la fila de medidas van pegadas: sus números se escalonan en
     // el margen para no montarse unos sobre otros.
     const medidas = marcas.slice(1, 4);
-    medidas.forEach((m, k) => { m.numeroEn = { x: izquierda - k * 28, y: m.c.y + m.c.h / 2 }; });
+    medidas.forEach((m, k) => { m.numeroEn = { x: izquierda - (2 - k) * 28, y: m.c.y + m.c.h / 2 }; });
     await marcar(p, marcas, { atenuar: true });
     await guardar(p, "tarjeta.webp", holgura({ x: cTarjeta.x - 110, y: cTarjeta.y - 40, w: cTarjeta.w + 154, h: cTarjeta.h + 70 }, 10, vista));
     await desmarcar(p);

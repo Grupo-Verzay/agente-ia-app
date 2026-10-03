@@ -27,7 +27,7 @@ export const NARRACION = {
     },
     tablero: {
         rotulo: "Seis columnas, una por etapa",
-        texto: "Hay seis columnas: Sin clasificar, Frío, Tibio, Caliente, Finalizado y Descartado; cada tarjeta es un contacto, con su puntaje y el tiempo que lleva ahí.",
+        texto: "Las seis columnas van de Sin clasificar a Descartado, pasando por Frío, Tibio, Caliente y Finalizado; cada tarjeta es un contacto, con su puntaje y el tiempo que lleva ahí.",
     },
     buscar: {
         rotulo: "Busca por nombre o número",
