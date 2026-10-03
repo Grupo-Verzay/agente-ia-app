@@ -276,12 +276,16 @@ export const ReminderForm = ({
     const onSubmit = async (payload: formValuesReminderSchema) => {
         if (countScheduleReminders >= 10) return toast.info('No se pueden crear más de 10 recordatorios en el módulo de agendamiento.');
 
-        let nextPayload = payload;
+        // Se crea desde Campañas: es campaña aunque lleve un solo contacto.
+        let nextPayload: formValuesReminderSchema = { ...payload, esCampana: isCampaignPage };
+        if (isCampaignPage && !(payload.remoteJid ?? "").split(",").some((j) => j.trim())) {
+            return toast.error("Elige al menos un contacto para la campaña.");
+        }
         if (selectedMediaFile && mediaPreview) {
             try {
                 setUploadingMedia(true);
                 const mediaPayload = await uploadReminderMedia();
-                nextPayload = { ...payload, ...mediaPayload };
+                nextPayload = { ...nextPayload, ...mediaPayload };
             } catch (error) {
                 toast.error(error instanceof Error ? error.message : "No se pudo subir el archivo multimedia.");
                 return;
@@ -334,7 +338,7 @@ export const ReminderForm = ({
                 <div className="flex flex-col gap-1.5" data-campo="titulo">
                     <Label className="text-sm font-semibold">Título</Label>
                     <Input
-                        placeholder="Ej: Recordatorio cita"
+                        placeholder={isCampaignPage ? "Ej: Promoción de octubre" : "Ej: Recordatorio cita"}
                         className="uppercase"
                         {...register("title", { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })}
                     />
@@ -347,7 +351,7 @@ export const ReminderForm = ({
                         const { ref: rhfRef, ...descRest } = register("description");
                         return (
                             <Textarea
-                                placeholder="Hola @client_name, te recordamos que..."
+                                placeholder={isCampaignPage ? "Hola {{nombre}}, este mes tenemos..." : "Hola @client_name, te recordamos que..."}
                                 className="min-h-[72px] max-h-[220px] resize-y text-sm"
                                 {...descRest}
                                 ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
@@ -357,7 +361,7 @@ export const ReminderForm = ({
                 </div>
 
                 {isCampaignPage && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2" data-campo="variables">
                         <span className="text-sm font-medium text-muted-foreground">Variables:</span>
                         {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
                             <button
@@ -387,7 +391,7 @@ export const ReminderForm = ({
                             </span>
                             <div className="min-w-0">
                                 <p className="text-sm font-semibold leading-none">Archivo multimedia</p>
-                                <p className="mt-1 truncate text-xs text-muted-foreground">Opcional para enviar junto al recordatorio</p>
+                                <p className="mt-1 truncate text-xs text-muted-foreground">Opcional para enviar junto al mensaje</p>
                             </div>
                         </div>
                         {mediaPreview && (
@@ -460,7 +464,14 @@ export const ReminderForm = ({
 
                 {/* «Repetir cada N» se fue: el motor nunca lo leyó y un «cada 3
                     días» salía todos los días. Ver `lib/repeticion-del-recordatorio.ts`. */}
-                {!isSchedule &&
+                {/* Una campaña sale UNA vez: el motor no sabe repetirla (repetía el
+                    texto crudo, sin variables, sin archivo y sin pausa). */}
+                {!isSchedule && isCampaignPage &&
+                    <p className="text-xs text-muted-foreground" data-campo="una-vez">
+                        Una campaña sale una sola vez, en la fecha y hora que elijas.
+                    </p>
+                }
+                {!isSchedule && !isCampaignPage &&
                     <div className="flex flex-col gap-1.5" data-campo="repeticion">
                         <Label className="text-sm font-semibold">Repetición</Label>
                         <Controller
@@ -489,13 +500,15 @@ export const ReminderForm = ({
 
                         {leads && (isCampaignPage ?
                             <div className="space-y-3">
+                                <div data-campo="segmento">
                                 <CampaignSegmentPanel
                                     leads={leads}
                                     onApply={handleSegmentApply}
                                 />
+                                </div>
 
                                 {/* Pausa entre envíos */}
-                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-3">
+                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-3" data-campo="pausa">
                                     <div className="flex items-center gap-2">
                                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
                                             Pausa entre envíos
@@ -527,7 +540,9 @@ export const ReminderForm = ({
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-campo="contactos-y-flujo">
+                                    <div className="flex min-w-0 flex-col gap-1.5" data-campo="contactos">
+                                    <Label className="text-sm font-semibold">Contactos</Label>
                                     <SelectMultipleComboBox
                                         key={segmentKey}
                                         leads={leads}
@@ -539,13 +554,17 @@ export const ReminderForm = ({
                                         onLeadCreated={() => setCreateLead(true)}
                                         initialValue={campaignInitialIds}
                                     />
+                                    </div>
 
                                     {workflows &&
+                                        <div className="flex min-w-0 flex-col gap-1.5" data-campo="flujo">
+                                        <Label className="text-sm font-semibold">Flujo</Label>
                                         <SelectWorkflowBox
                                             workflows={workflows}
                                             onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}
                                             initialValue={initialWorkflowId}
-                                        />}
+                                        />
+                                        </div>}
                                 </div>
                             </div>
                             :
@@ -631,7 +650,7 @@ export const ReminderForm = ({
                                 </p>
                                 <ul className="space-y-1.5 text-xs list-none">
                                     <li>✅ Envía solo a contactos que te han escrito antes</li>
-                                    <li>✅ Usa el delay entre mensajes para no parecer un bot</li>
+                                    <li>✅ Usa la pausa entre envíos para no parecer un bot</li>
                                     <li>✅ Personaliza cada mensaje con las variables disponibles</li>
                                     <li>❌ Evita listas frías o contactos que no te conocen</li>
                                     <li>❌ No envíes el mismo mensaje idéntico a muchos contactos</li>

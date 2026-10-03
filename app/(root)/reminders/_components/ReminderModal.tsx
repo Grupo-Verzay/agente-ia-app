@@ -39,6 +39,10 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
             remoteJid: reminderData.remoteJid || '',
             description: reminderData.description || '',
             repeatEvery: reminderData.repeatEvery || undefined,
+            // La pausa no se guarda en la fila: sin estos valores el formulario
+            // de editar una campaña no se dejaba guardar (dos campos obligatorios vacíos).
+            campaignMinDelay: 30,
+            campaignMaxDelay: 60,
         }
         : null;
 
