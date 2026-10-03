@@ -16,17 +16,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { guardarConfigAction } from "@/actions/cobros-actions";
+import { TITULO_DEL_AVISO } from "@/lib/pantalla-de-cobros";
 import {
     VARIABLES_DEL_MENSAJE,
     type ConfigDeCobros,
     type Hito,
 } from "@/lib/cobros";
 
-const TITULO_DEL_HITO: Record<Hito, string> = {
-    antes: "Días antes de vencer",
-    elDia: "El día del vencimiento",
-    despues: "Días después de vencido",
-};
+const TITULO_DEL_HITO: Record<Hito, string> = TITULO_DEL_AVISO;
 
 /**
  * Los ajustes de la cartera: datos de pago, los tres mensajes y cuándo salen.
@@ -108,7 +105,7 @@ export function ConfiguracionDeCobros({
 
     return (
         <Dialog open={abierto} onOpenChange={(v) => !v && onCerrar()}>
-            <DialogContent className="overflow-y-auto sm:max-w-2xl">
+            <DialogContent data-zona="configuracion" className="overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Configuración de cobros</DialogTitle>
                 </DialogHeader>
@@ -131,7 +128,7 @@ export function ConfiguracionDeCobros({
                         </p>
                     )}
 
-                    <div className="space-y-1.5">
+                    <div data-campo="pago" className="space-y-1.5">
                         <Label htmlFor="cobros-pago">Cómo te pagan</Label>
                         <Textarea
                             id="cobros-pago"
@@ -147,10 +144,10 @@ export function ConfiguracionDeCobros({
                         </p>
                     </div>
 
-                    <div className="space-y-2">
+                    <div data-zona="cuando" className="space-y-2">
                         <Label>Cuándo se recuerda</Label>
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="space-y-1.5">
+                            <div data-campo="antes" className="space-y-1.5">
                                 <Label htmlFor="cobros-antes" className="text-xs font-normal text-muted-foreground">
                                     Días antes
                                 </Label>
@@ -164,15 +161,15 @@ export function ConfiguracionDeCobros({
                                     placeholder="No avisar"
                                 />
                             </div>
-                            <div className="space-y-1.5">
+                            <div data-campo="elDia" className="space-y-1.5">
                                 <Label className="text-xs font-normal text-muted-foreground">
                                     El día que vence
                                 </Label>
                                 <div className="flex h-10 items-center">
-                                    <Switch checked={elDia} onCheckedChange={setElDia} />
+                                    <Switch checked={elDia} onCheckedChange={setElDia} aria-label="Avisar el día que vence" />
                                 </div>
                             </div>
-                            <div className="space-y-1.5">
+                            <div data-campo="despues" className="space-y-1.5">
                                 <Label htmlFor="cobros-despues" className="text-xs font-normal text-muted-foreground">
                                     Días después
                                 </Label>
@@ -194,7 +191,7 @@ export function ConfiguracionDeCobros({
                         </p>
                     </div>
 
-                    <div className="space-y-3">
+                    <div data-campo="mensajes" className="space-y-3">
                         <div>
                             <Label>Los mensajes</Label>
                             <p className="mt-1 text-xs text-muted-foreground">
@@ -207,7 +204,7 @@ export function ConfiguracionDeCobros({
                             </p>
                         </div>
                         {(Object.keys(TITULO_DEL_HITO) as Hito[]).map((hito) => (
-                            <div key={hito} className="space-y-1.5">
+                            <div key={hito} data-mensaje={hito} className="space-y-1.5">
                                 <Label htmlFor={`cobros-msg-${hito}`} className="text-xs font-normal text-muted-foreground">
                                     {TITULO_DEL_HITO[hito]}
                                 </Label>

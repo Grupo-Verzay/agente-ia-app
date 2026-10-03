@@ -25644,6 +25644,36 @@ Tres cosas que hay que mantener:
 
 Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
 vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
+
+### La trigesimoprimera guía, Cobros: la cartera, sus tres avisos y nada que se cobre de verdad
+
+`/guia/cobros` documenta Panel › Cobros (`/cobros`) con el estándar de las
+anteriores: diez secciones —vista general, la cartera y sus filtros por
+situación, Cobrar ahora, comprobante recibido, confirmar el pago, el historial
+de ciclos, crear una deuda (con sus datos de pago propios y adjuntos), editar y
+eliminar, cuándo se recuerda (antes, el día y después) y los mensajes con sus
+variables—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/cobros`
+(`GUIAS_PUBLICADAS`). Los nombres que comparten pantalla y guía salen de
+`lib/pantalla-de-cobros.ts`. Se regenera con
+`npm run build && scripts/generar-guia-cobros.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Nada se manda ni se borra**: «Cobrar ahora» se señala y no se pulsa,
+   eliminar se cierra con «Volver» y la configuración con «Cancelar». Lo lee
+   el banco del guion.
+2. **La línea de WhatsApp de ejemplo sale CONECTADA** gracias al doble
+   `fingido-guia-cobros.mjs` (un Waha de ejemplo, cargado dentro de
+   `next start`) y al `siteConfig` que siembra `sembrar-guia-cobros.mjs`. Sin
+   él la cartera pinta «no tiene una línea de WhatsApp conectada».
+3. **El botón del formulario dice «Crear» en una deuda nueva y «Guardar» al
+   editar**, y la guía lo nombra así.
+4. **Las capturas crean, marcan y confirman deudas**: antes del vídeo se vuelve
+   a sembrar, y las fechas son relativas a hoy en la zona de la cuenta.
+
+Lo prueba `scripts/banco-guia-cobros.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=cobros`, `fin-de-la-guia`, `menu-de-la-guia` y
 la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no había
 guía.
 ### La trigesimoprimera guía, Calificación: el tablero por etapa, y los rangos de puntaje son UNO
