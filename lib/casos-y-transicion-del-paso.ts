@@ -3,8 +3,8 @@
  * escriben en el prompt.
  *
  * Los dos son elementos del paso (`fn: "caso"` y `fn: "transicion"`), con los
- * mismos campos que la maqueta ya enseñaba —Escenario y Respuesta; el paso al
- * que se pasa—, y lo que inyectan dentro del bloque del paso es exactamente:
+ * campos de `CAMPOS_DEL_CASO` y `CAMPO_DE_LA_TRANSICION` —Escenario y
+ * Respuesta; el paso al que se pasa—, y lo que inyectan dentro del bloque del paso es exactamente:
  *
  *     | Caso | Detección | Acción |
  *     |---|---|---|
@@ -214,4 +214,41 @@ export function lineasDelPaso<E>(
         if (destino !== null) out.push(lineaDeTransicion(destino));
     }
     return out;
+}
+
+// ── Los campos de las dos tarjetas del editor ──────────────────────────────
+// Vivían en `lib/maqueta-del-paso.ts`, con la maqueta que se publicó en
+// `/ia/maqueta`. La maqueta se quitó: las maquetas se enseñan en el hilo,
+// nunca en el dominio real. Los rótulos son los de las tarjetas de verdad.
+
+/** Los campos de la tarjeta «Caso». */
+export const CAMPOS_DEL_CASO = {
+    titulo: "CASO",
+    escenario: { rotulo: "Escenario", placeholder: "¿Cuándo aplica este caso?" },
+    respuesta: { rotulo: "Respuesta", placeholder: "El texto que se envía si este caso aplica" },
+} as const;
+
+/** El campo de la tarjeta «Transición». */
+export const CAMPO_DE_LA_TRANSICION = {
+    titulo: "TRANSICIÓN",
+    pregunta: "¿A qué paso pasa cuando se completen los datos de este paso?",
+    vacio: "Elegir paso…",
+    ayuda: "Si no eliges ninguno, pasa al paso siguiente.",
+    /** En Preguntas, Productos y Extras: el destino es un paso de Inicio y no hay «siguiente». */
+    preguntaFueraDeInicio: "¿A qué paso de Inicio pasa la conversación después de esto?",
+    ayudaFueraDeInicio: "Elige un paso de Inicio. Si no eliges ninguno, no se agrega transición.",
+} as const;
+
+/**
+ * Los pasos que ofrece la lista de la transición: los ya creados, por su
+ * nombre y en su orden, menos el propio (pasar a sí mismo no es avanzar). Un
+ * paso sin título se nombra por su número para que se pueda elegir igual.
+ */
+export function pasosParaLaTransicion(
+    pasos: ReadonlyArray<{ id: string; titulo?: string | null }>,
+    actual: string,
+): Array<{ id: string; nombre: string }> {
+    return pasos
+        .map((p, i) => ({ id: p.id, nombre: (p.titulo ?? "").trim() || `Paso ${i + 1}` }))
+        .filter((p) => p.id !== actual);
 }

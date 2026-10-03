@@ -11,7 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { ArrowRightLeft } from "lucide-react";
-import { CAMPO_DE_LA_TRANSICION } from "@/lib/maqueta-del-paso";
+import { CAMPO_DE_LA_TRANSICION } from "@/lib/casos-y-transicion-del-paso";
 import { ElementMenu } from "./ElementMenu";
 import { TituloDelElemento } from "./TituloDelElemento";
 
@@ -19,7 +19,7 @@ import { TituloDelElemento } from "./TituloDelElemento";
  * «Agregar transición»: a qué paso se pasa cuando este tenga sus datos. Se
  * guarda en el elemento (`fn: "transicion"`) y la línea ➡️ TRANSICIÓN la
  * escribe en el prompt `lib/casos-y-transicion-del-paso`. Sin destino, pasa
- * al paso siguiente. La pintan el editor de verdad y la maqueta.
+ * al paso siguiente.
  *
  * Un solo campo: a qué paso se pasa cuando este tenga sus datos. La lista son
  * los pasos ya creados, por nombre, sin el propio (`pasosParaLaTransicion`).

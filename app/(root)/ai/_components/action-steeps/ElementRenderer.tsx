@@ -26,7 +26,7 @@ import {
     CasoCard,
     TransicionCard,
 } from "./";
-import { pasosParaLaTransicion } from "@/lib/maqueta-del-paso";
+import { pasosParaLaTransicion } from "@/lib/casos-y-transicion-del-paso";
 
 const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     stepId,
