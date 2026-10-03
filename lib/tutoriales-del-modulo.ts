@@ -29,6 +29,7 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
 import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
@@ -311,6 +312,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/embudos",
         contenido: GUIA_EMBUDOS,
         tarjeta: "Aprende a organizar tus conversaciones por etapas en la plataforma",
+    },
+    {
+        modulo: "proyectos",
+        ruta: "/proyectos",
+        contenido: GUIA_PROYECTOS,
+        tarjeta: "Aprende a organizar tus proyectos y sus tareas en la plataforma",
     },
     {
         modulo: "tareas",

@@ -389,7 +389,7 @@ export function ProjectsClient({
             959px y se seguiría partiendo. Así que el botón enseña el CONCEPTO
             mientras no filtra y el VALOR en cuanto filtra, que además es el
             patrón que ya usa Clientes. */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div data-zona="estado-y-responsable" className="flex flex-wrap items-center gap-1.5">
           <FiltroDesplegable
             icono={<SlidersHorizontal className="h-3.5 w-3.5" />}
             concepto="Estado"
@@ -412,6 +412,8 @@ export function ProjectsClient({
             tiene filtro equivalente —el desplegable de Estado— así que su
             pastilla lo mueve; las tres de tareas no lo tienen en esta lista, y
             van sin aspecto de pulsables. */}
+        {/* `data-zona`: lo que la guía pública señala (`lib/guia-proyectos.ts`). */}
+        <div data-zona="cifras" className="flex shrink-0 items-center">
         <PastillasDeMetricas
           metricas={[
             {
@@ -447,6 +449,7 @@ export function ProjectsClient({
             },
           ]}
         />
+        </div>
 
         {/* Las carpetas van a su ancho, en una sola línea.
             Llevaban `min-w-0 flex-1 overflow-x-auto` —un carril propio dentro
@@ -455,6 +458,7 @@ export function ProjectsClient({
             las flechas de `BarraDeslizable`. Con `flex-1` dentro de una fila
             sin hueco que repartir, esta tira se quedaba en **0 px de ancho** y
             las carpetas desaparecían enteras en un móvil. Medido a 390. */}
+        <div data-zona="carpetas" className="flex shrink-0 items-center">
         <BarraDeCarpetas
           className="flex-nowrap"
           tipo="proyecto"
@@ -465,6 +469,7 @@ export function ProjectsClient({
           cuentaPorCarpeta={reparto.porCarpeta}
           sueltas={reparto.sueltas}
         />
+        </div>
 
         {/* El reparto del trabajo, plegado. Va aquí —en la fila de filtros,
             pegado a «Nueva carpeta»— y no suelto abajo: ahí ocupaba su alto
@@ -649,6 +654,7 @@ function ProjectCard({
 
   return (
     <Card
+      data-proyecto={project.name}
       className="group relative flex h-full cursor-pointer flex-col transition-colors hover:border-primary/50"
       onClick={onOpen}
     >
@@ -658,12 +664,12 @@ function ProjectCard({
             desplazar la tarjeta entera dejaría el resto descolgado. Al agente no
             le sale asa y no pierde ese hueco. */}
         <div className={cn("flex items-start gap-2", puedeOrdenar && "pl-7")}>
-          <p className="min-w-0 flex-1 font-semibold leading-snug">{project.name}</p>
+          <p data-zona="nombre" className="min-w-0 flex-1 font-semibold leading-snug">{project.name}</p>
           {/* Quietas hasta que el puntero entra o llega el teclado: la papelera
               roja permanente era lo más llamativo de la tarjeta. Van en la fila,
               antes del estado: así el estado se queda pegado a la derecha, en el
               mismo sitio que le sale a un participante, que no tiene botones. */}
-          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <div data-zona="mandos" className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
             {/* Archivar en una carpeta es ordenar la propia pantalla, no cambiar
                 el proyecto: no pide ser quien lo gestiona. */}
             <MoverACarpeta
@@ -731,7 +737,7 @@ function ProjectCard({
               </Badge>
             )
           )}
-          <Badge variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
+          <Badge data-zona="estado" variant="outline" className={cn("shrink-0 text-[10px] uppercase", STATUS_STYLES[project.status])}>
             {PROJECT_STATUS_LABELS[project.status]}
           </Badge>
         </div>
@@ -742,7 +748,7 @@ function ProjectCard({
 
         {/* Barra partida por etapas: dice DÓNDE está el trabajo, no solo cuánto
             falta. Cuatro por hacer y nada en curso es un proyecto parado. */}
-        <div className="flex flex-col gap-1.5">
+        <div data-zona="etapas" className="flex flex-col gap-1.5">
           <div className="flex h-1.5 overflow-hidden rounded-full border border-border bg-muted">
             {segments.map((col) => (
               <span
@@ -766,7 +772,7 @@ function ProjectCard({
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex items-center">
+          <div data-zona="equipo" className="flex items-center">
             {shown.map((member) => {
               const label = personLabel(member);
               return (
@@ -804,7 +810,7 @@ function ProjectCard({
             )}
           </div>
 
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", DUE_TONES[due.tone])}>
+          <span data-zona="vence" className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", DUE_TONES[due.tone])}>
             {due.label}
           </span>
         </div>
@@ -876,7 +882,7 @@ function ProjectDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div data-campo="nombre" className="space-y-1.5">
             <Label htmlFor="project-name">Nombre</Label>
             <Input
               id="project-name"
@@ -886,7 +892,7 @@ function ProjectDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div data-campo="descripcion" className="space-y-1.5">
             <Label htmlFor="project-description">Descripción</Label>
             <Textarea
               id="project-description"
@@ -898,7 +904,7 @@ function ProjectDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <div data-campo="estado" className="space-y-1.5">
               <Label htmlFor="project-status">Estado</Label>
               <select
                 id="project-status"
@@ -912,7 +918,7 @@ function ProjectDialog({
               </select>
             </div>
 
-            <div className="space-y-1.5">
+            <div data-campo="fecha" className="space-y-1.5">
               <Label htmlFor="project-due">Fecha límite</Label>
               <Input
                 id="project-due"
@@ -923,7 +929,7 @@ function ProjectDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
+          <div data-campo="responsable" className="space-y-1.5">
             <Label htmlFor="project-lead">Responsable</Label>
             <select
               id="project-lead"
@@ -938,7 +944,7 @@ function ProjectDialog({
             </select>
           </div>
 
-          <div className="space-y-1.5">
+          <div data-campo="equipo" className="space-y-1.5">
             <Label>Equipo</Label>
             {team.length === 0 ? (
               <p className="text-xs text-muted-foreground">
