@@ -356,6 +356,14 @@ export const GUIA_COBROS: Contenido = {
             miniatura: "mini-editar-y-eliminar.webp",
             pasos: [
                 {
+                    titulo: "Desde el menú de la deuda",
+                    texto:
+                        "Los tres puntos del final de la fila abren el mismo menú de «Cobrar ahora»: «Editar» va en " +
+                        "medio y «Eliminar», al final y en rojo.",
+                    imagen: "menu-de-la-deuda.webp",
+                    alt: "El menú de una deuda con Editar y Eliminar",
+                },
+                {
                     titulo: "«Editar»",
                     texto:
                         "Abre la misma ventana con sus datos puestos: cambia el monto, la fecha o los datos de pago y " +

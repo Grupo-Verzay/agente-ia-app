@@ -27,7 +27,7 @@ const db = new PrismaClient();
 const dueno = await sembrarElMarco(db, {
     path: "/cobros",
     title: "Guía de Cobros",
-    description: "Aprende a cobrar a tus clientes con recordatorios por WhatsApp",
+    description: "Aprende a cobrar con recordatorios por WhatsApp en la plataforma",
     url: "/guia/cobros",
 });
 await db.user.update({ where: { id: dueno.id }, data: { timezone: "America/Bogota" } });

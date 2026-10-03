@@ -301,7 +301,7 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         modulo: "cobros",
         ruta: "/cobros",
         contenido: GUIA_COBROS,
-        tarjeta: "Aprende a cobrar a tus clientes con recordatorios por WhatsApp",
+        tarjeta: "Aprende a cobrar con recordatorios por WhatsApp en la plataforma",
     },
     {
         modulo: "correo",
