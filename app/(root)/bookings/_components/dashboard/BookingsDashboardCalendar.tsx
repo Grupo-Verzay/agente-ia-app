@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import esLocale from '@fullcalendar/core/locales/es';
 import { toast } from 'sonner';
-import { startOfDay } from 'date-fns';
+import { elDiaDelCalendario, hoyEnLaZona, laHoraDePared } from '@/lib/calendario-en-la-zona';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { Loader2, User, Calendar, Clock, Wrench, XCircleIcon } from 'lucide-react';
 import { AppointmentStatus } from '@prisma/client';
@@ -81,7 +81,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
     const [confirmCancel, setConfirmCancel] = useState(false);
     const [citaAReagendar, setCitaAReagendar] = useState<string | null>(null);
     const [agendaMode, setAgendaMode] = useState(true);
-    const [agendaDate, setAgendaDate] = useState(() => startOfDay(new Date()));
+    const [agendaDate, setAgendaDate] = useState(() => hoyEnLaZona(timezone));
     const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const calendarRef = useRef<FullCalendar>(null);
     const calendarWrapRef = useRef<HTMLDivElement>(null);
@@ -117,8 +117,10 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
     const events = appts.map((a) => ({
         id: a.id,
         title: `${a.clientName} · ${a.teamService.name}`,
-        start: new Date(a.startTime).toISOString(),
-        end: new Date(a.endTime).toISOString(),
+        // Hora de pared de la zona: sin el plugin de zonas, FullCalendar
+        // pinta como UTC lo que lleva desfase (`lib/calendario-en-la-zona.ts`).
+        start: laHoraDePared(a.startTime, timezone),
+        end: laHoraDePared(a.endTime, timezone),
         backgroundColor: STATUS_COLOR[a.status],
         borderColor: STATUS_COLOR[a.status],
         extendedProps: { appt: a },
@@ -206,6 +208,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
             {/* FullCalendar — toolbar siempre visible, cuerpo oculto en modo agenda */}
             <div
                 ref={calendarWrapRef}
+                data-calendario-de-multiagenda=""
                 className={agendaMode ? '[&_.fc-view-harness]:hidden' : undefined}
             >
                 <FullCalendar
@@ -214,9 +217,10 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                     initialView="timeGridDay"
                     locale={esLocale}
                     timeZone={timezone}
+                    now={() => laHoraDePared(new Date(), timezone)}
                     events={events}
                     datesSet={(info) => {
-                        const next = startOfDay(info.start).getTime();
+                        const next = elDiaDelCalendario(info.start, timezone).getTime();
                         setAgendaDate((prev) => prev.getTime() === next ? prev : new Date(next));
                     }}
                     customButtons={{
@@ -274,11 +278,11 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
             {agendaMode && (
                 <div className={`grid ${agendaColumnClass} gap-4 pt-3`} style={{ height: 'calc(100vh - 230px)' }}>
                     {[
-                        { label: 'Mañana', items: morningAppts },
-                        { label: 'Tarde',  items: afternoonAppts },
-                        ...(nightAppts.length > 0 ? [{ label: 'Noche', items: nightAppts }] : []),
-                    ].map(({ label, items }) => (
-                        <div key={label} className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                        { label: 'Mañana', clave: 'manana', items: morningAppts },
+                        { label: 'Tarde',  clave: 'tarde', items: afternoonAppts },
+                        ...(nightAppts.length > 0 ? [{ label: 'Noche', clave: 'noche', items: nightAppts }] : []),
+                    ].map(({ label, clave, items }) => (
+                        <div key={label} data-columna-del-dia={clave} className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                                 {label}
                             </p>
@@ -291,6 +295,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                                         <button
                                             key={appt.id}
                                             type="button"
+                                            data-cita={appt.id}
                                             onClick={() => openApptDialog(appt)}
                                             className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
                                         >
@@ -333,7 +338,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                 open={!!selected}
                 onOpenChange={(open) => { if (!open) { setSelected(null); setNewStatus('CONFIRMADA'); } }}
             >
-                <AlertDialogContent className="border-border">
+                <AlertDialogContent className="border-border" data-ficha-de-la-cita="">
                     <Tabs defaultValue="details">
                         <div className="flex justify-between flex-row w-full items-center">
                             <TabsList>
@@ -459,13 +464,13 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
             <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
                 <AlertDialogContent className="border-border">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar cancelacion</AlertDialogTitle>
+                        <AlertDialogTitle>Confirmar cancelación</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminaran todos los recordatorios/seguimientos del agendamiento asociados.
+                            Al pasar la cita a <strong>Cancelada</strong> se quitan los recordatorios que tenía pendientes, para que al cliente no le llegue nada más.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel>Volver</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             data-confirmar-cancelacion=""
@@ -475,7 +480,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                                 setSelected(null);
                             }}
                         >
-                            Eliminar
+                            Sí, cancelar la cita
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

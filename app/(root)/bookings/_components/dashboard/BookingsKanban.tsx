@@ -83,7 +83,7 @@ function BookingCardItem({ card, isDragging = false, onDelete, onReagendar }: {
 
     return (
         <>
-            <div className={cn(
+            <div data-tarjeta-de-cita={card.id} className={cn(
                 'bg-background rounded-lg border border-border p-3 shadow-sm space-y-2 select-none',
                 isDragging && 'opacity-80 shadow-lg rotate-1 scale-105',
             )}>
@@ -97,6 +97,11 @@ function BookingCardItem({ card, isDragging = false, onDelete, onReagendar }: {
                     </div>
                     {!isDragging && onDelete && (
                         <button
+                            type="button"
+                            data-eliminar-tarjeta=""
+                            title="Eliminar cita"
+                            aria-label="Eliminar cita"
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
                             className="text-muted-foreground hover:text-destructive transition-colors shrink-0 text-base leading-none"
                         >
@@ -208,6 +213,7 @@ function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
 
     return (
         <div
+            data-columna-de-estado={col.id}
             className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: col.borderColor + '52', backgroundColor: col.borderColor + '0A' }}
         >
@@ -216,6 +222,8 @@ function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
                 <div className="flex items-center gap-1">
                     <Badge className="bg-white/20 text-white border-0 text-xs font-medium">{cards.length}</Badge>
                     <button
+                        type="button"
+                        data-automatizaciones-de-la-columna=""
                         onClick={() => setAutomationsOpen(true)}
                         className="p-0.5 rounded hover:bg-white/20 transition-colors"
                         title="Automatizaciones"
@@ -226,7 +234,7 @@ function BookingColumn({ col, cards, onDelete, onReagendar, userId }: {
             </div>
 
             <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
-                <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                <SheetContent side="right" data-panel-de-automatizaciones="" className="w-[420px] sm:w-[480px] overflow-y-auto">
                     <SheetHeader className="mb-4">
                         <SheetTitle>Automatizaciones — {col.label}</SheetTitle>
                     </SheetHeader>
@@ -367,9 +375,9 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
                 <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
 
                     {/* Toolbar */}
-                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <div data-barra-del-kanban="" className="flex items-center gap-2 min-w-0 flex-wrap">
                         {/* Buscador */}
-                        <div className="relative flex-1 sm:flex-none sm:w-72 min-w-0">
+                        <div data-zona="buscador" className="relative flex-1 sm:flex-none sm:w-72 min-w-0">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                             <input
                                 type="text"
@@ -391,7 +399,7 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
 
                         {/* Filtro por servicio */}
                         {allServices.length > 1 && (
-                            <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-0.5">
+                            <div data-zona="servicios" className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-0.5">
                                 <Wrench className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                                 {allServices.map((name) => {
                                     const active = selectedServices.has(name);
@@ -423,7 +431,7 @@ export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
                         )}
 
                         {/* Status pills */}
-                        <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                        <div data-zona="estados" className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
                             {COLUMNS.map((col) => {
                                 const count = cards.filter((c) => c.status === col.id).length;
                                 return (

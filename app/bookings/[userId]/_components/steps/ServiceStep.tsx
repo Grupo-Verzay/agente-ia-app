@@ -20,7 +20,7 @@ interface Props {
 
 export function ServiceStep({ services, selectedService, setSelectedService, setStep }: Props) {
     return (
-        <Card className="border-muted/50">
+        <Card className="border-muted/50" data-paso-publico="servicio">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Selecciona un servicio</CardTitle>
             </CardHeader>
@@ -33,6 +33,7 @@ export function ServiceStep({ services, selectedService, setSelectedService, set
                 {services.map((svc) => (
                     <button
                         key={svc.id}
+                        data-servicio-publico={svc.id}
                         type="button"
                         onClick={() => {
                             setSelectedService(svc.id);

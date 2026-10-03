@@ -265,7 +265,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
             <div className="shrink-0 px-3 sm:px-10 pt-3 sm:pt-6 pb-2">
                 <div className="mx-auto w-full max-w-lg">
                     {/* Encabezado */}
-                    <Card className="border-muted/50">
+                    <Card className="border-muted/50" data-encabezado-de-la-reserva>
                         <CardContent className="p-3 space-y-2">
                             <div className="flex items-center gap-2">
                                 <div className="h-7 w-7 rounded-full bg-primary/10 border border-border flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -278,10 +278,10 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                             </div>
                             <div className="h-px bg-border" />
                             {/* Step indicators */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1" data-pasos-de-la-reserva>
                                 {stepLabels.map((s, i) => (
                                     <div key={i} className="contents">
-                                        <div className="flex items-center gap-1.5 shrink-0">
+                                        <div className="flex items-center gap-1.5 shrink-0" data-paso-de-la-reserva={s.label} aria-current={i === step ? "step" : undefined}>
                                             <div className={[
                                                 'h-7 w-7 shrink-0 rounded-full grid place-items-center shadow',
                                                 i <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
@@ -353,7 +353,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                 )}
 
                 {hasForm && step === FORM_STEP && (
-                    <Card className="border-muted/50">
+                    <Card className="border-muted/50" data-paso-publico="formulario">
                         <CardContent className="p-4">
                             <QualificationStep
                                 questions={serviceQuestions}
@@ -386,7 +386,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
 
                 {/* Mini-resumen cuando el step es > 0 */}
                 {step > 0 && (dateLabel || slotLocalLabel || currentService || selectedMember) && (
-                    <Card className="border-muted/30 bg-muted/20">
+                    <Card className="border-muted/30 bg-muted/20" data-resumen-de-la-reserva>
                         <CardContent className="p-3">
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                 {currentService && <span>📋 {currentService.name}</span>}

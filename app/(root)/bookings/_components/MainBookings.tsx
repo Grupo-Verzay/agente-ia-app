@@ -14,18 +14,22 @@ import { BookingsRemindersManager } from './reminders/BookingsRemindersManager';
 import { BookingTeamSettings } from './settings/BookingTeamSettings';
 import { getBookingStatusCounts } from '@/actions/bookings-actions';
 import { BookingsServiceFormBuilder } from './form/BookingsServiceFormBuilder';
+import { PESTANAS_DE_MULTIAGENDA, type PestanaDeMultiagenda } from '@/lib/pantalla-de-multiagenda';
 
-type TabValue = 'dashboard' | 'kanban' | 'members' | 'services' | 'reminders' | 'form' | 'settings';
+type TabValue = PestanaDeMultiagenda;
 
-const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { value: 'dashboard', label: 'Dashboard',     Icon: LayoutDashboard },
-    { value: 'kanban',    label: 'Kanban',        Icon: Kanban },
-    { value: 'members',   label: 'Especialistas', Icon: Users },
-    { value: 'services',  label: 'Servicios',     Icon: Wrench },
-    { value: 'reminders', label: 'Recordatorios', Icon: Bell },
-    { value: 'form',      label: 'Formulario',    Icon: ClipboardList },
-    { value: 'settings',  label: 'Ajustes',       Icon: Settings2 },
-];
+// Los nombres salen de `lib/pantalla-de-multiagenda.ts`, que lee también la
+// guía pública: con los nombres escritos aquí, la guía se quedaría atrás.
+const ICONOS: Record<TabValue, React.ComponentType<{ className?: string }>> = {
+    dashboard: LayoutDashboard,
+    kanban: Kanban,
+    members: Users,
+    services: Wrench,
+    reminders: Bell,
+    form: ClipboardList,
+    settings: Settings2,
+};
+const TABS = PESTANAS_DE_MULTIAGENDA.map((p) => ({ ...p, Icon: ICONOS[p.value] }));
 
 const STATUS_META: Record<AppointmentStatus, { label: string; color: string }> = {
     PENDIENTE:   { label: 'Pendiente',   color: '#EAB308' },
@@ -68,11 +72,13 @@ export const MainBookings = ({ user, team }: Props) => {
             {/* Tab nav, con las cifras que antes abrían la pantalla en
                 tarjetas. Sin filtro por estado de cita: no son pulsables. */}
             <div className="flex shrink-0 items-center justify-between gap-2">
-                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+                <div data-pestanas-de-multiagenda="" className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
                     {TABS.map(({ value, label, Icon }) => (
                         <button
                             key={value}
                             type="button"
+                            data-pestana-de-multiagenda={value}
+                            aria-pressed={tab === value}
                             onClick={() => setTab(value)}
                             className={[
                                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
@@ -99,7 +105,7 @@ export const MainBookings = ({ user, team }: Props) => {
             </div>
 
             {/* Contenido */}
-            <div className="flex-1 min-h-0 relative">
+            <div data-contenido-de-multiagenda="" className="flex-1 min-h-0 relative">
                 {tab === 'dashboard' && (
                     <div className="absolute inset-0 overflow-hidden pb-4">
                         <BookingsDashboardCalendar teamId={team.id} timezone={team.timezone} />

@@ -134,6 +134,14 @@ export default auth((req) => {
   const isPublicRoute =
     publicRoutes.includes(currentPath) ||
     currentPath.startsWith("/schedule/") ||
+    // Reserva pública de Multiagenda (/bookings/<cuenta>): el enlace que una
+    // cuenta comparte para que SUS clientes reserven con su equipo. No estaba
+    // aquí, así que a quien no tiene sesión lo mandaba al login, y el dueño no
+    // lo notaba porque él sí la tiene al pulsar «Abrir la página de reservas».
+    // Solo con barra: `/bookings` a secas es el tablero, que sigue pidiendo
+    // sesión. Ser pública no abre nada: `getPublicTeamData` enseña el equipo
+    // ACTIVO con sus servicios y especialistas activos.
+    currentPath.startsWith("/bookings/") ||
     currentPath.startsWith("/r/") ||
     // Enlace corto de venta (/plan/4): lo abre un cliente que aún no existe.
     currentPath.startsWith("/plan/") ||
