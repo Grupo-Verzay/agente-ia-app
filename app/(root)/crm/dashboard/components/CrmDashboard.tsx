@@ -22,6 +22,12 @@ import type { RegistroWithSession, TipoRegistro } from "@/types/session";
 import { SelectorDeCuentas } from "@/components/shared/SelectorDeCuentas";
 import { elCrmVaUnificado, nombresDeLasCuentas } from "@/lib/crm-de-la-familia";
 import type { CuentasDelCrm } from "@/lib/cuentas-del-crm";
+import {
+    RANGOS_DE_PUNTAJE,
+    elFiltroDePuntaje,
+    elTramo,
+    type ClaveDePuntaje,
+} from "@/lib/etiquetas-de-la-pantalla";
 import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
@@ -45,14 +51,12 @@ const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "Todo", value: "all" },
 ];
 
-export const SCORE_RANGES = [
-    { key: "bajo",     label: "Bajo",     range: "0–25",   color: "#EF4444" },
-    { key: "medio",    label: "Medio",    range: "26–50",  color: "#F97316" },
-    { key: "moderado", label: "Moderado", range: "51–75",  color: "#F59E0B" },
-    { key: "alto",     label: "Alto",     range: "76–90",  color: "#22C55E" },
-    { key: "listo",    label: "Listo",    range: "91–100", color: "#16A34A" },
-] as const;
-export type ScoreRangeKey = typeof SCORE_RANGES[number]["key"];
+/*
+ * Los cinco rangos de puntaje NO viven aquí: son los de
+ * `lib/etiquetas-de-la-pantalla.ts`, los mismos del tablero de Etiquetas. Aquí
+ * eran una copia, el tablero filtraba con una segunda y la insignia de cada
+ * tarjeta pintaba su color con una tercera, con los cortes escritos a mano.
+ */
 
 export const CrmDashboard = ({
     stats,
@@ -96,7 +100,7 @@ export const CrmDashboard = ({
     const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas" | "calidad">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
-    const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
+    const [filtroDePuntaje, setFiltroDePuntaje] = useState<ClaveDePuntaje | null>(null);
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
 
     /*
@@ -115,8 +119,11 @@ export const CrmDashboard = ({
      */
     const esLaPantallaDeLlamadas = initialView === "llamadas";
 
-    const toggleScoreRange = (key: ScoreRangeKey) => {
-        setSelectedScoreRanges(new Set([key]));
+    // Uno a la vez, y pulsar el que ya está puesto lo QUITA: antes dejaba el
+    // mismo, y la «x» de al lado prometía algo que el botón no hacía. Una vez
+    // puesto un filtro no había forma de volver a ver el tablero entero.
+    const alPulsarUnRango = (clave: ClaveDePuntaje) => {
+        setFiltroDePuntaje((puesto) => elFiltroDePuntaje(puesto, clave));
     };
 
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -210,7 +217,7 @@ export const CrmDashboard = ({
                     Llamadas: ver `esLaPantallaDeLlamadas` arriba. */}
                 {!esLaPantallaDeLlamadas && (
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
+                        <div data-zona="pestanas-del-crm" className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setViewMode("analiticas")}
@@ -335,31 +342,33 @@ export const CrmDashboard = ({
                         )}
 
                         {viewMode === "kanban" && (
-                            <div className="flex items-center gap-2">
+                            <div data-zona="filtro-de-puntaje" className="flex items-center gap-2">
                                 <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                                 <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                                    {SCORE_RANGES.map((range) => {
-                                        const active = selectedScoreRanges.has(range.key);
-                                        const count = scoreCounts[range.key] ?? 0;
+                                    {RANGOS_DE_PUNTAJE.map((rango) => {
+                                        const active = filtroDePuntaje === rango.clave;
+                                        const count = scoreCounts[rango.clave] ?? 0;
                                         return (
                                             <button
-                                                key={range.key}
+                                                key={rango.clave}
                                                 type="button"
-                                                title={`Score ${range.range}`}
-                                                onClick={() => toggleScoreRange(range.key)}
+                                                data-rango={rango.clave}
+                                                aria-pressed={active}
+                                                title={active ? `Puntaje ${elTramo(rango)} · pulsa otra vez para quitar el filtro` : `Puntaje ${elTramo(rango)}`}
+                                                onClick={() => alPulsarUnRango(rango.clave)}
                                                 className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
                                                 style={{
-                                                    color: active ? range.color : undefined,
-                                                    backgroundColor: active ? range.color + "18" : undefined,
-                                                    boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                                    color: active ? rango.color : undefined,
+                                                    backgroundColor: active ? rango.color + "18" : undefined,
+                                                    boxShadow: active ? `inset 0 0 0 1px ${rango.color}60` : undefined,
                                                 }}
                                             >
-                                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
-                                                {range.label}
+                                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: rango.color }} />
+                                                {rango.nombre}
                                                 {count > 0 && (
                                                     <span
                                                         className="ml-1 text-[10px] font-bold px-1 py-0 rounded-full text-white"
-                                                        style={{ backgroundColor: range.color }}
+                                                        style={{ backgroundColor: rango.color }}
                                                     >
                                                         {count}
                                                     </span>
@@ -425,8 +434,7 @@ export const CrmDashboard = ({
                             cuentas={cuentas.elegidas}
                             unificado={unificado}
                             nombresDeCuenta={nombresDeCuenta}
-                            selectedScoreRanges={selectedScoreRanges}
-                            onToggleScoreRange={(key) => toggleScoreRange(key as ScoreRangeKey)}
+                            filtroDePuntaje={filtroDePuntaje}
                             onScoreCountsChange={setScoreCounts}
                         />
                     </div>

@@ -32,6 +32,7 @@ import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
+import { GUIA_CALIFICACION } from "@/lib/guia-calificacion";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
@@ -307,6 +308,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/crm/rules",
         contenido: GUIA_FOLLOW_UPS,
         tarjeta: "Aprende a hacer seguimiento automático a tus leads en la plataforma",
+    },
+    {
+        modulo: "calificacion",
+        ruta: "/crm/kanban",
+        contenido: GUIA_CALIFICACION,
+        tarjeta: "Aprende a calificar tus contactos por etapa en la plataforma",
     },
 ];
 
