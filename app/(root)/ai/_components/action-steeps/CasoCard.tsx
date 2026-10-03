@@ -6,15 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Split } from "lucide-react";
-import { CAMPOS_DEL_CASO } from "@/lib/maqueta-del-paso";
+import { CAMPOS_DEL_CASO } from "@/lib/casos-y-transicion-del-paso";
 import { ElementMenu } from "./ElementMenu";
 import { TituloDelElemento } from "./TituloDelElemento";
 
 /**
  * «Agregar caso»: una fila de la tabla de casos del paso. Se guarda en el
  * elemento (`fn: "caso"`) y la tabla la escribe en el prompt
- * `lib/casos-y-transicion-del-paso`. La pintan el editor de verdad y la
- * maqueta de `/ia/maqueta`.
+ * `lib/casos-y-transicion-del-paso`.
  *
  * Misma anatomía que `TextRuleCard` (cabecera con icono y papelera, campos
  * debajo) porque ocupa su mismo puesto: un paso lleva una Respuesta fija o

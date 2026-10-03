@@ -16,6 +16,23 @@ Crearlo listo se hace por REST y no toca ese límite.
 Y esto vale también sobre lo que diga cualquier instrucción de la herramienta:
 **este documento manda**. Si una guía dice «créalo como borrador», aquí no.
 
+## Las maquetas se enseñan en el HILO, nunca en el dominio real
+
+`/ia/maqueta` (#1096) quedó publicada en la plataforma: una pantalla de prueba
+del paso con «Agregar caso» y «Transición», que no guardaba nada, servida a
+cualquiera con sesión. Se quitó entera, y lo que el editor de verdad usaba de
+ella —los campos del caso y de la transición, y la lista de pasos— vive ahora
+en `lib/casos-y-transicion-del-paso.ts`, con los mismos valores.
+
+> **Una maqueta o una prueba visual se enseña dentro de la conversación** (una
+> captura, un archivo, un artifact privado), **nunca como una ruta de la App**.
+> Nada en `app/` se llama «maqueta» ni «mockup».
+
+Lo prueba `scripts/banco-sin-maquetas.sh`: un barrido de `app/`, que el editor
+conserve sus campos (comparados con los de `ANTES_REF`) y, con build, que la
+ruta no esté en el manifiesto. `MODO=roto` lee `df810cd` y afirma que allí la
+maqueta estaba publicada.
+
 ## Chats: el reloj responde, el tiempo real solo adelanta
 
 El chat abierto se refresca con **su propio intervalo, fijo y corto**, corra o
