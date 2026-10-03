@@ -9,9 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pencil, Loader2, Star, ArrowLeft, Users, Store } from "lucide-react";
+import { Pencil, Loader2, Star, ArrowLeft, Users, Store, ExternalLink } from "lucide-react";
 import {
   getAllSubscriptionPlans,
   upsertSubscriptionPlan,
@@ -19,6 +18,17 @@ import {
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
+import {
+  elNombreDelPlan,
+  elTutorialQueSeGuarda,
+  lasFuncionesDelPlan,
+  losAvisosDelTexto,
+  losDatosDelPlan,
+  losFeaturesDeLasFunciones,
+  type FuncionDelPlan,
+} from "@/lib/pagina-de-plan";
+import { MODULOS_CON_GUIA } from "@/lib/introduccion-de-la-guia";
+import { FuncionesDelPlanEditor } from "./FuncionesDelPlanEditor";
 import { UsdRateCard } from "./UsdRateCard";
 import dynamic from "next/dynamic";
 const PlanDetailTab = dynamic(() => import("./PlanDetailTab").then(m => m.PlanDetailTab), { ssr: false });
@@ -54,7 +64,12 @@ type EditForm = {
   priceQuarterly: number;
   priceYearly: number;
   credits: number;
-  features: string;
+  /**
+   * Las funciones del plan, cada una con su interruptor, su categoría, su
+   * descripción y su tutorial. Son lo que enseña la página pública del plan y
+   * la tarjeta de la landing: `features` se rehace con las ENCENDIDAS al guardar.
+   */
+  funciones: FuncionDelPlan[];
   description: string;
   isPopular: boolean;
   isActive: boolean;
@@ -122,7 +137,9 @@ export function PlanesMain() {
       priceQuarterly: existing?.priceQuarterly ?? 0,
       priceYearly: existing?.priceYearly ?? 0,
       credits: existing?.credits ?? defaultCredits[plan][type],
-      features: existing?.features.join("\n") ?? "",
+      // Un plan guardado antes de las funciones con categoría las trae deducidas
+      // de `features`, en su mismo orden.
+      funciones: existing?.funciones ?? lasFuncionesDelPlan(existing?.features ?? [], null),
       description: existing?.description ?? "",
       isPopular: existing?.isPopular ?? false,
       isActive: existing?.isActive ?? true,
@@ -141,30 +158,77 @@ export function PlanesMain() {
   const handleSave = async () => {
     if (!form) return;
     setSaving(true);
-    const res = await upsertSubscriptionPlan({
-      ...form,
-      features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
-      description: form.description || undefined,
-      color: form.color || undefined,
-      // 0 es "sin precio en pesos": vuelve a la conversión desde dólares.
-      priceCop: form.priceCop || null,
-      priceWholesale: form.priceWholesale || null,
-      priceQuarterly: form.priceQuarterly || null,
-      priceYearly: form.priceYearly || null,
-      checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
-      checkoutUrlQuarterly: form.checkoutUrlQuarterly || undefined,
-      checkoutUrlYearly: form.checkoutUrlYearly || undefined,
-      name: form.name || null,
-    });
-    if (res.success) {
-      toast.success(res.message);
-      setEditOpen(false);
-      void fetchPlans();
-    } else {
-      toast.error(res.message);
+    // Un tutorial a medio escribir no se guarda: solo una guía publicada o un
+    // enlace https completo. Lo que no sirve se queda «sin tutorial».
+    const funciones = form.funciones.map((f) => ({
+      ...f,
+      tutorial: elTutorialQueSeGuarda(f.tutorial, MODULOS_CON_GUIA),
+    }));
+    try {
+      const res = await upsertSubscriptionPlan({
+        ...form,
+        funciones,
+        features: losFeaturesDeLasFunciones(funciones),
+        description: form.description || undefined,
+        color: form.color || undefined,
+        // 0 es "sin precio en pesos": vuelve a la conversión desde dólares.
+        priceCop: form.priceCop || null,
+        priceWholesale: form.priceWholesale || null,
+        priceQuarterly: form.priceQuarterly || null,
+        priceYearly: form.priceYearly || null,
+        checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
+        checkoutUrlQuarterly: form.checkoutUrlQuarterly || undefined,
+        checkoutUrlYearly: form.checkoutUrlYearly || undefined,
+        name: form.name || null,
+      });
+      if (res.success) {
+        toast.success(res.message);
+        setEditOpen(false);
+        void fetchPlans();
+      } else {
+        toast.error(res.message);
+        // El plan pudo guardarse aunque sus funciones no: se recarga para que la
+        // tarjeta diga lo que de verdad quedó.
+        void fetchPlans();
+      }
+    } catch (e) {
+      console.error("[planes] no se pudo guardar el plan", e);
+      toast.error("No se pudo guardar el plan. Revisa la conexión y vuelve a intentarlo.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
+
+  /**
+   * Los datos con los que se revisan los textos de este plan MIENTRAS se
+   * editan: el nombre, los créditos y el precio del formulario, no los
+   * guardados. Así un aviso de «dice 12.000 créditos y el plan tiene 8.000»
+   * sale en cuanto se cambian los créditos, antes de guardar.
+   *
+   * Los nombres en uso son los de los planes de clientes —los que tienen página
+   * pública—, con el de este plan tal cual está en el formulario.
+   */
+  const datosDelFormulario = form
+    ? losDatosDelPlan(
+        {
+          plan: form.plan,
+          name: form.name,
+          credits: form.credits,
+          priceUSD: form.priceUSD,
+          assistanceType: form.assistanceType,
+        },
+        [
+          ...plans
+            .filter(
+              (p) =>
+                !p.isResellerPlan &&
+                !(!form.isResellerPlan && p.plan === form.plan && p.assistanceType === form.assistanceType),
+            )
+            .map(elNombreDelPlan),
+          ...(form.isResellerPlan ? [] : [elNombreDelPlan({ plan: form.plan, name: form.name })]),
+        ],
+      )
+    : null;
 
   const handleToggle = async (id: string, current: boolean) => {
     const res = await toggleSubscriptionPlanActive(id, !current);
@@ -388,6 +452,20 @@ export function PlanesMain() {
                                       onCheckedChange={() => void handleToggle(p.id, p.isActive)}
                                     />
                                   )}
+                                  {/* La página pública solo existe para un plan de clientes activo. */}
+                                  {p && !isReseller && p.isActive && (
+                                    <a
+                                      href={`/planes/${plan}?tipo=${type}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                      title="Ver página pública del plan"
+                                      aria-label="Ver página pública del plan"
+                                      data-ver-pagina-publica
+                                    >
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  )}
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -430,7 +508,7 @@ export function PlanesMain() {
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="flex max-w-lg flex-col">
+        <DialogContent className="flex max-w-2xl flex-col">
           <DialogHeader>
             <DialogTitle>
               {form ? `${form.name?.trim() || PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}
@@ -446,12 +524,23 @@ export function PlanesMain() {
             >
               Configuración
             </button>
+            {/*
+              Un plan de reseller no tiene página pública: su detalle no se enseña
+              en ninguna parte, así que no se ofrece editar algo que nadie ve.
+            */}
             <button
               type="button"
               onClick={() => setDialogTab("detail")}
-              disabled={!dialogPlanId}
+              disabled={!dialogPlanId || !!form?.isResellerPlan}
+              data-pestana-detalle
               className={`flex-1 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${dialogTab === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-              title={!dialogPlanId ? "Guarda primero el plan para editar el detalle" : undefined}
+              title={
+                form?.isResellerPlan
+                  ? "Los planes de reseller no tienen página pública"
+                  : !dialogPlanId
+                    ? "Guarda primero el plan para editar el detalle"
+                    : undefined
+              }
             >
               Página de detalle
             </button>
@@ -536,13 +625,21 @@ export function PlanesMain() {
                 <Input value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Ideal para pequeños negocios..." />
+                {/* La misma regla que la página: lo que contradice al plan no sale. */}
+                {datosDelFormulario && form.description.trim() &&
+                  losAvisosDelTexto(form.description, datosDelFormulario).map((a) => (
+                    <p key={a} className="text-[11px] text-amber-600 dark:text-amber-400" data-aviso-de-descripcion>
+                      No sale en la página: {a}
+                    </p>
+                  ))}
               </div>
-              <div className="space-y-1">
-                <Label>Características (una por línea)</Label>
-                <Textarea rows={4} value={form.features}
-                  onChange={(e) => setForm({ ...form, features: e.target.value })}
-                  placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"} />
-              </div>
+              {datosDelFormulario && (
+                <FuncionesDelPlanEditor
+                  funciones={form.funciones}
+                  onChange={(funciones) => setForm({ ...form, funciones })}
+                  datos={datosDelFormulario}
+                />
+              )}
 
               <div className="space-y-1">
                 <Label>
@@ -602,9 +699,14 @@ export function PlanesMain() {
             </div>
           )}
 
-          {dialogTab === "detail" && dialogPlanId && (
+          {dialogTab === "detail" && dialogPlanId && form && !form.isResellerPlan && datosDelFormulario && (
             <div className="flex-1 overflow-y-auto py-2 pr-1">
-              <PlanDetailTab subscriptionPlanId={dialogPlanId} />
+              <PlanDetailTab
+                subscriptionPlanId={dialogPlanId}
+                datos={datosDelFormulario}
+                enlaceDeLaPagina={`/planes/${form.plan}?tipo=${form.assistanceType}`}
+                planActivo={form.isActive}
+              />
             </div>
           )}
 

@@ -146,9 +146,23 @@ export async function getPlanDetailBySlug(planSlug: string, assistanceType = "IA
 
 export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPlanId">;
 
+/**
+ * Los campos que se guardan. Uno que NO llega no se toca: el panel ya no edita
+ * las galerías, los testimonios ni las secciones de marketing (la página del
+ * plan no las enseña), y guardar el video no puede borrarlas por debajo.
+ */
+const CAMPOS_DE_TEXTO = [
+  "heroTitle", "heroSubtitle", "heroImageUrl", "heroBadge",
+  "videoUrl", "videoTitle", "videoThumbnailUrl",
+  "meetingUrl", "demoUrl", "whatsappMessage",
+  "ctaTitle", "ctaSubtitle", "ctaButtonText", "ctaButtonUrl", "ctaSecondaryText", "ctaSecondaryUrl",
+  "metaTitle", "metaDescription", "ogImageUrl",
+] as const;
+const CAMPOS_DE_LISTA = ["featureSections", "galleryImages", "faqs", "stats", "testimonials"] as const;
+
 export async function upsertPlanDetail(
   subscriptionPlanId: string,
-  data: UpsertPlanDetailInput
+  data: Partial<UpsertPlanDetailInput>
 ) {
   try {
     // La ficha de venta de un plan es de la plataforma: la cambia la casa
@@ -156,32 +170,17 @@ export async function upsertPlanDetail(
     if (!(await quienMandaEnLaCasa("upsertPlanDetail"))) {
       return { success: false, message: "No autorizado" };
     }
-    const payload = {
-      heroTitle: data.heroTitle ?? null,
-      heroSubtitle: data.heroSubtitle ?? null,
-      heroImageUrl: data.heroImageUrl ?? null,
-      heroBadge: data.heroBadge ?? null,
-      videoUrl: data.videoUrl ?? null,
-      videoTitle: data.videoTitle ?? null,
-      videoThumbnailUrl: data.videoThumbnailUrl ?? null,
-      featureSections: data.featureSections ?? [],
-      galleryImages: data.galleryImages ?? [],
-      faqs: data.faqs ?? [],
-      stats: data.stats ?? [],
-      testimonials: data.testimonials ?? [],
-      meetingUrl: data.meetingUrl ?? null,
-      demoUrl: data.demoUrl ?? null,
-      whatsappMessage: data.whatsappMessage ?? null,
-      ctaTitle: data.ctaTitle ?? null,
-      ctaSubtitle: data.ctaSubtitle ?? null,
-      ctaButtonText: data.ctaButtonText ?? null,
-      ctaButtonUrl: data.ctaButtonUrl ?? null,
-      ctaSecondaryText: data.ctaSecondaryText ?? null,
-      ctaSecondaryUrl: data.ctaSecondaryUrl ?? null,
-      metaTitle: data.metaTitle ?? null,
-      metaDescription: data.metaDescription ?? null,
-      ogImageUrl: data.ogImageUrl ?? null,
-    };
+    const entrada = (data ?? {}) as Record<string, unknown>;
+    const payload: Record<string, unknown> = {};
+    for (const campo of CAMPOS_DE_TEXTO) {
+      if (!(campo in entrada) || entrada[campo] === undefined) continue;
+      const v = entrada[campo];
+      payload[campo] = typeof v === "string" && v.trim() ? v.trim() : null;
+    }
+    for (const campo of CAMPOS_DE_LISTA) {
+      if (!(campo in entrada) || entrada[campo] === undefined) continue;
+      payload[campo] = Array.isArray(entrada[campo]) ? entrada[campo] : [];
+    }
 
     await db.planDetail.upsert({
       where: { subscriptionPlanId },
@@ -190,6 +189,7 @@ export async function upsertPlanDetail(
     });
 
     revalidatePath("/planes");
+    revalidatePath("/planes/[slug]", "page");
     revalidatePath("/inicio");
     return { success: true, message: "Detalle guardado" };
   } catch (e) {

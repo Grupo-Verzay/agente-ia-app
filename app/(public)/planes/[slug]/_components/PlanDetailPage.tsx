@@ -1,14 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Star, MessageCircle, Calendar, Play, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { useState } from "react";
-import type { PlanDetailData, FeatureSection, GalleryImage, FaqItem, StatItem, TestimonialItem } from "@/actions/plan-detail-actions";
+import {
+  ArrowLeft,
+  BookOpen,
+  Bot,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  ExternalLink,
+  Package,
+  Play,
+  Star,
+  Users,
+  Zap,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  conReproduccionAutomatica,
+  type BotonDelPlan,
+  type PreguntaDelPlan,
+  type TarjetaDeCapacidad,
+} from "@/lib/pagina-de-plan";
+import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
 
-const PLAN_COLORS: Record<string, string> = {
+/**
+ * La página pública de un plan, en este orden y nada más:
+ *
+ *   1. el hero, con el video de ESE plan;
+ *   2. el resumen de capacidad (créditos, catálogo, asistencia);
+ *   3. las funciones encendidas, por categoría, con su tutorial;
+ *   4. las preguntas frecuentes de ese plan.
+ *
+ * No hay ni un texto de venta escrito aquí: todo llega armado de
+ * `lib/pagina-de-plan.server.ts`, que lo lee del panel de Planes. Lo que había
+ * antes —estadísticas, testimonios, galería, secciones de marketing y un bloque
+ * de cierre— se fue: era lo mismo para todos los planes y se quedaba atrás.
+ */
+
+/** Solo el color: es estilo, no texto. */
+const COLOR_DEL_PLAN: Record<string, string> = {
   lite: "from-slate-500 to-slate-600",
   basico: "from-emerald-500 to-emerald-600",
   intermedio: "from-blue-500 to-blue-600",
@@ -17,30 +52,138 @@ const PLAN_COLORS: Record<string, string> = {
   personalizado: "from-rose-500 to-rose-600",
 };
 
-type PlanInfo = {
-  id: string; plan: string; assistanceType: string;
-  priceUSD: number; priceQuarterly: number | null; priceYearly: number | null;
-  credits: number; features: string[]; description: string | null;
-  isPopular: boolean;
-  checkoutUrlMonthly: string | null; checkoutUrlQuarterly: string | null; checkoutUrlYearly: string | null;
+const ICONO_DE_CAPACIDAD: Record<TarjetaDeCapacidad["clave"], typeof Coins> = {
+  creditos: Coins,
+  catalogo: Package,
+  asistencia: Bot,
 };
 
-function FaqAccordion({ faqs }: { faqs: FaqItem[] }) {
-  const [open, setOpen] = useState<number | null>(null);
+/** Un enlace de la plataforma va en la misma pestaña; uno de fuera, en otra y sin `opener`. */
+function Enlace({
+  url,
+  externo,
+  className,
+  children,
+  ...resto
+}: {
+  url: string;
+  externo: boolean;
+  className?: string;
+  children: React.ReactNode;
+} & Record<`data-${string}`, string>) {
+  if (externo) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className={className} {...resto}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={url} className={className} {...resto}>
+      {children}
+    </Link>
+  );
+}
+
+function BotonPrincipal({ boton, gradiente, tamano = "lg" }: { boton: BotonDelPlan; gradiente: string; tamano?: "sm" | "lg" }) {
+  return (
+    <Enlace url={boton.url} externo={boton.externo} data-boton="principal">
+      <Button
+        size={tamano}
+        className={cn("w-full border-0 bg-gradient-to-r text-white hover:opacity-90 sm:w-auto", gradiente, tamano === "lg" && "px-8")}
+      >
+        {boton.texto}
+      </Button>
+    </Enlace>
+  );
+}
+
+function BotonSecundario({ boton }: { boton: BotonDelPlan }) {
+  return (
+    <Enlace url={boton.url} externo={boton.externo} data-boton="secundario">
+      <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 sm:w-auto">
+        {boton.texto}
+      </Button>
+    </Enlace>
+  );
+}
+
+function VideoDelPlan({ video }: { video: NonNullable<PaginaDelPlan["video"]> }) {
+  const [reproduciendo, setReproduciendo] = useState(false);
+
+  if (video.tipo === "archivo") {
+    return (
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-black" data-video="archivo">
+        <video
+          src={video.url}
+          poster={video.miniatura ?? undefined}
+          controls
+          playsInline
+          preload="metadata"
+          className="aspect-video w-full"
+          aria-label={video.titulo}
+        />
+      </div>
+    );
+  }
+
+  if (reproduciendo || !video.miniatura) {
+    return (
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black" data-video="iframe">
+        <iframe
+          src={reproduciendo ? conReproduccionAutomatica(video.url) : video.url}
+          title={video.titulo}
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          className="h-full w-full"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setReproduciendo(true)}
+      className="group relative block aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black text-left"
+      aria-label={`Reproducir: ${video.titulo}`}
+      data-video="miniatura"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={video.miniatura} alt="" className="h-full w-full object-cover" />
+      <span className="absolute inset-0 flex items-center justify-center bg-black/40 transition-colors group-hover:bg-black/50">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-xl">
+          <Play className="h-6 w-6 fill-slate-900 text-slate-900" />
+        </span>
+      </span>
+      <span className="absolute bottom-4 left-4 right-4 text-sm font-medium text-white drop-shadow">{video.titulo}</span>
+    </button>
+  );
+}
+
+function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
+  const [abierta, setAbierta] = useState<number | null>(null);
   return (
     <div className="space-y-2">
-      {faqs.map((faq, i) => (
-        <div key={i} className="rounded-lg border border-white/10 overflow-hidden">
+      {preguntas.map((p, i) => (
+        <div key={i} className="overflow-hidden rounded-lg border border-white/10" data-pregunta>
           <button
-            onClick={() => setOpen(open === i ? null : i)}
-            className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium text-white hover:bg-white/5"
+            type="button"
+            onClick={() => setAbierta(abierta === i ? null : i)}
+            aria-expanded={abierta === i}
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-medium text-white hover:bg-white/5"
           >
-            {faq.question}
-            {open === i ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
+            {p.question}
+            {abierta === i ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+            )}
           </button>
-          {open === i && (
-            <div className="border-t border-white/10 px-5 pb-4 pt-3 text-sm text-slate-400 leading-relaxed">
-              {faq.answer}
+          {abierta === i && (
+            <div className="whitespace-pre-line border-t border-white/10 px-5 pb-4 pt-3 text-sm leading-relaxed text-slate-400">
+              {p.answer}
             </div>
           )}
         </div>
@@ -49,299 +192,182 @@ function FaqAccordion({ faqs }: { faqs: FaqItem[] }) {
   );
 }
 
-function VideoEmbed({ url, title, thumbnailUrl }: { url: string; title?: string | null; thumbnailUrl?: string | null }) {
-  const [playing, setPlaying] = useState(false);
-  const isYoutube = url.includes("youtube") || url.includes("youtu.be");
-  const isVimeo = url.includes("vimeo");
-  const embedUrl = isYoutube ? url.replace("watch?v=", "embed/").replace("youtu.be/", "youtube.com/embed/")
-    : isVimeo ? url.replace("vimeo.com/", "player.vimeo.com/video/")
-    : url;
+const NOMBRE_DEL_TIPO: Record<"IA" | "HUMANO", { texto: string; icono: typeof Zap }> = {
+  IA: { texto: "Asistencia IA", icono: Zap },
+  HUMANO: { texto: "Asistencia humana", icono: Users },
+};
 
-  if (playing || !thumbnailUrl) {
-    return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10">
-        <iframe src={`${embedUrl}${playing ? "?autoplay=1" : ""}`} title={title ?? "Video"} allow="autoplay; encrypted-media" allowFullScreen className="h-full w-full" />
-      </div>
-    );
-  }
+export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
+  const gradiente = COLOR_DEL_PLAN[pagina.plan] ?? "from-blue-500 to-blue-600";
+  const { principal, secundario } = pagina.botones;
+  const anio = new Date().getFullYear();
 
   return (
-    <div
-      className="relative aspect-video w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 group"
-      onClick={() => setPlaying(true)}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={thumbnailUrl} alt={title ?? "Video"} className="h-full w-full object-cover" />
-      <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/50 transition-colors">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-xl">
-          <Play className="h-6 w-6 fill-slate-900 text-slate-900" />
-        </div>
-      </div>
-      {title && (
-        <div className="absolute bottom-4 left-4 right-4">
-          <p className="text-sm font-medium text-white drop-shadow">{title}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function PlanDetailPage({ plan, detail, planLabel }: {
-  plan: PlanInfo;
-  detail: PlanDetailData | null;
-  planLabel: string;
-}) {
-  const gradient = PLAN_COLORS[plan.plan] ?? "from-blue-500 to-blue-600";
-  const meetingUrl = detail?.meetingUrl;
-  // Sin CTA propio se va al registro con este plan marcado, no a la tienda:
-  // un pago sin cuenta detrás no se puede aplicar a nadie. "/registro" no
-  // existe como ruta —la buena es /register— y dejaba un 404.
-  const ctaUrl = detail?.ctaButtonUrl ?? `/register?plan=${plan.plan}&a=${plan.assistanceType ?? "IA"}`;
-  const ctaText = detail?.ctaButtonText ?? "Comenzar ahora";
-  const secondaryUrl = detail?.ctaSecondaryUrl ?? meetingUrl;
-  const secondaryText = detail?.ctaSecondaryText ?? (meetingUrl ? "Agendar una demo" : null);
-
-  const featureSections = (detail?.featureSections ?? []) as FeatureSection[];
-  const galleryImages = (detail?.galleryImages ?? []) as GalleryImage[];
-  const faqs = (detail?.faqs ?? []) as FaqItem[];
-  const stats = (detail?.stats ?? []) as StatItem[];
-  const testimonials = (detail?.testimonials ?? []) as TestimonialItem[];
-
-  return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
-
-      {/* ── NAVBAR MINI ── */}
+    <div className="min-h-full bg-[#0a0f1a] text-white" data-pagina-de-plan={pagina.plan}>
+      {/* ── Barra ── */}
       <div className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0f1a]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link href="/inicio" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">
             <ArrowLeft className="h-4 w-4" /> Volver a planes
           </Link>
-          <div className="flex items-center gap-2">
-            {secondaryUrl && secondaryText && (
-              <a href={secondaryUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="sm" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" /> {secondaryText}
-                </Button>
-              </a>
-            )}
-            <a href={ctaUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" className={cn("bg-gradient-to-r", gradient, "text-white border-0 hover:opacity-90")}>
-                {ctaText}
-              </Button>
-            </a>
-          </div>
+          <BotonPrincipal boton={principal} gradiente={gradiente} tamano="sm" />
         </div>
       </div>
 
-      {/* ── CONTENIDO PRINCIPAL (todo dentro del ancho predeterminado) ── */}
-      <div className="mx-auto max-w-5xl px-4">
+      {/* ── 1. Hero con el video del plan ── */}
+      <section className="px-4 pb-12 pt-14" data-seccion="hero">
+        <div className="mx-auto max-w-5xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+              {pagina.esPopular && (
+                <Badge className="flex items-center gap-1 bg-blue-600 px-3 text-xs text-white" data-insignia="popular">
+                  <Star className="h-3 w-3" /> Más popular
+                </Badge>
+              )}
+              {pagina.otroTipo ? (
+                <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1" data-tipos>
+                  {(["IA", "HUMANO"] as const).map((t) => {
+                    const { texto, icono: Icono } = NOMBRE_DEL_TIPO[t];
+                    const activo = pagina.tipo === t;
+                    return (
+                      <Link
+                        key={t}
+                        href={`/planes/${pagina.plan}?tipo=${t}`}
+                        replace
+                        scroll={false}
+                        aria-current={activo ? "page" : undefined}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium transition-all",
+                          activo ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white",
+                        )}
+                      >
+                        <Icono className="h-3.5 w-3.5" /> {texto}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Badge variant="outline" className="flex items-center gap-1 border-white/20 text-xs text-slate-300" data-tipo={pagina.tipo}>
+                  {(() => {
+                    const { texto, icono: Icono } = NOMBRE_DEL_TIPO[pagina.tipo];
+                    return (
+                      <>
+                        <Icono className="h-3 w-3" /> {texto}
+                      </>
+                    );
+                  })()}
+                </Badge>
+              )}
+            </div>
 
-        {/* ── HERO ── */}
-        <section className="relative overflow-hidden py-16 md:py-24">
-          <div className={cn("absolute inset-0 opacity-10 bg-gradient-to-br rounded-2xl", gradient)} />
-          <div className="relative text-center">
-            {(detail?.heroBadge ?? plan.isPopular) && (
-              <Badge className={cn("mb-4 bg-gradient-to-r text-white border-0", gradient)}>
-                {detail?.heroBadge ?? "Más popular"}
-              </Badge>
-            )}
-            <h1 className="text-4xl font-bold md:text-5xl">
-              {detail?.heroTitle ?? `Todo lo que incluye el plan ${planLabel}`}
+            <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Plan</p>
+            <h1
+              className={cn("mt-1 bg-gradient-to-r bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl", gradiente)}
+              data-nombre-del-plan
+            >
+              {pagina.nombre}
             </h1>
-            {(detail?.heroSubtitle ?? plan.description) && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-400">
-                {detail?.heroSubtitle ?? plan.description}
+            {pagina.descripcion && (
+              <p className="mt-4 text-lg leading-relaxed text-slate-300" data-descripcion>
+                {pagina.descripcion}
               </p>
             )}
-            <div className="mt-6 flex items-center justify-center gap-3">
-              <span className="text-5xl font-bold">${plan.priceUSD}</span>
-              <div className="text-left">
-                <div className="text-sm text-slate-400">USD / mes</div>
-                <div className="text-xs text-slate-500">{plan.credits.toLocaleString()} créditos</div>
-              </div>
-            </div>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <a href={ctaUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="lg" className={cn("bg-gradient-to-r border-0 text-white hover:opacity-90 px-8", gradient)}>
-                  {ctaText}
-                </Button>
-              </a>
-              {secondaryUrl && secondaryText && (
-                <a href={secondaryUrl} target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 gap-2">
-                    <Calendar className="h-4 w-4" /> {secondaryText}
-                  </Button>
-                </a>
+
+            <div className="mt-6 flex items-baseline justify-center gap-2" data-precio>
+              {pagina.precio.aConsultar ? (
+                <span className="text-3xl font-bold text-slate-300">{pagina.precio.texto}</span>
+              ) : (
+                <>
+                  <span className="text-4xl font-bold text-white">{pagina.precio.texto}</span>
+                  <span className="text-sm text-slate-400">USD/mes</span>
+                </>
               )}
             </div>
-            {detail?.heroImageUrl && (
-              <div className="mt-10 overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={detail.heroImageUrl} alt={`Plan ${planLabel}`} className="w-full object-cover" />
-              </div>
-            )}
-          </div>
-        </section>
 
-        {/* ── STATS ── */}
-        {stats.length > 0 && (
-          <div className="border-y border-white/10 py-10">
-            <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-              {stats.map((stat, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-3xl font-bold text-white">{stat.value}</div>
-                  <div className="mt-1 text-sm text-slate-400">{stat.label}</div>
-                </div>
-              ))}
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <BotonPrincipal boton={principal} gradiente={gradiente} />
+              {secundario && <BotonSecundario boton={secundario} />}
             </div>
           </div>
-        )}
 
-        {/* ── FEATURES INCLUIDAS ── */}
-        {plan.features.length > 0 && (
-          <section className="py-14">
-            <h2 className="mb-8 text-center text-2xl font-bold">Qué incluye este plan</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {plan.features.map((f, i) => (
-                <div key={i} className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                  <span className="text-sm text-slate-300">{f}</span>
-                </div>
-              ))}
+          {pagina.video && (
+            <div className="mx-auto mt-10 max-w-4xl">
+              <VideoDelPlan video={pagina.video} />
             </div>
-          </section>
-        )}
+          )}
+        </div>
+      </section>
 
-        {/* ── SECCIONES DE FUNCIONES ── */}
-        {featureSections.map((sec, i) => (
-          <section key={i} className={cn("py-14", i % 2 === 0 ? "rounded-xl bg-white/[0.02] px-6" : "")}>
-            <div className={cn("flex flex-col items-center gap-10 md:flex-row", sec.layout === "left" && "md:flex-row-reverse")}>
-              <div className="flex-1 space-y-4">
-                {sec.badge && (
-                  <Badge variant="outline" className="border-white/20 text-slate-300">{sec.badge}</Badge>
-                )}
-                <h3 className="text-2xl font-bold md:text-3xl">{sec.title}</h3>
-                <p className="text-slate-400 leading-relaxed">{sec.description}</p>
+      {/* ── 2. Resumen de capacidad ── */}
+      <section className="border-y border-white/10 bg-white/[0.02] px-4 py-10" data-seccion="capacidad">
+        <div className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
+          {pagina.capacidad.map((t) => {
+            const Icono = ICONO_DE_CAPACIDAD[t.clave];
+            return (
+              <div key={t.clave} className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-capacidad={t.clave}>
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+                  <Icono className="h-4 w-4" /> {t.titulo}
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">{t.valor}</div>
+                <p className="mt-1 text-sm text-slate-400">{t.detalle}</p>
               </div>
-              {sec.imageUrl && (
-                <div className="w-full flex-1 overflow-hidden rounded-xl border border-white/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={sec.imageUrl} alt={sec.imageAlt || sec.title} className="w-full object-cover" />
-                </div>
-              )}
-            </div>
-          </section>
-        ))}
+            );
+          })}
+        </div>
+      </section>
 
-        {/* ── VIDEO ── */}
-        {detail?.videoUrl && (
-          <section className="py-14">
-            {detail.videoTitle && (
-              <h2 className="mb-6 text-center text-2xl font-bold">{detail.videoTitle}</h2>
-            )}
-            <div className="mx-auto max-w-3xl">
-              <VideoEmbed url={detail.videoUrl} title={detail.videoTitle} thumbnailUrl={detail.videoThumbnailUrl} />
-            </div>
-          </section>
-        )}
-
-        {/* ── GALERÍA ── */}
-        {galleryImages.length > 0 && (
-          <section className="rounded-xl bg-white/[0.02] px-6 py-14">
-            <h2 className="mb-8 text-center text-2xl font-bold">Capturas del panel</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {galleryImages.map((img, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-white/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt={img.alt || img.caption} className="w-full object-cover" />
-                  {img.caption && (
-                    <p className="px-3 py-2 text-xs text-slate-400">{img.caption}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ── TESTIMONIOS ── */}
-        {testimonials.length > 0 && (
-          <section className="py-14">
-            <h2 className="mb-8 text-center text-2xl font-bold">Lo que dicen nuestros clientes</h2>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {testimonials.map((t, i) => (
-                <div key={i} className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, s) => (
-                      <Star key={s} className={cn("h-4 w-4", s < t.rating ? "fill-amber-400 text-amber-400" : "text-slate-600")} />
+      {/* ── 3. Funciones por categoría ── */}
+      {pagina.grupos.length > 0 && (
+        <section className="px-4 py-14" data-seccion="funciones">
+          <div className="mx-auto max-w-5xl">
+            <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Qué incluye el plan {pagina.nombre}</h2>
+            <div className="grid gap-5 md:grid-cols-2">
+              {pagina.grupos.map((g) => (
+                <div key={g.slug} className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-grupo={g.slug}>
+                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">{g.nombre}</h3>
+                  <ul className="space-y-3">
+                    {g.funciones.map((f) => (
+                      <li key={f.id} className="flex items-start gap-3" data-funcion={f.id}>
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white">{f.nombre}</p>
+                          {f.descripcion && <p className="mt-0.5 text-sm leading-relaxed text-slate-400">{f.descripcion}</p>}
+                          {f.tutorial && (
+                            <Enlace
+                              url={f.tutorial.url}
+                              externo={f.tutorial.externo}
+                              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300"
+                              data-tutorial={f.tutorial.url}
+                            >
+                              <BookOpen className="h-3.5 w-3.5" />
+                              {f.tutorial.externo ? "Ver tutorial" : f.tutorial.titulo}
+                              {f.tutorial.externo && <ExternalLink className="h-3 w-3" />}
+                            </Enlace>
+                          )}
+                        </div>
+                      </li>
                     ))}
-                  </div>
-                  <p className="flex-1 text-sm text-slate-300 leading-relaxed">&ldquo;{t.text}&rdquo;</p>
-                  <div className="flex items-center gap-3">
-                    {t.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.avatarUrl} alt={t.name} className="h-9 w-9 rounded-full object-cover" />
-                    ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-bold">
-                        {t.name.charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-sm font-medium text-white">{t.name}</p>
-                      <p className="text-xs text-slate-500">{t.role} · {t.company}</p>
-                    </div>
-                  </div>
+                  </ul>
                 </div>
               ))}
             </div>
-          </section>
-        )}
-
-        {/* ── FAQs ── */}
-        {faqs.length > 0 && (
-          <section className="rounded-xl bg-white/[0.02] px-6 py-14">
-            <h2 className="mb-8 text-center text-2xl font-bold">Preguntas frecuentes</h2>
-            <div className="mx-auto max-w-3xl">
-              <FaqAccordion faqs={faqs} />
-            </div>
-          </section>
-        )}
-
-        {/* ── CTA FINAL ── */}
-        <section className="py-16 text-center">
-          <div className={cn("inline-block rounded-full px-4 py-1.5 text-xs font-semibold mb-4 bg-gradient-to-r text-white", gradient)}>
-            {planLabel}
-          </div>
-          <h2 className="text-3xl font-bold md:text-4xl">
-            {detail?.ctaTitle ?? "¿Listo para empezar?"}
-          </h2>
-          <p className="mt-3 text-slate-400">
-            {detail?.ctaSubtitle ?? "Sin contratos. Cancela cuando quieras."}
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <a href={ctaUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="lg" className={cn("bg-gradient-to-r border-0 text-white hover:opacity-90 px-10 text-base", gradient)}>
-                {ctaText}
-              </Button>
-            </a>
-            {secondaryUrl && secondaryText && (
-              <a href={secondaryUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 gap-2">
-                  {meetingUrl === secondaryUrl
-                    ? <Calendar className="h-4 w-4" />
-                    : <MessageCircle className="h-4 w-4" />}
-                  {secondaryText}
-                </Button>
-              </a>
-            )}
           </div>
         </section>
+      )}
 
-      </div>{/* fin max-w-5xl */}
+      {/* ── 4. Preguntas frecuentes de este plan ── */}
+      {pagina.preguntas.length > 0 && (
+        <section className="border-t border-white/10 px-4 py-14" data-seccion="preguntas">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes sobre {pagina.nombre}</h2>
+            <Preguntas preguntas={pagina.preguntas} />
+          </div>
+        </section>
+      )}
 
-      {/* Footer mini */}
-      <div className="border-t border-white/10 py-6 text-center text-xs text-slate-600">
-        © {new Date().getFullYear()} Agente IA. Todos los derechos reservados.
-      </div>
+      <footer className="border-t border-white/10 px-4 py-6 text-center text-xs text-slate-500">
+        © {anio} {pagina.marca}
+      </footer>
     </div>
   );
 }

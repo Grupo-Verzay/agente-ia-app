@@ -508,7 +508,6 @@ async function video(navegador, estado) {
     await mover(p, elModulo);
 
     const [, , , buscarTodo, ayuda, soporte, campana] = lasPartesDeArriba(p);
-    void ayuda; // la frase de la barra no la nombra: la misma de todas las guías
     await decir("barraDeArriba");
     await pulsar(p, flechas);
     await alDecir("el buscador general");

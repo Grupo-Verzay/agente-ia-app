@@ -11,6 +11,13 @@ import { comoEnteroNoNegativo, comoNumeroNoNegativo } from "@/lib/numeros-de-la-
 import { leerLosPlanes } from "@/lib/planes-de-suscripcion.server";
 import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 import { etiquetasDePlanesParaMarca } from "@/lib/plan-pricing";
+import {
+  comoFunciones,
+  lasFuncionesDelPlan,
+  losFeaturesDeLasFunciones,
+  type FuncionDelPlan,
+} from "@/lib/pagina-de-plan";
+import { guardarLasFunciones, lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
 import { PLAN_LEVEL_LABELS } from "@/types/plans";
 
 export type SubscriptionPlanItem = {
@@ -35,7 +42,28 @@ export type SubscriptionPlanItem = {
   checkoutUrlQuarterly: string | null;
   checkoutUrlYearly: string | null;
   name: string | null;
+  /**
+   * Cada función con su categoría, su descripción, su tutorial y si está
+   * encendida. Solo la trae el panel de Planes (`getAllSubscriptionPlans` para
+   * la casa); el resto de pantallas leen `features`, que son las encendidas.
+   */
+  funciones?: FuncionDelPlan[];
 };
+
+/**
+ * Le pone a cada plan sus funciones, emparejadas con `features`. Si
+ * `plan_funciones` no se puede leer, se deducen de `features`: el panel no se
+ * queda sin planes por eso, pero se dice.
+ */
+async function conSusFunciones(planes: SubscriptionPlanItem[]): Promise<SubscriptionPlanItem[]> {
+  let guardadas = new Map<string, unknown>();
+  try {
+    guardadas = await lasFuncionesGuardadas(planes.map((p) => p.id));
+  } catch (e) {
+    console.error("[planes] no se pudieron leer las funciones guardadas; se deducen de features", e);
+  }
+  return planes.map((p) => ({ ...p, funciones: lasFuncionesDelPlan(p.features ?? [], guardadas.get(p.id)) }));
+}
 
 /**
  * Todos los planes, activos e inactivos. La leen dos pantallas: Planes y
@@ -54,7 +82,8 @@ export async function getAllSubscriptionPlans() {
       console.warn("[planes] lectura de todos los planes rechazada", { persona: me?.id ?? null });
       return { success: false, data: [] as SubscriptionPlanItem[] };
     }
-    return { success: true, data: await leerLosPlanes(undefined, { conMayorista: esDeLaCasa }) };
+    const planes = await leerLosPlanes(undefined, { conMayorista: esDeLaCasa });
+    return { success: true, data: esDeLaCasa ? await conSusFunciones(planes) : planes };
   } catch (e) {
     console.error("[getAllSubscriptionPlans] Error:", e);
     return { success: false, data: [] as SubscriptionPlanItem[] };
@@ -97,6 +126,11 @@ export async function upsertSubscriptionPlan(data: {
   priceYearly?: number | null;
   credits: number;
   features: string[];
+  /**
+   * La lista estructurada del editor. Si llega, MANDA: `features` se rehace con
+   * las encendidas, en su orden, y lo demás se guarda en `plan_funciones`.
+   */
+  funciones?: unknown;
   description?: string;
   isPopular?: boolean;
   isActive?: boolean;
@@ -118,6 +152,10 @@ export async function upsertSubscriptionPlan(data: {
     if (priceUSD === null) return { success: false, message: "El precio no es válido" };
     if (credits === null) return { success: false, message: "Los créditos no son válidos" };
     const isResellerPlan = data.isResellerPlan ?? false;
+    const funciones = data.funciones !== undefined ? comoFunciones(data.funciones) : null;
+    const features = funciones
+      ? losFeaturesDeLasFunciones(funciones)
+      : (Array.isArray(data.features) ? data.features : []).filter((f) => typeof f === "string" && f.trim());
     const payload = {
       priceUSD,
       priceCop: comoNumeroNoNegativo(data.priceCop),
@@ -125,7 +163,7 @@ export async function upsertSubscriptionPlan(data: {
       priceQuarterly: comoNumeroNoNegativo(data.priceQuarterly),
       priceYearly: comoNumeroNoNegativo(data.priceYearly),
       credits,
-      features: data.features,
+      features,
       description: data.description ?? null,
       isPopular: data.isPopular ?? false,
       isActive: data.isActive ?? true,
@@ -139,25 +177,43 @@ export async function upsertSubscriptionPlan(data: {
     const existing = await db.subscriptionPlan.findFirst({
       where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },
     });
-    if (existing) {
-      await db.subscriptionPlan.update({ where: { id: existing.id }, data: payload });
-    } else {
-      await db.subscriptionPlan.create({
-        data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
-      });
+    const guardado = existing
+      ? await db.subscriptionPlan.update({ where: { id: existing.id }, data: payload, select: { id: true } })
+      : await db.subscriptionPlan.create({
+          data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
+          select: { id: true },
+        });
+    let aviso: string | null = null;
+    if (funciones) {
+      try {
+        await guardarLasFunciones(guardado.id, funciones);
+      } catch (e) {
+        // El plan ya quedó guardado con sus funciones encendidas; lo que se
+        // pierde es la categoría, la descripción y el tutorial. Se dice.
+        console.error("[planes] el plan se guardó pero sus funciones no", { plan: guardado.id, e });
+        aviso = "El plan se guardó, pero no las categorías ni los tutoriales de sus funciones. Vuelve a guardar.";
+      }
     }
-    revalidatePath("/planes");
-    return { success: true, message: "Plan guardado" };
-  } catch {
+    revalidarLasPaginasDelPlan();
+    return aviso ? { success: false, message: aviso } : { success: true, message: "Plan guardado" };
+  } catch (e) {
+    console.error("[upsertSubscriptionPlan]", e);
     return { success: false, message: "Error al guardar el plan" };
   }
+}
+
+/** Lo que enseña un plan: la lista de planes, su página de detalle y la landing. */
+function revalidarLasPaginasDelPlan() {
+  revalidatePath("/planes");
+  revalidatePath("/planes/[slug]", "page");
+  revalidatePath("/inicio");
 }
 
 export async function toggleSubscriptionPlanActive(id: string, isActive: boolean) {
   try {
     if (!(await quienMandaEnLaCasa("toggleSubscriptionPlanActive"))) return { success: false };
     await db.subscriptionPlan.update({ where: { id }, data: { isActive } });
-    revalidatePath("/planes");
+    revalidarLasPaginasDelPlan();
     return { success: true };
   } catch {
     return { success: false };

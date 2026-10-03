@@ -2,117 +2,240 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { AlertTriangle, CheckCircle2, ExternalLink, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import {
   getPlanDetailBySubscriptionPlanId,
   upsertPlanDetail,
-  type PlanDetailData,
-  type FeatureSection,
-  type GalleryImage,
-  type FaqItem,
-  type StatItem,
-  type TestimonialItem,
   type UpsertPlanDetailInput,
 } from "@/actions/plan-detail-actions";
+import {
+  DATOS_QUE_SE_PUEDEN_USAR,
+  comoEnlaceDelBoton,
+  elVideoDelPlan,
+  losAvisosDelBoton,
+  losAvisosDelTexto,
+  type DatosDelPlan,
+} from "@/lib/pagina-de-plan";
 
-const EMPTY_DETAIL: UpsertPlanDetailInput = {
-  heroTitle: null, heroSubtitle: null, heroImageUrl: null, heroBadge: null,
-  videoUrl: null, videoTitle: null, videoThumbnailUrl: null,
-  featureSections: [], galleryImages: [], faqs: [], stats: [], testimonials: [],
-  meetingUrl: null, demoUrl: null, whatsappMessage: null,
-  ctaTitle: null, ctaSubtitle: null, ctaButtonText: null, ctaButtonUrl: null,
-  ctaSecondaryText: null, ctaSecondaryUrl: null,
-  metaTitle: null, metaDescription: null, ogImageUrl: null,
+/**
+ * Lo que es SOLO de un plan en su página pública: el video, sus preguntas
+ * frecuentes, los botones y el título de la pestaña.
+ *
+ * Todo lo demás de la página —el nombre, la descripción, el precio, los
+ * créditos, el catálogo y las funciones con su categoría y su tutorial— sale
+ * de la pestaña Configuración, en vivo. Por eso aquí ya no hay hero, ni
+ * galería, ni estadísticas, ni testimonios, ni secciones de marketing: la
+ * página no los enseña. Lo que hubiera guardado se conserva (guardar solo
+ * manda los campos de abajo, `upsertPlanDetail` no toca los demás).
+ *
+ * Cada texto se revisa contra el plan TAL CUAL está en el formulario: uno que
+ * diga otros créditos o llame al plan por un nombre viejo no sale en la página,
+ * y aquí se dice por qué.
+ */
+
+type Pregunta = { id: string; question: string; answer: string };
+
+type Detalle = {
+  videoUrl: string;
+  videoTitle: string;
+  videoThumbnailUrl: string;
+  ctaButtonText: string;
+  ctaButtonUrl: string;
+  ctaSecondaryText: string;
+  ctaSecondaryUrl: string;
+  meetingUrl: string;
+  whatsappMessage: string;
+  metaTitle: string;
+  metaDescription: string;
+  ogImageUrl: string;
 };
 
-function Section({ title, children, defaultOpen = false }: {
-  title: string; children: ReactNode; defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+const VACIO: Detalle = {
+  videoUrl: "",
+  videoTitle: "",
+  videoThumbnailUrl: "",
+  ctaButtonText: "",
+  ctaButtonUrl: "",
+  ctaSecondaryText: "",
+  ctaSecondaryUrl: "",
+  meetingUrl: "",
+  whatsappMessage: "",
+  metaTitle: "",
+  metaDescription: "",
+  ogImageUrl: "",
+};
+
+/** Lo que se guardaba antes y la página ya no enseña. Solo para avisar que sigue ahí. */
+const LO_DE_ANTES = ["testimonials", "galleryImages", "stats", "featureSections"] as const;
+
+let siguiente = 0;
+function nuevoId(): string {
+  siguiente += 1;
+  return `p-${Date.now().toString(36)}-${siguiente}`;
+}
+
+function texto(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+function Bloque({ titulo, ayuda, children }: { titulo: string; ayuda?: ReactNode; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-border">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium"
-      >
-        {title}
-        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
-      {open && <div className="border-t border-border px-3 pb-3 pt-2.5 space-y-3">{children}</div>}
-    </div>
+    <section className="space-y-3 rounded-lg border border-border p-3">
+      <div className="space-y-0.5">
+        <h3 className="text-sm font-semibold">{titulo}</h3>
+        {ayuda && <p className="text-[11px] text-muted-foreground">{ayuda}</p>}
+      </div>
+      {children}
+    </section>
   );
 }
 
-function str(v: string | null | undefined) { return v ?? ""; }
+function Avisos({ avisos }: { avisos: string[] }) {
+  if (avisos.length === 0) return null;
+  return (
+    <ul className="space-y-0.5" data-aviso-del-detalle>
+      {avisos.map((a) => (
+        <li key={a} className="flex items-start gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>{a}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-export function PlanDetailTab({ subscriptionPlanId }: { subscriptionPlanId: string }) {
-  const [form, setForm] = useState<UpsertPlanDetailInput>(EMPTY_DETAIL);
+/** Los avisos de un texto que se enseña en la página: contradice al plan, o nombra otro. */
+function avisosDelTexto(valor: string, datos: DatosDelPlan): string[] {
+  const t = valor.trim();
+  if (!t) return [];
+  const avisos = [...losAvisosDelTexto(t, datos), ...losAvisosDelBoton(t, datos)];
+  return avisos.length ? [`No sale en la página: ${[...new Set(avisos)].join(" ")}`] : [];
+}
+
+function avisosDelEnlace(valor: string): string[] {
+  return valor.trim() && !comoEnlaceDelBoton(valor)
+    ? ["Este enlace no sirve (tiene que empezar por https:// o por /): no se usa."]
+    : [];
+}
+
+export function PlanDetailTab({
+  subscriptionPlanId,
+  datos,
+  enlaceDeLaPagina,
+  planActivo,
+}: {
+  subscriptionPlanId: string;
+  datos: DatosDelPlan;
+  enlaceDeLaPagina: string;
+  planActivo: boolean;
+}) {
+  const [form, setForm] = useState<Detalle>(VACIO);
+  const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
+  const [hayDeAntes, setHayDeAntes] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!subscriptionPlanId) return;
+    let vivo = true;
     setLoading(true);
-    getPlanDetailBySubscriptionPlanId(subscriptionPlanId).then((res) => {
-      if (res.success && res.data) setForm(res.data as UpsertPlanDetailInput);
-      else setForm(EMPTY_DETAIL);
-      setLoading(false);
-    });
+    getPlanDetailBySubscriptionPlanId(subscriptionPlanId)
+      .then((res) => {
+        if (!vivo) return;
+        const d = (res.success && res.data ? res.data : null) as Record<string, unknown> | null;
+        setForm({
+          videoUrl: texto(d?.videoUrl),
+          videoTitle: texto(d?.videoTitle),
+          videoThumbnailUrl: texto(d?.videoThumbnailUrl),
+          ctaButtonText: texto(d?.ctaButtonText),
+          ctaButtonUrl: texto(d?.ctaButtonUrl),
+          ctaSecondaryText: texto(d?.ctaSecondaryText),
+          ctaSecondaryUrl: texto(d?.ctaSecondaryUrl),
+          meetingUrl: texto(d?.meetingUrl),
+          whatsappMessage: texto(d?.whatsappMessage),
+          metaTitle: texto(d?.metaTitle),
+          metaDescription: texto(d?.metaDescription),
+          ogImageUrl: texto(d?.ogImageUrl),
+        });
+        const faqs = Array.isArray(d?.faqs) ? (d!.faqs as unknown[]) : [];
+        setPreguntas(
+          faqs.map((f) => {
+            const o = (f && typeof f === "object" ? f : {}) as Record<string, unknown>;
+            return { id: nuevoId(), question: texto(o.question), answer: texto(o.answer) };
+          }),
+        );
+        setHayDeAntes(LO_DE_ANTES.some((k) => Array.isArray(d?.[k]) && (d![k] as unknown[]).length > 0));
+      })
+      .catch((e) => {
+        console.error("[planes] no se pudo leer el detalle del plan", e);
+        toast.error("No se pudo leer el detalle de este plan.");
+      })
+      .finally(() => {
+        if (vivo) setLoading(false);
+      });
+    return () => {
+      vivo = false;
+    };
   }, [subscriptionPlanId]);
 
-  const set = (key: keyof UpsertPlanDetailInput, val: unknown) =>
-    setForm((f) => ({ ...f, [key]: val }));
+  const cambiar = (clave: keyof Detalle, valor: string) => setForm((f) => ({ ...f, [clave]: valor }));
 
-  // ── Feature Sections ──
-  const addSection = () => set("featureSections", [...form.featureSections, {
-    title: "", description: "", imageUrl: "", imageAlt: "", layout: "right", badge: ""
-  } as FeatureSection]);
-  const removeSection = (i: number) =>
-    set("featureSections", form.featureSections.filter((_, idx) => idx !== i));
-  const updateSection = (i: number, patch: Partial<FeatureSection>) =>
-    set("featureSections", form.featureSections.map((s, idx) => idx === i ? { ...s, ...patch } : s));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
-  // ── Gallery ──
-  const addGallery = () => set("galleryImages", [...form.galleryImages, { url: "", caption: "", alt: "" } as GalleryImage]);
-  const removeGallery = (i: number) =>
-    set("galleryImages", form.galleryImages.filter((_, idx) => idx !== i));
-  const updateGallery = (i: number, patch: Partial<GalleryImage>) =>
-    set("galleryImages", form.galleryImages.map((g, idx) => idx === i ? { ...g, ...patch } : g));
-
-  // ── FAQs ──
-  const addFaq = () => set("faqs", [...form.faqs, { question: "", answer: "" } as FaqItem]);
-  const removeFaq = (i: number) => set("faqs", form.faqs.filter((_, idx) => idx !== i));
-  const updateFaq = (i: number, patch: Partial<FaqItem>) =>
-    set("faqs", form.faqs.map((f, idx) => idx === i ? { ...f, ...patch } : f));
-
-  // ── Stats ──
-  const addStat = () => set("stats", [...form.stats, { value: "", label: "" } as StatItem]);
-  const removeStat = (i: number) => set("stats", form.stats.filter((_, idx) => idx !== i));
-  const updateStat = (i: number, patch: Partial<StatItem>) =>
-    set("stats", form.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s));
-
-  // ── Testimonials ──
-  const addTest = () => set("testimonials", [...form.testimonials, {
-    name: "", role: "", company: "", text: "", avatarUrl: "", rating: 5
-  } as TestimonialItem]);
-  const removeTest = (i: number) =>
-    set("testimonials", form.testimonials.filter((_, idx) => idx !== i));
-  const updateTest = (i: number, patch: Partial<TestimonialItem>) =>
-    set("testimonials", form.testimonials.map((t, idx) => idx === i ? { ...t, ...patch } : t));
+  const alSoltar = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setPreguntas((lista) => {
+      const de = lista.findIndex((p) => p.id === active.id);
+      const a = lista.findIndex((p) => p.id === over.id);
+      return de < 0 || a < 0 ? lista : arrayMove(lista, de, a);
+    });
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    const res = await upsertPlanDetail(subscriptionPlanId, form);
-    if (res.success) toast.success(res.message);
-    else toast.error(res.message);
-    setSaving(false);
+    // Solo lo de esta pestaña: lo demás que hubiera guardado se queda como está.
+    const datosAGuardar: Partial<UpsertPlanDetailInput> = {
+      ...form,
+      faqs: preguntas
+        .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
+        .filter((p) => p.question || p.answer),
+    };
+    try {
+      const res = await upsertPlanDetail(subscriptionPlanId, datosAGuardar);
+      if (res.success) toast.success(res.message);
+      else toast.error(res.message);
+    } catch (e) {
+      console.error("[planes] no se pudo guardar el detalle del plan", e);
+      toast.error("No se pudo guardar el detalle. Revisa la conexión y vuelve a intentarlo.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -123,267 +246,301 @@ export function PlanDetailTab({ subscriptionPlanId }: { subscriptionPlanId: stri
     );
   }
 
+  const video = form.videoUrl.trim() ? elVideoDelPlan(form.videoUrl) : null;
+  const sinPrecio = datos.precioUSD <= 0;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-detalle-del-plan>
+      <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-muted/50 p-3">
+        <p className="max-w-md text-[11px] text-muted-foreground">
+          La página pública se arma sola con lo de la pestaña Configuración: nombre, descripción, precio,
+          créditos y las funciones encendidas, con su categoría y su tutorial. Aquí va lo que es solo de este plan.
+        </p>
+        {planActivo ? (
+          <a
+            href={enlaceDeLaPagina}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+            data-ver-pagina-publica
+          >
+            Ver página pública <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : (
+          <span className="shrink-0 text-[11px] text-amber-600 dark:text-amber-400">
+            El plan está apagado: su página no se ve hasta encenderlo.
+          </span>
+        )}
+      </div>
 
-      {/* ── HERO ── */}
-      <Section title="Hero" defaultOpen>
-        <div className="space-y-2">
-          <Label>Título del hero</Label>
-          <Input value={str(form.heroTitle)} onChange={(e) => set("heroTitle", e.target.value || null)} placeholder="Todo lo que incluye el plan Avanzado" />
+      <Bloque
+        titulo="Video del plan"
+        ayuda="Sale arriba, junto al nombre y el precio. YouTube, Vimeo, Loom, Google Drive o un archivo .mp4."
+      >
+        <div className="space-y-1">
+          <Label>Enlace del video</Label>
+          <Input
+            value={form.videoUrl}
+            onChange={(e) => cambiar("videoUrl", e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            data-campo-del-detalle="videoUrl"
+          />
+          {!form.videoUrl.trim() ? (
+            <p className="text-[11px] text-muted-foreground">Sin video: la página abre sin él.</p>
+          ) : video ? (
+            <p className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400" data-video-valido>
+              <CheckCircle2 className="h-3 w-3" /> Se enseña en la página.
+            </p>
+          ) : (
+            <Avisos avisos={["Este enlace no es un video que se pueda enseñar: la página sale sin video."]} />
+          )}
         </div>
-        <div className="space-y-2">
-          <Label>Subtítulo / descripción larga</Label>
-          <Textarea rows={2} value={str(form.heroSubtitle)} onChange={(e) => set("heroSubtitle", e.target.value || null)} placeholder="Automatiza tu WhatsApp con IA..." />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Badge (ej. &quot;Más popular&quot;)</Label>
-            <Input value={str(form.heroBadge)} onChange={(e) => set("heroBadge", e.target.value || null)} placeholder="Más popular" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label>Imagen banner</Label>
-          <ImageUploader value={str(form.heroImageUrl)} onChange={(url) => set("heroImageUrl", url || null)} placeholder="Subir imagen banner" />
-        </div>
-      </Section>
-
-      {/* ── VIDEO ── */}
-      <Section title="Video">
-        <div className="space-y-2">
-          <Label>URL del video (YouTube / Vimeo embed)</Label>
-          <Input value={str(form.videoUrl)} onChange={(e) => set("videoUrl", e.target.value || null)} placeholder="https://www.youtube.com/embed/..." />
-        </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label>Título del video</Label>
-          <Input value={str(form.videoTitle)} onChange={(e) => set("videoTitle", e.target.value || null)} placeholder="Mira cómo funciona en 2 minutos" />
+          <Input
+            value={form.videoTitle}
+            onChange={(e) => cambiar("videoTitle", e.target.value)}
+            placeholder={`Así funciona el plan ${datos.nombre}`}
+            data-campo-del-detalle="videoTitle"
+          />
+          <Avisos avisos={avisosDelTexto(form.videoTitle, datos)} />
         </div>
-        <div className="space-y-2">
-          <Label>Thumbnail custom del video</Label>
-          <ImageUploader value={str(form.videoThumbnailUrl)} onChange={(url) => set("videoThumbnailUrl", url || null)} placeholder="Subir thumbnail" />
+        <div className="space-y-1">
+          <Label>Miniatura del video (opcional)</Label>
+          <ImageUploader
+            value={form.videoThumbnailUrl}
+            onChange={(url) => cambiar("videoThumbnailUrl", url)}
+            placeholder="Subir miniatura"
+          />
         </div>
-      </Section>
+      </Bloque>
 
-      {/* ── SECCIONES DE FUNCIONES ── */}
-      <Section title={`Secciones de funciones (${form.featureSections.length})`}>
-        {form.featureSections.map((sec, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Sección {i + 1}</span>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeSection(i)}>
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Título</Label>
-                <Input value={sec.title} onChange={(e) => updateSection(i, { title: e.target.value })} placeholder="Función destacada" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Badge (opcional)</Label>
-                <Input value={sec.badge ?? ""} onChange={(e) => updateSection(i, { badge: e.target.value })} placeholder="Nuevo" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Descripción</Label>
-              <Textarea rows={2} value={sec.description} onChange={(e) => updateSection(i, { description: e.target.value })} placeholder="Describe esta función..." />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Alt de imagen</Label>
-                <Input value={sec.imageAlt} onChange={(e) => updateSection(i, { imageAlt: e.target.value })} placeholder="Descripción de la imagen" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Layout</Label>
-                <Select value={sec.layout} onValueChange={(v) => updateSection(i, { layout: v as "left" | "right" })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="right">Imagen a la derecha</SelectItem>
-                    <SelectItem value="left">Imagen a la izquierda</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Imagen de la sección</Label>
-              <ImageUploader value={sec.imageUrl} onChange={(url) => updateSection(i, { imageUrl: url })} placeholder="Subir imagen de la sección" />
-            </div>
-          </div>
-        ))}
-        <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={addSection}>
-          <Plus className="h-3.5 w-3.5" /> Agregar sección
-        </Button>
-      </Section>
-
-      {/* ── GALERÍA ── */}
-      <Section title={`Galería de imágenes (${form.galleryImages.length})`}>
-        <div className="grid grid-cols-2 gap-2">
-          {form.galleryImages.map((img, i) => (
-            <div key={i} className="space-y-1">
-              <ImageUploader value={img.url} onChange={(url) => updateGallery(i, { url })} placeholder="Subir imagen" />
-              <Input value={img.caption} onChange={(e) => updateGallery(i, { caption: e.target.value })} placeholder="Caption" className="text-xs h-7" />
-              <div className="flex justify-end">
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeGallery(i)}>
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={addGallery}>
-          <Plus className="h-3.5 w-3.5" /> Agregar imagen
-        </Button>
-      </Section>
-
-      {/* ── FAQs ── */}
-      <Section title={`Preguntas frecuentes (${form.faqs.length})`}>
-        {form.faqs.map((faq, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Pregunta {i + 1}</span>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeFaq(i)}>
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </Button>
-            </div>
-            <Input value={faq.question} onChange={(e) => updateFaq(i, { question: e.target.value })} placeholder="¿Cómo funciona...?" />
-            <Textarea rows={2} value={faq.answer} onChange={(e) => updateFaq(i, { answer: e.target.value })} placeholder="Respuesta detallada..." />
-          </div>
-        ))}
-        <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={addFaq}>
+      <Bloque
+        titulo={`Preguntas frecuentes (${preguntas.length})`}
+        ayuda={
+          <>
+            Solo las de este plan. Se ordenan arrastrando por el asa. Puedes escribir{" "}
+            {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")} y salen con el dato de hoy.
+          </>
+        }
+      >
+        {preguntas.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">Sin preguntas: la página no enseña esa sección.</p>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={alSoltar}>
+            <SortableContext items={preguntas.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-2" data-lista-de-preguntas>
+                {preguntas.map((p) => (
+                  <FilaDePregunta
+                    key={p.id}
+                    pregunta={p}
+                    datos={datos}
+                    onCambiar={(patch) =>
+                      setPreguntas((lista) => lista.map((x) => (x.id === p.id ? { ...x, ...patch } : x)))
+                    }
+                    onQuitar={() => setPreguntas((lista) => lista.filter((x) => x.id !== p.id))}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1"
+          onClick={() => setPreguntas((lista) => [...lista, { id: nuevoId(), question: "", answer: "" }])}
+          data-agregar-pregunta
+        >
           <Plus className="h-3.5 w-3.5" /> Agregar pregunta
         </Button>
-      </Section>
+      </Bloque>
 
-      {/* ── STATS ── */}
-      <Section title={`Estadísticas (${form.stats.length})`}>
-        <div className="grid grid-cols-2 gap-2">
-          {form.stats.map((stat, i) => (
-            <div key={i} className="space-y-1 rounded-md border border-border p-2">
-              <Input value={stat.value} onChange={(e) => updateStat(i, { value: e.target.value })} placeholder="500+" />
-              <Input value={stat.label} onChange={(e) => updateStat(i, { label: e.target.value })} placeholder="Clientes activos" />
-              <div className="flex justify-end">
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeStat(i)}>
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          ))}
+      <Bloque
+        titulo="Botones"
+        ayuda={
+          sinPrecio
+            ? "Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
+            : "Sin enlace propio, el botón principal lleva al registro con este plan elegido."
+        }
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label>Texto del botón principal</Label>
+            <Input
+              value={form.ctaButtonText}
+              onChange={(e) => cambiar("ctaButtonText", e.target.value)}
+              placeholder={sinPrecio ? "Contactar" : "Comenzar ahora"}
+            />
+            <Avisos avisos={avisosDelTexto(form.ctaButtonText, datos)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Enlace propio (opcional)</Label>
+            <Input
+              value={form.ctaButtonUrl}
+              onChange={(e) => cambiar("ctaButtonUrl", e.target.value)}
+              placeholder="https://..."
+            />
+            <Avisos avisos={avisosDelEnlace(form.ctaButtonUrl)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Texto del segundo botón</Label>
+            <Input
+              value={form.ctaSecondaryText}
+              onChange={(e) => cambiar("ctaSecondaryText", e.target.value)}
+              placeholder="Agendar una demo"
+            />
+            <Avisos avisos={avisosDelTexto(form.ctaSecondaryText, datos)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Enlace del segundo botón</Label>
+            <Input
+              value={form.ctaSecondaryUrl}
+              onChange={(e) => cambiar("ctaSecondaryUrl", e.target.value)}
+              placeholder="https://cal.com/..."
+            />
+            <Avisos avisos={avisosDelEnlace(form.ctaSecondaryUrl)} />
+          </div>
         </div>
-        <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={addStat} disabled={form.stats.length >= 4}>
-          <Plus className="h-3.5 w-3.5" /> Agregar stat (máx 4)
+        <div className="space-y-1">
+          <Label>Enlace para agendar una reunión</Label>
+          <Input
+            value={form.meetingUrl}
+            onChange={(e) => cambiar("meetingUrl", e.target.value)}
+            placeholder="https://cal.com/tu-usuario/30min"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Si el segundo botón no tiene enlace, usa este. Sin ninguno de los dos, no sale.
+          </p>
+          <Avisos avisos={avisosDelEnlace(form.meetingUrl)} />
+        </div>
+        {sinPrecio && (
+          <div className="space-y-1">
+            <Label>Mensaje de WhatsApp</Label>
+            <Textarea
+              rows={2}
+              value={form.whatsappMessage}
+              onChange={(e) => cambiar("whatsappMessage", e.target.value)}
+              placeholder={`Hola, me interesa el plan ${datos.nombre}`}
+            />
+            <Avisos avisos={avisosDelTexto(form.whatsappMessage, datos)} />
+          </div>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Pestaña del navegador y redes" ayuda="Lo que se ve en la pestaña y al compartir el enlace.">
+        <div className="space-y-1">
+          <Label>Título</Label>
+          <Input
+            value={form.metaTitle}
+            onChange={(e) => cambiar("metaTitle", e.target.value)}
+            placeholder={`Plan ${datos.nombre}`}
+          />
+          <Avisos avisos={avisosDelTexto(form.metaTitle, datos)} />
+        </div>
+        <div className="space-y-1">
+          <Label>Descripción</Label>
+          <Textarea
+            rows={2}
+            value={form.metaDescription}
+            onChange={(e) => cambiar("metaDescription", e.target.value)}
+            placeholder="Si se deja vacía, se usa la descripción del plan."
+          />
+          <Avisos avisos={avisosDelTexto(form.metaDescription, datos)} />
+        </div>
+        <div className="space-y-1">
+          <Label>Imagen al compartir (opcional)</Label>
+          <ImageUploader value={form.ogImageUrl} onChange={(url) => cambiar("ogImageUrl", url)} placeholder="Subir imagen" />
+        </div>
+      </Bloque>
+
+      {hayDeAntes && (
+        <p className="text-[11px] text-muted-foreground" data-lo-de-antes>
+          Este plan tiene guardados testimonios, galería, estadísticas o secciones de antes. Ya no salen en la
+          página; se conservan sin tocar.
+        </p>
+      )}
+
+      <div className="flex justify-end pt-1">
+        <Button onClick={handleSave} disabled={saving} data-guardar-detalle>
+          {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+          Guardar detalle
         </Button>
-      </Section>
-
-      {/* ── TESTIMONIOS ── */}
-      <Section title={`Testimonios (${form.testimonials.length})`}>
-        {form.testimonials.map((t, i) => (
-          <div key={i} className="rounded-md border border-border p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Testimonio {i + 1}</span>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeTest(i)}>
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Input value={t.name} onChange={(e) => updateTest(i, { name: e.target.value })} placeholder="Nombre" />
-              <Input value={t.role} onChange={(e) => updateTest(i, { role: e.target.value })} placeholder="Cargo" />
-              <Input value={t.company} onChange={(e) => updateTest(i, { company: e.target.value })} placeholder="Empresa" />
-            </div>
-            <Textarea rows={2} value={t.text} onChange={(e) => updateTest(i, { text: e.target.value })} placeholder="Texto del testimonio..." />
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Rating (1-5)</Label>
-                <Select value={String(t.rating)} onValueChange={(v) => updateTest(i, { rating: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[5, 4, 3, 2, 1].map((r) => (
-                      <SelectItem key={r} value={String(r)}>{r} estrellas</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Avatar</Label>
-                <ImageUploader value={t.avatarUrl ?? ""} onChange={(url) => updateTest(i, { avatarUrl: url })} placeholder="Subir avatar" />
-              </div>
-            </div>
-          </div>
-        ))}
-        <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={addTest}>
-          <Plus className="h-3.5 w-3.5" /> Agregar testimonio
-        </Button>
-      </Section>
-
-      {/* ── LINKS DE ACCIÓN ── */}
-      <Section title="Links de acción">
-        <div className="space-y-2">
-          <Label>Link de reunión (Calendly / Cal.com)</Label>
-          <Input value={str(form.meetingUrl)} onChange={(e) => set("meetingUrl", e.target.value || null)} placeholder="https://cal.com/tu-usuario/30min" />
-        </div>
-        <div className="space-y-2">
-          <Label>Link de demo interactivo</Label>
-          <Input value={str(form.demoUrl)} onChange={(e) => set("demoUrl", e.target.value || null)} placeholder="https://demo.tuapp.com" />
-        </div>
-        <div className="space-y-2">
-          <Label>Mensaje pre-escrito de WhatsApp</Label>
-          <Textarea rows={2} value={str(form.whatsappMessage)} onChange={(e) => set("whatsappMessage", e.target.value || null)} placeholder="Hola! Me interesa el plan Avanzado, ¿puedes darme más información?" />
-        </div>
-      </Section>
-
-      {/* ── CTA FINAL ── */}
-      <Section title="CTA final">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Título</Label>
-            <Input value={str(form.ctaTitle)} onChange={(e) => set("ctaTitle", e.target.value || null)} placeholder="¿Listo para empezar?" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Subtítulo</Label>
-            <Input value={str(form.ctaSubtitle)} onChange={(e) => set("ctaSubtitle", e.target.value || null)} placeholder="Sin contratos, cancela cuando quieras" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Texto botón principal</Label>
-            <Input value={str(form.ctaButtonText)} onChange={(e) => set("ctaButtonText", e.target.value || null)} placeholder="Comenzar ahora" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">URL botón principal</Label>
-            <Input value={str(form.ctaButtonUrl)} onChange={(e) => set("ctaButtonUrl", e.target.value || null)} placeholder="https://checkout..." />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Texto enlace secundario</Label>
-            <Input value={str(form.ctaSecondaryText)} onChange={(e) => set("ctaSecondaryText", e.target.value || null)} placeholder="Agendar una demo" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">URL enlace secundario</Label>
-            <Input value={str(form.ctaSecondaryUrl)} onChange={(e) => set("ctaSecondaryUrl", e.target.value || null)} placeholder="https://cal.com/..." />
-          </div>
-        </div>
-      </Section>
-
-      {/* ── SEO ── */}
-      <Section title="SEO">
-        <div className="space-y-2">
-          <Label>Meta título</Label>
-          <Input value={str(form.metaTitle)} onChange={(e) => set("metaTitle", e.target.value || null)} placeholder="Plan Avanzado | Agente IA" />
-        </div>
-        <div className="space-y-2">
-          <Label>Meta descripción</Label>
-          <Textarea rows={2} value={str(form.metaDescription)} onChange={(e) => set("metaDescription", e.target.value || null)} placeholder="Automatiza tu WhatsApp con IA. Incluye CRM, agenda, seguimientos y más." />
-        </div>
-        <div className="space-y-2">
-          <Label>OG Image (para redes sociales)</Label>
-          <ImageUploader value={str(form.ogImageUrl)} onChange={(url) => set("ogImageUrl", url || null)} placeholder="Subir imagen OG" />
-        </div>
-      </Section>
-
-      {/* ── GUARDAR ── */}
-      <Button onClick={handleSave} disabled={saving} className="w-full">
-        {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : "Guardar detalle"}
-      </Button>
+      </div>
     </div>
+  );
+}
+
+function FilaDePregunta({
+  pregunta: p,
+  datos,
+  onCambiar,
+  onQuitar,
+}: {
+  pregunta: Pregunta;
+  datos: DatosDelPlan;
+  onCambiar: (patch: Partial<Pregunta>) => void;
+  onQuitar: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id });
+  const q = p.question.trim();
+  const a = p.answer.trim();
+  // La MISMA regla que la página (`revisarLasPreguntas`): una pregunta puede
+  // nombrar otro plan de hoy («¿puedo pasar al plan X?»); lo que no puede es
+  // decir otros créditos o un nombre que ya no existe.
+  const avisos =
+    q && a
+      ? (() => {
+          const de = losAvisosDelTexto(`${q}\n${a}`, datos);
+          return de.length ? [`No sale en la página: ${de.join(" ")}`] : [];
+        })()
+      : q || a
+        ? ["Le falta la pregunta o la respuesta: no sale en la página."]
+        : [];
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex gap-2 rounded-md border border-border bg-background p-2 ${isDragging ? "z-10 opacity-80 shadow-md" : ""}`}
+      data-pregunta={p.id}
+    >
+      <button
+        type="button"
+        className="mt-1.5 h-6 w-5 shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+        title="Arrastrar para reordenar"
+        aria-label="Arrastrar pregunta"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Input
+          value={p.question}
+          onChange={(e) => onCambiar({ question: e.target.value })}
+          placeholder="¿Cómo funciona…?"
+          data-pregunta-texto
+        />
+        <Textarea
+          rows={2}
+          value={p.answer}
+          onChange={(e) => onCambiar({ answer: e.target.value })}
+          placeholder="La respuesta"
+          data-respuesta-texto
+        />
+        <Avisos avisos={avisos} />
+      </div>
+      <button
+        type="button"
+        onClick={onQuitar}
+        className="mt-1.5 h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+        title="Quitar pregunta"
+        aria-label="Quitar pregunta"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </li>
   );
 }

@@ -185,6 +185,15 @@ export default auth((req) => {
     // `isActive`, no quién pregunta.
     currentPath.startsWith("/catalogo/") ||
     currentPath.startsWith("/c/") ||
+    // Página de un plan (/planes/<plan>): «Ver toda la información del plan»
+    // de la landing lleva aquí, y quien la abre todavía no tiene cuenta. No
+    // estaba, así que mandaba al login —medido en producción:
+    // `307 -> /login?callbackUrl=%2Fplanes%2Fbasico`—. Solo con barra:
+    // `/planes` a secas es la pantalla de elegir plan de quien ya tiene
+    // cuenta, y sigue pidiendo sesión. Ser pública no abre nada: solo enseña
+    // planes ACTIVOS de la plataforma (`elPlanQueSeEnsena`), nunca el precio
+    // mayorista ni un plan de reseller.
+    currentPath.startsWith("/planes/") ||
     // Documentación pública (/guia/...): la guía de un módulo, que se le pasa
     // a quien todavía no tiene cuenta. Su contenido sale de `lib/guia-<modulo>.ts`
     // y no se indexa (metadata y `X-Robots-Tag`).

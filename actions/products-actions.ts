@@ -6,17 +6,9 @@ import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { z } from "zod";
 import { listParams, productSchema } from "@/lib/validators/product";
 import { db } from "@/lib/db"; // tu prisma client
-import { Prisma, Plan } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { dondeBusca, elOrdenCompleto } from "@/lib/productos";
-
-const PLAN_PRODUCT_LIMITS: Record<Plan, number | null> = {
-    lite:           0,
-    basico:        10,
-    intermedio:    25,
-    avanzado:      50,
-    enterprise:   100,
-    personalizado: null, // sin límite fijo; depende del productLimit asignado por el admin
-};
+import { elTopeDeProductos } from "@/lib/limite-de-catalogo";
 
 async function getProductLimit(userId: string): Promise<number | null> {
     const user = await db.user.findUnique({
@@ -25,8 +17,8 @@ async function getProductLimit(userId: string): Promise<number | null> {
     });
     if (!user) return 0;
     if (user.productLimit != null) return user.productLimit;
-    const planLimit = PLAN_PRODUCT_LIMITS[user.plan];
-    return planLimit !== undefined ? planLimit : 0;
+    // El mismo número que enseña la página pública del plan.
+    return elTopeDeProductos(user.plan);
 }
 
 export async function listProducts(raw: z.input<typeof listParams>) {

@@ -9,7 +9,6 @@ import {
     Loader2,
     MoreHorizontal,
     Pencil,
-    Plus,
     Receipt,
     RefreshCw,
     Send,
@@ -43,7 +42,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { COLUMNAS_DE_LA_CARTERA, FILTROS_DE_LA_CARTERA, OPCIONES_DE_UNA_DEUDA } from "@/lib/pantalla-de-cobros";
 import type { AdjuntoEnElAire } from "@/app/(root)/proyectos/_components/BloqueDeAdjuntos";
 import {
     cobrarAhoraAction,
@@ -62,6 +72,7 @@ import {
     estaVencidaDeVerdad,
     fechaCorta,
     montoConMoneda,
+    siguienteVencimiento,
     situacionDelCobro,
     type AdjuntoDeCobro,
     type CicloDeCobro,
@@ -116,13 +127,8 @@ const PESO: Record<SituacionDelCobro, number> = {
     alDia: 4,
 };
 
-const FILTROS: Array<{ clave: SituacionDelCobro | "todos"; etiqueta: string }> = [
-    { clave: "todos", etiqueta: "Todos" },
-    { clave: "comprobante", etiqueta: "Comprobantes" },
-    { clave: "vencida", etiqueta: "Vencidas" },
-    { clave: "porVencer", etiqueta: "Por vencer" },
-    { clave: "alDia", etiqueta: "Al día" },
-];
+/** Los filtros salen de `lib/pantalla-de-cobros.ts`, que lee también la guía pública. */
+const FILTROS = FILTROS_DE_LA_CARTERA;
 
 function normalizar(texto: string): string {
     return texto
@@ -152,6 +158,15 @@ export function CobrosClient({
     const [formAbierto, setFormAbierto] = useState(false);
     const [enEdicion, setEnEdicion] = useState<CobroConAdjuntos | null>(null);
     const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
+    /**
+     * Confirmar un pago y eliminar una deuda **piden confirmación**. Confirmar
+     * salta el vencimiento al ciclo siguiente y lo apunta en el historial; un
+     * clic de más en el menú hacía eso sin preguntar. Eliminar se lleva la deuda
+     * con su historial, y no se deshace.
+     */
+    const [porConfirmar, setPorConfirmar] = useState<{ que: "confirmar" | "eliminar"; cobro: CobroConAdjuntos } | null>(
+        null,
+    );
     const [historial, setHistorial] = useState<{ cobro: CobroConAdjuntos; ciclos: CicloDeCobro[] } | null>(
         null,
     );
@@ -328,6 +343,7 @@ export function CobrosClient({
                             <button
                                 key={f.clave}
                                 type="button"
+                                data-filtro={f.clave}
                                 onClick={() => setFiltro(f.clave)}
                                 className={cn(
                                     "shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
@@ -352,8 +368,10 @@ export function CobrosClient({
                         }}
                     >Nuevo</BotonDeCrear>
                 }
-                acciones={
-                    <div className="flex items-center gap-2">
+                // Actualizar y Configuración van en `secundarias`, pegados al azul:
+                // no son acciones sobre varias filas, que es lo que va en `acciones`.
+                secundarias={
+                    <>
                         <Button
                             variant="outline"
                             size="icon"
@@ -375,7 +393,7 @@ export function CobrosClient({
                         >
                             <Settings2 className="h-4 w-4" />
                         </Button>
-                    </div>
+                    </>
                 }
             />
 
@@ -385,16 +403,21 @@ export function CobrosClient({
                 </p>
             )}
 
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+            <div data-zona="cartera" className="min-h-0 flex-1 overflow-auto rounded-lg border">
                 <Table>
                     <TableHeader className="sticky top-0 z-10 bg-background">
                         <TableRow>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Concepto</TableHead>
-                            <TableHead className="text-right">Monto</TableHead>
-                            <TableHead>Vence</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-center">Ciclo</TableHead>
+                            {COLUMNAS_DE_LA_CARTERA.map((col) => (
+                                <TableHead
+                                    key={col.zona}
+                                    className={cn(
+                                        col.zona === "monto" && "text-right",
+                                        col.zona === "ciclo" && "text-center",
+                                    )}
+                                >
+                                    {col.nombre}
+                                </TableHead>
+                            ))}
                             <TableHead className="w-10" />
                         </TableRow>
                     </TableHeader>
@@ -414,14 +437,18 @@ export function CobrosClient({
                             const faltan = diasQueFaltan(vence, ahora);
                             const pasadaLaGracia = estaVencidaDeVerdad(vence, c.diasDeGracia, ahora);
                             return (
-                                <TableRow key={c.id} className={cn(ocupada === c.id && "opacity-60")}>
-                                    <TableCell>
+                                <TableRow
+                                    key={c.id}
+                                    data-fila-de-cobro={c.contactoNombre}
+                                    className={cn(ocupada === c.id && "opacity-60")}
+                                >
+                                    <TableCell data-zona="cliente">
                                         <div className="font-medium">{c.contactoNombre}</div>
                                         <div className="text-xs text-muted-foreground">
                                             {c.contactoTelefono}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="max-w-[16rem]">
+                                    <TableCell data-zona="concepto" className="max-w-[16rem]">
                                         <span className="line-clamp-1" title={c.concepto}>
                                             {c.concepto || "—"}
                                         </span>
@@ -455,10 +482,10 @@ export function CobrosClient({
                                             </span>
                                         ))}
                                     </TableCell>
-                                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                                    <TableCell data-zona="monto" className="whitespace-nowrap text-right tabular-nums">
                                         {montoConMoneda(c.monto, c.moneda) || "—"}
                                     </TableCell>
-                                    <TableCell className="whitespace-nowrap">
+                                    <TableCell data-zona="vence" className="whitespace-nowrap">
                                         <div>{fechaCorta(vence) || "—"}</div>
                                         {faltan !== null && (
                                             <div className="text-xs text-muted-foreground">
@@ -471,25 +498,30 @@ export function CobrosClient({
                                             </div>
                                         )}
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell data-zona="estado">
                                         <span
                                             className={cn(
-                                                "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                                                "inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium",
                                                 COLOR[situacion],
                                             )}
                                         >
                                             {ETIQUETA_DE_LA_SITUACION[situacion]}
                                         </span>
                                     </TableCell>
-                                    <TableCell className="text-center text-sm tabular-nums">
+                                    <TableCell data-zona="ciclo" className="text-center text-sm tabular-nums">
                                         <span title={`${c.diasDeLicencia} días de licencia, ${c.diasDeGracia} de gracia`}>
                                             {c.ciclosPagados}
                                         </span>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell data-zona="mandos">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    aria-label={`Acciones de ${c.contactoNombre}`}
+                                                >
                                                     {ocupada === c.id ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
                                                     ) : (
@@ -515,7 +547,7 @@ export function CobrosClient({
                                                     }}
                                                 >
                                                     <Send className="mr-2 h-4 w-4" />
-                                                    Cobrar ahora
+                                                    {OPCIONES_DE_UNA_DEUDA.cobrar}
                                                 </DropdownMenuItem>
 
                                                 {c.estado === "pendiente" ? (
@@ -528,7 +560,7 @@ export function CobrosClient({
                                                         }}
                                                     >
                                                         <Receipt className="mr-2 h-4 w-4" />
-                                                        Llegó el comprobante
+                                                        {OPCIONES_DE_UNA_DEUDA.comprobante}
                                                     </DropdownMenuItem>
                                                 ) : (
                                                     <DropdownMenuItem
@@ -540,20 +572,20 @@ export function CobrosClient({
                                                         }}
                                                     >
                                                         <Undo2 className="mr-2 h-4 w-4" />
-                                                        No era: volver a pendiente
+                                                        {OPCIONES_DE_UNA_DEUDA.volver}
                                                     </DropdownMenuItem>
                                                 )}
 
-                                                <DropdownMenuItem onClick={() => void confirmar(c)}>
+                                                <DropdownMenuItem onClick={() => setPorConfirmar({ que: "confirmar", cobro: c })}>
                                                     <CheckCheck className="mr-2 h-4 w-4" />
-                                                    Confirmar pago
+                                                    {OPCIONES_DE_UNA_DEUDA.confirmar}
                                                 </DropdownMenuItem>
 
                                                 <DropdownMenuSeparator />
 
                                                 <DropdownMenuItem onClick={() => void verHistorial(c)}>
                                                     <History className="mr-2 h-4 w-4" />
-                                                    Historial de ciclos
+                                                    {OPCIONES_DE_UNA_DEUDA.historial}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => {
@@ -562,7 +594,7 @@ export function CobrosClient({
                                                     }}
                                                 >
                                                     <Pencil className="mr-2 h-4 w-4" />
-                                                    Editar
+                                                    {OPCIONES_DE_UNA_DEUDA.editar}
                                                 </DropdownMenuItem>
 
                                                 {puedeBorrar && (
@@ -570,20 +602,10 @@ export function CobrosClient({
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
                                                             className="text-destructive focus:text-destructive"
-                                                            onClick={async () => {
-                                                                const ok = await pedir(c.id, () =>
-                                                                    borrarCobroAction(c.id),
-                                                                );
-                                                                if (ok) {
-                                                                    toast.success("Cobro eliminado.");
-                                                                    setCartera((prev) =>
-                                                                        prev.filter((x) => x.id !== c.id),
-                                                                    );
-                                                                }
-                                                            }}
+                                                            onClick={() => setPorConfirmar({ que: "eliminar", cobro: c })}
                                                         >
                                                             <Trash2 className="mr-2 h-4 w-4" />
-                                                            Eliminar
+                                                            {OPCIONES_DE_UNA_DEUDA.eliminar}
                                                         </DropdownMenuItem>
                                                     </>
                                                 )}
@@ -616,6 +638,56 @@ export function CobrosClient({
                 onGuardado={setConfig}
             />
 
+            <AlertDialog open={!!porConfirmar} onOpenChange={(o) => !o && setPorConfirmar(null)}>
+                <AlertDialogContent data-confirmar={porConfirmar?.que}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {porConfirmar?.que === "eliminar" ? "¿Eliminar este cobro?" : "¿Confirmar el pago?"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {porConfirmar?.que === "eliminar"
+                                ? `Se borra el cobro de ${porConfirmar.cobro.contactoNombre} con su historial de ciclos. No se puede deshacer.`
+                                : porConfirmar
+                                  ? `${porConfirmar.cobro.contactoNombre} queda al día: el ciclo se apunta en su historial y el vencimiento salta al ${fechaCorta(
+                                        siguienteVencimiento(
+                                            porConfirmar.cobro.vence ? new Date(porConfirmar.cobro.vence) : null,
+                                            porConfirmar.cobro.diasDeLicencia,
+                                            new Date(),
+                                        ),
+                                    )}.`
+                                  : null}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Volver</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={cn(
+                                porConfirmar?.que === "eliminar" &&
+                                    "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+                            )}
+                            onClick={() => {
+                                const pedido = porConfirmar;
+                                setPorConfirmar(null);
+                                if (!pedido) return;
+                                if (pedido.que === "confirmar") {
+                                    void confirmar(pedido.cobro);
+                                    return;
+                                }
+                                void (async () => {
+                                    const ok = await pedir(pedido.cobro.id, () => borrarCobroAction(pedido.cobro.id));
+                                    if (ok) {
+                                        toast.success("Cobro eliminado.");
+                                        setCartera((prev) => prev.filter((x) => x.id !== pedido.cobro.id));
+                                    }
+                                })();
+                            }}
+                        >
+                            {porConfirmar?.que === "eliminar" ? "Eliminar" : "Sí, confirmar el pago"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {historial && (
                 <HistorialDeCiclos
                     cobro={historial.cobro}
@@ -647,7 +719,7 @@ function HistorialDeCiclos({
 }) {
     return (
         <Dialog open onOpenChange={(v) => !v && onCerrar()}>
-            <DialogContent className="overflow-y-auto sm:max-w-md">
+            <DialogContent data-zona="historial" className="overflow-y-auto sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-base">Ciclos pagados</DialogTitle>
                     <DialogDescription>{cobro.contactoNombre}</DialogDescription>
@@ -660,7 +732,7 @@ function HistorialDeCiclos({
                 ) : (
                     <ul className="space-y-2">
                         {ciclos.map((ciclo) => (
-                            <li key={ciclo.id} className="rounded-md border px-3 py-2 text-sm">
+                            <li key={ciclo.id} data-ciclo className="rounded-md border px-3 py-2 text-sm">
                                 <div className="flex items-center justify-between">
                                     <span className="font-medium">
                                         {montoConMoneda(ciclo.monto, ciclo.moneda) || "—"}

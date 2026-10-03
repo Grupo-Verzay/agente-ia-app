@@ -25644,6 +25644,36 @@ Tres cosas que hay que mantener:
 
 Lo prueba `scripts/banco-guia-embudos.sh` (el contenido contra el código, el
 vídeo, las miniaturas con `GUIA=embudos`, `fin-de-la-guia`, `menu-de-la-guia` y
+
+### La trigesimoprimera guía, Cobros: la cartera, sus tres avisos y nada que se cobre de verdad
+
+`/guia/cobros` documenta Panel › Cobros (`/cobros`) con el estándar de las
+anteriores: diez secciones —vista general, la cartera y sus filtros por
+situación, Cobrar ahora, comprobante recibido, confirmar el pago, el historial
+de ciclos, crear una deuda (con sus datos de pago propios y adjuntos), editar y
+eliminar, cuándo se recuerda (antes, el día y después) y los mensajes con sus
+variables—, una miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y
+el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/cobros`
+(`GUIAS_PUBLICADAS`). Los nombres que comparten pantalla y guía salen de
+`lib/pantalla-de-cobros.ts`. Se regenera con
+`npm run build && scripts/generar-guia-cobros.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **Nada se manda ni se borra**: «Cobrar ahora» se señala y no se pulsa,
+   eliminar se cierra con «Volver» y la configuración con «Cancelar». Lo lee
+   el banco del guion.
+2. **La línea de WhatsApp de ejemplo sale CONECTADA** gracias al doble
+   `fingido-guia-cobros.mjs` (un Waha de ejemplo, cargado dentro de
+   `next start`) y al `siteConfig` que siembra `sembrar-guia-cobros.mjs`. Sin
+   él la cartera pinta «no tiene una línea de WhatsApp conectada».
+3. **El botón del formulario dice «Crear» en una deuda nueva y «Guardar» al
+   editar**, y la guía lo nombra así.
+4. **Las capturas crean, marcan y confirman deudas**: antes del vídeo se vuelve
+   a sembrar, y las fechas son relativas a hoy en la zona de la cuenta.
+
+Lo prueba `scripts/banco-guia-cobros.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=cobros`, `fin-de-la-guia`, `menu-de-la-guia` y
 la guía servida a 390 y 1440); `MODO=roto` contra `84f98e5` afirma que no había
 guía.
 ### La trigesimoprimera guía, Calificación: el tablero por etapa, y los rangos de puntaje son UNO
@@ -26075,6 +26105,70 @@ página servida sin sesión a 390 y 1440. `MODO=roto` saca la función de
 La síntesis de la narración usa «IA CRM» por defecto; si OpenAI contesta 429 se
 pide con otra llave de la misma tabla: `NOMBRE_LLAVE="Agente IA" node
 scripts/sintetizar-en-el-contenedor.mjs scripts/video-de-ventas/narracion.mjs`.
+
+## La página de un plan (`/planes/<plan>`) se arma EN VIVO del panel de Planes
+
+«Ver toda la información del plan» llevaba a una página con texto que nadie
+mantenía: copiaba `features` tal cual —con «Plan Intermedio» y «12.000
+créditos» escritos cuando el plan ya se llamaba de otra forma y traía 8.000—,
+pintaba testimonios, estadísticas, galería y secciones de marketing iguales
+para todos los planes, servía planes APAGADOS, nombraba el nivel con una tabla
+fija («Nivel 3») y **pedía sesión**: `/planes/` no estaba en el middleware y
+quien la abría desde la landing iba al login.
+
+Ahora son cuatro bloques, en este orden y ninguno más:
+
+| bloque | de dónde sale |
+| --- | --- |
+| **hero con el video del plan** | `plan_details.videoUrl` (YouTube, Vimeo, Loom, Drive o un archivo), su título y los botones |
+| **resumen de capacidad** | créditos (`SubscriptionPlan.credits`), catálogo (`elTopeDeProductos`, el MISMO número que limita Productos) y asistencia (IA 24/7 o IA + humana) |
+| **funciones por categoría** | las encendidas del plan, agrupadas por las categorías del menú, cada una con su tutorial si existe |
+| **preguntas frecuentes** | solo las de ese plan (`plan_details.faqs`) |
+
+> **Nada de la página está escrito en el componente.** La arma
+> `laPaginaDelPlan` (`lib/pagina-de-plan.server.ts`, `force-dynamic`) con lo
+> que hay hoy en el panel, y las reglas son puras en `lib/pagina-de-plan.ts`.
+> Apagar, renombrar o describir una función en el panel se ve la próxima vez
+> que se abre la página.
+
+Seis cosas que hay que mantener:
+
+1. **`features` sigue siendo la lista de nombres encendidos**, en su orden:
+   la leen la landing, el registro y media plataforma. Lo demás de cada
+   función —categoría, descripción, tutorial, si está apagada— va en
+   `plan_funciones`, tabla de la App (`subscriptionPlanId` como clave, JSONB,
+   `ddl()`). **Ni una columna en `SubscriptionPlan`** (#360). Guardar con el
+   editor rehace `features` desde la lista (`losFeaturesDeLasFunciones`).
+2. **Si `features` cambia por otro camino, la página no se rompe**
+   (`lasFuncionesDelPlan`): lo guardado se usa tal cual si sus encendidas son
+   exactamente `features`; si no, se rehace por nombre conservando lo que se
+   sabía, y una función nueva se coloca sola (`sugerirLaFuncion`: «Tareas» →
+   Herramientas con su guía). Sin `plan_funciones` legible, todo se deduce.
+3. **Lo guardado que ya no cuadra con el plan NO sale, y el panel lo dice**
+   (`losAvisosDelTexto`): un texto que nombra otros créditos, otro tope de
+   catálogo o un nombre viejo del plan. Se escribe con datos vivos —`{plan}`,
+   `{creditos}`, `{catalogo}`, `{precio}`, `{asistencia}`— en vez de números.
+4. **Una función de categoría «capacidad» no se lista**: es la que dice los
+   créditos o la asistencia, y eso ya lo dice el resumen con el dato de hoy.
+5. **Guardar el detalle a medias no borra lo demás.** `upsertPlanDetail`
+   escribe solo los campos que llegan (`CAMPOS_DE_TEXTO`, `CAMPOS_DE_LISTA`):
+   antes guardar el video vaciaba los testimonios y las preguntas. Los
+   testimonios, la galería y las estadísticas que hubiera guardados se quedan
+   en la base y no se enseñan.
+6. **Un plan apagado no tiene página** (`elPlanQueSeEnsena`: cae al otro tipo
+   de asistencia si está activo; sin ninguno, 404), ni un plan de reseller.
+   Los enlaces de los botones y del tutorial pasan por `comoEnlaceDelBoton` y
+   `comoTutorial`: ni `javascript:` ni `//otro.com`.
+
+La landing (`PlanDetailModal`) dice lo mismo que la página: el mismo nombre,
+precio, créditos, funciones encendidas y botones.
+
+Lo prueba `scripts/banco-pagina-de-plan.sh`: la regla y un barrido, las
+acciones contra Postgres (guardar, apagar, renombrar, describir, cambiar los
+créditos, apagar el plan, un cliente que intenta guardar) y la página real en
+Chromium sobre el CSS del build a 1440 y 390. `MODO=roto` corre lo mismo contra
+`88ade1f` y afirma el texto viejo, el plan apagado servido, los testimonios
+pintados y el guardado que los borraba.
 
 ## Cómo reportar al terminar
 
