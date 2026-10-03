@@ -49,12 +49,12 @@ const STEPS: CrmWizardStep[] = [
   {
     id: "types",
     title: "Tipos CRM",
-    description: "Ajusta como reconocer solicitudes, pedidos, reservas y pagos.",
+    description: "Ajusta cómo reconocer solicitudes, pedidos, reservas y pagos.",
   },
   {
     id: "preview",
     title: "Previsualización",
-    description: "Revisa el prompt final que consumira el backend.",
+    description: "Revisa el prompt final que consumirá el backend.",
   },
 ];
 
@@ -156,7 +156,7 @@ export function CrmLeadFunnelPromptWizard({
   if (currentStep === "base") {
     content = (
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] [&>*]:min-w-0">
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="rol" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Rol y decisiones base</CardTitle>
           </CardHeader>
@@ -194,13 +194,13 @@ export function CrmLeadFunnelPromptWizard({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="salida" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Contrato de salida</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Salida para la sintesis</Label>
+              <Label>Salida para la síntesis</Label>
               <Textarea
                 rows={4}
                 value={draft.reportOutputInstruction}
@@ -245,7 +245,7 @@ export function CrmLeadFunnelPromptWizard({
   if (currentStep === "rules") {
     content = (
       <div className="grid min-w-0 gap-6 xl:grid-cols-2 [&>*]:min-w-0">
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="reglas" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Reglas obligatorias</CardTitle>
           </CardHeader>
@@ -285,7 +285,7 @@ export function CrmLeadFunnelPromptWizard({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="cierre" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Cierre del prompt</CardTitle>
           </CardHeader>
@@ -323,7 +323,7 @@ export function CrmLeadFunnelPromptWizard({
     content = (
       <div className="grid min-w-0 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
         {CRM_PROMPT_RECORD_TYPES.map((type) => (
-          <Card key={type} className="border-border/70">
+          <Card key={type} data-zona="tipo" data-tipo={type} className="border-border/70">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">{getTipoLabel(type)}</CardTitle>
@@ -365,14 +365,14 @@ export function CrmLeadFunnelPromptWizard({
   if (currentStep === "preview") {
     content = (
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] [&>*]:min-w-0">
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="resumen" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Resumen publicado</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
               <p className="font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Ultima actualizacion
+                Última actualización
               </p>
               <p className="mt-2 text-sm font-medium">
                 {formatTimestamp(record.updatedAt)}
@@ -380,7 +380,7 @@ export function CrmLeadFunnelPromptWizard({
             </div>
 
             <div className="space-y-2">
-              <Label>Placeholder dinamico</Label>
+              <Label>Placeholder dinámico</Label>
               <Input readOnly value={CRM_LEAD_NAME_JSON_PLACEHOLDER} />
             </div>
 
@@ -396,7 +396,7 @@ export function CrmLeadFunnelPromptWizard({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-border/70">
+        <Card data-zona="prompt-generado" className="min-w-0 border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Prompt generado</CardTitle>
           </CardHeader>
@@ -416,12 +416,12 @@ export function CrmLeadFunnelPromptWizard({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
       <div className="min-w-0 shrink-0 space-y-4">
-        <div className="flex flex-row items-center gap-2 text-sm">
+        <div data-zona="explicacion" className="flex flex-row items-center gap-2 text-sm">
           <Tooltip delayDuration={120}>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Informacion sobre Sintetizador IA"
+                aria-label="Información sobre Sintetizador IA"
                 className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Badge
@@ -434,13 +434,13 @@ export function CrmLeadFunnelPromptWizard({
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-72 sm:hidden">
-              Controla como la IA decide si un mensaje es reporte o registro del
-              CRM y como resume cada caso.
+              Controla cómo la IA decide si un mensaje es reporte o registro del
+              CRM y cómo resume cada caso.
             </TooltipContent>
           </Tooltip>
           <span className="hidden text-sm text-muted-foreground sm:inline">
-            Controla como la IA decide si un mensaje es reporte o registro del
-            CRM y como resume cada caso.
+            Controla cómo la IA decide si un mensaje es reporte o registro del
+            CRM y cómo resume cada caso.
           </span>
         </div>
 
@@ -451,13 +451,13 @@ export function CrmLeadFunnelPromptWizard({
         />
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1">
+      <div data-zona="contenido" className="min-h-0 min-w-0 flex-1">
         <ScrollArea className="h-full min-w-0 pr-4">
           <div className="min-w-0 space-y-4">{content}</div>
         </ScrollArea>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
+      <div data-zona="pie" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
         <div className="flex gap-2">
           <Button
             type="button"
@@ -499,7 +499,7 @@ export function CrmLeadFunnelPromptWizard({
             disabled={isSaving}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Defaults actuales
+            Restaurar valores de fábrica
           </Button>
           <Button
             type="button"

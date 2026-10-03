@@ -319,7 +319,7 @@ function AutomationCard({
   const [editAction, setEditAction] = useState<TaskTypeAutomationActionRow | null>(null);
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-3">
+    <div data-automatizacion={automation.name} className="rounded-lg border bg-card p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-sm">{automation.name}</span>
         <div className="flex items-center gap-2">

@@ -25387,7 +25387,127 @@ la guía servida a 390 y 1440) y `scripts/banco-destino-de-la-llamada.sh`
 (caso A5: el teléfono real gana a un `@lid` fabricado). `MODO=roto` contra un
 commit pinchado afirma que no había guía y que la llamada iba al `@lid`.
 
-### La vigesimoquinta guía, Campañas: y documentarla destapó campañas que no hacían lo que decían
+### La vigesimoquinta guía, Correos: los buzones son de MENTIRA, y nada se envía
+
+`/guia/correo` documenta Bandeja › Correos (`/correo`) con el estándar de las
+anteriores: diez secciones —vista general, conectar (Gmail, Outlook o dominio
+propio), varios buzones y el selector de bandejas, el buscador y «Buscar en»,
+las pastillas y la flecha, la selección múltiple (leído, exportar, destacar,
+archivar, eliminar), leer y organizar un correo, responder con archivos y la
+firma de cada buzón, reenviar y escribir uno nuevo—, una miniatura con enfoque
+por tarjeta y el vídeo narrado con Cedar al MISMO ritmo (dura 1:48: cubre tanto
+como Chats, y su banco usa el margen de Chats). Su tarjeta sale sola en
+«Tutoriales del módulo» de `/correo`: «Aprende a leer y responder los correos
+de tu negocio en la plataforma». Se regenera con
+`npm run build && scripts/generar-guia-correo.sh && npm run build`.
+
+Cinco cosas que hay que mantener:
+
+1. **Los tres buzones son de ejemplo y los contesta un doble**
+   (`fingido-guia-correo.mjs`, cargado dentro de `next start` como el Gemini de
+   AI Imágenes): un Gmail en memoria que se reinicia al volver a sembrar
+   (`/tmp/guia-correo-reinicio`). La semilla sella las credenciales con la MISMA
+   llave que la App (HKDF con la etiqueta `"verzay-correo"`, que es un nombre
+   del código y no un dato; el banco la descuenta al buscar datos reales).
+2. **Ni las capturas ni el vídeo envían, borran, desconectan ni siguen un
+   OAuth**: «Conectar Gmail», «Enviar correo» y «Eliminar correos» se señalan
+   y no se pulsan, y el reenvío se cancela. El banco lo lee del guion.
+3. **Antes de cada foto el ratón sale de la lista y se suelta el foco**
+   (`apartar`): encima de una fila salen sus mandos de pasar el ratón y la
+   casilla vacía, y el anillo del último botón se lee como otra marca.
+4. **Botones pegados llevan UN recuadro y los números fuera** (`enFila`): en
+   los mandos del correo, sobre la fila «Para», que está vacía a la derecha; en
+   las pastillas, a caballo del borde de abajo, sin tapar el nombre de la fila.
+5. **La guía se compara con el código**: las pastillas y la flecha con
+   `FILTROS_EN_PASTILLA`/`FILTROS_EN_LA_FLECHA`, «Buscar en» con
+   `NOMBRE_DEL_CAMPO`, y la ventana de conectar, la barra de la selección, los
+   tres «⋯», los mandos del correo y la barra de responder con sus componentes.
+
+Lo prueba `scripts/banco-guia-correo.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=correo`, `fin-de-la-guia`, `menu-de-la-guia` y
+la guía servida a 390 y 1440); `MODO=roto` contra `400482e` afirma que no había
+guía.
+
+### La vigesimosexta guía, Follow-ups IA: el asistente del sintetizador, la clasificación y los follow-ups por estado
+
+`/guia/follow-ups` documenta Bandeja › Follow-ups IA (`/crm/rules`) con el
+estándar de las anteriores: la vista general, **el sintetizador** (sus cuatro
+pasos: marco base, reglas globales, tipos CRM y previsualización), **la
+clasificación de leads** (marco, definiciones, criterios y previsualización) y
+**los follow-ups por estado**: tiempos e intentos, horario, mensajes (objetivo,
+prompt y respaldo), la biblioteca de archivos, el flujo por estado y el resumen
+antes de guardar; una miniatura con enfoque por tarjeta y el vídeo con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/crm/rules`. Ninguna pieza propia: contenido en `lib/guia-follow-ups.ts`,
+semilla `sembrar-guia-follow-ups.mjs`, receta `capturar-guia-follow-ups.mjs` y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-follow-ups.sh && npm run build`.
+
+> **Lo que la pantalla y la guía dicen igual sale de
+> `lib/follow-ups-de-la-pantalla.ts`**: las tres pestañas, los campos de la
+> regla de un estado (con su `data-zona`) y la línea del resumen. Una pestaña o
+> un campo renombrado en un solo sitio pone el banco en rojo.
+
+Lo que se arregló en la pantalla al documentarla: la pestaña decía
+«Clasificacion lead» y los campos «Max intentos», «Dias habilitados» y «Mensaje
+fallback» (ahora con tildes y «Mensaje de respaldo»); «Restaurar defaults» pasó
+a «Restaurar valores de fábrica»; el límite de la biblioteca decía «8/8» escrito
+a mano (ahora `MAX_MEDIA_PER_STATUS`) y en voseo; y el horario enseñaba la zona
+del servidor en vez de la de la cuenta.
+
+Dos cosas de la receta: las marcas de un campo van SIN rótulo (el rótulo del
+propio campo ya lo dice y encima lo tapaba), y en una rejilla de tarjetas los
+números van `sinRecuadro`; el recorte deja aire arriba (`conAireArriba`) para
+que el número no quede cortado.
+
+Lo prueba `scripts/banco-guia-follow-ups.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=follow-ups`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida a 390 y 1440); `MODO=roto` contra `400482e`
+afirma que no había guía ni marcas en la pantalla.
+
+### La vigesimoséptima guía, Mis tareas: y la cifra y la lista no decían lo mismo
+
+`/guia/tareas` documenta Bandeja › Mis tareas (`/tareas`) con el estándar de
+las anteriores: la vista Lista agrupada por fecha, el Kanban por tipo con sus
+automatizaciones, las cifras, crear una tarea, completarla con tiempo y
+resultado programando la siguiente, la ficha, y cancelar o eliminar; con una
+miniatura con enfoque por tarjeta y el vídeo con la voz Cedar y el MISMO
+ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de `/tareas`. Ninguna
+pieza propia: contenido en `lib/guia-tareas.ts`, semilla
+`sembrar-guia-tareas.mjs`, receta `capturar-guia-tareas.mjs` y narración
+`narracion-guia-tareas.mjs`. Se regenera con
+`npm run build && scripts/generar-guia-tareas.sh && npm run build`.
+
+Lo que se arregló en la pantalla al documentarla, con las reglas en
+`lib/pantalla-de-tareas.ts` (pura, la usan la pantalla y la guía):
+
+| lo que pasaba | ahora |
+| --- | --- |
+| la cifra «Vencidas» miraba la HORA y la lista el DÍA: una tarea de esta mañana contaba arriba como vencida y salía abajo en «Hoy» | una regla, `elGrupoDeLaTarea` y `lasCifras`: abierta y con la hora pasada es vencida en los dos sitios |
+| cancelar no pedía confirmación, y eliminar usaba `window.confirm` | las dos con un `AlertDialog` («Volver» / «Sí, cancelar la tarea» / «Eliminar») |
+| «Manana», «Proxima semana», «No respondio» | con sus tildes (`ATAJOS_DE_LA_SIGUIENTE`, `RESULTADOS_RAPIDOS`) |
+| crear desde un chat proponía la fecha en UTC (las 14:00 en Colombia) | `laFechaPropuesta`, mañana a las 9:00 de quien mira |
+| la lista vacía decía lo mismo sin tareas que sin resultados de búsqueda | `elMensajeDeLaListaVacia` |
+
+Cuatro cosas que hay que mantener:
+
+1. **Las capturas y el vídeo nunca confirman cancelar ni eliminar**: abren la
+   confirmación y pulsan «Volver». La tarea que se crea va sin recordatorio de
+   WhatsApp, y antes del vídeo se vuelve a sembrar.
+2. **Las fechas de los campos salen en español solo con `--lang=es-CO` y
+   `LANG=es_CO.UTF-8`**, como en Finanzas.
+3. **El número de cada asesor sale de `User.notificationNumber`**: la semilla lo
+   pone, o la guía enseña «+0000000000».
+4. **Los títulos de ejemplo caben en la tarjeta del Kanban**
+   (`queNadaSalgaRecortado`): se acortan en la semilla, no en la guía.
+
+Lo prueba `scripts/banco-guia-tareas.sh`: las reglas y el contenido contra el
+código (vistas, cifras, grupos, columnas por tipo, acciones de automatización,
+campos, confirmaciones), el vídeo, las miniaturas (`GUIA=tareas`),
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida. `MODO=roto` contra
+`400482e` afirma que no había guía, ni reglas compartidas, ni confirmaciones.
+
+### La vigesimoctava guía, Campañas: y documentarla destapó campañas que no hacían lo que decían
 
 `/guia/campanas` documenta Automatizaciones › Campañas (`/campaigns`) con el
 estándar de las anteriores: once secciones —vista general, la lista, el tablero

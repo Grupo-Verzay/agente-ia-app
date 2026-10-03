@@ -49,6 +49,26 @@ import { useAterrizajeDeMencion } from "@/hooks/useAterrizajeDeMencion";
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { TiempoDeTarea } from "@/components/shared/TiempoDeTarea";
 import { BotonDeCrear } from '@/components/shared/BarraDeAcciones';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  ATAJOS_DE_LA_SIGUIENTE,
+  GRUPOS_DE_LA_LISTA,
+  RESULTADOS_RAPIDOS,
+  elGrupoDeLaTarea,
+  elMensajeDeLaListaVacia,
+  estaVencida,
+  laFechaPropuesta,
+  lasCifras,
+} from "@/lib/pantalla-de-tareas";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   Seguimiento: <RefreshCw className="h-3.5 w-3.5" />,
@@ -72,23 +92,6 @@ function formatDueDate(iso: string) {
     + " " + d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
-function getDayGroup(iso: string): string {
-  const now = new Date();
-  const due = new Date(iso);
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  const weekEnd = new Date(todayStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-
-  if (due < todayStart) return "Vencidas";
-  if (due < tomorrowStart) return "Hoy";
-  if (due < new Date(tomorrowStart.getTime() + 86400000)) return "Mañana";
-  if (due < weekEnd) return "Esta semana";
-  return "Más adelante";
-}
-
-const GROUP_ORDER = ["Vencidas", "Hoy", "Mañana", "Esta semana", "Más adelante", "Completadas"];
 const GROUP_COLOR: Record<string, string> = {
   "Vencidas":       "text-red-600 dark:text-red-400",
   "Hoy":            "text-blue-600 dark:text-blue-400",
@@ -98,15 +101,8 @@ const GROUP_COLOR: Record<string, string> = {
   "Completadas":    "text-emerald-600 dark:text-emerald-400",
 };
 
-const QUICK_RESULTS = ["Contactado", "No respondio", "Reagendar", "Interesado", "Cerrado"];
-
-function getNextDueDate(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  date.setHours(9, 0, 0, 0);
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
-}
+/** El grupo, la cifra y la fecha propuesta salen de `lib/pantalla-de-tareas.ts`. */
+const getNextDueDate = (dias: number) => laFechaPropuesta(dias);
 
 type Props = {
   userId: string;
@@ -132,6 +128,8 @@ export function TasksClient({ userId, userName }: Props) {
   const [search, setSearch] = useState("");
   /** La tarea que se está mirando en su ficha. */
   const [ficha, setFicha] = useState<TaskData | null>(null);
+  /** Lo que se va a cancelar o eliminar: las dos cosas se confirman. */
+  const [confirmar, setConfirmar] = useState<{ que: "cancelar" | "eliminar"; tarea: TaskData } | null>(null);
 
   const allTypes = useMemo(() => [...TASK_TYPES, ...customTypes], [customTypes]);
 
@@ -187,22 +185,17 @@ export function TasksClient({ userId, userName }: Props) {
   const grouped = useMemo(() => {
     const map: Record<string, TaskData[]> = {};
     for (const t of filteredTasks) {
-      const group = t.status === "done" ? "Completadas" : getDayGroup(t.dueDate);
+      const group = elGrupoDeLaTarea(t);
+      if (!group) continue;
       if (!map[group]) map[group] = [];
       map[group].push(t);
     }
-    return GROUP_ORDER.filter((g) => map[g]?.length).map((g) => ({ label: g, items: map[g] }));
+    return GRUPOS_DE_LA_LISTA.filter((g) => map[g]?.length).map((g) => ({ label: g, items: map[g] }));
   }, [filteredTasks]);
 
-  const pending = tasks.filter((t) => isTaskOpen(t.status)).length;
-  const done = tasks.filter((t) => t.status === "done").length;
-  const overdue = tasks.filter((t) => isTaskOpen(t.status) && new Date(t.dueDate) < new Date()).length;
-  const dueToday = tasks.filter((t) => {
-    if (!isTaskOpen(t.status)) return false;
-    const d = new Date(t.dueDate);
-    const now = new Date();
-    return d >= now && d <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  }).length;
+  // Las cifras salen de la MISMA regla que los grupos de la lista: una tarea
+  // de esta mañana que ya pasó cuenta como vencida arriba y sale en Vencidas.
+  const { pendientes: pending, vencidas: overdue, paraHoy: dueToday, completadas: done } = lasCifras(tasks);
 
   const handleComplete = async () => {
     if (!completeTarget) return;
@@ -241,6 +234,7 @@ export function TasksClient({ userId, userName }: Props) {
   };
 
   const handleCancel = async (task: TaskData) => {
+    setConfirmar(null);
     const res = await cancelTaskAction(task.id);
     if (res.success) {
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -251,7 +245,7 @@ export function TasksClient({ userId, userName }: Props) {
   };
 
   const handleDelete = async (task: TaskData) => {
-    if (!window.confirm("Eliminar esta tarea definitivamente?")) return;
+    setConfirmar(null);
     const res = await deleteTaskAction(task.id);
     if (res.success) {
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -269,7 +263,7 @@ export function TasksClient({ userId, userName }: Props) {
       {/* Header: el selector de vista va en su propia fila para que el buscador
           y las acciones ("+ Crear") queden SIEMPRE en la misma línea, alineados. */}
       <div className="flex shrink-0 flex-col gap-2">
-        <div className="flex w-fit gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
+        <div data-zona="vista" className="flex w-fit gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
           <button
             type="button"
             onClick={() => setView("list")}
@@ -321,6 +315,7 @@ export function TasksClient({ userId, userName }: Props) {
               cuando una métrica duplica una pastilla que ya está, se queda la
               que ya existe. Las otras tres no tienen filtro equivalente en esta
               lista, así que van sin aspecto de pulsables. */}
+          <span data-zona="cifras" className="contents">
           <PastillasDeMetricas
             metricas={[
               { clave: "pending", icono: <Calendar />, etiqueta: "Pendientes", valor: pending, color: "#EAB308", ayuda: "Tareas pendientes" },
@@ -328,10 +323,11 @@ export function TasksClient({ userId, userName }: Props) {
               { clave: "dueToday", icono: <Calendar />, etiqueta: "Para hoy", valor: dueToday, color: "#3B82F6", ayuda: "Tareas para hoy" },
             ]}
           />
+          </span>
           {/* Esto FILTRA la lista, así que se queda a la izquierda con los
               demás filtros. A la derecha solo va lo que crea o actúa. */}
           {view === "list" && done > 0 && (
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
+            <Button data-zona="completadas" variant="outline" size="sm" className="shrink-0" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
               {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
               Completadas ({done})
             </Button>
@@ -351,23 +347,23 @@ export function TasksClient({ userId, userName }: Props) {
           allTypes={allTypes}
           userId={userId}
           onComplete={beginComplete}
-          onCancel={(task) => void handleCancel(task)}
-          onDelete={(task) => void handleDelete(task)}
+          onCancel={(task) => setConfirmar({ que: "cancelar", tarea: task })}
+          onDelete={(task) => setConfirmar({ que: "eliminar", tarea: task })}
         />
       ) : visibleGroups.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <div data-zona="lista-vacia" className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <ClipboardList className="h-8 w-8 text-primary/60" />
           </div>
           <div>
-            <p className="font-semibold">Sin tareas pendientes</p>
-            <p className="text-sm text-muted-foreground mt-1">Crea una tarea desde cualquier chat</p>
+            <p className="font-semibold">{elMensajeDeLaListaVacia(search).titulo}</p>
+            <p className="text-sm text-muted-foreground mt-1">{elMensajeDeLaListaVacia(search).detalle}</p>
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+        <div data-zona="lista" className="flex-1 overflow-y-auto space-y-6 pr-1">
           {visibleGroups.map(({ label, items }) => (
-            <div key={label}>
+            <div key={label} data-grupo={label}>
               <div className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide", GROUP_COLOR[label])}>
                 <CalendarClock className="h-3.5 w-3.5" />
                 {label}
@@ -380,8 +376,8 @@ export function TasksClient({ userId, userName }: Props) {
                     task={task}
                     onOpen={() => setFicha(task)}
                     onComplete={() => beginComplete(task)}
-                    onCancel={() => void handleCancel(task)}
-                    onDelete={() => void handleDelete(task)}
+                    onCancel={() => setConfirmar({ que: "cancelar", tarea: task })}
+                    onDelete={() => setConfirmar({ que: "eliminar", tarea: task })}
                   />
                 ))}
               </div>
@@ -392,7 +388,7 @@ export function TasksClient({ userId, userName }: Props) {
 
       {/* Dialog completar */}
       <Dialog open={!!completeTarget} onOpenChange={(o) => !o && setCompleteTarget(null)}>
-        <DialogContent className="overflow-y-auto sm:max-w-md">
+        <DialogContent data-ventana-de-completar className="overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
@@ -403,16 +399,17 @@ export function TasksClient({ userId, userName }: Props) {
           {/* Va ARRIBA del resultado, que es opcional: lo obligatorio se pide
               primero, o se rellena lo de abajo y el botón no deja seguir sin
               decir dónde está el problema. */}
-          <TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} autoFocus />
+          <div data-campo="tiempo"><TiempoDeTarea minutos={minutosDeTrabajo} onChange={setMinutosDeTrabajo} autoFocus /></div>
           <Textarea
+            data-campo="resultado"
             value={resultText}
             onChange={(e) => setResultText(e.target.value)}
             placeholder="Resultado (opcional)..."
             rows={3}
             className="resize-none"
           />
-          <div className="flex flex-wrap gap-1.5">
-            {QUICK_RESULTS.map((result) => (
+          <div data-campo="rapidos" className="flex flex-wrap gap-1.5">
+            {RESULTADOS_RAPIDOS.map((result) => (
               <Button
                 key={result}
                 type="button"
@@ -425,7 +422,7 @@ export function TasksClient({ userId, userName }: Props) {
               </Button>
             ))}
           </div>
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+          <div data-campo="siguiente" className="rounded-lg border border-border/70 bg-muted/20 p-3">
             <div className="flex items-center gap-2">
               <Checkbox id="schedule-next-task" checked={scheduleNext} onCheckedChange={(value) => setScheduleNext(Boolean(value))} />
               <label htmlFor="schedule-next-task" className="cursor-pointer text-sm font-medium">
@@ -445,9 +442,9 @@ export function TasksClient({ userId, userName }: Props) {
                   </SelectContent>
                 </Select>
                 <div className="flex flex-wrap gap-1.5">
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(1))}>Manana</Button>
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(7))}>Proxima semana</Button>
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(30))}>Proximo mes</Button>
+                  {ATAJOS_DE_LA_SIGUIENTE.map(({ rotulo, dias }) => (
+                    <Button key={rotulo} type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(dias))}>{rotulo}</Button>
+                  ))}
                 </div>
                 <Input type="datetime-local" value={nextDueDate} onChange={(event) => setNextDueDate(event.target.value)} className="h-9" />
               </div>
@@ -461,6 +458,34 @@ export function TasksClient({ userId, userName }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancelar y eliminar se confirman: los dos sacan la tarea de la lista,
+          y eliminar no se deshace. */}
+      <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent data-confirmar={confirmar?.que}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmar?.que === "eliminar" ? "¿Eliminar esta tarea?" : "¿Cancelar esta tarea?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmar?.que === "eliminar"
+                ? `«${tituloDeLaTarjeta(confirmar.tarea.title) || confirmar.tarea.title}» se borra para siempre, con su historial.`
+                : `«${confirmar ? tituloDeLaTarjeta(confirmar.tarea.title) || confirmar.tarea.title : ""}» sale de tu lista sin contarse como hecha.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              className={confirmar?.que === "eliminar" ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}
+              onClick={() => {
+                if (!confirmar) return;
+                if (confirmar.que === "eliminar") void handleDelete(confirmar.tarea);
+                else void handleCancel(confirmar.tarea);
+              }}
+            >
+              {confirmar?.que === "eliminar" ? "Eliminar" : "Sí, cancelar la tarea"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* La ficha: el texto entero y los documentos que la nombran. */}
       <FichaDeLaTarea tarea={ficha} alCerrar={() => setFicha(null)} />
@@ -506,7 +531,7 @@ function KanbanView({ tasks, allTypes, userId, onComplete, onCancel, onDelete }:
   ];
 
   return (
-    <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
+    <div data-zona="kanban" className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
       <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
         <div className="flex gap-3 h-full" style={{ width: "max-content", minWidth: "100%" }}>
           {columns.map(({ type, items }) => {
@@ -517,6 +542,7 @@ function KanbanView({ tasks, allTypes, userId, onComplete, onCancel, onDelete }:
             return (
               <div
                 key={type}
+                data-columna={type}
                 className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
                 style={{
                   borderColor: col.borderColor + "52",
@@ -532,16 +558,18 @@ function KanbanView({ tasks, allTypes, userId, onComplete, onCancel, onDelete }:
                     </Badge>
                     <button
                       type="button"
+                      data-boton="automatizaciones"
                       className="text-white/70 hover:text-white transition-colors"
                       onClick={() => setAutomationsOpen(type)}
                       title="Configurar automatizaciones"
+                      aria-label={`Configurar automatizaciones de ${type}`}
                     >
                       <Settings2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
                 <Sheet open={automationsOpen === type} onOpenChange={(v) => !v && setAutomationsOpen(null)}>
-                  <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                  <SheetContent data-automatizaciones-del-tipo={type} side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
                     <SheetHeader>
                       <SheetTitle>Automatizaciones · {type}</SheetTitle>
                     </SheetHeader>
@@ -591,13 +619,12 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
   onDelete: () => void;
 }) {
   const isDone    = task.status === "done";
-  const isOverdue = !isDone && new Date(task.dueDate) < new Date();
-  const typeColor = TYPE_COLOR[task.type] ?? TYPE_COLOR["Tarea"];
-  const typeIcon  = TYPE_ICON[task.type] ?? <ClipboardList className="h-3 w-3" />;
+  const isOverdue = estaVencida(task);
   const router    = useRouter();
 
   return (
     <div
+      data-tarea={task.id}
       className={cn(
         "bg-background rounded-lg border border-border p-3 shadow-sm transition-shadow hover:shadow-md",
         isDone && "opacity-60",
@@ -607,7 +634,7 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
         {/* Contenido izquierdo */}
         <div className="min-w-0 flex-1 flex flex-col gap-1">
           {/* Fila 1: título */}
-          <p className={cn("app-item-title truncate leading-tight uppercase", isDone && "line-through text-muted-foreground")}>
+          <p className={cn("app-item-title line-clamp-2 break-words leading-tight uppercase", isDone && "line-through text-muted-foreground")}>
             {task.title}
           </p>
 
@@ -710,10 +737,9 @@ function TaskCard({
   const isDone = task.status === "done";
   const dueDate = new Date(task.dueDate);
   const now = new Date();
-  const isOverdue = !isDone && dueDate < now;
-  const isDueToday = !isDone
-    && !isOverdue
-    && dueDate <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  const grupo = elGrupoDeLaTarea(task, now);
+  const isOverdue = grupo === "Vencidas";
+  const isDueToday = grupo === "Hoy" && dueDate >= now;
   const typeColor = TYPE_COLOR[task.type] ?? TYPE_COLOR["Tarea"];
   const typeIcon = TYPE_ICON[task.type] ?? <ClipboardList className="h-3.5 w-3.5" />;
   const router = useRouter();
@@ -723,7 +749,7 @@ function TaskCard({
   };
 
   return (
-    <div className={cn(
+    <div data-tarea={task.id} className={cn(
       "rounded-xl border border-l-4 px-3 py-2.5 transition-all",
       isDone
         ? "border-l-emerald-300 bg-muted/30 opacity-55"
@@ -746,6 +772,7 @@ function TaskCard({
               en la tarjeta cada clic competiría con ellos. */}
           <button
             type="button"
+            data-zona="titulo"
             onClick={onOpen}
             title={task.title}
             className={cn(
@@ -759,7 +786,7 @@ function TaskCard({
           <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
             {/* Fila 2: contacto + teléfono */}
             {task.contactName && (
-              <button type="button" onClick={goToChat}
+              <button type="button" data-zona="contacto" onClick={goToChat}
                 className={cn("flex items-center gap-1 text-left w-fit", task.contactJid && "text-blue-600 hover:underline cursor-pointer")}>
                 <Phone className="h-3 w-3 shrink-0" />
                 <span className="truncate max-w-[140px]">{task.contactName}</span>
@@ -767,7 +794,7 @@ function TaskCard({
               </button>
             )}
             {/* Fila 3: asesor */}
-            <span className="flex items-center gap-1">
+            <span data-zona="asesor" className="flex items-center gap-1">
               <User className="h-3 w-3 shrink-0" />
               {task.assignedToName ?? task.assignedToId}
             </span>
@@ -779,7 +806,7 @@ function TaskCard({
               </span>
             )}
             {/* Fila 4: fecha */}
-            <span className={cn("flex items-center gap-1", isOverdue && !isDone && "text-red-500 font-medium")}>
+            <span data-zona="fecha" className={cn("flex items-center gap-1", isOverdue && !isDone && "text-red-500 font-medium")}>
               <CalendarClock className="h-3 w-3 shrink-0" />
               {formatDueDate(task.dueDate)}
             </span>
@@ -792,7 +819,7 @@ function TaskCard({
 
         {/* Acciones derecha */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", typeColor)}>
+          <span data-zona="tipo" className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", typeColor)}>
             {typeIcon}{task.type}
           </span>
           {!isDone && (
@@ -830,7 +857,7 @@ function TaskActionButtons({
   const iconClass = compact ? "h-3 w-3" : "h-4 w-4";
 
   return (
-    <div className={cn(
+    <div data-zona="mandos" className={cn(
       "flex shrink-0 items-center gap-1",
       compact && "gap-0.5",
     )}>

@@ -29,6 +29,8 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_CHATS } from "@/lib/guia-chats";
+import { GUIA_CORREO } from "@/lib/guia-correo";
+import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
 import { GUIA_MACROS } from "@/lib/guia-macros";
 import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
@@ -39,6 +41,7 @@ import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
 import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
+import { GUIA_TAREAS } from "@/lib/guia-tareas";
 import { GUIA_ETIQUETAS } from "@/lib/guia-etiquetas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
 
@@ -286,6 +289,24 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/chats",
         contenido: GUIA_CHATS,
         tarjeta: "Aprende a atender todas tus conversaciones de WhatsApp en la plataforma",
+    },
+    {
+        modulo: "tareas",
+        ruta: "/tareas",
+        contenido: GUIA_TAREAS,
+        tarjeta: "Aprende a organizar y completar tus tareas en la plataforma",
+    },
+    {
+        modulo: "correo",
+        ruta: "/correo",
+        contenido: GUIA_CORREO,
+        tarjeta: "Aprende a leer y responder los correos de tu negocio en la plataforma",
+    },
+    {
+        modulo: "follow-ups",
+        ruta: "/crm/rules",
+        contenido: GUIA_FOLLOW_UPS,
+        tarjeta: "Aprende a hacer seguimiento automático a tus leads en la plataforma",
     },
 ];
 

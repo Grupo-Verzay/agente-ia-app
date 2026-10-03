@@ -26,8 +26,11 @@ import { GUIA_FLUJOS } from "@/lib/guia-flujos";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_RECORDATORIOS } from "@/lib/guia-recordatorios";
 import { GUIA_CAMPANAS } from "@/lib/guia-campanas";
+import { GUIA_TAREAS } from "@/lib/guia-tareas";
 import { GUIA_CONEXION } from "@/lib/guia-conexion";
 import { GUIA_CHATS } from "@/lib/guia-chats";
+import { GUIA_CORREO } from "@/lib/guia-correo";
+import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -92,6 +95,9 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     conexion: { titulo: GUIA_CONEXION.titulo, subtitulo: GUIA_CONEXION.subtitulo, descripcion: GUIA_CONEXION.descripcion },
     campanas: { titulo: GUIA_CAMPANAS.titulo, subtitulo: GUIA_CAMPANAS.subtitulo, descripcion: GUIA_CAMPANAS.descripcion },
     chats: { titulo: GUIA_CHATS.titulo, subtitulo: GUIA_CHATS.subtitulo, descripcion: GUIA_CHATS.descripcion },
+    tareas: { titulo: GUIA_TAREAS.titulo, subtitulo: GUIA_TAREAS.subtitulo, descripcion: GUIA_TAREAS.descripcion },
+    correo: { titulo: GUIA_CORREO.titulo, subtitulo: GUIA_CORREO.subtitulo, descripcion: GUIA_CORREO.descripcion },
+    "follow-ups": { titulo: GUIA_FOLLOW_UPS.titulo, subtitulo: GUIA_FOLLOW_UPS.subtitulo, descripcion: GUIA_FOLLOW_UPS.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{

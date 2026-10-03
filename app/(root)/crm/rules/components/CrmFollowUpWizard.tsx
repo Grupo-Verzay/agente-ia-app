@@ -39,6 +39,7 @@ import { LoadingState } from "./LoadingState";
 import { CrmWizardStep, CrmWizardStepper } from "./CrmWizardStepper";
 import { CrmFollowUpMediaLibrary } from "./CrmFollowUpMediaLibrary";
 import { LeadStatusWorkflowPanel } from "./LeadStatusWorkflowPanel";
+import { elRotuloDe, laLineaDelResumen, ROTULO_DE_LA_ESPERA } from "@/lib/follow-ups-de-la-pantalla";
 
 type CrmFollowUpWizardProps = {
     userId: string;
@@ -140,6 +141,7 @@ function DelayTimeInput({
         <fieldset disabled={disabled} className={cn(disabled && "opacity-60 h-full")}>
             <TimeInput
                 key={instanceKey}
+                label={ROTULO_DE_LA_ESPERA}
                 className={cn("text-lg", disabled && "pointer-events-none")}
                 currentValue={draftValue}
                 onChange={handleChange}
@@ -175,7 +177,7 @@ export function CrmFollowUpWizard({
             {
                 id: "summary",
                 title: "Resumen",
-                description: "Revisa la configuracion final antes de guardar.",
+                description: "Revisa la configuración final antes de guardar.",
             },
         ],
         []
@@ -211,7 +213,7 @@ export function CrmFollowUpWizard({
     if (currentStep === "summary") {
         content = (
             <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
-                <Card className="border-border/70">
+                <Card data-zona="resumen-general" className="border-border/70">
                     <CardHeader>
                         <CardTitle className="text-base">Resumen general</CardTitle>
                     </CardHeader>
@@ -221,7 +223,7 @@ export function CrmFollowUpWizard({
                                 Zona horaria activa
                             </p>
                             <p className="mt-2 text-sm font-medium">
-                                {SERVER_TIME_ZONE || "America/Bogota"}
+                                {timezone || SERVER_TIME_ZONE || "America/Bogota"}
                             </p>
                         </div>
 
@@ -230,14 +232,14 @@ export function CrmFollowUpWizard({
                                 Cada estado tiene su propia regla de recontacto.
                             </p>
                             <p className="mt-2 text-sm text-muted-foreground">
-                                El sistema usa delay, dias habilitados, ventana horaria, prompt y fallback
-                                para decidir cuando y como enviar cada follow-up.
+                                La IA usa la espera, los días habilitados, el horario, el prompt y el mensaje
+                                de respaldo para decidir cuándo y cómo escribir cada follow-up.
                             </p>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-border/70">
+                <Card data-zona="estados-configurados" className="border-border/70">
                     <CardHeader>
                         <CardTitle className="text-base">Estados configurados</CardTitle>
                     </CardHeader>
@@ -249,15 +251,14 @@ export function CrmFollowUpWizard({
                             return (
                                 <div
                                     key={leadStatus}
+                                    data-estado-del-resumen={leadStatus}
                                     className="rounded-2xl border border-border/70 bg-background p-4"
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div className="space-y-1">
                                             <p className="font-medium">{getLeadStatusLabel(leadStatus)}</p>
                                             <p className="text-sm text-muted-foreground">
-                                                {rule.enabled
-                                                    ? `${rule.delayMinutes} min · ${rule.maxAttempts} intentos · ${rule.sendStartTime} - ${rule.sendEndTime}`
-                                                    : "Regla desactivada"}
+                                                {laLineaDelResumen(rule)}
                                             </p>
                                         </div>
 
@@ -276,7 +277,7 @@ export function CrmFollowUpWizard({
         const leadStatus = currentRule.leadStatus;
 
         content = (
-            <Card className="border-border/70">
+            <Card data-zona="regla" data-regla={leadStatus} className="border-border/70">
                 <CardHeader className="pb-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
@@ -286,7 +287,7 @@ export function CrmFollowUpWizard({
                             <p className="text-sm text-muted-foreground">
                                 {leadStatus === "FINALIZADO" || leadStatus === "DESCARTADO"
                                     ? "Estados de cierre: por defecto no generan nuevos follow-ups."
-                                    : "El mensaje se programa despues del delay y se mueve a la siguiente ventana habilitada."}
+                                    : "El mensaje sale después de la espera, dentro del siguiente horario habilitado."}
                             </p>
                         </div>
 
@@ -294,13 +295,15 @@ export function CrmFollowUpWizard({
                             <Button
                                 variant="ghost"
                                 size="sm"
+                                data-zona="restaurar"
                                 onClick={() => onResetRuleToDefault(leadStatus)}
                             >
                                 <RotateCcw className="mr-2 h-4 w-4" />
-                                Restaurar defaults
+                                Restaurar valores de fábrica
                             </Button>
                             <Label
                                 htmlFor={`rule-enabled-${leadStatus}`}
+                                data-zona="activa"
                                 className="text-sm"
                             >
                                 Activa
@@ -318,7 +321,7 @@ export function CrmFollowUpWizard({
 
                 <CardContent className="space-y-6">
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
-                        <div className="space-y-2">
+                        <div data-zona="espera" className="space-y-2">
                             <DelayTimeInput
                                 value={currentRule.delayMinutes}
                                 disabled={!currentRule.enabled}
@@ -326,8 +329,8 @@ export function CrmFollowUpWizard({
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Max intentos</Label>
+                        <div data-zona="intentos" className="space-y-2">
+                            <Label>{elRotuloDe("intentos")}</Label>
                             <Input
                                 type="number"
                                 min={0}
@@ -345,8 +348,8 @@ export function CrmFollowUpWizard({
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Desde</Label>
+                        <div data-zona="desde" className="space-y-2">
+                            <Label>{elRotuloDe("desde")}</Label>
                             <Select
                                 value={currentRule.sendStartTime}
                                 disabled={!currentRule.enabled}
@@ -367,8 +370,8 @@ export function CrmFollowUpWizard({
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Hasta</Label>
+                        <div data-zona="hasta" className="space-y-2">
+                            <Label>{elRotuloDe("hasta")}</Label>
                             <Select
                                 value={currentRule.sendEndTime}
                                 disabled={!currentRule.enabled}
@@ -390,8 +393,8 @@ export function CrmFollowUpWizard({
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Dias habilitados</Label>
+                    <div data-zona="dias" className="space-y-2">
+                        <Label>{elRotuloDe("dias")}</Label>
                         <div className="flex flex-wrap gap-2">
                             {CRM_FOLLOW_UP_WEEKDAY_OPTIONS.map((option) => {
                                 const selected = currentRule.allowedWeekdays.includes(option.value);
@@ -418,8 +421,8 @@ export function CrmFollowUpWizard({
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-3">
-                        <div className="space-y-2">
-                            <Label>Objetivo</Label>
+                        <div data-zona="objetivo" className="space-y-2">
+                            <Label>{elRotuloDe("objetivo")}</Label>
                             <Textarea
                                 rows={5}
                                 disabled={!currentRule.enabled}
@@ -430,8 +433,8 @@ export function CrmFollowUpWizard({
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Prompt interno</Label>
+                        <div data-zona="prompt" className="space-y-2">
+                            <Label>{elRotuloDe("prompt")}</Label>
                             <Textarea
                                 rows={5}
                                 disabled={!currentRule.enabled}
@@ -442,8 +445,8 @@ export function CrmFollowUpWizard({
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Mensaje fallback</Label>
+                        <div data-zona="respaldo" className="space-y-2">
+                            <Label>{elRotuloDe("respaldo")}</Label>
                             <Textarea
                                 rows={5}
                                 disabled={!currentRule.enabled}
@@ -462,6 +465,8 @@ export function CrmFollowUpWizard({
 
                         <button
                             type="button"
+                            data-zona="abrir-biblioteca"
+                            aria-expanded={mediaExpanded}
                             onClick={() => setMediaExpanded((v) => !v)}
                             className="flex w-full flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/40 sm:flex-row sm:items-center"
                         >
@@ -506,12 +511,12 @@ export function CrmFollowUpWizard({
     return (
         <div className="flex h-full min-h-0 flex-col gap-4">
             <div className="shrink-0 space-y-4">
-                <div className="flex flex-row items-center gap-2 text-sm">
+                <div data-zona="explicacion" className="flex flex-row items-center gap-2 text-sm">
                     <Tooltip delayDuration={120}>
                         <TooltipTrigger asChild>
                             <button
                                 type="button"
-                                aria-label="Informacion sobre Follow-ups IA"
+                                aria-label="Información sobre Follow-ups IA"
                                 className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
                                 <Badge
@@ -524,12 +529,12 @@ export function CrmFollowUpWizard({
                             </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="max-w-72 sm:hidden">
-                            Configura como la IA hace seguimiento por estado, horarios,
+                            Configura cómo la IA hace seguimiento por estado, horarios,
                             mensajes y archivos de remarketing.
                         </TooltipContent>
                     </Tooltip>
                     <span className="hidden text-sm text-muted-foreground sm:inline">
-                        Configura como la IA hace seguimiento por estado, horarios,
+                        Configura cómo la IA hace seguimiento por estado, horarios,
                         mensajes y archivos de remarketing.
                     </span>
                 </div>
@@ -541,13 +546,13 @@ export function CrmFollowUpWizard({
                 />
             </div>
 
-            <div className="min-h-0 flex-1">
+            <div data-zona="contenido" className="min-h-0 flex-1">
                 <ScrollArea className="h-full pr-4">
                     <div className="space-y-4">{content}</div>
                 </ScrollArea>
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
+            <div data-zona="pie" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
                 <div className="flex gap-2">
                     <Button
                         type="button"
