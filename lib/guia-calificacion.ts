@@ -328,7 +328,7 @@ export const GUIA_CALIFICACION: Contenido = {
             slug: "automatizaciones",
             titulo: "Automatizaciones por etapa",
             resumen: "Lo que pasa solo cuando un contacto entra en una columna.",
-            icono: "Workflow",
+            icono: "Zap",
             miniatura: "mini-automatizaciones.webp",
             pasos: [
                 {
