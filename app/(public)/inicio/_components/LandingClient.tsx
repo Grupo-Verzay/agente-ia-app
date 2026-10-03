@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { PlanDetailModal } from "./PlanDetailModal";
+import { elNombreDelPlan } from "@/lib/pagina-de-plan";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
 import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
@@ -919,7 +920,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {modalPlan && (
         <PlanDetailModal
           plan={modalPlan.plan}
-          checkoutUrl={modalPlan.checkoutUrl}
+          nombresEnUso={plans.map(elNombreDelPlan)}
+          whatsappNumber={whatsappNumber}
           onClose={() => setModalPlan(null)}
         />
       )}

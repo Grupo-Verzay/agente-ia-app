@@ -25899,6 +25899,70 @@ La síntesis de la narración usa «IA CRM» por defecto; si OpenAI contesta 429
 pide con otra llave de la misma tabla: `NOMBRE_LLAVE="Agente IA" node
 scripts/sintetizar-en-el-contenedor.mjs scripts/video-de-ventas/narracion.mjs`.
 
+## La página de un plan (`/planes/<plan>`) se arma EN VIVO del panel de Planes
+
+«Ver toda la información del plan» llevaba a una página con texto que nadie
+mantenía: copiaba `features` tal cual —con «Plan Intermedio» y «12.000
+créditos» escritos cuando el plan ya se llamaba de otra forma y traía 8.000—,
+pintaba testimonios, estadísticas, galería y secciones de marketing iguales
+para todos los planes, servía planes APAGADOS, nombraba el nivel con una tabla
+fija («Nivel 3») y **pedía sesión**: `/planes/` no estaba en el middleware y
+quien la abría desde la landing iba al login.
+
+Ahora son cuatro bloques, en este orden y ninguno más:
+
+| bloque | de dónde sale |
+| --- | --- |
+| **hero con el video del plan** | `plan_details.videoUrl` (YouTube, Vimeo, Loom, Drive o un archivo), su título y los botones |
+| **resumen de capacidad** | créditos (`SubscriptionPlan.credits`), catálogo (`elTopeDeProductos`, el MISMO número que limita Productos) y asistencia (IA 24/7 o IA + humana) |
+| **funciones por categoría** | las encendidas del plan, agrupadas por las categorías del menú, cada una con su tutorial si existe |
+| **preguntas frecuentes** | solo las de ese plan (`plan_details.faqs`) |
+
+> **Nada de la página está escrito en el componente.** La arma
+> `laPaginaDelPlan` (`lib/pagina-de-plan.server.ts`, `force-dynamic`) con lo
+> que hay hoy en el panel, y las reglas son puras en `lib/pagina-de-plan.ts`.
+> Apagar, renombrar o describir una función en el panel se ve la próxima vez
+> que se abre la página.
+
+Seis cosas que hay que mantener:
+
+1. **`features` sigue siendo la lista de nombres encendidos**, en su orden:
+   la leen la landing, el registro y media plataforma. Lo demás de cada
+   función —categoría, descripción, tutorial, si está apagada— va en
+   `plan_funciones`, tabla de la App (`subscriptionPlanId` como clave, JSONB,
+   `ddl()`). **Ni una columna en `SubscriptionPlan`** (#360). Guardar con el
+   editor rehace `features` desde la lista (`losFeaturesDeLasFunciones`).
+2. **Si `features` cambia por otro camino, la página no se rompe**
+   (`lasFuncionesDelPlan`): lo guardado se usa tal cual si sus encendidas son
+   exactamente `features`; si no, se rehace por nombre conservando lo que se
+   sabía, y una función nueva se coloca sola (`sugerirLaFuncion`: «Tareas» →
+   Herramientas con su guía). Sin `plan_funciones` legible, todo se deduce.
+3. **Lo guardado que ya no cuadra con el plan NO sale, y el panel lo dice**
+   (`losAvisosDelTexto`): un texto que nombra otros créditos, otro tope de
+   catálogo o un nombre viejo del plan. Se escribe con datos vivos —`{plan}`,
+   `{creditos}`, `{catalogo}`, `{precio}`, `{asistencia}`— en vez de números.
+4. **Una función de categoría «capacidad» no se lista**: es la que dice los
+   créditos o la asistencia, y eso ya lo dice el resumen con el dato de hoy.
+5. **Guardar el detalle a medias no borra lo demás.** `upsertPlanDetail`
+   escribe solo los campos que llegan (`CAMPOS_DE_TEXTO`, `CAMPOS_DE_LISTA`):
+   antes guardar el video vaciaba los testimonios y las preguntas. Los
+   testimonios, la galería y las estadísticas que hubiera guardados se quedan
+   en la base y no se enseñan.
+6. **Un plan apagado no tiene página** (`elPlanQueSeEnsena`: cae al otro tipo
+   de asistencia si está activo; sin ninguno, 404), ni un plan de reseller.
+   Los enlaces de los botones y del tutorial pasan por `comoEnlaceDelBoton` y
+   `comoTutorial`: ni `javascript:` ni `//otro.com`.
+
+La landing (`PlanDetailModal`) dice lo mismo que la página: el mismo nombre,
+precio, créditos, funciones encendidas y botones.
+
+Lo prueba `scripts/banco-pagina-de-plan.sh`: la regla y un barrido, las
+acciones contra Postgres (guardar, apagar, renombrar, describir, cambiar los
+créditos, apagar el plan, un cliente que intenta guardar) y la página real en
+Chromium sobre el CSS del build a 1440 y 390. `MODO=roto` corre lo mismo contra
+`88ade1f` y afirma el texto viejo, el plan apagado servido, los testimonios
+pintados y el guardado que los borraba.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
