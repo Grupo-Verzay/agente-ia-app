@@ -15,12 +15,20 @@
 # este plan», la línea discreta hacia el plan inmediato superior, y la marca de
 # «destacar en la tarjeta corta» separada de «activa en el plan».
 #
+# Y un tercero (`plan-en-bloques.test.mjs`): la página arranca con el video sin
+# bloque de cabecera, la landing lleva directo a la página (sin ventana
+# intermedia), «qué incluye» son tarjetas sueltas en el orden del editor, los
+# seis bloques se reordenan desde el panel, y los recuadros de catálogo y
+# asistencia se editan (un plan sin catálogo no enseña ese recuadro).
+#
 # `MODO=roto` corre las mismas pruebas contra el código de antes —pinchado a un
 # commit, nunca `origin/main`— y AFIRMA los fallos. Son dos «antes», uno por
 # fichero: ANTES_REF (la página copiaba `features` tal cual, enseñaba un plan
 # apagado, pintaba testimonios y el guardado parcial borraba lo demás) y
 # ANTES_DE_LO_NUEVO (sin ruta de video, dos botones de comenzar, uno fijo
-# arriba, sin «para quién», sin plan superior y la tarjeta con TODAS).
+# arriba, sin «para quién», sin plan superior y la tarjeta con TODAS). Y
+# ANTES_DE_LOS_BLOQUES (la cabecera con nombre y precio encima del video, las
+# funciones agrupadas por categoría, «No incluido» y la ventana intermedia).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,6 +42,8 @@ ANTES_REF="${ANTES_REF:-88ade1f}"
 export ANTES_REF
 ANTES_DE_LO_NUEVO="${ANTES_DE_LO_NUEVO:-fd21c8f}"
 export ANTES_DE_LO_NUEVO
+ANTES_DE_LOS_BLOQUES="${ANTES_DE_LOS_BLOQUES:-0b7c21f}"
+export ANTES_DE_LOS_BLOQUES
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
@@ -123,10 +133,32 @@ if [ "$MODO" = "roto" ]; then
   (cd "$ANTES2" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
     lib/__tests__/fingido/tarjeta-de-plan-harness.tsx "$RAIZ/$OUT/tarjeta-antes.js" "${ALIAS_TARJETA[@]}")
   git worktree remove --force "$ANTES2" 2>/dev/null || rm -rf "$ANTES2"
+
+  # El código de antes de los bloques: la cabecera encima del video, los grupos
+  # por categoría y la ventana intermedia de la landing.
+  ANTES3="$RAIZ/lib/__tests__/.antes/plan-en-bloques"
+  git worktree remove --force "$ANTES3" 2>/dev/null || rm -rf "$ANTES3"
+  git worktree add --detach "$ANTES3" "$ANTES_DE_LOS_BLOQUES" >/dev/null 2>&1
+  ln -s "$RAIZ/node_modules" "$ANTES3/node_modules"
+  cp lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
+     lib/__tests__/fingido/minio-de-video.ts \
+     lib/__tests__/fingido/next-server.ts \
+     "$ANTES3/lib/__tests__/fingido/"
+  (cd "$ANTES3" && npx esbuild lib/__tests__/fingido/entrada-de-pagina-de-plan.ts --bundle \
+    --platform=node --format=esm --outfile="$RAIZ/$OUT/entrada-bloques-antes.js" \
+    --banner:js="$BANNER_ESM" "${ALIAS_NODO[@]}")
+  sed -i '/server-only/d' "$OUT/entrada-bloques-antes.js"
+  (cd "$ANTES3" && npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=iife \
+    --outfile="$RAIZ/$OUT/harness-bloques-antes.js" --jsx=automatic \
+    --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
+    --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error)
+  (cd "$ANTES3" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+    lib/__tests__/fingido/tarjeta-de-plan-harness.tsx "$RAIZ/$OUT/tarjeta-bloques-antes.js" "${ALIAS_TARJETA[@]}")
+  git worktree remove --force "$ANTES3" 2>/dev/null || rm -rf "$ANTES3"
   git worktree prune
 
-  # Los dos ficheros comparten la base: uno detrás de otro, nunca a la vez.
-  node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs "$@"
+  # Los tres ficheros comparten la base: uno detrás de otro, nunca a la vez.
+  node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs "$@"
   exit $?
 fi
 
@@ -149,4 +181,4 @@ npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=i
 node scripts/empaquetar-con-acciones-mudas.mjs lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
   "$OUT/tarjeta.js" "${ALIAS_TARJETA[@]}"
 
-node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs "$@"
+node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs lib/__tests__/plan-en-bloques.test.mjs "$@"

@@ -4,7 +4,15 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
-import { comoParaQuien, type ParaQuienDelPlan } from "@/lib/pagina-de-plan";
+import {
+  comoOrdenDeBloques,
+  comoParaQuien,
+  comoRecuadros,
+  type BloqueDeLaPagina,
+  type ParaQuienDelPlan,
+  type RecuadrosDelPlan,
+} from "@/lib/pagina-de-plan";
+import { guardarLaPagina, laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado, guardarElParaQuien } from "@/lib/plan-para-quien-db";
 
 export type FeatureSection = {
@@ -104,15 +112,21 @@ function parsePlanDetail(raw: Record<string, unknown>): PlanDetailData {
 /**
  * El detalle de un plan y, aparte, lo escrito en «Para quién es este plan»
  * (`plan_para_quien`, tabla de la App: `null` es «nunca se escribió», y la
- * página enseña lo de fábrica). Si esa tabla no se puede leer, el detalle sale
- * igual y se dice: el panel no se queda sin video ni preguntas por eso.
+ * página enseña lo de fábrica) y el orden de los bloques de la página con los
+ * recuadros de catálogo y asistencia (`plan_pagina`; sin fila, lo de fábrica).
+ * Si una de esas tablas no se puede leer, el detalle sale igual y se dice: el
+ * panel no se queda sin video ni preguntas por eso.
  */
 export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: string) {
   try {
-    const [detail, paraQuien] = await Promise.all([
+    const [detail, paraQuien, pagina] = await Promise.all([
       db.planDetail.findUnique({ where: { subscriptionPlanId } }),
       elParaQuienGuardado(subscriptionPlanId).catch((e) => {
         console.error("[planes] no se pudo leer «para quién es este plan»", { subscriptionPlanId, e });
+        return null;
+      }),
+      laPaginaGuardada(subscriptionPlanId).catch((e) => {
+        console.error("[planes] no se pudo leer el orden ni los recuadros de la página", { subscriptionPlanId, e });
         return null;
       }),
     ]);
@@ -120,10 +134,18 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
       success: true,
       data: detail ? parsePlanDetail(detail as unknown as Record<string, unknown>) : null,
       paraQuien: paraQuien as ParaQuienDelPlan | null,
+      orden: (pagina?.orden ?? comoOrdenDeBloques(null)) as BloqueDeLaPagina[],
+      recuadros: (pagina?.recuadros ?? comoRecuadros(null)) as RecuadrosDelPlan,
     };
   } catch (e) {
     console.error("[getPlanDetailBySubscriptionPlanId]", e);
-    return { success: false, data: null, paraQuien: null as ParaQuienDelPlan | null };
+    return {
+      success: false,
+      data: null,
+      paraQuien: null as ParaQuienDelPlan | null,
+      orden: comoOrdenDeBloques(null) as BloqueDeLaPagina[],
+      recuadros: comoRecuadros(null) as RecuadrosDelPlan,
+    };
   }
 }
 
@@ -166,6 +188,10 @@ export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPla
   paraQuien?: string;
   /** El caso típico de negocio, al lado del anterior. */
   caso?: string;
+  /** En qué orden van los bloques de la página. Vive en `plan_pagina`. */
+  orden?: unknown;
+  /** Los recuadros de catálogo y asistencia, al lado del orden. */
+  recuadros?: unknown;
 };
 
 /**
@@ -218,6 +244,11 @@ export async function upsertPlanDetail(
         paraQuien: entrada.paraQuien === undefined ? undefined : limpio.paraQuien,
         caso: entrada.caso === undefined ? undefined : limpio.caso,
       });
+    }
+    // El orden y los recuadros, igual: solo lo que llega, y saneado en
+    // `guardarLaPagina` (lo que llega del navegador no decide qué se guarda).
+    if (entrada.orden !== undefined || entrada.recuadros !== undefined) {
+      await guardarLaPagina(subscriptionPlanId, { orden: entrada.orden, recuadros: entrada.recuadros });
     }
 
     revalidatePath("/planes");

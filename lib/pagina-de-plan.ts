@@ -12,17 +12,22 @@
  * quedaban atrás en cuanto el plan cambiaba de nombre, de créditos o de
  * funciones. Ahora lo que se ve es:
  *
- *   1. el hero con el NOMBRE, la descripción, el precio y el video del plan
- *      (un enlace o un archivo .mp4 subido desde el panel);
+ *   1. el video del plan (un enlace o un archivo .mp4 subido desde el panel),
+ *      directo: sin un encabezado que repita el nombre, el tipo de asistencia,
+ *      la descripción y el precio — eso ya lo dijo la tarjeta de la landing;
  *   2. «para quién es»: a quién le sirve y un caso típico de negocio;
  *   3. el resumen de capacidad: créditos, catálogo y asistencia, con los
  *      números de VERDAD (los créditos del plan y el tope que la plataforma
- *      aplica al crear productos);
- *   4. las funciones ENCENDIDAS, agrupadas por categoría, con su tutorial;
+ *      aplica al crear productos). Catálogo y asistencia se editan en el
+ *      panel, y un plan sin catálogo no enseña ese recuadro;
+ *   4. las funciones ENCENDIDAS, una tarjeta por función y en el orden del
+ *      editor (sin agrupar por categoría), con su tutorial;
  *   5. las preguntas frecuentes de ese plan;
- *   6. el botón de comenzar, UNA vez y al final: arriba no hay ninguno, para
- *      que se decida después de leer y no antes;
- *   7. una línea discreta al plan inmediato superior, si existe.
+ *   6. el botón de comenzar, UNA vez, con una línea discreta al plan
+ *      inmediato superior, si existe.
+ *
+ * Ese es el orden de FÁBRICA: el panel puede arrastrar los bloques
+ * (`BLOQUES_DE_LA_PAGINA`, `comoOrdenDeBloques`), y la página los pinta así.
  *
  * # Encendida y destacada son DOS preguntas
  *
@@ -83,10 +88,11 @@ export const CATEGORIA_GENERAL = "general";
 export const CATEGORIA_CAPACIDAD = "capacidad";
 
 /**
- * En el orden en que salen en la página: primero lo que se hereda del plan
- * anterior, luego las diez del menú (las del centro de ayuda, así una función
- * cae donde vive su pantalla) y al final lo que no encaje en ninguna.
- * `capacidad` no se lista: lo dicen las tarjetas del resumen.
+ * La categoría de una función ya NO agrupa ni ordena la página —cada función
+ * es su propia tarjeta, en el orden del editor—: sirve para sugerir el
+ * tutorial y para apartar las de `capacidad`, que no se listan (lo dicen los
+ * recuadros del resumen). Se conserva el orden de antes para el desplegable:
+ * lo que se hereda del plan anterior, las diez del menú y lo demás.
  */
 export const CATEGORIAS_DEL_PLAN: readonly CategoriaDelPlan[] = [
     { slug: CATEGORIA_INCLUYE, nombre: "Incluye", seLista: true },
@@ -598,14 +604,78 @@ export function lasPreguntasQueSalen(raw: unknown, datos: DatosDelPlan): Pregunt
 
 /* ─── Resumen de capacidad ─────────────────────────────────────────────── */
 
+export type ClaveDeCapacidad = "creditos" | "catalogo" | "asistencia";
+
 export type TarjetaDeCapacidad = {
-    clave: "creditos" | "catalogo" | "asistencia";
+    clave: ClaveDeCapacidad;
     titulo: string;
     valor: string;
     detalle: string;
 };
 
-export function laCapacidadDelPlan(datos: DatosDelPlan, funciones: readonly FuncionDelPlan[]): TarjetaDeCapacidad[] {
+/** Los dos recuadros que el panel puede editar. Los créditos salen siempre del plan. */
+export type ClaveDelRecuadro = "catalogo" | "asistencia";
+
+export const RECUADROS_EDITABLES: readonly { clave: ClaveDelRecuadro; nombre: string }[] = [
+    { clave: "catalogo", nombre: "Catálogo" },
+    { clave: "asistencia", nombre: "Asistencia" },
+];
+
+/**
+ * Lo que el panel escribe de un recuadro. Un campo vacío es «lo de fábrica»
+ * (el texto que la página arma con los datos vivos del plan), así que un
+ * recuadro que nadie tocó sigue diciendo la verdad cuando el plan cambia.
+ */
+export type RecuadroEditable = {
+    /** Apagado: el recuadro no sale en la página. */
+    visible: boolean;
+    titulo: string;
+    valor: string;
+    detalle: string;
+};
+
+export type RecuadrosDelPlan = Record<ClaveDelRecuadro, RecuadroEditable>;
+
+export const TOPES_DEL_RECUADRO = { titulo: 40, valor: 40, detalle: 160 } as const;
+
+const RECUADRO_SIN_TOCAR: RecuadroEditable = { visible: true, titulo: "", valor: "", detalle: "" };
+
+/** Lo que llega del panel o de la base, saneado. Nunca lanza. */
+export function comoRecuadros(raw: unknown): RecuadrosDelPlan {
+    const o = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+    const texto = (v: unknown, tope: number) => (typeof v === "string" ? v.replace(/[ \t\r\n]+/g, " ").trim().slice(0, tope) : "");
+    const uno = (v: unknown): RecuadroEditable => {
+        const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+        return {
+            // Solo un `false` explícito lo apaga: lo que no se entiende, sale.
+            visible: r.visible !== false,
+            titulo: texto(r.titulo, TOPES_DEL_RECUADRO.titulo),
+            valor: texto(r.valor, TOPES_DEL_RECUADRO.valor),
+            detalle: texto(r.detalle, TOPES_DEL_RECUADRO.detalle),
+        };
+    };
+    return { catalogo: uno(o.catalogo), asistencia: uno(o.asistencia) };
+}
+
+/** Un recuadro que nadie tocó: encendido y sin texto propio. No hace falta guardarlo. */
+export function esElRecuadroSinTocar(r: RecuadroEditable): boolean {
+    return r.visible && !r.titulo && !r.valor && !r.detalle;
+}
+
+/** Si el plan trae catálogo. Sin catálogo, su recuadro no sale (nunca «No incluido»). */
+export function elPlanTraeCatalogo(datos: DatosDelPlan): boolean {
+    return datos.catalogo === null || datos.catalogo > 0;
+}
+
+/**
+ * Los textos de fábrica de cada recuadro, armados con los datos vivos. Son los
+ * que salen cuando el panel deja un campo vacío, y los que el panel enseña de
+ * ejemplo. El catálogo de un plan que no lo trae no tiene recuadro: `null`.
+ */
+export function losRecuadrosDeFabrica(
+    datos: DatosDelPlan,
+    funciones: readonly FuncionDelPlan[],
+): Record<ClaveDeCapacidad, Omit<TarjetaDeCapacidad, "clave"> | null> {
     const deAsistencia = funciones.find(
         (f) =>
             f.activa &&
@@ -614,21 +684,16 @@ export function laCapacidadDelPlan(datos: DatosDelPlan, funciones: readonly Func
             losAvisosDelTexto(f.nombre, datos).length === 0,
     );
     const tope = datos.catalogo;
-    return [
-        {
-            clave: "creditos",
-            titulo: "Créditos de IA",
-            valor: elNumero(datos.creditos),
-            detalle: "Cada mes, con tu plan",
-        },
-        {
-            clave: "catalogo",
-            titulo: "Catálogo",
-            valor: tope === null ? "A la medida" : tope <= 0 ? "No incluido" : `Hasta ${elNumero(tope)}`,
-            detalle: tope === null ? "Productos sin un tope fijo" : tope <= 0 ? "Este plan no trae catálogo" : "Productos en tu catálogo",
-        },
-        {
-            clave: "asistencia",
+    return {
+        creditos: { titulo: "Créditos de IA", valor: elNumero(datos.creditos), detalle: "Cada mes, con tu plan" },
+        catalogo: !elPlanTraeCatalogo(datos)
+            ? null
+            : {
+                  titulo: "Catálogo",
+                  valor: tope === null ? "A la medida" : `Hasta ${elNumero(tope)}`,
+                  detalle: tope === null ? "Productos sin un tope fijo" : "Productos en tu catálogo",
+              },
+        asistencia: {
             titulo: "Asistencia",
             valor: datos.asistencia === "HUMANO" ? "IA + humana" : "IA 24/7",
             detalle:
@@ -637,10 +702,61 @@ export function laCapacidadDelPlan(datos: DatosDelPlan, funciones: readonly Func
                     ? "La IA responde siempre y un asesor en horario laboral"
                     : "Tu agente responde a toda hora"),
         },
-    ];
+    };
 }
 
-/* ─── Funciones por categoría ──────────────────────────────────────────── */
+/**
+ * Por qué un campo de un recuadro no sale en la página, campo por campo. Las
+ * reglas de siempre (otros créditos, otro nombre de plan) y, en el VALOR del
+ * catálogo, cualquier número que no sea su tope: «Hasta 50» en un plan de 25
+ * es tan viejo como «50 productos».
+ */
+export function losAvisosDelRecuadro(
+    clave: ClaveDelRecuadro,
+    raw: unknown,
+    datos: DatosDelPlan,
+): { titulo: string[]; valor: string[]; detalle: string[] } {
+    const r = comoRecuadros({ [clave]: raw })[clave];
+    const avisos = (t: string) => (t ? [...new Set([...losAvisosDelTexto(t, datos), ...losAvisosDelBoton(t, datos)])] : []);
+    const delValor = avisos(r.valor);
+    if (clave === "catalogo" && r.valor && datos.catalogo !== null && delValor.length === 0) {
+        const texto = conLosDatosDelPlan(r.valor, datos);
+        for (const m of texto.matchAll(/(?<![\d.,])(\d{1,3}(?:[.,]\d{3})+|\d+)(?![\d])/g)) {
+            const valor = elValorDelNumero(m[1]);
+            if (valor === datos.catalogo) continue;
+            delValor.push(`Dice ${elNumero(valor)} y el catálogo de este plan es de ${elNumero(datos.catalogo)}.`);
+        }
+    }
+    return { titulo: avisos(r.titulo), valor: [...new Set(delValor)], detalle: avisos(r.detalle) };
+}
+
+/**
+ * Las tarjetas del resumen, en su orden: créditos (siempre), catálogo (solo si
+ * el plan lo trae y el panel no lo apagó) y asistencia (salvo que se apague).
+ * Cada campo escrito en el panel sale con los datos vivos si no contradice al
+ * plan; si está vacío o contradice, sale el de fábrica.
+ */
+export function laCapacidadDelPlan(
+    datos: DatosDelPlan,
+    funciones: readonly FuncionDelPlan[],
+    recuadrosCrudos?: unknown,
+): TarjetaDeCapacidad[] {
+    const fabrica = losRecuadrosDeFabrica(datos, funciones);
+    const guardados = comoRecuadros(recuadrosCrudos);
+    const tarjetas: TarjetaDeCapacidad[] = [{ clave: "creditos", ...fabrica.creditos! }];
+    for (const { clave } of RECUADROS_EDITABLES) {
+        const deFabrica = fabrica[clave];
+        const r = guardados[clave];
+        if (!deFabrica || !r.visible) continue;
+        const avisos = losAvisosDelRecuadro(clave, r, datos);
+        const campo = (k: "titulo" | "valor" | "detalle") =>
+            r[k] && avisos[k].length === 0 ? conLosDatosDelPlan(r[k], datos) : deFabrica[k];
+        tarjetas.push({ clave, titulo: campo("titulo"), valor: campo("valor"), detalle: campo("detalle") });
+    }
+    return tarjetas;
+}
+
+/* ─── Qué incluye: una tarjeta por función ─────────────────────────────── */
 
 export type TutorialDeLaFuncion = { url: string; titulo: string; externo: boolean };
 
@@ -650,8 +766,6 @@ export type FuncionQueSeEnsena = {
     descripcion: string;
     tutorial: TutorialDeLaFuncion | null;
 };
-
-export type GrupoDeFunciones = { slug: string; nombre: string; funciones: FuncionQueSeEnsena[] };
 
 /**
  * El enlace del tutorial de una función: una guía PUBLICADA (si el módulo ya
@@ -670,29 +784,74 @@ export function elTutorialDeLaFuncion(
 }
 
 /**
- * Las funciones encendidas que se listan, agrupadas en el orden de
- * `CATEGORIAS_DEL_PLAN`. Las de capacidad no (las dicen las tarjetas) y las
+ * Las funciones encendidas que se listan, cada una su propia tarjeta y **en el
+ * orden del editor del panel** (el que se arrastra): la categoría ya no agrupa
+ * ni reordena nada. Las de capacidad no salen (las dicen los recuadros) y las
  * que contradicen al plan tampoco.
  */
-export function lasFuncionesPorCategoria(
+export function lasFuncionesQueSeEnsenan(
     funciones: readonly FuncionDelPlan[],
     datos: DatosDelPlan,
     guias: ReadonlyMap<string, string>,
-): GrupoDeFunciones[] {
-    const grupos: GrupoDeFunciones[] = [];
-    for (const c of CATEGORIAS_DEL_PLAN) {
-        if (!c.seLista) continue;
-        const suyas = funciones
-            .filter((f) => f.activa && f.categoria === c.slug && losAvisosDelTexto(`${f.nombre}\n${f.descripcion}`, datos).length === 0)
-            .map((f) => ({
-                id: f.id,
-                nombre: conLosDatosDelPlan(f.nombre, datos),
-                descripcion: conLosDatosDelPlan(f.descripcion, datos),
-                tutorial: elTutorialDeLaFuncion(f.tutorial, guias),
-            }));
-        if (suyas.length > 0) grupos.push({ slug: c.slug, nombre: c.nombre, funciones: suyas });
+): FuncionQueSeEnsena[] {
+    const seListan = new Set(CATEGORIAS_DEL_PLAN.filter((c) => c.seLista).map((c) => c.slug));
+    return funciones
+        .filter(
+            (f) =>
+                f.activa &&
+                seListan.has(f.categoria) &&
+                losAvisosDelTexto(`${f.nombre}\n${f.descripcion}`, datos).length === 0,
+        )
+        .map((f) => ({
+            id: f.id,
+            nombre: conLosDatosDelPlan(f.nombre, datos),
+            descripcion: conLosDatosDelPlan(f.descripcion, datos),
+            tutorial: elTutorialDeLaFuncion(f.tutorial, guias),
+        }));
+}
+
+/* ─── El orden de los bloques de la página ─────────────────────────────── */
+
+export type BloqueDeLaPagina = "video" | "paraquien" | "capacidad" | "funciones" | "preguntas" | "comenzar";
+
+/** Todos los bloques, en el orden de fábrica. El panel los arrastra; la página los pinta así. */
+export const BLOQUES_DE_LA_PAGINA: readonly { clave: BloqueDeLaPagina; nombre: string; ayuda: string }[] = [
+    { clave: "video", nombre: "Video del plan", ayuda: "Sale si el plan tiene video." },
+    { clave: "paraquien", nombre: "Para quién es este plan", ayuda: "A quién le sirve y un caso típico." },
+    { clave: "capacidad", nombre: "Resumen de capacidad", ayuda: "Créditos, catálogo y asistencia." },
+    { clave: "funciones", nombre: "Qué incluye", ayuda: "Una tarjeta por función encendida." },
+    { clave: "preguntas", nombre: "Preguntas frecuentes", ayuda: "Sale si el plan tiene preguntas." },
+    { clave: "comenzar", nombre: "Comenzar", ayuda: "El precio, los botones y el plan siguiente." },
+];
+
+export const ORDEN_DE_FABRICA: readonly BloqueDeLaPagina[] = BLOQUES_DE_LA_PAGINA.map((b) => b.clave);
+
+const CLAVES_DE_BLOQUE = new Set<string>(ORDEN_DE_FABRICA);
+
+/**
+ * El orden guardado, saneado: sin repetidos ni claves que no existen, y con
+ * TODOS los bloques dentro. Un bloque que falta (uno nuevo, o una lista vieja)
+ * entra detrás del que tiene delante en el orden de fábrica: así no salta al
+ * principio ni se pierde. Lo que no es una lista es el orden de fábrica.
+ */
+export function comoOrdenDeBloques(raw: unknown): BloqueDeLaPagina[] {
+    if (!Array.isArray(raw)) return [...ORDEN_DE_FABRICA];
+    const orden: BloqueDeLaPagina[] = [];
+    for (const v of raw) {
+        if (typeof v === "string" && CLAVES_DE_BLOQUE.has(v) && !orden.includes(v as BloqueDeLaPagina)) {
+            orden.push(v as BloqueDeLaPagina);
+        }
     }
-    return grupos;
+    ORDEN_DE_FABRICA.forEach((bloque, i) => {
+        if (orden.includes(bloque)) return;
+        const delante = ORDEN_DE_FABRICA.slice(0, i).reverse().find((b) => orden.includes(b));
+        orden.splice(delante ? orden.indexOf(delante) + 1 : 0, 0, bloque);
+    });
+    return orden;
+}
+
+export function esElOrdenDeFabrica(orden: readonly string[]): boolean {
+    return orden.length === ORDEN_DE_FABRICA.length && orden.every((b, i) => b === ORDEN_DE_FABRICA[i]);
 }
 
 /* ─── Qué plan se enseña ───────────────────────────────────────────────── */
