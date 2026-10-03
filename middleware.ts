@@ -229,6 +229,19 @@ export default auth((req) => {
   return NextResponse.next();
 });
 
+// `/api/upload-plan-video` va FUERA del middleware, a propósito. Next 14
+// guarda entero el cuerpo de toda petición por la que pasa el middleware
+// (`getCloneableBody` + `cloneBodyStream`: una copia para el middleware y otra
+// para la ruta), así que un video de 150 MB ocuparía unos 300 MB del proceso
+// —el mismo que atiende Chats— antes de que la ruta pudiera escribir un byte.
+// Fuera del middleware el archivo pasa al bucket mientras llega. No pierde
+// ninguna puerta: la ruta pregunta la suya (`quienMandaEnLaCasa`) y sin sesión
+// contesta 403, que es la regla de que ninguna ruta `/api` confía solo en el
+// middleware. Si se añade otra subida grande, va igual.
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  matcher: [
+    "/((?!.*\\..*|_next|api/upload-plan-video).*)",
+    "/",
+    "/(api(?!/upload-plan-video)|trpc)(.*)",
+  ],
 };

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { VideoUploader } from "@/components/ui/video-uploader";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -445,9 +446,13 @@ export function VerzayLanding() {
                   </button>
                   <div className={cn(openSections.video ? "pb-3 space-y-3" : "hidden")}>
                     <div className="space-y-1.5">
-                      <Label className="text-sm">URL YouTube / Vimeo</Label>
-                      <Input placeholder="https://www.youtube.com/watch?v=..." value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} />
-                      <p className="hidden text-xs text-muted-foreground sm:block">Aparece después de los 3 pasos en la landing.</p>
+                      <Label className="text-sm">Subir el video como archivo</Label>
+                      <VideoUploader value={videoUrlInput} onChange={setVideoUrlInput} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">O pega el enlace (YouTube, Vimeo, Loom o Drive)</Label>
+                      <Input placeholder="https://www.youtube.com/watch?v=..." value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} data-campo-de-la-landing="videoUrl" />
+                      <p className="hidden text-xs text-muted-foreground sm:block">Aparece después de los 3 pasos en la landing. Guarda para publicarlo.</p>
                     </div>
                   </div>
                 </div>

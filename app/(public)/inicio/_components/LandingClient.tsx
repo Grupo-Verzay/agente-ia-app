@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { PlanDetailModal } from "./PlanDetailModal";
-import { elNombreDelPlan } from "@/lib/pagina-de-plan";
+import { elNombreDelPlan, elVideoDelPlan } from "@/lib/pagina-de-plan";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
 import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
@@ -582,24 +582,15 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ VIDEO ══════════════════════════════════════════════════════════ */}
-      {videoUrl && (() => {
-        const embedUrl = videoUrl.includes("youtube.com/watch?v=")
-          ? videoUrl.replace("youtube.com/watch?v=", "youtube.com/embed/").split("&")[0]
-          : videoUrl.includes("youtu.be/")
-          ? `https://www.youtube.com/embed/${videoUrl.split("youtu.be/")[1].split("?")[0]}`
-          : videoUrl;
-        return (
-          <section className="py-6">
-            <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
-              <FadeIn>
-                <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
-                  <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
-                </div>
-              </FadeIn>
-            </div>
-          </section>
-        );
-      })()}
+      {videoUrl && (
+        <section className="py-6">
+          <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+            <FadeIn>
+              <VideoDeLaLanding valor={videoUrl} />
+            </FadeIn>
+          </div>
+        </section>
+      )}
 
       {/* ══ FUNCIONES ══════════════════════════════════════════════════════ */}
       <section id="features" className="py-6 bg-white/[0.02]">
@@ -976,7 +967,49 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
   );
 }
 
-function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenDetail }: {
+/**
+ * El video de la landing general. Un ARCHIVO subido (`.mp4`, `.webm`, `.mov`)
+ * se pinta con un `<video>`; un enlace de YouTube, Vimeo, Loom o Drive, con su
+ * `<iframe>`. Lo decide `elVideoDelPlan`, la misma función que la página de un
+ * plan: un archivo metido en un `<iframe>` lo descargan algunos navegadores en
+ * vez de reproducirlo.
+ *
+ * Lo que esa función no reconoce sigue saliendo como salía antes —el enlace
+ * tal cual, con el arreglo de YouTube de siempre— para no dejar sin video a
+ * una landing que hoy sí lo enseña.
+ */
+export function VideoDeLaLanding({ valor }: { valor: string }) {
+  const video = elVideoDelPlan(valor);
+  if (video?.tipo === "archivo") {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black" style={{ aspectRatio: "16/9" }}>
+        <video
+          src={video.url}
+          controls
+          playsInline
+          preload="metadata"
+          className="h-full w-full"
+          title="Video de presentación"
+          data-video-de-la-landing="archivo"
+        />
+      </div>
+    );
+  }
+  const embedUrl = video
+    ? video.url
+    : valor.includes("youtube.com/watch?v=")
+    ? valor.replace("youtube.com/watch?v=", "youtube.com/embed/").split("&")[0]
+    : valor.includes("youtu.be/")
+    ? `https://www.youtube.com/embed/${valor.split("youtu.be/")[1].split("?")[0]}`
+    : valor;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+      <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" data-video-de-la-landing="enlace" />
+    </div>
+  );
+}
+
+export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenDetail }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
   whatsappNumber?: string | null; onOpenDetail: (checkoutUrl: string | null) => void;
 }) {
@@ -996,6 +1029,10 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
     : billingPeriod === "quarterly"
     ? plan.checkoutUrlQuarterly
     : plan.checkoutUrlYearly;
+  // La tarjeta es el RESUMEN: solo las funciones con la estrella puesta en
+  // Panel › Planes. La página del plan y «Ver todo lo que incluye» enseñan
+  // todas las encendidas (`features`).
+  const resumen = plan.destacadas ?? plan.features;
   const billedNote = billingPeriod === "monthly"
     ? "Facturado mensualmente"
     : billingPeriod === "quarterly"
@@ -1035,9 +1072,9 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
         )}
         <p className="mt-0.5 text-xs text-slate-500">{plan.credits.toLocaleString()} créditos incluidos</p>
       </div>
-      {plan.features.length > 0 && (
-        <ul className="mb-5 flex-1 space-y-1.5">
-          {plan.features.map((f, i) => (
+      {resumen.length > 0 && (
+        <ul className="mb-5 flex-1 space-y-1.5" data-funciones-de-la-tarjeta>
+          {resumen.map((f, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />{f}
             </li>
