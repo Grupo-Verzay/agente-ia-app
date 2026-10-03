@@ -25716,6 +25716,43 @@ secciones), las reglas, el vídeo, las miniaturas (`GUIA=informes`),
 contra `84f98e5` afirma que no había guía, que el buscador no filtraba y que las
 secciones no se plegaban.
 
+### La guía de Proyectos: la lista, el tablero y la ventana de una tarea
+
+`/guia/proyectos` documenta Panel › Proyectos (`/proyectos`) con el estándar de
+las anteriores: nueve secciones —vista general, buscar y filtrar, carpetas y
+orden, crear, editar/compartir/eliminar, el tablero por columnas, el filtro de
+vencimiento, la tarea (título, tipo, fecha, responsable) y sus adjuntos y
+comentarios—, una miniatura con enfoque por tarjeta y el vídeo con la voz
+Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo» de
+`/proyectos`: «Aprende a organizar tus proyectos y sus tareas en la
+plataforma». Ninguna pieza propia: contenido en `lib/guia-proyectos.ts`,
+semilla `sembrar-guia-proyectos.mjs`, receta `capturar-guia-proyectos.mjs` y
+narración. Se regenera con
+`npm run build && scripts/generar-guia-proyectos.sh && npm run build`.
+
+Cuatro cosas que hay que mantener:
+
+1. **La pantalla expone sus marcas** (`data-proyecto`, `data-tarea`,
+   `data-columna`, `data-campo` en las dos ventanas y `data-zona` en la barra,
+   la tarjeta, el tablero y el distintivo de vencimiento), y el banco compara
+   la guía con ellas: las partes de la tarjeta, sus botones por su `title`, los
+   campos de «Nuevo proyecto» y de una tarea en su orden, las columnas
+   (`BOARD_COLUMNS`) y el filtro de vencimiento.
+2. **Nada se confirma**: eliminar un proyecto o una tarea se cierra con
+   «Cancelar» o «Volver», y soltar una tarea en Hecho abre «Dar por hecha», que
+   también se cancela. Las capturas crean un proyecto y mueven una tarea, así
+   que antes del vídeo se vuelve a sembrar.
+3. **Los botones de una tarjeta salen al pasar el ratón** (`opacity-0`): la
+   receta se pone encima antes de medirlos, y mide los desplegables de Radix
+   ANTES de abrirlos (fuera queda `aria-hidden`).
+4. **Los adjuntos de ejemplo los sirve la receta** (`archivos.ejemplo.co`): no
+   hay bucket en el banco.
+
+Lo prueba `scripts/banco-guia-proyectos.sh` (el contenido contra el código, el
+vídeo, las miniaturas con `GUIA=proyectos`, `fin-de-la-guia`,
+`menu-de-la-guia` y la guía servida a 390 y 1440); `MODO=roto` contra
+`84f98e5` afirma que no había guía ni marcas en la pantalla.
+
 ### La trigesimosegunda guía, Reportes: el resumen semanal, lo que la IA no supo y la Calidad
 
 `/guia/reportes` documenta Bandeja › Reportes (`/crm/reportes`, en el menú
