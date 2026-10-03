@@ -32,6 +32,7 @@ import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
 import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
 import { GUIA_COBROS } from "@/lib/guia-cobros";
 import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
+import { GUIA_REPORTES } from "@/lib/guia-reportes";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
@@ -349,6 +350,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/crm/kanban",
         contenido: GUIA_CALIFICACION,
         tarjeta: "Aprende a calificar tus contactos por etapa en la plataforma",
+    },
+    {
+        modulo: "reportes",
+        ruta: "/crm/reportes",
+        contenido: GUIA_REPORTES,
+        tarjeta: "Aprende a revisar el resumen semanal de tu negocio en la plataforma",
     },
 ];
 

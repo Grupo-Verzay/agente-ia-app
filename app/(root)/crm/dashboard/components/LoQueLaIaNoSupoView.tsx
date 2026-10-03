@@ -55,9 +55,10 @@ function FilaDePregunta({
   const tieneVariantes = grupo.variantes.length > 0;
 
   return (
-    <div className="rounded-xl border bg-card px-3 py-2.5">
+    <div data-pregunta className="rounded-xl border bg-card px-3 py-2.5">
       <div className="flex items-start gap-3">
         <span
+          data-zona="veces"
           className="mt-0.5 flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 px-1.5 text-sm font-semibold tabular-nums text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
           title={`Preguntada ${grupo.veces} ${grupo.veces === 1 ? 'vez' : 'veces'}`}
         >
@@ -71,7 +72,7 @@ function FilaDePregunta({
               <InsigniaDeCuenta nombre={nombreDeLaCuenta} />
             </div>
           )}
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+          <div data-zona="detalle-de-la-pregunta" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>{haceCuanto(grupo.ultimaVez)}</span>
             {/* Los dos casos no significan lo mismo: uno le costó la
                 conversación a un asesor y el otro no. */}
@@ -88,6 +89,7 @@ function FilaDePregunta({
               <button
                 type="button"
                 onClick={() => setAbierta((v) => !v)}
+                data-zona="variantes"
                 className="inline-flex items-center gap-0.5 hover:text-foreground"
               >
                 <ChevronDown className={cn('h-3 w-3 transition-transform', abierta && 'rotate-180')} />
@@ -170,8 +172,8 @@ export function LoQueLaIaNoSupoView({
   const veces = grupos.reduce((n, g) => n + g.veces, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div data-vista-sin-respuesta className="flex flex-col gap-4">
+      <div data-zona="cabecera-sin-respuesta" className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Lo que la IA no supo responder</h3>
           <p className="text-xs text-muted-foreground">
@@ -183,7 +185,7 @@ export function LoQueLaIaNoSupoView({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div data-zona="periodos-sin-respuesta" className="flex items-center gap-1.5">
           {PERIODOS.map((p) => (
             <Button
               key={p.dias}
@@ -237,7 +239,7 @@ export function LoQueLaIaNoSupoView({
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div data-zona="lista-sin-respuesta" className="space-y-2">
           {grupos.map((g) => (
             <FilaDePregunta
               key={g.grupoId}
