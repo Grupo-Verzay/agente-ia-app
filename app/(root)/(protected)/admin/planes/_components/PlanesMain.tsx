@@ -706,6 +706,7 @@ export function PlanesMain() {
                 datos={datosDelFormulario}
                 enlaceDeLaPagina={`/planes/${form.plan}?tipo=${form.assistanceType}`}
                 planActivo={form.isActive}
+                funciones={form.funciones}
               />
             </div>
           )}

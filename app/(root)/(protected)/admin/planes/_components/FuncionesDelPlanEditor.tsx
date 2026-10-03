@@ -42,7 +42,9 @@ import { MODULOS_CON_GUIA, NOMBRE_DE_LA_GUIA, esModuloConGuia } from "@/lib/intr
 /**
  * Las funciones de un plan, una por fila: el interruptor, la estrella, el
  * nombre, su categoría, una línea que la explica y su tutorial. Se ordenan
- * arrastrando por el asa, como toda lista reordenable de la plataforma.
+ * arrastrando por el asa, como toda lista reordenable de la plataforma, y ese
+ * orden ES el de las tarjetas de «Qué incluye» en la página del plan: una por
+ * función, sin agrupar por categoría.
  *
  * Son DOS mandos y no se pisan:
  *
@@ -117,8 +119,9 @@ export function FuncionesDelPlanEditor({ funciones, onChange, datos }: Props) {
         </p>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Lo que cambies aquí sale tal cual en la página del plan: apagar una función la quita del
-        plan entero y renombrarla la renombra. La estrella{" "}
+        Lo que cambies aquí sale tal cual en la página del plan, una tarjeta por función y en este
+        orden (arrastra por el asa para cambiarlo): apagar una función la quita del plan entero y
+        renombrarla la renombra. La estrella{" "}
         <Star className="inline h-3 w-3 fill-amber-400 text-amber-500" aria-hidden /> decide aparte
         cuáles salen resumidas en la tarjeta de la landing; la página del plan las enseña todas.
         Puedes escribir{" "}
@@ -338,7 +341,7 @@ function FilaDeFuncion({
         )}
         {f.categoria === CATEGORIA_CAPACIDAD && (
           <p className="text-[11px] text-muted-foreground">
-            Va en el resumen de capacidad (créditos, catálogo y asistencia), no en la lista de funciones.
+            Va en el resumen de capacidad (créditos, catálogo y asistencia), no en las tarjetas de «Qué incluye».
           </p>
         )}
         {enlaceMalo && (

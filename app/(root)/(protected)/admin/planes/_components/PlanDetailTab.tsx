@@ -19,10 +19,21 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertTriangle, CheckCircle2, ExternalLink, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  GripVertical,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { VideoUploader } from "@/components/ui/video-uploader";
@@ -32,27 +43,41 @@ import {
   type UpsertPlanDetailInput,
 } from "@/actions/plan-detail-actions";
 import {
+  BLOQUES_DE_LA_PAGINA,
   DATOS_QUE_SE_PUEDEN_USAR,
   PARA_QUIEN_DE_FABRICA,
+  RECUADROS_EDITABLES,
+  TOPES_DEL_RECUADRO,
   TOPE_DEL_CASO,
   TOPE_DEL_PARA_QUIEN,
   comoEnlaceDelBoton,
+  comoOrdenDeBloques,
+  comoRecuadros,
+  elPlanTraeCatalogo,
   elVideoDelPlan,
   losAvisosDelBoton,
   losAvisosDelParaQuien,
+  losAvisosDelRecuadro,
   losAvisosDelTexto,
+  losRecuadrosDeFabrica,
+  type BloqueDeLaPagina,
+  type ClaveDelRecuadro,
   type DatosDelPlan,
+  type FuncionDelPlan,
   type ParaQuienDelPlan,
+  type RecuadroEditable,
+  type RecuadrosDelPlan,
 } from "@/lib/pagina-de-plan";
 
 /**
- * Lo que es SOLO de un plan en su página pública: el video (enlace o archivo
- * subido), «para quién es este plan» con su caso típico, sus preguntas
+ * Lo que es SOLO de un plan en su página pública: el ORDEN de sus bloques
+ * (arrastrando), el video (enlace o archivo subido), «para quién es este plan»
+ * con su caso típico, los recuadros de catálogo y asistencia, sus preguntas
  * frecuentes, los botones y el título de la pestaña.
  *
- * Todo lo demás de la página —el nombre, la descripción, el precio, los
- * créditos, el catálogo y las funciones con su categoría y su tutorial— sale
- * de la pestaña Configuración, en vivo. Por eso aquí ya no hay hero, ni
+ * Todo lo demás de la página —el nombre, el precio, los créditos, el tope del
+ * catálogo y las funciones, una tarjeta por función en el orden en que se
+ * arrastran— sale de la pestaña Configuración, en vivo. Por eso aquí ya no hay hero, ni
  * galería, ni estadísticas, ni testimonios, ni secciones de marketing: la
  * página no los enseña. Lo que hubiera guardado se conserva (guardar solo
  * manda los campos de abajo, `upsertPlanDetail` no toca los demás).
@@ -152,14 +177,19 @@ export function PlanDetailTab({
   datos,
   enlaceDeLaPagina,
   planActivo,
+  funciones = [],
 }: {
   subscriptionPlanId: string;
   datos: DatosDelPlan;
   enlaceDeLaPagina: string;
   planActivo: boolean;
+  /** Las del formulario de Configuración: de ahí sale el detalle de fábrica de «Asistencia». */
+  funciones?: FuncionDelPlan[];
 }) {
   const [form, setForm] = useState<Detalle>(VACIO);
   const [paraQuien, setParaQuien] = useState<ParaQuienDelPlan>({ paraQuien: "", caso: "" });
+  const [orden, setOrden] = useState<BloqueDeLaPagina[]>(() => comoOrdenDeBloques(null));
+  const [recuadros, setRecuadros] = useState<RecuadrosDelPlan>(() => comoRecuadros(null));
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [hayDeAntes, setHayDeAntes] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -188,6 +218,8 @@ export function PlanDetailTab({
           ogImageUrl: texto(d?.ogImageUrl),
         });
         setParaQuien({ paraQuien: res.paraQuien?.paraQuien ?? "", caso: res.paraQuien?.caso ?? "" });
+        setOrden(comoOrdenDeBloques(res.orden));
+        setRecuadros(comoRecuadros(res.recuadros));
         const faqs = Array.isArray(d?.faqs) ? (d!.faqs as unknown[]) : [];
         setPreguntas(
           faqs.map((f) => {
@@ -216,6 +248,27 @@ export function PlanDetailTab({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const alSoltarUnBloque = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setOrden((lista) => {
+      const de = lista.indexOf(active.id as BloqueDeLaPagina);
+      const a = lista.indexOf(over.id as BloqueDeLaPagina);
+      return de < 0 || a < 0 ? lista : arrayMove(lista, de, a);
+    });
+  };
+
+  /** Subir y bajar: lo mismo que arrastrar, para el teclado y el táctil. */
+  const moverBloque = (bloque: BloqueDeLaPagina, paso: -1 | 1) =>
+    setOrden((lista) => {
+      const de = lista.indexOf(bloque);
+      const a = de + paso;
+      return de < 0 || a < 0 || a >= lista.length ? lista : arrayMove(lista, de, a);
+    });
+
+  const cambiarRecuadro = (clave: ClaveDelRecuadro, patch: Partial<RecuadroEditable>) =>
+    setRecuadros((r) => ({ ...r, [clave]: { ...r[clave], ...patch } }));
+
   const alSoltar = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
@@ -233,6 +286,8 @@ export function PlanDetailTab({
       ...form,
       paraQuien: paraQuien.paraQuien,
       caso: paraQuien.caso,
+      orden,
+      recuadros,
       faqs: preguntas
         .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
         .filter((p) => p.question || p.answer),
@@ -263,13 +318,21 @@ export function PlanDetailTab({
     (PARA_QUIEN_DE_FABRICA as Record<string, ParaQuienDelPlan>)[datos.plan] ?? PARA_QUIEN_DE_FABRICA.personalizado;
   const avisosDelParaQuien = losAvisosDelParaQuien(paraQuien, datos);
   const aviso = (lista: string[]) => (lista.length ? [`No sale en la página (sale el de fábrica): ${lista.join(" ")}`] : []);
+  const recuadrosDeFabrica = losRecuadrosDeFabrica(datos, funciones);
+  const traeCatalogo = elPlanTraeCatalogo(datos);
+  /** Por qué un bloque no va a salir aunque esté en el orden. */
+  const porQueNoSale: Partial<Record<BloqueDeLaPagina, string>> = {
+    ...(video ? {} : { video: "Sin video: no sale." }),
+    ...(preguntas.some((p) => p.question.trim() && p.answer.trim()) ? {} : { preguntas: "Sin preguntas: no sale." }),
+  };
 
   return (
     <div className="space-y-3" data-detalle-del-plan>
       <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-muted/50 p-3">
         <p className="max-w-md text-[11px] text-muted-foreground">
-          La página pública se arma sola con lo de la pestaña Configuración: nombre, descripción, precio,
-          créditos y las funciones encendidas, con su categoría y su tutorial. Aquí va lo que es solo de este plan.
+          La página pública se arma sola con lo de la pestaña Configuración: nombre, precio, créditos y las
+          funciones encendidas, una tarjeta por función en el orden en que las arrastras allí. Aquí va lo que es
+          solo de este plan.
         </p>
         {planActivo ? (
           <a
@@ -289,8 +352,37 @@ export function PlanDetailTab({
       </div>
 
       <Bloque
+        titulo="Orden de la página"
+        ayuda="Arrastra por el asa (o usa las flechas) para decidir en qué orden salen los bloques. De fábrica la página arranca con el video y acaba con los botones de comenzar."
+      >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={alSoltarUnBloque}>
+          <SortableContext items={orden} strategy={verticalListSortingStrategy}>
+            <ol className="space-y-1.5" data-orden-de-bloques>
+              {orden.map((clave, i) => {
+                const b = BLOQUES_DE_LA_PAGINA.find((x) => x.clave === clave)!;
+                return (
+                  <FilaDeBloque
+                    key={clave}
+                    clave={clave}
+                    posicion={i + 1}
+                    nombre={b.nombre}
+                    ayuda={porQueNoSale[clave] ?? b.ayuda}
+                    noSale={Boolean(porQueNoSale[clave])}
+                    primero={i === 0}
+                    ultimo={i === orden.length - 1}
+                    onSubir={() => moverBloque(clave, -1)}
+                    onBajar={() => moverBloque(clave, 1)}
+                  />
+                );
+              })}
+            </ol>
+          </SortableContext>
+        </DndContext>
+      </Bloque>
+
+      <Bloque
         titulo="Video del plan"
-        ayuda="Sale arriba, junto al nombre y el precio. Pega un enlace de YouTube, Vimeo, Loom o Google Drive, o sube el archivo de video."
+        ayuda="Sale donde lo pongas en «Orden de la página» (de fábrica, lo primero). Pega un enlace de YouTube, Vimeo, Loom o Google Drive, o sube el archivo de video."
       >
         <div className="space-y-1">
           <Label>Subir el video como archivo</Label>
@@ -338,7 +430,7 @@ export function PlanDetailTab({
         titulo="Para quién es este plan"
         ayuda={
           <>
-            Sale justo debajo del video. Si lo dejas vacío sale el texto de fábrica de este nivel. Puedes escribir{" "}
+            De fábrica sale justo debajo del video. Si lo dejas vacío sale el texto de fábrica de este nivel. Puedes escribir{" "}
             {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")} y salen con el dato de hoy.
           </>
         }
@@ -367,6 +459,70 @@ export function PlanDetailTab({
           />
           <Avisos avisos={aviso(avisosDelParaQuien.caso)} />
         </div>
+      </Bloque>
+
+      <Bloque
+        titulo="Recuadros de capacidad"
+        ayuda={
+          <>
+            El resumen de capacidad lleva tres recuadros. Los créditos salen siempre del plan (pestaña
+            Configuración); el de catálogo y el de asistencia se escriben aquí. Un campo vacío dice lo de
+            fábrica, armado con el plan de hoy. Puedes escribir {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")}.
+          </>
+        }
+      >
+        {RECUADROS_EDITABLES.map(({ clave, nombre }) => {
+          const r = recuadros[clave];
+          const deFabrica = recuadrosDeFabrica[clave];
+          const sinCatalogo = clave === "catalogo" && !traeCatalogo;
+          const avisos = losAvisosDelRecuadro(clave, r, datos);
+          return (
+            <div key={clave} className="space-y-2 rounded-md border border-border p-2" data-recuadro={clave}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold">{nombre}</p>
+                {!sinCatalogo && (
+                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    {r.visible ? "Se enseña" : "No se enseña"}
+                    <Switch
+                      checked={r.visible}
+                      onCheckedChange={(v) => cambiarRecuadro(clave, { visible: v })}
+                      aria-label={`Enseñar el recuadro de ${nombre}`}
+                      data-recuadro-visible
+                    />
+                  </label>
+                )}
+              </div>
+              {sinCatalogo ? (
+                <p className="text-[11px] text-muted-foreground" data-recuadro-sin-catalogo>
+                  Este plan no trae catálogo: el recuadro no sale en la página.
+                </p>
+              ) : !r.visible ? (
+                <p className="text-[11px] text-muted-foreground" data-recuadro-apagado>
+                  Apagado: el recuadro no sale en la página.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {(["titulo", "valor", "detalle"] as const).map((campo) => (
+                    <div key={campo} className={`space-y-1 ${campo === "detalle" ? "sm:col-span-3" : ""}`}>
+                      <Label className="text-[11px]">
+                        {campo === "titulo" ? "Título" : campo === "valor" ? "Dato grande" : "Detalle"}
+                      </Label>
+                      <Input
+                        value={r[campo]}
+                        maxLength={TOPES_DEL_RECUADRO[campo]}
+                        onChange={(e) => cambiarRecuadro(clave, { [campo]: e.target.value })}
+                        placeholder={deFabrica?.[campo] ?? ""}
+                        className="h-8 text-xs"
+                        data-campo-del-recuadro={`${clave}-${campo}`}
+                      />
+                      <Avisos avisos={aviso(avisos[campo])} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </Bloque>
 
       <Bloque
@@ -415,8 +571,8 @@ export function PlanDetailTab({
         titulo="Botones"
         ayuda={
           sinPrecio
-            ? "Salen una sola vez, al final de la página, después de las preguntas. Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
-            : "Salen una sola vez, al final de la página, después de las preguntas. Sin enlace propio, el botón principal lleva al registro con este plan elegido."
+            ? "Salen una sola vez, en el bloque «Comenzar» (de fábrica, al final de la página). Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
+            : "Salen una sola vez, en el bloque «Comenzar» (de fábrica, al final de la página). Sin enlace propio, el botón principal lleva al registro con este plan elegido."
         }
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -523,6 +679,86 @@ export function PlanDetailTab({
         </Button>
       </div>
     </div>
+  );
+}
+
+function FilaDeBloque({
+  clave,
+  posicion,
+  nombre,
+  ayuda,
+  noSale,
+  primero,
+  ultimo,
+  onSubir,
+  onBajar,
+}: {
+  clave: BloqueDeLaPagina;
+  posicion: number;
+  nombre: string;
+  ayuda: string;
+  noSale: boolean;
+  primero: boolean;
+  ultimo: boolean;
+  onSubir: () => void;
+  onBajar: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: clave });
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 ${isDragging ? "z-10 opacity-80 shadow-md" : ""}`}
+      data-bloque-del-orden={clave}
+    >
+      <button
+        type="button"
+        className="h-6 w-5 shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+        title="Arrastrar para reordenar"
+        aria-label={`Arrastrar ${nombre}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span className="w-4 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">{posicion}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium">{nombre}</p>
+        <p
+          className={`truncate text-[11px] ${noSale ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+          title={ayuda}
+        >
+          {ayuda}
+        </p>
+      </div>
+      {/* Lo que no se puede mover no se pinta apagado: se quita. */}
+      <div className="flex shrink-0 items-center">
+        {!primero && (
+          <button
+            type="button"
+            onClick={onSubir}
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title="Subir"
+            aria-label={`Subir ${nombre}`}
+            data-subir-bloque
+          >
+            <ChevronUp className="mx-auto h-4 w-4" />
+          </button>
+        )}
+        {!ultimo && (
+          <button
+            type="button"
+            onClick={onBajar}
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title="Bajar"
+            aria-label={`Bajar ${nombre}`}
+            data-bajar-bloque
+          >
+            <ChevronDown className="mx-auto h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </li>
   );
 }
 

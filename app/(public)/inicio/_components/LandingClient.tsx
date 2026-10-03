@@ -13,8 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
-import { PlanDetailModal } from "./PlanDetailModal";
-import { elNombreDelPlan, elVideoDelPlan } from "@/lib/pagina-de-plan";
+import { elVideoDelPlan } from "@/lib/pagina-de-plan";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
 import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
@@ -246,7 +245,6 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
     }
   };
   const [openFaq, setOpenFaq]               = useState<number | null>(null);
-  const [modalPlan, setModalPlan]           = useState<{ plan: SubscriptionPlanItem; checkoutUrl: string | null } | null>(null);
 
   useEffect(() => {
     // Sin sección de precios no hay nada que pintar con los planes: se evita la consulta.
@@ -748,7 +746,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                     assistanceType={assistanceType}
                     billingPeriod={billingPeriod}
                     whatsappNumber={whatsappNumber}
-                    onOpenDetail={(checkoutUrl) => setModalPlan({ plan, checkoutUrl })}
+                    enOtraPestana={embed}
                   />
                 ))}
               </div>
@@ -906,16 +904,6 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
       {!embed && <WhatsAppButton number={whatsappNumber ?? "573233612620"} />}
-
-      {/* ══ MODAL DETALLE DE PLAN ══════════════════════════════════════════ */}
-      {modalPlan && (
-        <PlanDetailModal
-          plan={modalPlan.plan}
-          nombresEnUso={plans.map(elNombreDelPlan)}
-          whatsappNumber={whatsappNumber}
-          onClose={() => setModalPlan(null)}
-        />
-      )}
     </div>
   );
 }
@@ -1009,9 +997,11 @@ export function VideoDeLaLanding({ valor }: { valor: string }) {
   );
 }
 
-export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenDetail }: {
+export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, enOtraPestana = false }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
-  whatsappNumber?: string | null; onOpenDetail: (checkoutUrl: string | null) => void;
+  whatsappNumber?: string | null;
+  /** La landing incrustada en otra web (`?embed=1`): la página del plan se abre aparte, no dentro del marco. */
+  enOtraPestana?: boolean;
 }) {
   const price = billingPeriod === "monthly"
     ? plan.priceUSD
@@ -1030,8 +1020,9 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
     ? plan.checkoutUrlQuarterly
     : plan.checkoutUrlYearly;
   // La tarjeta es el RESUMEN: solo las funciones con la estrella puesta en
-  // Panel › Planes. La página del plan y «Ver todo lo que incluye» enseñan
-  // todas las encendidas (`features`).
+  // Panel › Planes. «Ver todo lo que incluye» lleva DIRECTO a la página del
+  // plan, que enseña todas las encendidas (`features`). No hay ventana
+  // intermedia: era un segundo resumen que repetía la tarjeta.
   const resumen = plan.destacadas ?? plan.features;
   const billedNote = billingPeriod === "monthly"
     ? "Facturado mensualmente"
@@ -1104,12 +1095,14 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
             </Button>
           </Link>
         )}
-        <button
-          onClick={() => onOpenDetail(checkoutUrl ?? null)}
-          className="w-full text-center text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
+        <Link
+          href={`/planes/${plan.plan}?tipo=${assistanceType}`}
+          {...(enOtraPestana ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          className="block w-full py-1 text-center text-xs text-slate-500 transition-colors hover:text-slate-300"
+          data-ver-el-plan
         >
           Ver todo lo que incluye →
-        </button>
+        </Link>
       </div>
     </div>
   );

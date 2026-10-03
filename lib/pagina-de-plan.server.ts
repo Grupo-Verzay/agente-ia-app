@@ -6,6 +6,7 @@ import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { db } from "@/lib/db";
 import {
     comoImagenDelPlan,
+    comoOrdenDeBloques,
     elNombreDelPlan,
     elParaQuienQueSale,
     elPlanQueSeEnsena,
@@ -17,12 +18,13 @@ import {
     laCapacidadDelPlan,
     laDescripcionQueSale,
     lasFuncionesDelPlan,
-    lasFuncionesPorCategoria,
+    lasFuncionesQueSeEnsenan,
     lasPreguntasQueSalen,
     losBotonesDelPlan,
     losDatosDelPlan,
+    type BloqueDeLaPagina,
     type BotonDelPlan,
-    type GrupoDeFunciones,
+    type FuncionQueSeEnsena,
     type ParaQuienDelPlan,
     type PlanSuperior,
     type PreguntaDelPlan,
@@ -30,6 +32,7 @@ import {
     type VideoDelPlan,
 } from "@/lib/pagina-de-plan";
 import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
+import { laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado } from "@/lib/plan-para-quien-db";
 import { normalizarAsistencia, normalizarPlan } from "@/lib/plan-pricing";
 import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
@@ -39,7 +42,8 @@ import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
  * hoy en el panel de Planes: el plan (nombre, precio, créditos, descripción,
  * si está activo), sus funciones (`features` + `plan_funciones`), su detalle
  * (`plan_details`: video, preguntas, botones, título de la pestaña), «para
- * quién es» (`plan_para_quien`) y cuál es el plan inmediato superior.
+ * quién es» (`plan_para_quien`), el orden de sus bloques y los recuadros de
+ * catálogo y asistencia (`plan_pagina`) y cuál es el plan inmediato superior.
  *
  * Nada de lo que sale aquí está escrito a mano en la página: si en el panel se
  * apaga, se renombra o se edita una función, la página lo dice la próxima vez
@@ -53,16 +57,13 @@ import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 export type PaginaDelPlan = {
     plan: string;
     tipo: "IA" | "HUMANO";
-    /** El otro tipo de asistencia de este nivel, si también está activo. */
-    otroTipo: "IA" | "HUMANO" | null;
     nombre: string;
-    descripcion: string | null;
-    esPopular: boolean;
     precio: { texto: string; aConsultar: boolean };
     video: (VideoDelPlan & { titulo: string; miniatura: string | null }) | null;
     paraQuien: ParaQuienDelPlan;
     capacidad: TarjetaDeCapacidad[];
-    grupos: GrupoDeFunciones[];
+    /** Una por función, en el orden del editor del panel. */
+    funciones: FuncionQueSeEnsena[];
     preguntas: PreguntaDelPlan[];
     botones: { principal: BotonDelPlan; secundario: BotonDelPlan | null };
     /** La línea discreta del final. `null`: es el último nivel que se vende. */
@@ -71,6 +72,8 @@ export type PaginaDelPlan = {
     marca: string;
     logo: string | null;
     favicon: string | null;
+    /** En qué orden se pintan los bloques (el panel los arrastra). Siempre los seis. */
+    orden: BloqueDeLaPagina[];
 };
 
 const TITULO_DE_LAS_GUIAS: ReadonlyMap<string, string> = new Map(
@@ -94,19 +97,14 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
             credits: true,
             features: true,
             description: true,
-            isPopular: true,
         },
     });
 
     const elegido = elPlanQueSeEnsena(planes, plan, tipo);
     if (!elegido) return null;
     const tipoElegido = elegido.assistanceType === "HUMANO" ? "HUMANO" : "IA";
-    const otro = tipoElegido === "IA" ? "HUMANO" : "IA";
-    const otroTipo = planes.some((p) => p.plan === plan && p.isActive && (p.assistanceType === "HUMANO" ? "HUMANO" : "IA") === otro)
-        ? otro
-        : null;
 
-    const [detalle, guardadas, paraQuienGuardado, sitio] = await Promise.all([
+    const [detalle, guardadas, paraQuienGuardado, paginaGuardada, sitio] = await Promise.all([
         db.planDetail.findUnique({ where: { subscriptionPlanId: elegido.id } }).catch((e) => {
             console.error("[planes] no se pudo leer el detalle del plan; la página sale sin él", { plan: elegido.id, e });
             return null;
@@ -117,6 +115,10 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         }),
         elParaQuienGuardado(elegido.id).catch((e) => {
             console.error("[planes] no se pudo leer «para quién es»; sale el texto de fábrica", { plan: elegido.id, e });
+            return null;
+        }),
+        laPaginaGuardada(elegido.id).catch((e) => {
+            console.error("[planes] no se pudo leer el orden ni los recuadros; sale lo de fábrica", { plan: elegido.id, e });
             return null;
         }),
         getSiteConfig(),
@@ -131,17 +133,14 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
     return {
         plan,
         tipo: tipoElegido,
-        otroTipo,
         nombre: datos.nombre,
-        descripcion,
-        esPopular: !!elegido.isPopular,
         precio: elPrecioQueSeEnsena(datos),
         video: video
             ? { ...video, titulo: elTituloDelVideo(detalle?.videoTitle, datos), miniatura: comoImagenDelPlan(detalle?.videoThumbnailUrl) }
             : null,
         paraQuien: elParaQuienQueSale(paraQuienGuardado, datos),
-        capacidad: laCapacidadDelPlan(datos, funciones),
-        grupos: lasFuncionesPorCategoria(funciones, datos, TITULO_DE_LAS_GUIAS),
+        capacidad: laCapacidadDelPlan(datos, funciones, paginaGuardada?.recuadros),
+        funciones: lasFuncionesQueSeEnsenan(funciones, datos, TITULO_DE_LAS_GUIAS),
         preguntas: lasPreguntasQueSalen(detalle?.faqs, datos),
         botones: losBotonesDelPlan(detalle, datos, sitio),
         planSuperior: elPlanSuperior(planes, elegido),
@@ -149,5 +148,6 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         marca,
         logo: comoImagenDelPlan(sitio.logoUrl),
         favicon: comoImagenDelPlan(sitio.faviconUrl),
+        orden: paginaGuardada?.orden ?? comoOrdenDeBloques(null),
     };
 });

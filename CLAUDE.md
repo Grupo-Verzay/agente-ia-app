@@ -26280,8 +26280,9 @@ Seis cosas que hay que mantener:
    Los enlaces de los botones y del tutorial pasan por `comoEnlaceDelBoton` y
    `comoTutorial`: ni `javascript:` ni `//otro.com`.
 
-La landing (`PlanDetailModal`) dice lo mismo que la página: el mismo nombre,
-precio, créditos, funciones encendidas y botones.
+La tarjeta de la landing dice lo mismo que la página: el mismo nombre,
+precio, créditos y botones (la ventana intermedia, `PlanDetailModal`, ya no
+existe: ver la tercera vuelta).
 
 Lo prueba `scripts/banco-pagina-de-plan.sh`: la regla y un barrido, las
 acciones contra Postgres (guardar, apagar, renombrar, describir, cambiar los
@@ -26337,6 +26338,49 @@ imagen, 200 MB, un WebM llamado `.mp4`), las acciones contra Postgres y la
 página y la tarjeta reales en Chromium. Su `MODO=roto` corre contra `fd21c8f`
 y afirma los dos botones con uno fijo arriba, la falta de «para quién» y de
 plan superior, la tarjeta con todas y la landing sin video subido.
+
+### Y la tercera vuelta: el video primero, tarjetas sueltas y los bloques se reordenan
+
+> **Esta sección manda sobre las dos de arriba en el orden y el hero.** La
+> página ya no tiene bloque de cabecera ni agrupa por categoría.
+
+1. **La página arranca con el video.** Se fue el bloque de arriba que repetía
+   el tipo de asistencia, el nombre, la descripción y el precio. El nombre se
+   queda en un `<h1 className="sr-only">` (lectores de pantalla y SEO) y el
+   precio sale UNA vez, en «comenzar».
+2. **«Ver todo lo que incluye» de la landing es un ENLACE a la página**
+   (`data-ver-el-plan`, `/planes/<plan>?tipo=<asistencia>`): la ventana
+   intermedia se borró. En la landing incrustada (`?embed`) abre en otra
+   pestaña con `noopener` (`enOtraPestana`).
+3. **«Qué incluye» son tarjetas sueltas, una por función, en una columna y en
+   el orden del editor** (`lasFuncionesQueSeEnsenan`). La categoría ya no
+   agrupa ni reordena: lo que se arrastra en el editor de funciones es lo que
+   se ve. Siguen fuera las apagadas, las de categoría «capacidad» y las que
+   tienen avisos.
+4. **Los seis bloques se reordenan desde el panel** (`video · paraquien ·
+   capacidad · funciones · preguntas · comenzar`), arrastrando o con subir y
+   bajar. Se guarda en `plan_pagina` (tabla de la App, `lib/plan-pagina-db.ts`,
+   sin clave foránea), y el orden de fábrica con los recuadros sin tocar
+   **borra la fila**. `comoOrdenDeBloques` sanea: lo que no es una lista es el
+   de fábrica, sin repetidos ni claves raras, y un bloque que falte entra
+   detrás de su vecino de fábrica, nunca al principio.
+5. **Los recuadros de catálogo y asistencia se editan desde el panel**
+   (título, valor y detalle, con los datos vivos `{catalogo}`,
+   `{asistencia}`…, y un interruptor para apagarlos). Un campo vacío o que
+   contradice al plan (`losAvisosDelRecuadro`, p. ej. «Hasta 50» en un plan de
+   25) sale con lo de fábrica, campo por campo, y el panel lo dice. Los
+   créditos salen siempre, primero, y no se editan.
+6. **Un plan sin catálogo NO enseña ese recuadro** (`elPlanTraeCatalogo`: el
+   Lite tiene 0), ni aunque se haya escrito uno encendido. Nunca «No
+   incluido». A la medida (`personalizado`) sí lo trae: «A la medida».
+
+Lo prueba el mismo banco con un tercer fichero (`plan-en-bloques.test.mjs`):
+la regla, un barrido, las acciones contra Postgres (orden y recuadros
+guardados, un tope viejo que no sale, lo de fábrica que borra la fila, un
+cliente que no puede) y la página y la tarjeta reales en Chromium a 1440 y
+390. Su `MODO=roto` corre contra `0b7c21f` y afirma la cabecera con nombre y
+precio encima del video, las funciones agrupadas, «No incluido» en el Lite y
+la ventana intermedia de la landing.
 
 ## Cómo reportar al terminar
 
