@@ -28,6 +28,7 @@ import { GUIA_AGENTE_IA } from "@/lib/guia-agente-ia";
 import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
+import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
@@ -282,6 +283,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/chats",
         contenido: GUIA_CHATS,
         tarjeta: "Aprende a atender todas tus conversaciones de WhatsApp en la plataforma",
+    },
+    {
+        modulo: "multiagenda",
+        ruta: "/bookings",
+        contenido: GUIA_MULTIAGENDA,
+        tarjeta: "Aprende a gestionar las citas de tu equipo en la plataforma",
     },
     {
         modulo: "tareas",

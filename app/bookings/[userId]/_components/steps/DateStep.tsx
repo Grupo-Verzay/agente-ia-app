@@ -19,7 +19,7 @@ export function DateStep({ selectedDate, setSelectedDate, setSelectedDateYmd, se
     const minDate = startOfDay(earliestAllowed);
 
     return (
-        <Card className="border-muted/50">
+        <Card className="border-muted/50" data-paso-publico="fecha">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Elige una fecha</CardTitle>
             </CardHeader>

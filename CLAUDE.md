@@ -25506,6 +25506,64 @@ código (vistas, cifras, grupos, columnas por tipo, acciones de automatización,
 campos, confirmaciones), el vídeo, las miniaturas (`GUIA=tareas`),
 `fin-de-la-guia`, `menu-de-la-guia` y la guía servida. `MODO=roto` contra
 `400482e` afirma que no había guía, ni reglas compartidas, ni confirmaciones.
+### La vigesimoctava guía, Multiagenda: la agenda de un equipo, y la reserva pública que pedía sesión
+
+`/guia/multiagenda` documenta Integraciones › Multiagenda (`/bookings`) con el
+estándar de las anteriores: diez secciones —vista general, el calendario, estado
+y reagendar, el Kanban con sus automatizaciones, especialistas (servicios,
+disponibilidad y configuración de cada uno), servicios, recordatorios por
+servicio, formulario por servicio, ajustes (enlace público y anticipación) y la
+página pública de reserva—, una miniatura con enfoque por tarjeta y el vídeo con
+la voz Cedar y el MISMO ritmo. Su tarjeta sale sola en «Tutoriales del módulo»
+de `/bookings`: «Aprende a gestionar las citas de tu equipo en la plataforma».
+Ninguna pieza propia: contenido en `lib/guia-multiagenda.ts`, semilla
+`sembrar-guia-multiagenda.mjs` (una clínica con tres especialistas, cuatro
+servicios y citas en los siete estados), receta `capturar-guia-multiagenda.mjs`
+y narración. Se regenera con
+`npm run build && scripts/generar-guia-multiagenda.sh && npm run build`.
+
+Lo que se arregló al documentarla:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| **la página pública de reserva (`/bookings/<cuenta>`) mandaba al login** a quien no tenía sesión; el dueño no lo notaba porque él sí la tiene | `/bookings/` (con barra) es público en el middleware; `/bookings` a secas sigue pidiendo sesión |
+| el **archivo** de un recordatorio de servicio se guardaba y el seguimiento salía siempre como `text`: al cliente le llegaba solo el mensaje | `elTipoDelSeguimiento` (`lib/recordatorios-de-la-reserva.ts`): `seguimiento-<tipo>` con su archivo, al crear y al reagendar |
+| la insignia de un especialista contaba FRANJAS: dos turnos de lunes a viernes decían «10 día(s)» | `losDiasQueAtiende` + `elRotuloDeLosDias` (`lib/pantalla-de-multiagenda.ts`) |
+| el enlace público se leía de `window.location` al pintar (servidor y navegador no coincidían), y copiar iba sin `try` | `elEnlaceDeReservaDelEquipo`, con el origen leído al montar, y copiar en su `try` |
+| borrar un recordatorio era de un clic | pide confirmación |
+
+Tres cosas que hay que mantener:
+
+1. **Las pestañas salen de `PESTANAS_DE_MULTIAGENDA`**, que leen la pantalla, la
+   guía y el banco; las demás listas de la guía se comparan con el código.
+2. **Ni las capturas ni el vídeo reservan, cancelan ni borran**: la página
+   pública se recorre hasta «Tus datos» sin pulsar «Confirmar cita», y la
+   confirmación de cancelar se cierra con «Volver».
+3. **La carga de la página pública no sale en el vídeo** (`sinGrabarLaEspera`).
+
+Lo prueba `scripts/banco-guia-multiagenda.sh` (el contenido contra el código,
+los arreglos, el vídeo, las miniaturas con `GUIA=multiagenda`,
+`fin-de-la-guia`, `menu-de-la-guia` y la guía servida a 390 y 1440);
+`MODO=roto` contra `400482e` afirma que no había guía ni marcas, y los fallos.
+
+#### Y el calendario de Multiagenda pintaba las citas del día ANTERIOR
+
+Lo destapó la receta de capturas, que no encontraba la cita de hoy: el
+Dashboard decía «2 de octubre» y debajo enseñaba las del 1. FullCalendar va con
+`timeZone={timezone}` (una zona NOMBRADA) y sin el plugin de zonas, así que
+hace «UTC-coercion»: el `info.start` de `datesSet` es la medianoche del día EN
+UTC, y `startOfDay` en un navegador al oeste de Greenwich daba el día de antes.
+Y por lo mismo, Semana y Mes pintaban cada cita 5 h corrida (su instante como
+si fuera UTC).
+
+> **Con FullCalendar en una zona nombrada se habla en hora de pared**
+> (`lib/calendario-en-la-zona.ts`, puro): los eventos van con `laHoraDePared`,
+> el día visible se lee con `elDiaDelCalendario` y `now` es la hora de pared de
+> la zona. Agenda (`/schedule`) no lo tiene porque va con `timeZone="local"`.
+
+Y el taller común reescribe también el `value` de los campos con
+`conElDominioDeLaGuia` (el enlace público de Ajustes va en un `<input>` y salía
+con `localhost`).
 
 ## Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 

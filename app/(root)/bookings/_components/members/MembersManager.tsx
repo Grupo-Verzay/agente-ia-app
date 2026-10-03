@@ -30,6 +30,7 @@ import {
     assignServiceToMember, removeServiceFromMember,
     type AvailabilitySlot,
 } from '@/actions/bookings-actions';
+import { elRotuloDeLosDias, losDiasQueAtiende } from '@/lib/pantalla-de-multiagenda';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,12 +134,12 @@ function AvailabilityEditor({
     const slotsByDay = (day: number) => slots.filter((s) => s.dayOfWeek === day);
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-bloque-del-especialista="disponibilidad">
             <p className="text-sm font-medium">Disponibilidad semanal</p>
             {DISPLAY_ORDER.map((day) => {
                 const daySlots = slotsByDay(day);
                 return (
-                    <div key={day} className="flex items-start sm:items-center gap-1 py-1">
+                    <div key={day} data-dia-de-la-semana={day} className="flex items-start sm:items-center gap-1 py-1">
                         <div className="shrink-0 flex items-center gap-0.5">
                             <span className="font-medium text-sm sm:text-base">{DAY_LABELS[day]}</span>
                             <Button
@@ -375,7 +376,7 @@ function ServiceAssignment({
     }
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-2" data-bloque-del-especialista="servicios">
             <p className="text-sm font-medium">Servicios que atiende</p>
             <div className="flex flex-wrap gap-2">
                 {allServices.map((svc) => {
@@ -404,7 +405,7 @@ function ServiceAssignment({
             <p className="text-xs text-muted-foreground">
                 {assignedIds.length === 0
                     ? 'Sin asignación — el especialista aparece en todos los servicios.'
-                    : `${assignedIds.length} servicio(s) asignado(s).`}
+                    : `${assignedIds.length} ${assignedIds.length === 1 ? 'servicio asignado' : 'servicios asignados'}.`}
             </p>
         </div>
     );
@@ -490,7 +491,7 @@ function MemberConfigEditor({
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-bloque-del-especialista="configuracion">
             <div className="flex items-center gap-3 pb-3 border-b">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
                     <Settings2 className="h-4 w-4 text-primary" />
@@ -621,11 +622,13 @@ function MemberCard({
 
     return (
         <>
-            <Card className="border-border overflow-hidden">
+            <Card className="border-border overflow-hidden" data-especialista={member.id}>
                 <CardContent className="p-0 space-y-0">
                     {/* Header — toda la barra es clickeable */}
                     <button
                         type="button"
+                        data-abrir-especialista=""
+                        aria-expanded={expanded}
                         onClick={() => setExpanded((p) => !p)}
                         className="w-full flex items-center justify-between gap-2 p-4 hover:bg-muted/40 transition-colors text-left"
                     >
@@ -642,8 +645,10 @@ function MemberCard({
                             </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                            <Badge variant="outline" className="text-xs hidden sm:inline-flex">
-                                {member.availability.length} día(s)
+                            {/* Días distintos, no franjas: dos turnos el mismo
+                                lunes son un día. */}
+                            <Badge variant="outline" className="text-xs hidden sm:inline-flex" data-dias-que-atiende="">
+                                {elRotuloDeLosDias(losDiasQueAtiende(member.availability))}
                             </Badge>
                             <MemberFormDialog
                                 teamId={teamId}
@@ -655,7 +660,7 @@ function MemberCard({
                                         onClick={(e) => e.stopPropagation()}
                                         className="inline-flex"
                                     >
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar especialista" aria-label="Editar especialista">
                                             <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                     </span>
@@ -666,6 +671,8 @@ function MemberCard({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-destructive hover:text-destructive"
+                                    title="Eliminar especialista"
+                                    aria-label="Eliminar especialista"
                                     onClick={() => setConfirmDelete(true)}
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
@@ -771,15 +778,15 @@ export function MembersManager({ teamId, teamTimezone }: { teamId: string; teamT
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                    {members.length} especialista(s) — zona horaria: {teamTimezone}
+                <p className="text-sm text-muted-foreground" data-cuantos-especialistas="">
+                    {members.length} {members.length === 1 ? 'especialista' : 'especialistas'} — zona horaria: {teamTimezone}
                 </p>
                 <MemberFormDialog
                     teamId={teamId}
                     mode="create"
                     onSaved={upsert}
                     trigger={
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button size="sm" data-nuevo-especialista="" className="bg-blue-600 hover:bg-blue-700 text-white">
                             <Plus className="h-4 w-4 sm:mr-2" />
                             <span className="hidden sm:inline">Nuevo</span>
                         </Button>

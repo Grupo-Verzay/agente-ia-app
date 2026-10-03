@@ -55,7 +55,7 @@ export function BookingsServiceFormBuilder({ teamId, userId }: { teamId: string;
             <Card className="border-dashed">
                 <CardContent className="py-10 text-center">
                     <Wrench className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Crea servicios primero en la pestana Servicios.</p>
+                    <p className="text-sm text-muted-foreground">Crea servicios primero en la pestaña Servicios.</p>
                 </CardContent>
             </Card>
         );
@@ -76,7 +76,7 @@ export function BookingsServiceFormBuilder({ teamId, userId }: { teamId: string;
             </div>
 
             {filteredServices.map((service) => (
-                <div key={service.id} className="space-y-2">
+                <div key={service.id} className="space-y-2" data-formulario-del-servicio={service.id}>
                     <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: service.color ?? '#3B82F6' }} />
                         <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
@@ -95,7 +95,7 @@ export function BookingsServiceFormBuilder({ teamId, userId }: { teamId: string;
             {filteredServices.length === 0 && (
                 <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
                     <HelpCircle className="h-8 w-8 opacity-30" />
-                    <p className="text-sm">No hay servicios que coincidan con la busqueda.</p>
+                    <p className="text-sm">No hay servicios que coincidan con la búsqueda.</p>
                 </div>
             )}
         </div>

@@ -26,7 +26,7 @@ export function ClientDataStep({
     setNameClient, setAreaCode, setPhone, setStep, backStep = 3, onContinue, onPhoneBlur,
 }: Props) {
     return (
-        <Card className="border-muted/50">
+        <Card className="border-muted/50" data-paso-publico="datos">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Tus datos</CardTitle>
             </CardHeader>
@@ -67,6 +67,7 @@ export function ClientDataStep({
                 <div className="flex justify-between gap-2 pt-2">
                     <Button variant="outline" onClick={() => setStep(backStep)}>← Atrás</Button>
                     <Button
+                        data-confirmar-cita
                         disabled={!canContinue || loading}
                         onClick={onContinue}
                         className="bg-green-600 hover:bg-green-700 text-white"
