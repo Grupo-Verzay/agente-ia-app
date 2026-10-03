@@ -29,6 +29,7 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_PROYECTOS } from "@/lib/guia-proyectos";
 import { GUIA_COBROS } from "@/lib/guia-cobros";
 import { GUIA_EMBUDOS } from "@/lib/guia-embudos";
 import { GUIA_CHATS } from "@/lib/guia-chats";
@@ -40,6 +41,7 @@ import { GUIA_FORMULARIOS } from "@/lib/guia-formularios";
 import { GUIA_COPILOTO } from "@/lib/guia-copiloto";
 import { GUIA_AI_IMAGENES } from "@/lib/guia-ai-imagenes";
 import { GUIA_FINANZAS } from "@/lib/guia-finanzas";
+import { GUIA_INFORMES } from "@/lib/guia-informes";
 import { GUIA_LLAMADAS } from "@/lib/guia-llamadas";
 import { GUIA_PRODUCTOS } from "@/lib/guia-productos";
 import { GUIA_FLUJOS } from "@/lib/guia-flujos";
@@ -241,6 +243,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         tarjeta: "Aprende a registrar ventas y gastos y ver tu balance en la plataforma",
     },
     {
+        modulo: "informes",
+        ruta: "/crm/dashboard",
+        contenido: GUIA_INFORMES,
+        tarjeta: "Aprende a leer los números de tu negocio en la plataforma",
+    },
+    {
         modulo: "llamadas",
         ruta: "/crm/llamadas",
         contenido: GUIA_LLAMADAS,
@@ -305,6 +313,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/embudos",
         contenido: GUIA_EMBUDOS,
         tarjeta: "Aprende a organizar tus conversaciones por etapas en la plataforma",
+    },
+    {
+        modulo: "proyectos",
+        ruta: "/proyectos",
+        contenido: GUIA_PROYECTOS,
+        tarjeta: "Aprende a organizar tus proyectos y sus tareas en la plataforma",
     },
     {
         modulo: "tareas",
