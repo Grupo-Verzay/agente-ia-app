@@ -5,6 +5,7 @@ import { exigirLaCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasCuentasQueSeConsultan } from '@/lib/cuentas-de-finanzas';
 import { topeDeLaLista } from '@/lib/finanzas-de-la-familia';
 import { Prisma, FinanceTxType, FinanceTxStatus } from '@prisma/client';
+import { laReferenciaDelProveedor } from '@/lib/compras-de-finanzas';
 
 type ExpenseRow = Prisma.FinanceTransactionGetPayload<{
   include: {
@@ -179,7 +180,34 @@ export async function getExpensesMeta(userIdPedido: string): Promise<
 }
 
 /**
- *  Crea gasto y devuelve el id (necesario para adjuntar recibos luego)
+ * El proveedor de una COMPRA, comprobado contra la lista de Proveedores de ESA
+ * cuenta (`lib/compras-de-finanzas.ts`). Lo que llega del navegador es solo el
+ * id: el nombre que se guarda sale de aquí, y un id de otra cuenta, de un
+ * cliente o de un proveedor borrado no se acepta.
+ *
+ * Devuelve `undefined` si no se pidió proveedor, `null` si se pidió y no vale.
+ */
+async function elProveedorDeLaCompra(
+  userId: string,
+  proveedorId: unknown,
+): Promise<{ counterparty: string; reference: string } | null | undefined> {
+  if (typeof proveedorId !== 'string' || !proveedorId.trim()) return undefined;
+  const proveedor = await db.financeContact.findFirst({
+    where: { id: proveedorId.trim(), userId, kind: 'SUPPLIER', status: 'ACTIVE' },
+    select: { id: true, name: true },
+  });
+  if (!proveedor) {
+    console.warn('[finanzas] proveedor de una compra que no está en la lista de la cuenta', { userId, proveedorId });
+    return null;
+  }
+  return { counterparty: proveedor.name, reference: laReferenciaDelProveedor(proveedor.id) };
+}
+
+const PROVEEDOR_QUE_NO_ESTA = 'Ese proveedor no está en tu lista de proveedores.';
+
+/**
+ *  Crea gasto y devuelve el id (necesario para adjuntar recibos luego).
+ *  Con `proveedorId` es una COMPRA: el proveedor sale de la lista de la cuenta.
  */
 export async function createExpense(data: {
   userId: string;
@@ -192,11 +220,15 @@ export async function createExpense(data: {
   description?: string | null;
   counterparty?: string | null;
   reference?: string | null;
+  proveedorId?: string | null;
 }): Promise<ExpenseOperationResponse<{ id: string }>> {
   try {
     await ensureFinanceDefaults(data.userId);
 
     const userId = await exigirLaCuentaDeLaAccion(data.userId);
+
+    const proveedor = await elProveedorDeLaCompra(userId, data.proveedorId);
+    if (proveedor === null) return { success: false, message: PROVEEDOR_QUE_NO_ESTA };
 
     const created = await db.financeTransaction.create({
       data: {
@@ -210,13 +242,17 @@ export async function createExpense(data: {
         categoryId: data.categoryId ?? null,
         title: data.title ?? null,
         description: data.description ?? null,
-        counterparty: data.counterparty ?? null,
-        reference: data.reference ?? null,
+        counterparty: proveedor?.counterparty ?? data.counterparty ?? null,
+        reference: proveedor?.reference ?? data.reference ?? null,
       },
       select: { id: true },
     });
 
-    return { success: true, message: 'Gasto creado correctamente.', data: { id: created.id } };
+    return {
+      success: true,
+      message: proveedor ? 'Compra creada correctamente.' : 'Gasto creado correctamente.',
+      data: { id: created.id },
+    };
   } catch (error) {
     console.error('createExpense error:', error);
     return { success: false, message: 'Error al crear el gasto.' };
@@ -236,11 +272,35 @@ export async function updateExpense(
     description: string | null;
     counterparty: string | null;
     reference: string | null;
+    proveedorId: string | null;
   }>
 ): Promise<ExpenseOperationResponse> {
   const userId = await exigirLaCuentaDeLaAccion(userIdPedido);
   try {
-    const payload: any = { ...data };
+    // Solo los campos que se pueden editar. Un objeto del navegador no toca la
+    // identidad de la fila —ni su cuenta, ni su tipo, ni su estado—, y el
+    // `proveedorId` no es una columna: se resuelve abajo contra la lista.
+    const payload: any = {};
+    for (const clave of [
+      'occurredAt',
+      'amount',
+      'currencyCode',
+      'accountId',
+      'categoryId',
+      'title',
+      'description',
+      'counterparty',
+      'reference',
+    ] as const) {
+      if (data[clave] !== undefined) payload[clave] = data[clave];
+    }
+
+    const proveedor = await elProveedorDeLaCompra(userId, data.proveedorId);
+    if (proveedor === null) return { success: false, message: PROVEEDOR_QUE_NO_ESTA };
+    if (proveedor) {
+      payload.counterparty = proveedor.counterparty;
+      payload.reference = proveedor.reference;
+    }
 
     if (payload.occurredAt) {
       payload.occurredAt =

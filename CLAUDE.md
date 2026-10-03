@@ -4133,6 +4133,53 @@ largo a 1024 el carril sobra 218 px y **se desplaza con flechas**, que es lo
 que hace esta barra desde el #815; lo que no pasa en ninguna es que la barra
 crezca de alto ni que el buscador se pierda.
 
+## Finanzas: «Compras» abre una COMPRA, con el proveedor de la lista
+
+El acceso «Compras» abría Gastos con `?create=1`, o sea el formulario de un
+gasto cualquiera —«Nuevo gasto», sin ningún sitio donde decir a quién se le
+compró—. La lista de Proveedores existía y no la usaba nadie. Ventas sí usaba
+la suya de clientes.
+
+> **Una compra ES un gasto con proveedor, y no una tabla nueva.**
+> `FinanceTransaction` solo conoce `SALE` y `EXPENSE` y su esquema es del
+> BACKEND (#360), así que una compra es un `EXPENSE` con `counterparty` = el
+> nombre del proveedor y `reference` = `proveedor:<id>`. Sale en Gastos, en el
+> resumen y en el balance igual que cualquier gasto, que es lo que es. Las
+> reglas viven en `lib/compras-de-finanzas.ts` (puro).
+
+Seis cosas que hay que mantener:
+
+1. **`?create=compra` abre una compra y `?create=1` sigue abriendo un gasto**
+   (`elFormularioAlEntrar`). «Nuevo» de Gastos abre un gasto, y los enlaces
+   viejos no cambian. Lo que no se reconoce no abre nada.
+2. **El `?create=` se quita de la dirección en cuanto se usa**
+   (`laDireccionSinCrear`, con `router.replace`), y el guardián del efecto se
+   suelta cuando ya no hay parámetro. Sin las dos cosas, pulsar «Compras» por
+   segunda vez llevaba a la MISMA dirección y no abría nada.
+3. **El proveedor sale de la lista de Proveedores** (`SelectorDeProveedor`, el
+   gemelo del «Contacto» de una venta): con buscador por nombre, código o
+   teléfono, y un proveedor que no está se crea ahí mismo por la MISMA acción
+   que la pantalla de Proveedores (`createFinanceContact`), con su código P-n.
+   Se ofrece crear cuando lo tecleado no es el nombre EXACTO de ninguno.
+4. **El navegador manda el id, nunca el nombre.** `createExpense` y
+   `updateExpense` buscan ese id entre los proveedores ACTIVOS de la cuenta
+   (`elProveedorDeLaCompra`) y ponen ellos el nombre y la referencia; uno de
+   otra cuenta se rechaza. Y `updateExpense` escribe solo sus campos: con el
+   `...data` de antes, una edición podía mover la fila a otra cuenta.
+5. **Al editar, el proveedor se manda solo si CAMBIÓ**
+   (`elProveedorQueSeManda`): una compra cuyo proveedor se borró después se
+   tiene que poder seguir corrigiendo.
+6. **Un gasto con proveedor se abre como compra al editarlo** (`esUnaCompra`,
+   que mira también el `counterparty`), para no perder ese dato.
+
+Lo prueban `scripts/banco-compras-de-finanzas.sh` —la regla y un barrido, y
+las acciones contra Postgres— y `scripts/banco-compras-navegador.sh`, sobre la
+página servida: «Compras» abre «Nueva compra» y vuelve a abrir al pulsarlo
+otra vez, sin proveedor no guarda, la compra queda con su proveedor, uno nuevo
+se crea desde el formulario y sale en Proveedores, y «Nuevo gasto» sigue donde
+estaba. Los dos con `MODO=roto` pinchado a `fd21c8f`, que afirma que «Compras»
+abría «Nuevo gasto» sin proveedor.
+
 ## La barra de pestañas se corta: flechas, y la activa se trae sola
 
 La barra del panel del súper administrador —Informes, Actividad, Operaciones,

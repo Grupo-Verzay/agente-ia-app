@@ -24,6 +24,8 @@ export type ExpenseRow = {
     title?: string | null;
     description?: string | null;
     counterparty?: string | null;
+    /** En una compra, `proveedor:<id>` (`lib/compras-de-finanzas.ts`). */
+    reference?: string | null;
 
     accountId: string;
     categoryId?: string | null;
