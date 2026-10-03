@@ -26170,6 +26170,54 @@ Chromium sobre el CSS del build a 1440 y 390. `MODO=roto` corre lo mismo contra
 `88ade1f` y afirma el texto viejo, el plan apagado servido, los testimonios
 pintados y el guardado que los borraba.
 
+### Y la segunda vuelta: el botón al FINAL, «para quién», el plan superior, destacar y el video subido
+
+La página tiene ahora seis bloques: **hero · para quién es este plan ·
+capacidad · funciones · preguntas · comenzar**. Cinco reglas, y cada una con
+su porqué:
+
+1. **El botón de comenzar sale UNA vez, en «comenzar», después de las
+   preguntas**, con el precio otra vez encima. La barra fija de arriba solo
+   lleva «Volver a planes»: el botón al lado del nombre y el precio pedía
+   comprar antes de leer.
+2. **«Para quién es este plan» son dos textos cortos** —a quién le sirve y un
+   caso típico de negocio— en `plan_para_quien`, tabla de la App (sin clave
+   foránea, ni una columna en `plan_details`). Lo decide `elParaQuienQueSale`,
+   **campo por campo**: lo escrito sale si no tiene avisos (con los datos
+   vivos `{plan}`, `{creditos}`…); si no hay nada o ya no cuadra, sale el de
+   fábrica de su nivel (`PARA_QUIEN_DE_FABRICA`, sin números escritos, así no
+   envejece). Guardar solo uno de los dos no borra el otro; vaciar los dos
+   borra la fila.
+3. **La línea hacia el plan inmediato superior es discreta y va al final**,
+   debajo del botón («Conoce el plan X»). `elPlanSuperior` toma el siguiente
+   nivel ACTIVO y no de reseller, prefiere el mismo tipo de asistencia y, si
+   ese está apagado, cae al otro. El plan más alto no lleva línea.
+4. **«Activa en el plan» y «destacada en la tarjeta corta» son dos marcas.**
+   Apagar quita la función de TODO (página, modal, `features`); destacar solo
+   decide si sale en la tarjeta corta de la landing (`lasFuncionesDestacadas`:
+   activa Y destacada). Una función de antes sin la marca nace destacada, así
+   la tarjeta no pierde nada. La tarjeta lee `plan.destacadas ?? plan.features`
+   (`conSusDestacadas`, que si no puede leer cae a todas y lo dice); el modal
+   y la página siguen con todas las activas.
+5. **El video se puede SUBIR como archivo** (mp4, webm, mov), en el detalle de
+   cada plan y en la landing general, con el mismo patrón que la miniatura
+   (`VideoUploader`). Lo recibe `/api/upload-plan-video`, que **va FUERA del
+   `matcher` del middleware a propósito** —Next 14 guarda entero el cuerpo de
+   toda petición por la que pasa el middleware— y por eso lleva su propia
+   puerta (`quienMandaEnLaCasa`). Lee los primeros bytes para saber qué es
+   (`elVideoDeLaCabecera`, nunca el nombre ni el tipo que diga el navegador),
+   pasa el resto al bucket sin cargarlo en memoria, y topa en
+   `TOPE_DEL_VIDEO_SUBIDO` (150 MB). Una dirección que acaba en un video se
+   pinta con `<video>` (`elVideoDelPlan`, `VideoDeLaLanding`); un enlace de
+   YouTube o Vimeo sigue como antes.
+
+Lo prueba el mismo banco con un segundo fichero (`plan-al-final.test.mjs`):
+las reglas, la ruta con un bucket de mentira (sin sesión, un cliente, una
+imagen, 200 MB, un WebM llamado `.mp4`), las acciones contra Postgres y la
+página y la tarjeta reales en Chromium. Su `MODO=roto` corre contra `fd21c8f`
+y afirma los dos botones con uno fijo arriba, la falta de «para quién» y de
+plan superior, la tarjeta con todas y la landing sin video subido.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

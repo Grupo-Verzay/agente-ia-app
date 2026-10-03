@@ -7,7 +7,9 @@ import { db } from "@/lib/db";
 import {
     comoImagenDelPlan,
     elNombreDelPlan,
+    elParaQuienQueSale,
     elPlanQueSeEnsena,
+    elPlanSuperior,
     elPrecioQueSeEnsena,
     elTituloDelVideo,
     elVideoDelPlan,
@@ -21,19 +23,23 @@ import {
     losDatosDelPlan,
     type BotonDelPlan,
     type GrupoDeFunciones,
+    type ParaQuienDelPlan,
+    type PlanSuperior,
     type PreguntaDelPlan,
     type TarjetaDeCapacidad,
     type VideoDelPlan,
 } from "@/lib/pagina-de-plan";
 import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
+import { elParaQuienGuardado } from "@/lib/plan-para-quien-db";
 import { normalizarAsistencia, normalizarPlan } from "@/lib/plan-pricing";
 import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 
 /**
  * Todo lo que enseña la página pública de un plan, leído EN VIVO de lo que hay
  * hoy en el panel de Planes: el plan (nombre, precio, créditos, descripción,
- * si está activo), sus funciones (`features` + `plan_funciones`) y su detalle
- * (`plan_details`: video, preguntas, botones, título de la pestaña).
+ * si está activo), sus funciones (`features` + `plan_funciones`), su detalle
+ * (`plan_details`: video, preguntas, botones, título de la pestaña), «para
+ * quién es» (`plan_para_quien`) y cuál es el plan inmediato superior.
  *
  * Nada de lo que sale aquí está escrito a mano en la página: si en el panel se
  * apaga, se renombra o se edita una función, la página lo dice la próxima vez
@@ -54,10 +60,13 @@ export type PaginaDelPlan = {
     esPopular: boolean;
     precio: { texto: string; aConsultar: boolean };
     video: (VideoDelPlan & { titulo: string; miniatura: string | null }) | null;
+    paraQuien: ParaQuienDelPlan;
     capacidad: TarjetaDeCapacidad[];
     grupos: GrupoDeFunciones[];
     preguntas: PreguntaDelPlan[];
     botones: { principal: BotonDelPlan; secundario: BotonDelPlan | null };
+    /** La línea discreta del final. `null`: es el último nivel que se vende. */
+    planSuperior: PlanSuperior | null;
     meta: { titulo: string; descripcion: string; imagen: string | null };
     marca: string;
     logo: string | null;
@@ -97,7 +106,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         ? otro
         : null;
 
-    const [detalle, guardadas, sitio] = await Promise.all([
+    const [detalle, guardadas, paraQuienGuardado, sitio] = await Promise.all([
         db.planDetail.findUnique({ where: { subscriptionPlanId: elegido.id } }).catch((e) => {
             console.error("[planes] no se pudo leer el detalle del plan; la página sale sin él", { plan: elegido.id, e });
             return null;
@@ -105,6 +114,10 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         lasFuncionesGuardadas([elegido.id]).catch((e) => {
             console.error("[planes] no se pudieron leer las funciones guardadas; se deducen de features", { plan: elegido.id, e });
             return new Map<string, unknown>();
+        }),
+        elParaQuienGuardado(elegido.id).catch((e) => {
+            console.error("[planes] no se pudo leer «para quién es»; sale el texto de fábrica", { plan: elegido.id, e });
+            return null;
         }),
         getSiteConfig(),
     ]);
@@ -126,10 +139,12 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         video: video
             ? { ...video, titulo: elTituloDelVideo(detalle?.videoTitle, datos), miniatura: comoImagenDelPlan(detalle?.videoThumbnailUrl) }
             : null,
+        paraQuien: elParaQuienQueSale(paraQuienGuardado, datos),
         capacidad: laCapacidadDelPlan(datos, funciones),
         grupos: lasFuncionesPorCategoria(funciones, datos, TITULO_DE_LAS_GUIAS),
         preguntas: lasPreguntasQueSalen(detalle?.faqs, datos),
         botones: losBotonesDelPlan(detalle, datos, sitio),
+        planSuperior: elPlanSuperior(planes, elegido),
         meta: { ...laCabeceraDeLaPagina(detalle, datos, descripcion, marca), imagen: comoImagenDelPlan(detalle?.ogImageUrl) },
         marca,
         logo: comoImagenDelPlan(sitio.logoUrl),

@@ -9,10 +9,18 @@
 # orden pedido —hero con su video, capacidad, funciones por categoría con su
 # tutorial y preguntas— y sin testimonios ni bloques genéricos.
 #
-# `MODO=roto` corre las mismas pruebas contra ANTES_REF —pinchado a un commit,
-# nunca `origin/main`— y AFIRMA los fallos: la página copiaba `features` tal
-# cual (con su texto viejo), enseñaba un plan apagado, pintaba testimonios y el
-# guardado parcial del detalle borraba los testimonios y las preguntas.
+# Y un segundo fichero (`plan-al-final.test.mjs`) con las cinco mejoras que
+# vinieron después: el video subido como archivo (la ruta, el uploader y el
+# `<video>` de la landing), el botón de comenzar SOLO al final, «para quién es
+# este plan», la línea discreta hacia el plan inmediato superior, y la marca de
+# «destacar en la tarjeta corta» separada de «activa en el plan».
+#
+# `MODO=roto` corre las mismas pruebas contra el código de antes —pinchado a un
+# commit, nunca `origin/main`— y AFIRMA los fallos. Son dos «antes», uno por
+# fichero: ANTES_REF (la página copiaba `features` tal cual, enseñaba un plan
+# apagado, pintaba testimonios y el guardado parcial borraba lo demás) y
+# ANTES_DE_LO_NUEVO (sin ruta de video, dos botones de comenzar, uno fijo
+# arriba, sin «para quién», sin plan superior y la tarjeta con TODAS).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,6 +32,8 @@ MODO="${MODO:-bueno}"
 export MODO
 ANTES_REF="${ANTES_REF:-88ade1f}"
 export ANTES_REF
+ANTES_DE_LO_NUEVO="${ANTES_DE_LO_NUEVO:-fd21c8f}"
+export ANTES_DE_LO_NUEVO
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
@@ -60,7 +70,14 @@ ALIAS_NODO=(
   --alias:@/lib/auth=./lib/__tests__/fingido/auth-de-documentos.ts
   --alias:next/cache=./lib/__tests__/fingido/next-cache.ts
   --alias:react=./lib/__tests__/fingido/react-cache.ts
+  --alias:@/lib/minio=./lib/__tests__/fingido/minio-de-video.ts
+  --alias:next/server=./lib/__tests__/fingido/next-server.ts
   --log-level=error
+)
+BANNER_ESM='import{createRequire as __cr}from "module";import{fileURLToPath as __fu}from "url";import{dirname as __dn}from "path";const require=__cr(import.meta.url);const __filename=__fu(import.meta.url);const __dirname=__dn(__filename);'
+ALIAS_TARJETA=(
+  --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx
+  --alias:next/navigation=./lib/__tests__/fingido/next-navigation-mudo.ts
 )
 
 if [ "$MODO" = "roto" ]; then
@@ -75,26 +92,51 @@ if [ "$MODO" = "roto" ]; then
      "$ANTES/lib/__tests__/fingido/"
   (cd "$ANTES" && npx esbuild lib/__tests__/fingido/entrada-de-pagina-de-plan-antes.ts --bundle \
     --platform=node --format=esm --outdir="$RAIZ/$OUT" \
-    --banner:js='import{createRequire as __cr}from "module";import{fileURLToPath as __fu}from "url";import{dirname as __dn}from "path";const require=__cr(import.meta.url);const __filename=__fu(import.meta.url);const __dirname=__dn(__filename);' \
-    "${ALIAS_NODO[@]}")
+    --banner:js="$BANNER_ESM" "${ALIAS_NODO[@]}")
   sed -i '/server-only/d' "$OUT/entrada-de-pagina-de-plan-antes.js"
   (cd "$ANTES" && npx esbuild lib/__tests__/fingido/pagina-de-plan-harness-antes.tsx --bundle --format=iife \
     --outfile="$RAIZ/$OUT/harness-antes.js" --jsx=automatic \
     --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
     --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error)
   git worktree remove --force "$ANTES" 2>/dev/null || rm -rf "$ANTES"
+
+  # El código de antes de las cinco mejoras: la página con su botón fijo y la
+  # tarjeta de la landing (que entonces no se exportaba: se le pone `export`
+  # para poder pintarla sola, sin tocar nada de lo que hace).
+  ANTES2="$RAIZ/lib/__tests__/.antes/plan-al-final"
+  git worktree remove --force "$ANTES2" 2>/dev/null || rm -rf "$ANTES2"
+  git worktree add --detach "$ANTES2" "$ANTES_DE_LO_NUEVO" >/dev/null 2>&1
+  ln -s "$RAIZ/node_modules" "$ANTES2/node_modules"
+  cp lib/__tests__/fingido/entrada-antes-de-lo-nuevo.ts \
+     lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
+     lib/__tests__/fingido/minio-de-video.ts \
+     lib/__tests__/fingido/next-server.ts \
+     "$ANTES2/lib/__tests__/fingido/"
+  sed -i 's/^function PlanCard(/export function PlanCard(/' "$ANTES2/app/(public)/inicio/_components/LandingClient.tsx"
+  (cd "$ANTES2" && npx esbuild lib/__tests__/fingido/entrada-antes-de-lo-nuevo.ts --bundle \
+    --platform=node --format=esm --outdir="$RAIZ/$OUT" --banner:js="$BANNER_ESM" "${ALIAS_NODO[@]}")
+  sed -i '/server-only/d' "$OUT/entrada-antes-de-lo-nuevo.js"
+  (cd "$ANTES2" && npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=iife \
+    --outfile="$RAIZ/$OUT/harness-lo-nuevo-antes.js" --jsx=automatic \
+    --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
+    --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error)
+  (cd "$ANTES2" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+    lib/__tests__/fingido/tarjeta-de-plan-harness.tsx "$RAIZ/$OUT/tarjeta-antes.js" "${ALIAS_TARJETA[@]}")
+  git worktree remove --force "$ANTES2" 2>/dev/null || rm -rf "$ANTES2"
   git worktree prune
-  node --test lib/__tests__/pagina-de-plan.test.mjs "$@"
+
+  # Los dos ficheros comparten la base: uno detrás de otro, nunca a la vez.
+  node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs "$@"
   exit $?
 fi
 
 # 1. La regla pura (y las guías publicadas, para comprobar que existen).
-npx esbuild lib/pagina-de-plan.ts lib/tutoriales-del-modulo.ts --bundle --platform=node --format=esm \
+npx esbuild lib/pagina-de-plan.ts lib/tutoriales-del-modulo.ts lib/video-subido.ts --bundle --platform=node --format=esm \
   --outdir="$OUT" --external:@prisma/client --log-level=error
 
 # 2. Las acciones y la página armada, contra Postgres.
 npx esbuild lib/__tests__/fingido/entrada-de-pagina-de-plan.ts --bundle \
-  --platform=node --format=esm --outdir="$OUT" "${ALIAS_NODO[@]}"
+  --platform=node --format=esm --outdir="$OUT" --banner:js="$BANNER_ESM" "${ALIAS_NODO[@]}"
 sed -i '/server-only/d' "$OUT/entrada-de-pagina-de-plan.js"
 
 # 3. La pantalla, con el componente REAL.
@@ -103,4 +145,8 @@ npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=i
   --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
   --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error
 
-node --test lib/__tests__/pagina-de-plan.test.mjs "$@"
+# 4. La tarjeta corta de la landing y su video, los de VERDAD.
+node scripts/empaquetar-con-acciones-mudas.mjs lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
+  "$OUT/tarjeta.js" "${ALIAS_TARJETA[@]}"
+
+node --test --test-concurrency=1 lib/__tests__/pagina-de-plan.test.mjs lib/__tests__/plan-al-final.test.mjs "$@"

@@ -12,12 +12,23 @@
  * quedaban atrás en cuanto el plan cambiaba de nombre, de créditos o de
  * funciones. Ahora lo que se ve es:
  *
- *   1. el hero con el NOMBRE, la descripción, el precio y el video del plan;
- *   2. el resumen de capacidad: créditos, catálogo y asistencia, con los
+ *   1. el hero con el NOMBRE, la descripción, el precio y el video del plan
+ *      (un enlace o un archivo .mp4 subido desde el panel);
+ *   2. «para quién es»: a quién le sirve y un caso típico de negocio;
+ *   3. el resumen de capacidad: créditos, catálogo y asistencia, con los
  *      números de VERDAD (los créditos del plan y el tope que la plataforma
  *      aplica al crear productos);
- *   3. las funciones ENCENDIDAS, agrupadas por categoría, con su tutorial;
- *   4. las preguntas frecuentes de ese plan.
+ *   4. las funciones ENCENDIDAS, agrupadas por categoría, con su tutorial;
+ *   5. las preguntas frecuentes de ese plan;
+ *   6. el botón de comenzar, UNA vez y al final: arriba no hay ninguno, para
+ *      que se decida después de leer y no antes;
+ *   7. una línea discreta al plan inmediato superior, si existe.
+ *
+ * # Encendida y destacada son DOS preguntas
+ *
+ * `activa` dice si el plan la trae: apagada no sale en ninguna parte. `destacada`
+ * dice si, ADEMÁS, sale en la tarjeta corta de la landing. Quitarla de la
+ * tarjeta no la quita del plan, y la página de detalle las enseña todas.
  *
  * # Las funciones viven en DOS sitios, y uno manda
  *
@@ -41,6 +52,7 @@ import type { Plan } from "@prisma/client";
 import { CATEGORIAS_DE_AYUDA } from "@/lib/centro-de-ayuda";
 import { sinTildes } from "@/lib/pantalla-de-notas";
 import { elTopeDeProductos } from "@/lib/limite-de-catalogo";
+import { laPosicionDelNivel } from "@/lib/nivel-de-la-licencia";
 
 /* ─── Funciones ────────────────────────────────────────────────────────── */
 
@@ -55,6 +67,11 @@ export type FuncionDelPlan = {
     categoria: string;
     /** Apagada: no sale en la página ni en ninguna lista del plan. */
     activa: boolean;
+    /**
+     * Sale en la tarjeta CORTA del plan en la landing. Solo cuenta si está
+     * encendida; apagarla en la tarjeta no la quita del plan ni del detalle.
+     */
+    destacada: boolean;
     /** El módulo de una guía publicada (`leads`) o un enlace `https://`. */
     tutorial: string | null;
 };
@@ -175,6 +192,9 @@ export function comoFunciones(raw: unknown): FuncionDelPlan[] {
             descripcion,
             categoria,
             activa: o.activa !== false,
+            // Lo guardado antes de que existiera la marca sale en la tarjeta,
+            // como salía: sin ella, todas las funciones se irían de la landing.
+            destacada: o.destacada !== false,
             tutorial: comoTutorial(o.tutorial),
         });
     }
@@ -184,6 +204,15 @@ export function comoFunciones(raw: unknown): FuncionDelPlan[] {
 /** Los textos de las funciones ENCENDIDAS, en su orden: lo que se guarda en `features`. */
 export function losFeaturesDeLasFunciones(funciones: readonly FuncionDelPlan[]): string[] {
     return funciones.filter((f) => f.activa && f.nombre.trim()).map((f) => f.nombre.trim());
+}
+
+/**
+ * Los textos que salen en la tarjeta CORTA de la landing: las encendidas Y
+ * destacadas, en su orden. Una apagada no sale aunque esté marcada: lo que el
+ * plan no trae no se anuncia en ninguna parte.
+ */
+export function lasFuncionesDestacadas(funciones: readonly FuncionDelPlan[]): string[] {
+    return funciones.filter((f) => f.activa && f.destacada && f.nombre.trim()).map((f) => f.nombre.trim());
 }
 
 /* ─── Sugerir la categoría y el tutorial de una función ───────────────── */
@@ -303,6 +332,7 @@ export function lasFuncionesDelPlan(features: readonly string[], guardadas: unkn
             descripcion: "",
             ...sugerirLaFuncion(texto),
             activa: true,
+            destacada: true,
         });
     });
     for (const f of lista) {
@@ -893,4 +923,114 @@ export function elTituloDelVideo(valor: string | null | undefined, datos: DatosD
 export function laDescripcionQueSale(valor: string | null | undefined, datos: DatosDelPlan): string | null {
     const texto = conLosDatosDelPlan((valor ?? "").trim(), datos);
     return texto && losAvisosDelTexto(texto, datos).length === 0 ? texto : null;
+}
+
+/* ─── Para quién es este plan ──────────────────────────────────────────── */
+
+export type ParaQuienDelPlan = {
+    /** A quién le sirve, en una frase. */
+    paraQuien: string;
+    /** Un caso típico de negocio, en una o dos frases. */
+    caso: string;
+};
+
+export const TOPE_DEL_PARA_QUIEN = 280;
+export const TOPE_DEL_CASO = 600;
+
+/**
+ * Lo que sale si el panel no escribió nada (o lo escrito contradice al plan).
+ * Sin números ni nombres de plan dentro, a propósito: así no se quedan viejos
+ * cuando el plan cambia de créditos o de nombre.
+ */
+export const PARA_QUIEN_DE_FABRICA: Record<Plan, ParaQuienDelPlan> = {
+    lite: {
+        paraQuien: "Para quien empieza a vender por WhatsApp y quiere que la IA conteste las preguntas de siempre.",
+        caso: "Una tienda pequeña que atiende sola: la IA responde precios, horarios y envíos a cualquier hora, y la dueña entra solo cuando un cliente ya quiere comprar.",
+    },
+    basico: {
+        paraQuien: "Para negocios con una línea de WhatsApp que reciben consultas todos los días y no alcanzan a contestarlas a tiempo.",
+        caso: "Un consultorio con una recepcionista: la IA atiende las preguntas frecuentes y separa a los interesados, y la recepcionista dedica su tiempo a confirmar y cerrar.",
+    },
+    intermedio: {
+        paraQuien: "Para negocios con un equipo pequeño que necesitan ordenar sus contactos y hacer seguimiento sin perder ninguno.",
+        caso: "Una academia con dos asesores: la IA responde y califica a quien pregunta, y cada asesor ve en orden con quién seguir hasta la inscripción.",
+    },
+    avanzado: {
+        paraQuien: "Para empresas con varios asesores que quieren automatizar el proceso de venta y medir cada paso.",
+        caso: "Una inmobiliaria con cinco asesores: la IA atiende y reparte las conversaciones, y el equipo sigue cada oportunidad hasta el cierre con sus números a la vista.",
+    },
+    enterprise: {
+        paraQuien: "Para empresas con mucho volumen de conversaciones y equipos por área.",
+        caso: "Una cadena de clínicas con ventas, soporte y cobros: cada equipo atiende lo suyo y la IA cubre el día y la noche para que ningún cliente espere.",
+    },
+    personalizado: {
+        paraQuien: "Para negocios cuya operación necesita una configuración a la medida.",
+        caso: "Una empresa con procesos e integraciones propias: el plan se arma según sus líneas, su equipo y sus herramientas.",
+    },
+};
+
+/** Lo que llega del panel o de la base, saneado. Nunca lanza. */
+export function comoParaQuien(raw: unknown): ParaQuienDelPlan {
+    const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const texto = (v: unknown, tope: number) => (typeof v === "string" ? v.replace(/[ \t]+/g, " ").trim().slice(0, tope) : "");
+    return { paraQuien: texto(o.paraQuien, TOPE_DEL_PARA_QUIEN), caso: texto(o.caso, TOPE_DEL_CASO) };
+}
+
+/** Por qué lo escrito no sale en la página, campo por campo. Para el panel. */
+export function losAvisosDelParaQuien(
+    raw: unknown,
+    datos: DatosDelPlan,
+): { paraQuien: string[]; caso: string[] } {
+    const g = comoParaQuien(raw);
+    const avisos = (t: string) => (t ? [...new Set([...losAvisosDelTexto(t, datos), ...losAvisosDelBoton(t, datos)])] : []);
+    return { paraQuien: avisos(g.paraQuien), caso: avisos(g.caso) };
+}
+
+/**
+ * Lo que sale en «Para quién es este plan»: lo escrito en el panel si no
+ * contradice al plan; si no (o si está vacío), lo de fábrica de su nivel. Cada
+ * campo por su lado: un caso viejo no se lleva la frase de arriba.
+ */
+export function elParaQuienQueSale(raw: unknown, datos: DatosDelPlan): ParaQuienDelPlan {
+    const g = comoParaQuien(raw);
+    const avisos = losAvisosDelParaQuien(g, datos);
+    const fabrica = (PARA_QUIEN_DE_FABRICA as Record<string, ParaQuienDelPlan>)[datos.plan] ?? PARA_QUIEN_DE_FABRICA.personalizado;
+    return {
+        paraQuien: g.paraQuien && avisos.paraQuien.length === 0 ? conLosDatosDelPlan(g.paraQuien, datos) : fabrica.paraQuien,
+        caso: g.caso && avisos.caso.length === 0 ? conLosDatosDelPlan(g.caso, datos) : fabrica.caso,
+    };
+}
+
+/* ─── El plan inmediato superior ───────────────────────────────────────── */
+
+export type PlanSuperior = { plan: string; tipo: "IA" | "HUMANO"; nombre: string; url: string };
+
+/**
+ * El plan que sigue a este, para la línea discreta del final: el del nivel
+ * INMEDIATO superior que esté activo (los niveles de `NIVELES`, de menor a
+ * mayor). Se prefiere el mismo tipo de asistencia; si de ese nivel solo está
+ * activo el otro tipo, ese. Si el siguiente nivel no está activo se salta al
+ * siguiente que lo esté: «inmediato» es el siguiente que se puede contratar.
+ * Del último, ninguno. Los planes de reseller no cuentan: no se venden aquí.
+ */
+export function elPlanSuperior<
+    T extends { plan: string; assistanceType: string | null; isActive: boolean; isResellerPlan?: boolean | null; name?: string | null },
+>(planes: readonly T[], actual: { plan: string; assistanceType: string | null }): PlanSuperior | null {
+    const desde = laPosicionDelNivel(actual.plan);
+    if (desde < 0) return null;
+    const tipo = actual.assistanceType === "HUMANO" ? "HUMANO" : "IA";
+    const tipoDe = (p: T) => (p.assistanceType === "HUMANO" ? "HUMANO" : "IA");
+    const vendibles = planes.filter((p) => p.isActive && !p.isResellerPlan && laPosicionDelNivel(p.plan) > desde);
+    if (vendibles.length === 0) return null;
+    const siguiente = Math.min(...vendibles.map((p) => laPosicionDelNivel(p.plan)));
+    const delNivel = vendibles.filter((p) => laPosicionDelNivel(p.plan) === siguiente);
+    const elegido = delNivel.find((p) => tipoDe(p) === tipo) ?? delNivel[0];
+    if (!elegido) return null;
+    const suTipo = tipoDe(elegido);
+    return {
+        plan: elegido.plan,
+        tipo: suTipo,
+        nombre: elNombreDelPlan(elegido),
+        url: `/planes/${encodeURIComponent(elegido.plan)}${suTipo === "HUMANO" ? "?tipo=HUMANO" : ""}`,
+    };
 }

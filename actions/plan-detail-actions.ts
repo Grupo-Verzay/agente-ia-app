@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
+import { comoParaQuien, type ParaQuienDelPlan } from "@/lib/pagina-de-plan";
+import { elParaQuienGuardado, guardarElParaQuien } from "@/lib/plan-para-quien-db";
 
 export type FeatureSection = {
   title: string;
@@ -99,14 +101,29 @@ function parsePlanDetail(raw: Record<string, unknown>): PlanDetailData {
   };
 }
 
+/**
+ * El detalle de un plan y, aparte, lo escrito en «Para quién es este plan»
+ * (`plan_para_quien`, tabla de la App: `null` es «nunca se escribió», y la
+ * página enseña lo de fábrica). Si esa tabla no se puede leer, el detalle sale
+ * igual y se dice: el panel no se queda sin video ni preguntas por eso.
+ */
 export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: string) {
   try {
-    const detail = await db.planDetail.findUnique({ where: { subscriptionPlanId } });
-    if (!detail) return { success: true, data: null };
-    return { success: true, data: parsePlanDetail(detail as unknown as Record<string, unknown>) };
+    const [detail, paraQuien] = await Promise.all([
+      db.planDetail.findUnique({ where: { subscriptionPlanId } }),
+      elParaQuienGuardado(subscriptionPlanId).catch((e) => {
+        console.error("[planes] no se pudo leer «para quién es este plan»", { subscriptionPlanId, e });
+        return null;
+      }),
+    ]);
+    return {
+      success: true,
+      data: detail ? parsePlanDetail(detail as unknown as Record<string, unknown>) : null,
+      paraQuien: paraQuien as ParaQuienDelPlan | null,
+    };
   } catch (e) {
     console.error("[getPlanDetailBySubscriptionPlanId]", e);
-    return { success: false, data: null };
+    return { success: false, data: null, paraQuien: null as ParaQuienDelPlan | null };
   }
 }
 
@@ -144,7 +161,12 @@ export async function getPlanDetailBySlug(planSlug: string, assistanceType = "IA
   }
 }
 
-export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPlanId">;
+export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPlanId"> & {
+  /** «Para quién es este plan». Vive en `plan_para_quien`, no en `plan_details`. */
+  paraQuien?: string;
+  /** El caso típico de negocio, al lado del anterior. */
+  caso?: string;
+};
 
 /**
  * Los campos que se guardan. Uno que NO llega no se toca: el panel ya no edita
@@ -187,6 +209,16 @@ export async function upsertPlanDetail(
       create: { subscriptionPlanId, ...payload },
       update: payload,
     });
+
+    // Después del upsert: si el plan no existiera, la clave foránea de
+    // `plan_details` ya habría dicho que no y no queda una fila huérfana.
+    if (("paraQuien" in entrada && entrada.paraQuien !== undefined) || ("caso" in entrada && entrada.caso !== undefined)) {
+      const limpio = comoParaQuien({ paraQuien: entrada.paraQuien ?? "", caso: entrada.caso ?? "" });
+      await guardarElParaQuien(subscriptionPlanId, {
+        paraQuien: entrada.paraQuien === undefined ? undefined : limpio.paraQuien,
+        caso: entrada.caso === undefined ? undefined : limpio.caso,
+      });
+    }
 
     revalidatePath("/planes");
     revalidatePath("/planes/[slug]", "page");

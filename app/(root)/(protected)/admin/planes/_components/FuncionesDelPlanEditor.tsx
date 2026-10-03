@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertTriangle, GripVertical, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, GripVertical, Plus, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -31,6 +31,7 @@ import {
   TOPE_DEL_NOMBRE,
   TOPE_DE_LA_DESCRIPCION,
   elEnlaceDelTutorialNoSirve,
+  lasFuncionesDestacadas,
   losAvisosDelTexto,
   sugerirLaFuncion,
   type DatosDelPlan,
@@ -39,12 +40,20 @@ import {
 import { MODULOS_CON_GUIA, NOMBRE_DE_LA_GUIA, esModuloConGuia } from "@/lib/introduccion-de-la-guia";
 
 /**
- * Las funciones de un plan, una por fila: el interruptor, el nombre, su
- * categoría, una línea que la explica y su tutorial. Se ordenan arrastrando
- * por el asa, como toda lista reordenable de la plataforma.
+ * Las funciones de un plan, una por fila: el interruptor, la estrella, el
+ * nombre, su categoría, una línea que la explica y su tutorial. Se ordenan
+ * arrastrando por el asa, como toda lista reordenable de la plataforma.
  *
- * Lo que se cambia aquí es lo que sale en la página pública del plan
- * (`/planes/<plan>`): apagar una función la quita, renombrarla la renombra.
+ * Son DOS mandos y no se pisan:
+ *
+ * - **El interruptor** dice si el plan la trae. Apagada no sale en NINGUNA
+ *   parte: ni en la página del plan, ni en la tarjeta de la landing.
+ * - **La estrella** dice si, además, sale en la tarjeta CORTA de la landing.
+ *   Quitarla de la tarjeta no la quita del plan: la página de detalle las
+ *   enseña todas. Con la función apagada la estrella se apaga también —lo
+ *   que el plan no trae no se anuncia—, y al volver a encenderla recupera la
+ *   marca que tenía.
+ *
  * Lo que la página NO va a enseñar —una función que contradice al plan— se
  * dice en la propia fila, con el motivo.
  */
@@ -80,7 +89,10 @@ export function FuncionesDelPlanEditor({ funciones, onChange, datos }: Props) {
   const agregar = () => {
     const nombre = nueva.replace(/\s+/g, " ").trim().slice(0, TOPE_DEL_NOMBRE);
     if (!nombre || funciones.length >= TOPE_DE_FUNCIONES) return;
-    onChange([...funciones, { id: nuevoId(), nombre, descripcion: "", activa: true, ...sugerirLaFuncion(nombre) }]);
+    onChange([
+      ...funciones,
+      { id: nuevoId(), nombre, descripcion: "", activa: true, destacada: true, ...sugerirLaFuncion(nombre) },
+    ]);
     setNueva("");
   };
 
@@ -93,6 +105,7 @@ export function FuncionesDelPlanEditor({ funciones, onChange, datos }: Props) {
   };
 
   const encendidas = funciones.filter((f) => f.activa).length;
+  const enLaTarjeta = lasFuncionesDestacadas(funciones).length;
   const lleno = funciones.length >= TOPE_DE_FUNCIONES;
 
   return (
@@ -100,12 +113,15 @@ export function FuncionesDelPlanEditor({ funciones, onChange, datos }: Props) {
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-medium">Funciones del plan</p>
         <p className="text-[11px] text-muted-foreground" data-cuenta-de-funciones>
-          {encendidas} encendidas de {funciones.length}
+          {encendidas} encendidas de {funciones.length} · {enLaTarjeta} en la tarjeta
         </p>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Lo que cambies aquí sale tal cual en la página del plan: apagar una función la quita y
-        renombrarla la renombra. Puedes escribir{" "}
+        Lo que cambies aquí sale tal cual en la página del plan: apagar una función la quita del
+        plan entero y renombrarla la renombra. La estrella{" "}
+        <Star className="inline h-3 w-3 fill-amber-400 text-amber-500" aria-hidden /> decide aparte
+        cuáles salen resumidas en la tarjeta de la landing; la página del plan las enseña todas.
+        Puedes escribir{" "}
         {DATOS_QUE_SE_PUEDEN_USAR.map((d, i) => (
           <span key={d.clave}>
             <code className="rounded bg-muted px-1">{d.clave}</code>
@@ -202,6 +218,7 @@ function FilaDeFuncion({
       className={`rounded-md border border-border p-2 ${f.activa ? "" : "bg-muted/40"}`}
       data-funcion={f.id}
       data-activa={f.activa ? "si" : "no"}
+      data-destacada={f.activa && f.destacada ? "si" : "no"}
     >
       <div className="flex items-center gap-1.5">
         <button
@@ -218,8 +235,35 @@ function FilaDeFuncion({
           checked={f.activa}
           onCheckedChange={(v) => onCambiar({ activa: v })}
           aria-label={f.activa ? "Apagar función" : "Encender función"}
-          title={f.activa ? "Encendida: sale en la página del plan" : "Apagada: no sale en ninguna parte"}
+          title={f.activa ? "Encendida: el plan la trae" : "Apagada: no sale en ninguna parte"}
+          data-interruptor-de-funcion
         />
+        <button
+          type="button"
+          onClick={() => onCambiar({ destacada: !f.destacada })}
+          disabled={!f.activa}
+          aria-pressed={f.activa && f.destacada}
+          aria-label={
+            !f.activa
+              ? "Enciende la función para poder destacarla en la tarjeta"
+              : f.destacada
+              ? "Quitar de la tarjeta de la landing"
+              : "Destacar en la tarjeta de la landing"
+          }
+          title={
+            !f.activa
+              ? "Apagada: no sale en la tarjeta"
+              : f.destacada
+              ? "Sale en la tarjeta de la landing"
+              : "No sale en la tarjeta de la landing (sí en la página del plan)"
+          }
+          className="shrink-0 rounded p-1 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          data-destacar-funcion
+        >
+          <Star
+            className={`h-4 w-4 ${f.activa && f.destacada ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
+          />
+        </button>
         <Input
           value={f.nombre}
           maxLength={TOPE_DEL_NOMBRE}

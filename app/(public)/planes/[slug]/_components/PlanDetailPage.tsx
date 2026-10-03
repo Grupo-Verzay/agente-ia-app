@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   Bot,
+  Briefcase,
   Check,
   ChevronDown,
   ChevronUp,
@@ -31,10 +33,16 @@ import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
 /**
  * La página pública de un plan, en este orden y nada más:
  *
- *   1. el hero, con el video de ESE plan;
- *   2. el resumen de capacidad (créditos, catálogo, asistencia);
- *   3. las funciones encendidas, por categoría, con su tutorial;
- *   4. las preguntas frecuentes de ese plan.
+ *   1. el hero, con el video de ESE plan (enlace o archivo subido);
+ *   2. para quién es, con un caso típico de negocio;
+ *   3. el resumen de capacidad (créditos, catálogo, asistencia);
+ *   4. las funciones encendidas, por categoría, con su tutorial;
+ *   5. las preguntas frecuentes de ese plan;
+ *   6. el botón de comenzar, UNA sola vez y aquí al final, con la línea
+ *      discreta al plan inmediato superior debajo.
+ *
+ * Arriba —en la barra fija y junto al nombre y el precio— no hay botón: se
+ * decide después de leer lo que trae el plan, no antes.
  *
  * No hay ni un texto de venta escrito aquí: todo llega armado de
  * `lib/pagina-de-plan.server.ts`, que lo lee del panel de Planes. Lo que había
@@ -85,13 +93,10 @@ function Enlace({
   );
 }
 
-function BotonPrincipal({ boton, gradiente, tamano = "lg" }: { boton: BotonDelPlan; gradiente: string; tamano?: "sm" | "lg" }) {
+function BotonPrincipal({ boton, gradiente }: { boton: BotonDelPlan; gradiente: string }) {
   return (
     <Enlace url={boton.url} externo={boton.externo} data-boton="principal">
-      <Button
-        size={tamano}
-        className={cn("w-full border-0 bg-gradient-to-r text-white hover:opacity-90 sm:w-auto", gradiente, tamano === "lg" && "px-8")}
-      >
+      <Button size="lg" className={cn("w-full border-0 bg-gradient-to-r px-8 text-white hover:opacity-90 sm:w-auto", gradiente)}>
         {boton.texto}
       </Button>
     </Enlace>
@@ -210,7 +215,6 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
           <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">
             <ArrowLeft className="h-4 w-4" /> Volver a planes
           </Link>
-          <BotonPrincipal boton={principal} gradiente={gradiente} tamano="sm" />
         </div>
       </div>
 
@@ -283,11 +287,6 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
                 </>
               )}
             </div>
-
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <BotonPrincipal boton={principal} gradiente={gradiente} />
-              {secundario && <BotonSecundario boton={secundario} />}
-            </div>
           </div>
 
           {pagina.video && (
@@ -298,7 +297,25 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         </div>
       </section>
 
-      {/* ── 2. Resumen de capacidad ── */}
+      {/* ── 2. Para quién es este plan ── */}
+      <section className="px-4 pb-12" data-seccion="paraquien">
+        <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-para-quien>
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-400">
+              <Users className="h-4 w-4" /> Para quién es este plan
+            </div>
+            <p className="mt-3 text-base leading-relaxed text-white">{pagina.paraQuien.paraQuien}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-caso-tipico>
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-400">
+              <Briefcase className="h-4 w-4" /> Un caso típico
+            </div>
+            <p className="mt-3 text-base leading-relaxed text-slate-300">{pagina.paraQuien.caso}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3. Resumen de capacidad ── */}
       <section className="border-y border-white/10 bg-white/[0.02] px-4 py-10" data-seccion="capacidad">
         <div className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
           {pagina.capacidad.map((t) => {
@@ -316,7 +333,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         </div>
       </section>
 
-      {/* ── 3. Funciones por categoría ── */}
+      {/* ── 4. Funciones por categoría ── */}
       {pagina.grupos.length > 0 && (
         <section className="px-4 py-14" data-seccion="funciones">
           <div className="mx-auto max-w-5xl">
@@ -355,7 +372,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         </section>
       )}
 
-      {/* ── 4. Preguntas frecuentes de este plan ── */}
+      {/* ── 5. Preguntas frecuentes de este plan ── */}
       {pagina.preguntas.length > 0 && (
         <section className="border-t border-white/10 px-4 py-14" data-seccion="preguntas">
           <div className="mx-auto max-w-3xl">
@@ -364,6 +381,31 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
           </div>
         </section>
       )}
+
+      {/* ── 6. Comenzar: el único botón de la página, al final ── */}
+      <section className="border-t border-white/10 px-4 py-14" data-seccion="comenzar">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-2xl font-bold sm:text-3xl">Empieza con el plan {pagina.nombre}</h2>
+          <p className="mt-3 text-slate-400" data-precio-final>
+            {pagina.precio.aConsultar ? "Precio a consultar según tu operación." : `${pagina.precio.texto} USD al mes.`}
+          </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <BotonPrincipal boton={principal} gradiente={gradiente} />
+            {secundario && <BotonSecundario boton={secundario} />}
+          </div>
+          {pagina.planSuperior && (
+            <p className="mt-8 text-sm text-slate-500" data-plan-superior={pagina.planSuperior.plan}>
+              ¿Necesitas más capacidad?{" "}
+              <Link
+                href={pagina.planSuperior.url}
+                className="inline-flex items-center gap-1 font-medium text-slate-300 underline-offset-4 hover:text-white hover:underline"
+              >
+                Conoce el plan {pagina.planSuperior.nombre} <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </p>
+          )}
+        </div>
+      </section>
 
       <footer className="border-t border-white/10 px-4 py-6 text-center text-xs text-slate-500">
         © {anio} {pagina.marca}

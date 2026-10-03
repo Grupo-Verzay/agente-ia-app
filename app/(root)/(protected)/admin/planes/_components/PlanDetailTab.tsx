@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUploader } from "@/components/ui/image-uploader";
+import { VideoUploader } from "@/components/ui/video-uploader";
 import {
   getPlanDetailBySubscriptionPlanId,
   upsertPlanDetail,
@@ -32,15 +33,21 @@ import {
 } from "@/actions/plan-detail-actions";
 import {
   DATOS_QUE_SE_PUEDEN_USAR,
+  PARA_QUIEN_DE_FABRICA,
+  TOPE_DEL_CASO,
+  TOPE_DEL_PARA_QUIEN,
   comoEnlaceDelBoton,
   elVideoDelPlan,
   losAvisosDelBoton,
+  losAvisosDelParaQuien,
   losAvisosDelTexto,
   type DatosDelPlan,
+  type ParaQuienDelPlan,
 } from "@/lib/pagina-de-plan";
 
 /**
- * Lo que es SOLO de un plan en su página pública: el video, sus preguntas
+ * Lo que es SOLO de un plan en su página pública: el video (enlace o archivo
+ * subido), «para quién es este plan» con su caso típico, sus preguntas
  * frecuentes, los botones y el título de la pestaña.
  *
  * Todo lo demás de la página —el nombre, la descripción, el precio, los
@@ -152,6 +159,7 @@ export function PlanDetailTab({
   planActivo: boolean;
 }) {
   const [form, setForm] = useState<Detalle>(VACIO);
+  const [paraQuien, setParaQuien] = useState<ParaQuienDelPlan>({ paraQuien: "", caso: "" });
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [hayDeAntes, setHayDeAntes] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -179,6 +187,7 @@ export function PlanDetailTab({
           metaDescription: texto(d?.metaDescription),
           ogImageUrl: texto(d?.ogImageUrl),
         });
+        setParaQuien({ paraQuien: res.paraQuien?.paraQuien ?? "", caso: res.paraQuien?.caso ?? "" });
         const faqs = Array.isArray(d?.faqs) ? (d!.faqs as unknown[]) : [];
         setPreguntas(
           faqs.map((f) => {
@@ -222,6 +231,8 @@ export function PlanDetailTab({
     // Solo lo de esta pestaña: lo demás que hubiera guardado se queda como está.
     const datosAGuardar: Partial<UpsertPlanDetailInput> = {
       ...form,
+      paraQuien: paraQuien.paraQuien,
+      caso: paraQuien.caso,
       faqs: preguntas
         .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
         .filter((p) => p.question || p.answer),
@@ -248,6 +259,10 @@ export function PlanDetailTab({
 
   const video = form.videoUrl.trim() ? elVideoDelPlan(form.videoUrl) : null;
   const sinPrecio = datos.precioUSD <= 0;
+  const deFabrica =
+    (PARA_QUIEN_DE_FABRICA as Record<string, ParaQuienDelPlan>)[datos.plan] ?? PARA_QUIEN_DE_FABRICA.personalizado;
+  const avisosDelParaQuien = losAvisosDelParaQuien(paraQuien, datos);
+  const aviso = (lista: string[]) => (lista.length ? [`No sale en la página (sale el de fábrica): ${lista.join(" ")}`] : []);
 
   return (
     <div className="space-y-3" data-detalle-del-plan>
@@ -275,10 +290,14 @@ export function PlanDetailTab({
 
       <Bloque
         titulo="Video del plan"
-        ayuda="Sale arriba, junto al nombre y el precio. YouTube, Vimeo, Loom, Google Drive o un archivo .mp4."
+        ayuda="Sale arriba, junto al nombre y el precio. Pega un enlace de YouTube, Vimeo, Loom o Google Drive, o sube el archivo de video."
       >
         <div className="space-y-1">
-          <Label>Enlace del video</Label>
+          <Label>Subir el video como archivo</Label>
+          <VideoUploader value={form.videoUrl} onChange={(url) => cambiar("videoUrl", url)} />
+        </div>
+        <div className="space-y-1">
+          <Label>O pega el enlace del video</Label>
           <Input
             value={form.videoUrl}
             onChange={(e) => cambiar("videoUrl", e.target.value)}
@@ -312,6 +331,41 @@ export function PlanDetailTab({
             onChange={(url) => cambiar("videoThumbnailUrl", url)}
             placeholder="Subir miniatura"
           />
+        </div>
+      </Bloque>
+
+      <Bloque
+        titulo="Para quién es este plan"
+        ayuda={
+          <>
+            Sale justo debajo del video. Si lo dejas vacío sale el texto de fábrica de este nivel. Puedes escribir{" "}
+            {DATOS_QUE_SE_PUEDEN_USAR.map((d) => d.clave).join(", ")} y salen con el dato de hoy.
+          </>
+        }
+      >
+        <div className="space-y-1">
+          <Label>Para quién es</Label>
+          <Textarea
+            rows={2}
+            maxLength={TOPE_DEL_PARA_QUIEN}
+            value={paraQuien.paraQuien}
+            onChange={(e) => setParaQuien((p) => ({ ...p, paraQuien: e.target.value }))}
+            placeholder={deFabrica.paraQuien}
+            data-campo-del-detalle="paraQuien"
+          />
+          <Avisos avisos={aviso(avisosDelParaQuien.paraQuien)} />
+        </div>
+        <div className="space-y-1">
+          <Label>Un caso típico de negocio</Label>
+          <Textarea
+            rows={3}
+            maxLength={TOPE_DEL_CASO}
+            value={paraQuien.caso}
+            onChange={(e) => setParaQuien((p) => ({ ...p, caso: e.target.value }))}
+            placeholder={deFabrica.caso}
+            data-campo-del-detalle="caso"
+          />
+          <Avisos avisos={aviso(avisosDelParaQuien.caso)} />
         </div>
       </Bloque>
 
@@ -361,8 +415,8 @@ export function PlanDetailTab({
         titulo="Botones"
         ayuda={
           sinPrecio
-            ? "Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
-            : "Sin enlace propio, el botón principal lleva al registro con este plan elegido."
+            ? "Salen una sola vez, al final de la página, después de las preguntas. Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
+            : "Salen una sola vez, al final de la página, después de las preguntas. Sin enlace propio, el botón principal lleva al registro con este plan elegido."
         }
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
