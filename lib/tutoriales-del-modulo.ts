@@ -29,6 +29,7 @@ import { GUIA_USUARIOS } from "@/lib/guia-usuarios";
 import { GUIA_RESPUESTAS_RAPIDAS } from "@/lib/guia-respuestas-rapidas";
 import { GUIA_AGENDA } from "@/lib/guia-agenda";
 import { GUIA_MULTIAGENDA } from "@/lib/guia-multiagenda";
+import { GUIA_COBROS } from "@/lib/guia-cobros";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
@@ -295,6 +296,12 @@ export const GUIAS_PUBLICADAS: readonly GuiaPublicada[] = [
         ruta: "/tareas",
         contenido: GUIA_TAREAS,
         tarjeta: "Aprende a organizar y completar tus tareas en la plataforma",
+    },
+    {
+        modulo: "cobros",
+        ruta: "/cobros",
+        contenido: GUIA_COBROS,
+        tarjeta: "Aprende a cobrar a tus clientes con recordatorios por WhatsApp",
     },
     {
         modulo: "correo",

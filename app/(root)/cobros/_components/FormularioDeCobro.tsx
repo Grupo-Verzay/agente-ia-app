@@ -146,14 +146,14 @@ export function FormularioDeCobro({
                 if (!v) cerrar();
             }}
         >
-            <DialogContent className="overflow-y-auto sm:max-w-lg">
+            <DialogContent data-zona="formulario-de-cobro" className="overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{cobro ? "Editar cobro" : "Nuevo cobro"}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
+                        <div data-campo="cliente" className="space-y-1.5">
                             <Label htmlFor="cobro-nombre">Cliente</Label>
                             <Input
                                 id="cobro-nombre"
@@ -162,7 +162,7 @@ export function FormularioDeCobro({
                                 placeholder="Ej.: Marta Restrepo"
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div data-campo="whatsapp" className="space-y-1.5">
                             <Label htmlFor="cobro-telefono">WhatsApp</Label>
                             <Input
                                 id="cobro-telefono"
@@ -174,7 +174,7 @@ export function FormularioDeCobro({
                         </div>
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div data-campo="concepto" className="space-y-1.5">
                         <Label htmlFor="cobro-concepto">¿Qué le cobras?</Label>
                         <Input
                             id="cobro-concepto"
@@ -188,7 +188,7 @@ export function FormularioDeCobro({
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5 col-span-2">
+                        <div data-campo="monto" className="space-y-1.5 col-span-2">
                             <Label htmlFor="cobro-monto">Monto</Label>
                             <Input
                                 id="cobro-monto"
@@ -198,7 +198,7 @@ export function FormularioDeCobro({
                                 inputMode="decimal"
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div data-campo="moneda" className="space-y-1.5">
                             <Label htmlFor="cobro-moneda">Moneda</Label>
                             <Input
                                 id="cobro-moneda"
@@ -210,7 +210,7 @@ export function FormularioDeCobro({
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
+                        <div data-campo="vence" className="space-y-1.5">
                             <Label htmlFor="cobro-vence">Vence</Label>
                             <Input
                                 id="cobro-vence"
@@ -219,7 +219,7 @@ export function FormularioDeCobro({
                                 onChange={(e) => setVence(e.target.value)}
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div data-campo="licencia" className="space-y-1.5">
                             <Label htmlFor="cobro-licencia">Días de licencia</Label>
                             <Input
                                 id="cobro-licencia"
@@ -230,7 +230,7 @@ export function FormularioDeCobro({
                                 onChange={(e) => setLicencia(e.target.value)}
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div data-campo="gracia" className="space-y-1.5">
                             <Label htmlFor="cobro-gracia">Días de gracia</Label>
                             <Input
                                 id="cobro-gracia"
@@ -248,7 +248,7 @@ export function FormularioDeCobro({
                     </p>
 
                     {!cobro && (
-                        <div className="space-y-1.5">
+                        <div data-campo="adjuntos" className="space-y-1.5">
                             <Label>Cuenta de cobro</Label>
                             <BloqueDeAdjuntos
                                 taskId={null}
@@ -274,7 +274,7 @@ export function FormularioDeCobro({
                         número de cuenta obligaría a borrar la deuda y rehacerla,
                         y con ella se iría el historial de ciclos.
                     */}
-                    <div className="space-y-1.5">
+                    <div data-campo="nota" className="space-y-1.5">
                         <Label htmlFor="cobro-nota">Datos de pago de este cobro (opcional)</Label>
                         <Textarea
                             id="cobro-nota"
