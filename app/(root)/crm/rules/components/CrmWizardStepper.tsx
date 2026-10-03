@@ -32,7 +32,7 @@ export function CrmWizardStepper({
   return (
     <Tabs value={currentStep} onValueChange={onStepChange} className="w-full">
       <ScrollArea>
-        <TabsList className="h-auto gap-1.5 rounded-none bg-transparent px-0 py-0.5">
+        <TabsList data-zona="pasos" className="h-auto gap-1.5 rounded-none bg-transparent px-0 py-0.5">
           {steps.map((step, index) => {
             const isCompleted = index < currentIndex;
 
@@ -40,6 +40,7 @@ export function CrmWizardStepper({
               <TabsTrigger
                 key={step.id}
                 value={step.id}
+                data-paso={step.id}
                 title={step.description}
                 className={cn(
                   "h-8 gap-2 rounded-full px-3 text-sm font-medium transition-colors",
