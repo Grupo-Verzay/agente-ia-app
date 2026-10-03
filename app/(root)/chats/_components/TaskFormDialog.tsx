@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { laFechaPropuesta } from "@/lib/pantalla-de-tareas";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 import {
@@ -39,11 +40,12 @@ type Props = {
   initialDueDate?: string;
 };
 
+/**
+ * Mañana a las 9:00 de QUIEN MIRA. Con `toISOString()` salía la hora UTC: en
+ * Colombia el campo proponía las 14:00.
+ */
 function getDefaultDueDate() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(9, 0, 0, 0);
-  return d.toISOString().slice(0, 16);
+  return laFechaPropuesta(1);
 }
 
 export function TaskFormDialog({
@@ -176,7 +178,7 @@ export function TaskFormDialog({
         {/* El desplazamiento lo pone PanelLateral: aqui solo el relleno. */}
         <div className="flex flex-col space-y-3 px-4 py-4">
           {/* Tipo */}
-          <div className="space-y-1">
+          <div data-campo="tipo" className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">TIPO</label>
             <Select value={type} onValueChange={setType}>
               <SelectTrigger className="h-9">
@@ -238,7 +240,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Descripción */}
-          <div className="flex flex-col flex-1 min-h-0 space-y-1">
+          <div data-campo="descripcion" className="flex flex-col flex-1 min-h-0 space-y-1">
             <label className="text-xs font-medium text-muted-foreground">DESCRIPCIÓN</label>
             <Textarea
               value={title}
@@ -250,7 +252,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Fecha */}
-          <div className="space-y-1">
+          <div data-campo="fecha" className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">FECHA Y HORA</label>
             <Input
               type="datetime-local"
@@ -261,7 +263,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Asignado a */}
-          <div className="space-y-1">
+          <div data-campo="asignado" className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">ASIGNADO A</label>
             {loading ? (
               <div className="flex h-9 items-center gap-2 text-xs text-muted-foreground">
@@ -285,7 +287,7 @@ export function TaskFormDialog({
         </div>
 
         {/* Recordatorio WhatsApp */}
-        <div className="flex items-center gap-2 px-4 pb-4">
+        <div data-campo="recordatorio" className="flex items-center gap-2 px-4 pb-4">
           <Checkbox
             id="wa-reminder"
             checked={sendWhatsApp}
