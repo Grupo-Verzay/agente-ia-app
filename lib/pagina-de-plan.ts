@@ -16,10 +16,10 @@
  *      directo: sin un encabezado que repita el nombre, el tipo de asistencia,
  *      la descripción y el precio — eso ya lo dijo la tarjeta de la landing;
  *   2. «para quién es»: a quién le sirve y un caso típico de negocio;
- *   3. el resumen de capacidad: créditos, catálogo y asistencia, con los
- *      números de VERDAD (los créditos del plan y el tope que la plataforma
- *      aplica al crear productos). Catálogo y asistencia se editan en el
- *      panel, y un plan sin catálogo no enseña ese recuadro;
+ *   3. el resumen de capacidad: los recuadros que el panel decida para ESE
+ *      plan (cuántos, en qué orden y qué dato destaca cada uno), con los datos
+ *      vivos (`{creditos}`, `{catalogo}`…). Uno sin dato no sale: nunca «No
+ *      incluido»;
  *   4. las funciones ENCENDIDAS, una tarjeta por función y en el orden del
  *      editor (sin agrupar por categoría), con su tutorial;
  *   5. las preguntas frecuentes de ese plan;
@@ -58,6 +58,7 @@ import { CATEGORIAS_DE_AYUDA } from "@/lib/centro-de-ayuda";
 import { sinTildes } from "@/lib/pantalla-de-notas";
 import { elTopeDeProductos } from "@/lib/limite-de-catalogo";
 import { laPosicionDelNivel } from "@/lib/nivel-de-la-licencia";
+import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
 
 /* ─── Funciones ────────────────────────────────────────────────────────── */
 
@@ -604,156 +605,261 @@ export function lasPreguntasQueSalen(raw: unknown, datos: DatosDelPlan): Pregunt
 
 /* ─── Resumen de capacidad ─────────────────────────────────────────────── */
 
-export type ClaveDeCapacidad = "creditos" | "catalogo" | "asistencia";
+/**
+ * Los recuadros del resumen los decide el panel, POR PLAN y aparte de las
+ * funciones: cuántos salen (de ninguno a `TOPE_DE_RECUADROS`), en qué orden,
+ * con qué icono y qué dato destaca cada uno. Eran tres fijos —créditos,
+ * catálogo y asistencia— y el de asistencia tomaba su texto de una función, así
+ * que tocar las funciones movía el resumen sin querer.
+ *
+ * Se guarda la LISTA tal cual se escribió, o `null`: «sin tocar», que es la de
+ * fábrica armada con los datos del plan (`losRecuadrosDeFabrica`). Una lista
+ * vacía es una decisión —el bloque no sale— y no es lo mismo que `null`.
+ *
+ * # Un recuadro sin dato no sale, nunca «No incluido»
+ *
+ * `porQueNoSaleElRecuadro` es la regla, y la usan la página y el panel (que
+ * dice el motivo al lado de cada recuadro). Un recuadro sin valor, con un valor
+ * que es cero o «sin catálogo», con «no incluido» en cualquier campo, o que
+ * contradice al plan (otros créditos, otro tope de catálogo, un nombre viejo)
+ * no se pinta. Lo que el plan no trae no se anuncia: se calla.
+ */
 
-export type TarjetaDeCapacidad = {
-    clave: ClaveDeCapacidad;
-    titulo: string;
-    valor: string;
-    detalle: string;
-};
-
-/** Los dos recuadros que el panel puede editar. Los créditos salen siempre del plan. */
-export type ClaveDelRecuadro = "catalogo" | "asistencia";
-
-export const RECUADROS_EDITABLES: readonly { clave: ClaveDelRecuadro; nombre: string }[] = [
+export const ICONOS_DE_RECUADRO = [
+    { clave: "creditos", nombre: "Créditos" },
     { clave: "catalogo", nombre: "Catálogo" },
     { clave: "asistencia", nombre: "Asistencia" },
-];
+    { clave: "usuarios", nombre: "Usuarios" },
+    { clave: "lineas", nombre: "Líneas de WhatsApp" },
+    { clave: "mensajes", nombre: "Mensajes" },
+    { clave: "llamadas", nombre: "Llamadas" },
+    { clave: "agenda", nombre: "Agenda" },
+    { clave: "soporte", nombre: "Soporte" },
+    { clave: "estrella", nombre: "Destacado" },
+] as const;
 
-/**
- * Lo que el panel escribe de un recuadro. Un campo vacío es «lo de fábrica»
- * (el texto que la página arma con los datos vivos del plan), así que un
- * recuadro que nadie tocó sigue diciendo la verdad cuando el plan cambia.
- */
-export type RecuadroEditable = {
-    /** Apagado: el recuadro no sale en la página. */
-    visible: boolean;
+export type IconoDeRecuadro = (typeof ICONOS_DE_RECUADRO)[number]["clave"];
+
+const CLAVES_DE_ICONO = new Set<string>(ICONOS_DE_RECUADRO.map((i) => i.clave));
+
+/** Un recuadro tal cual lo escribe el panel: con `{creditos}`, `{catalogo}`… sin cambiar. */
+export type RecuadroDeCapacidad = {
+    id: string;
+    icono: IconoDeRecuadro;
     titulo: string;
     valor: string;
     detalle: string;
 };
 
-export type RecuadrosDelPlan = Record<ClaveDelRecuadro, RecuadroEditable>;
+/** Lo que pinta la página: el mismo recuadro, con los datos vivos ya puestos. */
+export type TarjetaDeCapacidad = RecuadroDeCapacidad;
+
+export const TOPE_DE_RECUADROS = 6;
 
 export const TOPES_DEL_RECUADRO = { titulo: 40, valor: 40, detalle: 160 } as const;
 
-const RECUADRO_SIN_TOCAR: RecuadroEditable = { visible: true, titulo: "", valor: "", detalle: "" };
+const ID_DE_RECUADRO = /^[a-z0-9-]{1,40}$/;
 
-/** Lo que llega del panel o de la base, saneado. Nunca lanza. */
-export function comoRecuadros(raw: unknown): RecuadrosDelPlan {
-    const o = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
-    const texto = (v: unknown, tope: number) => (typeof v === "string" ? v.replace(/[ \t\r\n]+/g, " ").trim().slice(0, tope) : "");
-    const uno = (v: unknown): RecuadroEditable => {
-        const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
-        return {
-            // Solo un `false` explícito lo apaga: lo que no se entiende, sale.
-            visible: r.visible !== false,
-            titulo: texto(r.titulo, TOPES_DEL_RECUADRO.titulo),
-            valor: texto(r.valor, TOPES_DEL_RECUADRO.valor),
-            detalle: texto(r.detalle, TOPES_DEL_RECUADRO.detalle),
-        };
-    };
-    return { catalogo: uno(o.catalogo), asistencia: uno(o.asistencia) };
+function elTextoDelRecuadro(v: unknown, tope: number): string {
+    return typeof v === "string" ? v.replace(/[ \t\r\n]+/g, " ").trim().slice(0, tope) : "";
 }
 
-/** Un recuadro que nadie tocó: encendido y sin texto propio. No hace falta guardarlo. */
-export function esElRecuadroSinTocar(r: RecuadroEditable): boolean {
-    return r.visible && !r.titulo && !r.valor && !r.detalle;
-}
-
-/** Si el plan trae catálogo. Sin catálogo, su recuadro no sale (nunca «No incluido»). */
+/** Si el plan trae catálogo. Sin catálogo no hay recuadro de catálogo de fábrica. */
 export function elPlanTraeCatalogo(datos: DatosDelPlan): boolean {
     return datos.catalogo === null || datos.catalogo > 0;
 }
 
 /**
- * Los textos de fábrica de cada recuadro, armados con los datos vivos. Son los
- * que salen cuando el panel deja un campo vacío, y los que el panel enseña de
- * ejemplo. El catálogo de un plan que no lo trae no tiene recuadro: `null`.
+ * Los de fábrica, con los datos vivos ESCRITOS como datos vivos (`{creditos}`,
+ * `Hasta {catalogo}`): así, quien los toma de base en el panel y los guarda
+ * sigue diciendo la verdad cuando el plan cambia de créditos. Los créditos
+ * entran siempre (un plan sin créditos los calla por la regla de siempre); el
+ * catálogo, solo si el plan lo trae.
  */
-export function losRecuadrosDeFabrica(
-    datos: DatosDelPlan,
-    funciones: readonly FuncionDelPlan[],
-): Record<ClaveDeCapacidad, Omit<TarjetaDeCapacidad, "clave"> | null> {
-    const deAsistencia = funciones.find(
-        (f) =>
-            f.activa &&
-            f.categoria === CATEGORIA_CAPACIDAD &&
-            /asistencia|humano/.test(laLlaveDelNombre(f.nombre)) &&
-            losAvisosDelTexto(f.nombre, datos).length === 0,
-    );
-    const tope = datos.catalogo;
-    return {
-        creditos: { titulo: "Créditos de IA", valor: elNumero(datos.creditos), detalle: "Cada mes, con tu plan" },
-        catalogo: !elPlanTraeCatalogo(datos)
-            ? null
-            : {
-                  titulo: "Catálogo",
-                  valor: tope === null ? "A la medida" : `Hasta ${elNumero(tope)}`,
-                  detalle: tope === null ? "Productos sin un tope fijo" : "Productos en tu catálogo",
-              },
-        asistencia: {
-            titulo: "Asistencia",
-            valor: datos.asistencia === "HUMANO" ? "IA + humana" : "IA 24/7",
-            detalle:
-                deAsistencia?.nombre ??
-                (datos.asistencia === "HUMANO"
-                    ? "La IA responde siempre y un asesor en horario laboral"
-                    : "Tu agente responde a toda hora"),
+export function losRecuadrosDeFabrica(datos: DatosDelPlan): RecuadroDeCapacidad[] {
+    const fuera: RecuadroDeCapacidad[] = [
+        {
+            id: "creditos",
+            icono: "creditos",
+            titulo: "Créditos de IA",
+            valor: "{creditos}",
+            detalle: "Incluidos cada mes con tu plan",
         },
-    };
+    ];
+    if (elPlanTraeCatalogo(datos)) {
+        fuera.push({
+            id: "catalogo",
+            icono: "catalogo",
+            titulo: "Catálogo",
+            valor: datos.catalogo === null ? "A la medida" : "Hasta {catalogo}",
+            detalle: datos.catalogo === null ? "Productos sin un tope fijo" : "Para mostrar y vender por WhatsApp",
+        });
+    }
+    fuera.push({
+        id: "asistencia",
+        icono: "asistencia",
+        titulo: "Asistencia",
+        valor: datos.asistencia === "HUMANO" ? "IA + humana" : "IA 24/7",
+        detalle:
+            datos.asistencia === "HUMANO"
+                ? "La IA responde siempre y un asesor en horario laboral"
+                : "Tu agente responde a toda hora",
+    });
+    return fuera;
+}
+
+/** Un id para un recuadro nuevo que no choque con los de la lista. */
+export function unIdNuevo(lista: readonly { id: string }[]): string {
+    const usados = new Set(lista.map((r) => r.id));
+    let n = lista.length + 1;
+    while (usados.has(`r${n}`)) n++;
+    return `r${n}`;
+}
+
+/** Un recuadro en blanco para el panel. En blanco no sale: le falta el dato. */
+export function unRecuadroNuevo(lista: readonly { id: string }[]): RecuadroDeCapacidad {
+    return { id: unIdNuevo(lista), icono: "estrella", titulo: "", valor: "", detalle: "" };
 }
 
 /**
- * Por qué un campo de un recuadro no sale en la página, campo por campo. Las
- * reglas de siempre (otros créditos, otro nombre de plan) y, en el VALOR del
- * catálogo, cualquier número que no sea su tope: «Hasta 50» en un plan de 25
- * es tan viejo como «50 productos».
+ * Una LISTA de recuadros saneada, sin mirar el plan: lo que se guarda tal cual
+ * llega del panel. Un recuadro en blanco no dice nada y no saldría nunca, así
+ * que no se guarda; los ids se rehacen si faltan o se repiten; el icono que no
+ * se conoce es «Destacado». Lo que no es una lista es `null` (sin tocar).
  */
-export function losAvisosDelRecuadro(
-    clave: ClaveDelRecuadro,
-    raw: unknown,
-    datos: DatosDelPlan,
-): { titulo: string[]; valor: string[]; detalle: string[] } {
-    const r = comoRecuadros({ [clave]: raw })[clave];
-    const avisos = (t: string) => (t ? [...new Set([...losAvisosDelTexto(t, datos), ...losAvisosDelBoton(t, datos)])] : []);
-    const delValor = avisos(r.valor);
-    if (clave === "catalogo" && r.valor && datos.catalogo !== null && delValor.length === 0) {
-        const texto = conLosDatosDelPlan(r.valor, datos);
-        for (const m of texto.matchAll(/(?<![\d.,])(\d{1,3}(?:[.,]\d{3})+|\d+)(?![\d])/g)) {
-            const valor = elValorDelNumero(m[1]);
-            if (valor === datos.catalogo) continue;
-            delValor.push(`Dice ${elNumero(valor)} y el catálogo de este plan es de ${elNumero(datos.catalogo)}.`);
+export function laListaQueSeGuarda(raw: unknown): RecuadroDeCapacidad[] | null {
+    if (!Array.isArray(raw)) return null;
+    const fuera: RecuadroDeCapacidad[] = [];
+    for (const v of raw) {
+        if (fuera.length >= TOPE_DE_RECUADROS) break;
+        const o = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+        const recuadro = {
+            id: typeof o.id === "string" && ID_DE_RECUADRO.test(o.id) ? o.id : "",
+            icono: (typeof o.icono === "string" && CLAVES_DE_ICONO.has(o.icono) ? o.icono : "estrella") as IconoDeRecuadro,
+            titulo: elTextoDelRecuadro(o.titulo, TOPES_DEL_RECUADRO.titulo),
+            valor: elTextoDelRecuadro(o.valor, TOPES_DEL_RECUADRO.valor),
+            detalle: elTextoDelRecuadro(o.detalle, TOPES_DEL_RECUADRO.detalle),
+        };
+        if (!recuadro.titulo && !recuadro.valor && !recuadro.detalle) continue;
+        if (!recuadro.id || fuera.some((r) => r.id === recuadro.id)) recuadro.id = unIdNuevo(fuera);
+        fuera.push(recuadro);
+    }
+    return fuera;
+}
+
+/**
+ * Lo que llega del panel o de la base, saneado. `null`: sin tocar (la de
+ * fábrica). Nunca lanza. Entiende también la forma de antes —un objeto con
+ * `catalogo` y `asistencia` editables sobre los tres fijos—, que se convierte
+ * en la lista que decía: lo apagado fuera y lo escrito encima de lo de fábrica.
+ */
+export function comoListaDeRecuadros(raw: unknown, datos: DatosDelPlan): RecuadroDeCapacidad[] | null {
+    if (raw === null || raw === undefined) return null;
+    if (Array.isArray(raw)) return laListaQueSeGuarda(raw);
+    if (typeof raw === "object") {
+        const viejo = raw as Record<string, unknown>;
+        return losRecuadrosDeFabrica(datos).flatMap((r) => {
+            const escrito = viejo[r.id];
+            if (r.id === "creditos" || !escrito || typeof escrito !== "object" || Array.isArray(escrito)) return [r];
+            const e = escrito as Record<string, unknown>;
+            if (e.visible === false) return [];
+            const campo = (k: "titulo" | "valor" | "detalle") => elTextoDelRecuadro(e[k], TOPES_DEL_RECUADRO[k]) || r[k];
+            return [{ ...r, titulo: campo("titulo"), valor: campo("valor"), detalle: campo("detalle") }];
+        });
+    }
+    return null;
+}
+
+/** La lista que vale para este plan: la guardada o, sin tocar, la de fábrica. */
+export function laListaDeRecuadros(raw: unknown, datos: DatosDelPlan): RecuadroDeCapacidad[] {
+    return comoListaDeRecuadros(raw, datos) ?? losRecuadrosDeFabrica(datos);
+}
+
+/** Si la lista dice exactamente lo de fábrica (el id no cuenta). Entonces no hace falta guardarla. */
+export function esLaListaDeFabrica(lista: readonly RecuadroDeCapacidad[], datos: DatosDelPlan): boolean {
+    const fabrica = losRecuadrosDeFabrica(datos);
+    return (
+        lista.length === fabrica.length &&
+        lista.every(
+            (r, i) =>
+                r.icono === fabrica[i].icono &&
+                r.titulo === fabrica[i].titulo &&
+                r.valor === fabrica[i].valor &&
+                r.detalle === fabrica[i].detalle,
+        )
+    );
+}
+
+/** Un valor que dice que el plan NO trae algo: cero, «sin catálogo», «ninguno». */
+function esUnValorQueNoTrae(valor: string): boolean {
+    const llave = laLlaveDelNombre(valor).replace(/[.,\s]/g, "");
+    return /^(0+|ninguno|ninguna|nada|no|na|n\/a|-|—|–|sincatalogo|noaplica)$/.test(llave);
+}
+
+/**
+ * Por qué un recuadro no sale en la página, con sus palabras. Vacío: sale. Lo
+ * usan la página (para callarlo) y el panel (para decir el motivo al lado).
+ */
+export function porQueNoSaleElRecuadro(recuadro: RecuadroDeCapacidad, datos: DatosDelPlan): string[] {
+    if (!recuadro.valor.trim()) return ["No tiene dato: escribe qué destaca este recuadro."];
+    const valor = conLosDatosDelPlan(recuadro.valor, datos);
+    const motivos: string[] = [];
+    if (esUnValorQueNoTrae(valor)) {
+        motivos.push(`Dice «${valor}»: lo que el plan no trae no se anuncia.`);
+    }
+    const textos = [recuadro.titulo, recuadro.valor, recuadro.detalle].filter(Boolean);
+    for (const t of textos) {
+        const llave = laLlaveDelNombre(conLosDatosDelPlan(t, datos));
+        if (/\bno\s+incluid[oa]s?\b|\bno\s+incluye\b/.test(llave)) {
+            motivos.push("Dice «no incluido»: lo que el plan no trae no se anuncia.");
+        }
+        if (/\bsin\s+catalogo\b/.test(llave)) {
+            motivos.push("Dice «sin catálogo»: lo que el plan no trae no se anuncia.");
+        }
+        // Solo la regla de los textos: la de los botones avisa de cualquier
+        // palabra que sea el nombre de un plan, y en un texto libre «lo básico»
+        // no nombra al plan Básico.
+        motivos.push(...losAvisosDelTexto(t, datos));
+    }
+    if (recuadro.icono === "catalogo" && datos.catalogo !== null) {
+        for (const m of valor.matchAll(/(?<![\d.,])(\d{1,3}(?:[.,]\d{3})+|\d+)(?![\d])/g)) {
+            const n = elValorDelNumero(m[1]);
+            if (n === datos.catalogo || n === 0) continue;
+            motivos.push(`Dice ${elNumero(n)} y el catálogo de este plan es de ${elNumero(datos.catalogo)}.`);
         }
     }
-    return { titulo: avisos(r.titulo), valor: [...new Set(delValor)], detalle: avisos(r.detalle) };
+    return [...new Set(motivos)];
 }
 
-/**
- * Las tarjetas del resumen, en su orden: créditos (siempre), catálogo (solo si
- * el plan lo trae y el panel no lo apagó) y asistencia (salvo que se apague).
- * Cada campo escrito en el panel sale con los datos vivos si no contradice al
- * plan; si está vacío o contradice, sale el de fábrica.
- */
-export function laCapacidadDelPlan(
+/** Cada recuadro con lo que lo deja fuera y cómo sale. Para el panel. */
+export function revisarLosRecuadros(
+    lista: readonly RecuadroDeCapacidad[],
     datos: DatosDelPlan,
-    funciones: readonly FuncionDelPlan[],
-    recuadrosCrudos?: unknown,
-): TarjetaDeCapacidad[] {
-    const fabrica = losRecuadrosDeFabrica(datos, funciones);
-    const guardados = comoRecuadros(recuadrosCrudos);
-    const tarjetas: TarjetaDeCapacidad[] = [{ clave: "creditos", ...fabrica.creditos! }];
-    for (const { clave } of RECUADROS_EDITABLES) {
-        const deFabrica = fabrica[clave];
-        const r = guardados[clave];
-        if (!deFabrica || !r.visible) continue;
-        const avisos = losAvisosDelRecuadro(clave, r, datos);
-        const campo = (k: "titulo" | "valor" | "detalle") =>
-            r[k] && avisos[k].length === 0 ? conLosDatosDelPlan(r[k], datos) : deFabrica[k];
-        tarjetas.push({ clave, titulo: campo("titulo"), valor: campo("valor"), detalle: campo("detalle") });
-    }
-    return tarjetas;
+): { recuadro: RecuadroDeCapacidad; motivos: string[]; comoSale: TarjetaDeCapacidad | null }[] {
+    return lista.map((recuadro) => {
+        const motivos = porQueNoSaleElRecuadro(recuadro, datos);
+        return {
+            recuadro,
+            motivos,
+            comoSale:
+                motivos.length > 0
+                    ? null
+                    : {
+                          ...recuadro,
+                          // Los créditos son «incluidos», nunca «gratis».
+                          titulo: conCreditosIncluidos(conLosDatosDelPlan(recuadro.titulo, datos)),
+                          valor: conCreditosIncluidos(conLosDatosDelPlan(recuadro.valor, datos)),
+                          detalle: conCreditosIncluidos(conLosDatosDelPlan(recuadro.detalle, datos)),
+                      },
+        };
+    });
+}
+
+/** Las tarjetas del resumen, en el orden del panel y solo las que tienen dato. */
+export function laCapacidadDelPlan(datos: DatosDelPlan, raw?: unknown): TarjetaDeCapacidad[] {
+    return revisarLosRecuadros(laListaDeRecuadros(raw, datos), datos)
+        .map((r) => r.comoSale)
+        .filter((t): t is TarjetaDeCapacidad => t !== null);
 }
 
 /* ─── Qué incluye: una tarjeta por función ─────────────────────────────── */
@@ -804,8 +910,9 @@ export function lasFuncionesQueSeEnsenan(
         )
         .map((f) => ({
             id: f.id,
-            nombre: conLosDatosDelPlan(f.nombre, datos),
-            descripcion: conLosDatosDelPlan(f.descripcion, datos),
+            // Los créditos son «incluidos», nunca «gratis» (`conCreditosIncluidos`).
+            nombre: conCreditosIncluidos(conLosDatosDelPlan(f.nombre, datos)),
+            descripcion: conCreditosIncluidos(conLosDatosDelPlan(f.descripcion, datos)),
             tutorial: elTutorialDeLaFuncion(f.tutorial, guias),
         }));
 }
@@ -818,7 +925,7 @@ export type BloqueDeLaPagina = "video" | "paraquien" | "capacidad" | "funciones"
 export const BLOQUES_DE_LA_PAGINA: readonly { clave: BloqueDeLaPagina; nombre: string; ayuda: string }[] = [
     { clave: "video", nombre: "Video del plan", ayuda: "Sale si el plan tiene video." },
     { clave: "paraquien", nombre: "Para quién es este plan", ayuda: "A quién le sirve y un caso típico." },
-    { clave: "capacidad", nombre: "Resumen de capacidad", ayuda: "Créditos, catálogo y asistencia." },
+    { clave: "capacidad", nombre: "Resumen de capacidad", ayuda: "Los recuadros que decidas, con su dato." },
     { clave: "funciones", nombre: "Qué incluye", ayuda: "Una tarjeta por función encendida." },
     { clave: "preguntas", nombre: "Preguntas frecuentes", ayuda: "Sale si el plan tiene preguntas." },
     { clave: "comenzar", nombre: "Comenzar", ayuda: "El precio, los botones y el plan siguiente." },

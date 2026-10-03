@@ -26399,6 +26399,69 @@ cliente que no puede) y la página y la tarjeta reales en Chromium a 1440 y
 precio encima del video, las funciones agrupadas, «No incluido» en el Lite y
 la ventana intermedia de la landing.
 
+### Y la cuarta vuelta: los recuadros son una LISTA, la tarjeta en su orden y la landing en mensual
+
+> **Esta sección manda sobre el punto 5 de la tercera vuelta.** Los recuadros
+> ya no son tres fijos con campos que se pisan: son una lista.
+
+**La tarjeta de un plan en la landing** (`PlanCard`, y la del reseller y la de
+`/planes` dentro de la App con la misma regla):
+
+1. **De arriba abajo: precio, créditos, puntos clave, «Ver todo lo que
+   incluye» y el botón.** «Ver todo» va destacado (borde y letra a 14 px, 600)
+   y ANTES del botón, que es lo último.
+2. **Los créditos van en su pastilla junto al precio** («8.000 créditos de IA
+   incluidos», `losCreditosDeLaTarjeta`), y la función que los nombraba no se
+   repite en los puntos (`losPuntosDeLaTarjeta`, que la reconoce con
+   `esLaLineaDeCreditos`). La descripción corta va a 14 px y más clara que la
+   nota de facturación.
+3. **«incluidos», nunca «gratis»**, en toda la landing: `conCreditosIncluidos`
+   (`lib/creditos-incluidos.ts`) lo cambia AL PINTAR. Lo guardado en el panel
+   no se toca, así que una función nueva escrita con «gratis» también sale bien.
+4. **Las tres landings abren en Mensual** (`elPeriodoDeEntrada`,
+   `lib/tarjeta-de-plan.ts`): trimestral o anual los elige quien quiera ver el
+   descuento. Si no hay mensual, el más corto que haya.
+5. **El párrafo de «¿Tienes un equipo o eres una agencia?» arranca en el mismo
+   píxel que el ícono**, en escritorio y en móvil: va debajo de la fila del
+   ícono y el título (`BloqueDeAgencias`), no al lado del ícono.
+
+**La página de un plan:**
+
+1. **Los recuadros de capacidad son una LISTA por plan** (`plan_pagina.recuadros`):
+   cuántos y cuáles los decide el panel —hasta `TOPE_DE_RECUADROS` (6), cada
+   uno con ícono (`ICONOS_DE_RECUADRO`), título, valor y detalle, con los datos
+   vivos `{creditos}`, `{catalogo}`…—, arrastrándolos o con subir y bajar. **No
+   dependen de las funciones**: apagar o renombrar una función no mueve un
+   recuadro. `null` es «de fábrica» (`losRecuadrosDeFabrica`: créditos, catálogo
+   si lo trae y asistencia); **una lista vacía no enseña el bloque**.
+2. **Un recuadro sin dato no sale, nunca «No incluido»**
+   (`porQueNoSaleElRecuadro`): sin valor, «0», «ninguno», «no incluido», un
+   catálogo en un plan que no lo trae o un texto con avisos. El panel lo dice al
+   lado de cada uno. Una lista guardada con la forma vieja (un objeto) se migra
+   al leerla (`comoListaDeRecuadros`).
+3. **El de asistencia de fábrica ya no copia la función de capacidad.** Antes,
+   en los planes de asistencia humana, decía el nombre de esa función
+   («Asistencia IA 24/7 - Humano hrs-L/V» en producción); ahora dice «IA +
+   humana» con su detalle fijo. Quien quiera el texto de antes lo escribe como
+   un recuadro.
+4. **El tutorial de cada función va a la DERECHA, en la línea de su nombre**
+   (`data-fila-de-la-funcion`), no debajo.
+5. **Los títulos de sección no repiten el nombre del plan**: «Qué incluye este
+   plan» y «Preguntas frecuentes». «Empieza con el plan X» se queda: es el
+   cierre con el precio y el único sitio donde el nombre se ve.
+6. **El video va en su marco** (`data-marco-del-video`): un recuadro más claro
+   que el fondo, con su borde y el título encima, para que no se lea como una
+   imagen ni se pierda en el fondo oscuro.
+
+Lo prueba el mismo banco con un cuarto fichero (`plan-configurable.test.mjs`):
+las reglas, un barrido de las tres landings, las acciones contra Postgres
+(cuatro recuadros que salen en su orden, la lista vacía que esconde el bloque,
+cambiar funciones que no mueve nada, un cliente que no puede) y la página y la
+tarjeta reales en Chromium a 1440 y 390. Su `MODO=roto` corre contra `df810cd`
+y afirma los tres recuadros fijos, la asistencia que copiaba la función, el
+tutorial debajo, los títulos con el nombre, «gratis» en la tarjeta, la
+descripción apagada y el párrafo de agencias desalineado.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

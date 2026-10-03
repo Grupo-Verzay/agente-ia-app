@@ -10,6 +10,8 @@ import { Plan } from "@prisma/client";
 import { PLAN_LABELS } from "@/types/plans";
 import { PaymentModal } from "./PaymentModal";
 import { cn } from "@/lib/utils";
+import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
+import { elPeriodoDeEntrada } from "@/lib/tarjeta-de-plan";
 
 type AssistanceType = "IA" | "HUMANO";
 type BillingPeriod = "monthly" | "quarterly" | "yearly";
@@ -66,7 +68,9 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
     if (assistanceType === "IA" && !showIA && showHUMANO) setAssistanceType("HUMANO");
     if (assistanceType === "HUMANO" && !showHUMANO && showIA) setAssistanceType("IA");
   }, [assistanceType, showIA, showHUMANO, showToggle]);
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
+  // Abre en mensual, como la landing: trimestral o anual lo elige quien quiera
+  // ver el descuento (`elPeriodoDeEntrada`).
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(() => elPeriodoDeEntrada(["monthly", "quarterly", "yearly"]));
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
   const [selectedPrice, setSelectedPrice] = useState<number>(0);
 
@@ -263,7 +267,7 @@ function PlanCard({
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-2 text-xs">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-              <span>{f}</span>
+              <span>{conCreditosIncluidos(f)}</span>
             </li>
           ))}
         </ul>

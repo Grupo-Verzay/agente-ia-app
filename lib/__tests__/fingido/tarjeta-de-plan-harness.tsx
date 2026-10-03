@@ -23,6 +23,14 @@ function Pantalla() {
                     <L.VideoDeLaLanding valor={w.__video} />
                 </div>
             ) : null}
+            {/* El bloque «¿Tienes un equipo o eres una agencia?». Antes vivía
+                dentro de `LandingClient`; el modo roto del banco le inyecta al
+                fichero viejo un export con SU marcado, sin tocarlo. */}
+            {w.__agencias && L.BloqueDeAgencias ? (
+                <div className="mx-auto mt-6 max-w-6xl" data-banco="agencias">
+                    <L.BloqueDeAgencias whatsappNumber={w.__agencias === "con-whatsapp" ? "573001112233" : null} />
+                </div>
+            ) : null}
         </div>
     );
 }

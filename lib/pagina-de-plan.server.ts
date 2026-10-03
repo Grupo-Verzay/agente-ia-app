@@ -139,7 +139,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
             ? { ...video, titulo: elTituloDelVideo(detalle?.videoTitle, datos), miniatura: comoImagenDelPlan(detalle?.videoThumbnailUrl) }
             : null,
         paraQuien: elParaQuienQueSale(paraQuienGuardado, datos),
-        capacidad: laCapacidadDelPlan(datos, funciones, paginaGuardada?.recuadros),
+        capacidad: laCapacidadDelPlan(datos, paginaGuardada?.recuadros),
         funciones: lasFuncionesQueSeEnsenan(funciones, datos, TITULO_DE_LAS_GUIAS),
         preguntas: lasPreguntasQueSalen(detalle?.faqs, datos),
         botones: losBotonesDelPlan(detalle, datos, sitio),
