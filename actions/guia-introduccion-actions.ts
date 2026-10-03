@@ -34,6 +34,7 @@ import { GUIA_CONEXION } from "@/lib/guia-conexion";
 import { GUIA_CHATS } from "@/lib/guia-chats";
 import { GUIA_CORREO } from "@/lib/guia-correo";
 import { GUIA_FOLLOW_UPS } from "@/lib/guia-follow-ups";
+import { GUIA_CALIFICACION } from "@/lib/guia-calificacion";
 import { comoIntroduccion, esModuloConGuia, type Introduccion, type ModuloConGuia } from "@/lib/introduccion-de-la-guia";
 import { guardarLaIntroduccion, laIntroduccionGuardada } from "@/lib/introduccion-de-la-guia-db";
 
@@ -104,6 +105,7 @@ const POR_DEFECTO: Record<ModuloConGuia, Introduccion> = {
     correo: { titulo: GUIA_CORREO.titulo, subtitulo: GUIA_CORREO.subtitulo, descripcion: GUIA_CORREO.descripcion },
     "follow-ups": { titulo: GUIA_FOLLOW_UPS.titulo, subtitulo: GUIA_FOLLOW_UPS.subtitulo, descripcion: GUIA_FOLLOW_UPS.descripcion },
     embudos: { titulo: GUIA_EMBUDOS.titulo, subtitulo: GUIA_EMBUDOS.subtitulo, descripcion: GUIA_EMBUDOS.descripcion },
+    calificacion: { titulo: GUIA_CALIFICACION.titulo, subtitulo: GUIA_CALIFICACION.subtitulo, descripcion: GUIA_CALIFICACION.descripcion },
 };
 
 export async function introduccionDeLaGuiaAction(modulo: unknown): Promise<{
