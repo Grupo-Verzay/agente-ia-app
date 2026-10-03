@@ -83,11 +83,13 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
     };
 
     return (
-        <div className="rounded-lg border border-dashed border-border bg-muted/10 overflow-hidden">
+        <div className="rounded-lg border border-dashed border-border bg-muted/10 overflow-hidden" data-segmento>
 
             {/* Collapsible header */}
             <button
                 type="button"
+                data-zona="abrir-segmento"
+                aria-expanded={expanded}
                 onClick={() => setExpanded(v => !v)}
                 className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -107,7 +109,7 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                 <div className="px-3 pb-3 space-y-4 border-t border-border/50">
 
                     {/* Estado del lead */}
-                    <div className="pt-3 space-y-2">
+                    <div className="pt-3 space-y-2" data-zona="estado">
                         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Estado del lead</p>
                         <div className="flex flex-wrap justify-center gap-2">
                             {STATUS_OPTIONS.map(opt => (
@@ -128,10 +130,10 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                         </div>
                     </div>
 
-                    {/* Score mínimo */}
-                    <div className="space-y-2">
+                    {/* Puntaje mínimo */}
+                    <div className="space-y-2" data-zona="puntaje">
                         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex justify-between items-center">
-                            <span>Score mínimo</span>
+                            <span>Puntaje mínimo</span>
                             <span className={cn('normal-case tracking-normal text-xs', minScore > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground/60')}>
                                 {minScore > 0 ? `≥ ${minScore} / 100` : 'Sin filtro'}
                             </span>
@@ -150,8 +152,8 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
 
                     {/* Tags */}
                     {tags.length > 0 && (
-                        <div className="space-y-2">
-                            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tags</p>
+                        <div className="space-y-2" data-zona="etiquetas">
+                            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Etiquetas</p>
                             <div className="flex flex-wrap justify-center gap-2">
                                 {tags.map(tag => {
                                     const isActive = selectedTagIds.includes(tag.id);
@@ -175,7 +177,7 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                     )}
 
                     {/* Footer: contador + botones */}
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-between pt-1" data-zona="aplicar">
                         <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                             <Users className="h-3.5 w-3.5" />
                             <span className="font-semibold text-foreground">{matching.length}</span>
