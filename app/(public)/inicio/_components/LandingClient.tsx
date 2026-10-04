@@ -489,7 +489,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ PAIN POINTS ════════════════════════════════════════════════════ */}
-      <section className="py-6 bg-white/[0.02]">
+      <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
@@ -546,7 +546,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ INDUSTRIAS ═════════════════════════════════════════════════════ */}
-      <section className="py-6 bg-white/[0.02]">
+      <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
@@ -599,7 +599,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       )}
 
       {/* ══ FUNCIONES ══════════════════════════════════════════════════════ */}
-      <section id="features" className="py-6 bg-white/[0.02]">
+      <section id="features" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
@@ -686,7 +686,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
       {showPricing && (
-      <section id="pricing" className="py-6 bg-white/[0.02]">
+      <section id="pricing" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">

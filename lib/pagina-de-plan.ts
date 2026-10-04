@@ -874,10 +874,16 @@ export function laCapacidadDelPlan(datos: DatosDelPlan, raw?: unknown): TarjetaD
 export const TEXTO_DEL_TUTORIAL = "Ver tutorial";
 
 export type TutorialDeLaFuncion = {
-    /** Dónde se abre entero: la guía o el enlace propio. Siempre en otra pestaña. */
+    /**
+     * Dónde vive entero: la guía o el enlace propio. Un enlace propio se abre
+     * en otra pestaña; una guía publicada NO: se despliega dentro de la misma
+     * función, debajo de su video (`modulo`).
+     */
     url: string;
     titulo: typeof TEXTO_DEL_TUTORIAL;
     externo: boolean;
+    /** El módulo de la guía publicada, para desplegarla en la página. `null` en un enlace propio. */
+    modulo: string | null;
     /** Lo que se reproduce DENTRO de la página al abrir la función. `null`: solo el enlace. */
     video: VideoDelPlan | null;
     /** La imagen del video antes de darle a reproducir (la portada de la guía). */
@@ -932,10 +938,10 @@ export function elTutorialDeLaFuncion(
     const t = comoTutorial(tutorial);
     if (!t) return null;
     if (/^https?:\/\//i.test(t)) {
-        return { url: t, titulo: TEXTO_DEL_TUTORIAL, externo: true, video: elVideoDelTutorial(t), portada: null };
+        return { url: t, titulo: TEXTO_DEL_TUTORIAL, externo: true, modulo: null, video: elVideoDelTutorial(t), portada: null };
     }
     if (!guias.has(t)) return null;
-    return { url: `/guia/${t}`, titulo: TEXTO_DEL_TUTORIAL, externo: false, ...elVideoDeLaGuia(t) };
+    return { url: `/guia/${t}`, titulo: TEXTO_DEL_TUTORIAL, externo: false, modulo: t, ...elVideoDeLaGuia(t) };
 }
 
 /**
@@ -1147,8 +1153,20 @@ export type BotonesGuardados = {
 };
 
 /**
- * Los dos botones del plan, con sus textos vivos. Un texto que nombra otro
- * plan, o este por un nombre viejo, deja el de siempre (`elTextoDelBoton`).
+ * El texto del botón principal de la página de un plan: **siempre este**, en
+ * todos los planes y vaya a donde vaya (registro, enlace propio o WhatsApp).
+ * No se escribe en el panel: un texto por plan acababa con un plan que decía
+ * «Comenzar ahora», otro «Comenzar con el Plan Básico Humano» y otro con un
+ * nombre que ya no tenía.
+ */
+export function elTextoDelBotonDelPlan(datos: Pick<DatosDelPlan, "nombre">): string {
+    return `Comenzar con el plan ${datos.nombre}`;
+}
+
+/**
+ * Los dos botones del plan. El principal dice siempre
+ * `elTextoDelBotonDelPlan`; el segundo, su texto vivo (un texto que nombra
+ * otro plan, o este por un nombre viejo, deja el de siempre: `elTextoDelBoton`).
  *
  * Sin enlace propio, el principal es el de la landing: con precio, el
  * registro con este plan marcado (`/register?plan=nivel-N`, la modalidad va en
@@ -1165,9 +1183,9 @@ export function losBotonesDelPlan(
     const propio = comoEnlaceDelBoton(g.ctaButtonUrl);
     let principal: BotonDelPlan;
     if (propio) {
-        principal = elBoton(elTextoDelBoton(g.ctaButtonText, "Comenzar ahora", datos), propio);
+        principal = elBoton(elTextoDelBotonDelPlan(datos), propio);
     } else if (datos.precioUSD > 0) {
-        principal = elBoton(elTextoDelBoton(g.ctaButtonText, "Comenzar ahora", datos), registro);
+        principal = elBoton(elTextoDelBotonDelPlan(datos), registro);
     } else {
         const numero = (sitio.whatsappNumber ?? "").replace(/\D/g, "");
         if (numero) {
@@ -1176,12 +1194,9 @@ export function losBotonesDelPlan(
                 crudo && losAvisosDelTexto(crudo, datos).length === 0 && losAvisosDelBoton(crudo, datos).length === 0
                     ? crudo
                     : `Hola, me interesa el plan ${datos.nombre}`;
-            principal = elBoton(
-                elTextoDelBoton(g.ctaButtonText, "Contactar", datos),
-                `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`,
-            );
+            principal = elBoton(elTextoDelBotonDelPlan(datos), `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`);
         } else {
-            principal = elBoton(elTextoDelBoton(g.ctaButtonText, "Comenzar ahora", datos), registro);
+            principal = elBoton(elTextoDelBotonDelPlan(datos), registro);
         }
     }
     const otro = comoEnlaceDelBoton(g.ctaSecondaryUrl) ?? comoEnlaceDelBoton(g.meetingUrl);

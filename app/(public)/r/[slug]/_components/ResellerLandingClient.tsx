@@ -655,7 +655,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       </section>
 
       {/* ══ PAIN POINTS ═════════════════════════════════════════════════════ */}
-      <section className="py-6 bg-white/[0.02]">
+      <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
@@ -694,7 +694,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       </section>
 
       {/* ══ INDUSTRIAS ══════════════════════════════════════════════════════ */}
-      <section className="py-6 bg-white/[0.02]">
+      <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
@@ -740,7 +740,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           ? `https://www.youtube.com/embed/${videoUrl.split("youtu.be/")[1].split("?")[0]}`
           : videoUrl;
         return (
-          <section className="py-6 bg-white/[0.02]">
+          <section className="py-6">
             <div className={ANCHO_DE_LA_LANDING}>
               <FadeIn>
                 <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
@@ -753,7 +753,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       })()}
 
       {/* ══ FUNCIONES ═══════════════════════════════════════════════════════ */}
-      <section id="features" className="py-6 bg-white/[0.02]">
+      <section id="features" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
@@ -827,7 +827,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ PRECIOS ═════════════════════════════════════════════════════════ */}
       {showPricing && (
-      <section id="pricing" className="py-6 bg-white/[0.02]">
+      <section id="pricing" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">

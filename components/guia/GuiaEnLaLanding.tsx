@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { laGuiaPublicaAction, type GuiaPublica } from "@/actions/guia-publica-actions";
+import type { GuiaPublica } from "@/actions/guia-publica-actions";
+import { pedirLaGuiaPublica } from "@/components/guia/pedir-la-guia-publica";
 import { CabeceraDeDocumentacion } from "@/components/documentacion/CabeceraDeDocumentacion";
 import {
     ArticuloDeLaSeccion,
@@ -36,21 +37,6 @@ import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
  *   dentro de la sección oscura.
  */
 
-/** Lo ya pedido, por módulo: volver a una guía no la vuelve a pedir. */
-const pedidas = new Map<string, Promise<GuiaPublica | null>>();
-
-function pedir(modulo: string): Promise<GuiaPublica | null> {
-    let p = pedidas.get(modulo);
-    if (!p) {
-        p = laGuiaPublicaAction(modulo).catch((error) => {
-            pedidas.delete(modulo); // un fallo de red se puede reintentar
-            throw error;
-        });
-        pedidas.set(modulo, p);
-    }
-    return p;
-}
-
 type Estado = { modulo: string; guia: GuiaPublica | null; fallo: boolean } | null;
 
 export function GuiaEnLaLanding({
@@ -72,7 +58,7 @@ export function GuiaEnLaLanding({
 
     useEffect(() => {
         let vivo = true;
-        pedir(guia.modulo)
+        pedirLaGuiaPublica(guia.modulo)
             .then((g) => {
                 if (vivo) setEstado({ modulo: guia.modulo, guia: g, fallo: false });
             })
