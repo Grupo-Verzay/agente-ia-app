@@ -31,6 +31,8 @@ import {
   type TutorialDeLaFuncion,
 } from "@/lib/pagina-de-plan";
 import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
+import { AIRE_ENCIMA_DEL_PIE } from "@/lib/pie-de-las-publicas";
 import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
 import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 
@@ -624,7 +626,6 @@ export const COLUMNAS_DE_CAPACIDAD: Record<number, string> = {
 export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
   const gradiente = COLOR_DEL_PLAN[pagina.plan] ?? "from-blue-500 to-blue-600";
   const { principal, secundario } = pagina.botones;
-  const anio = new Date().getFullYear();
 
   // La modalidad que se está enseñando (puede no ser la pedida, si ese nivel
   // no se vende así) queda apuntada para el registro: la dirección ya no la
@@ -762,11 +763,9 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         {pagina.orden.map(bloque)}
       </main>
 
-      <footer className="border-t border-white/10 py-6 text-center text-xs text-slate-500">
-        <div className={ANCHO_DE_LA_LANDING}>
-          © {anio} {pagina.marca}
-        </div>
-      </footer>
+      {/* El pie de las tres públicas: la raya al ancho del contenido, con el
+          mismo aire encima que entre dos bloques (`ESPACIO_DEL_BLOQUE`). */}
+      <PieDeLasPublicas tema="oscuro" aire={AIRE_ENCIMA_DEL_PIE.plan} ancho={ANCHO_DE_LA_LANDING} />
     </div>
   );
 }

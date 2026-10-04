@@ -22,6 +22,8 @@ import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
 import { ANCLA_DEL_INICIO } from "@/lib/tutoriales-de-la-landing";
 import { elEnlaceDeLaPaginaDelPlan, elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
+import { AIRE_ENCIMA_DEL_PIE } from "@/lib/pie-de-las-publicas";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -844,8 +846,14 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ FOOTER ═════════════════════════════════════════════════════════ */}
       {!embed && (
-      <footer className="border-t border-white/10 py-6">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-8 sm:flex-row sm:justify-between sm:px-12 lg:px-16">
+      // La raya va al ancho del CONTENIDO (dentro de `ANCHO_DE_LA_LANDING`) y
+      // encima deja el mismo aire que hay entre dos bloques (48 px): ver
+      // `lib/pie-de-las-publicas.ts`.
+      <PieDeLasPublicas
+        tema="oscuro"
+        aire={AIRE_ENCIMA_DEL_PIE.landing}
+        ancho={ANCHO_DE_LA_LANDING}
+        antes={
           <a
             href={`#${ANCLA_DEL_INICIO}`}
             onClick={volverAlInicio}
@@ -864,8 +872,9 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </>
             )}
           </a>
-          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
-          <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
+        }
+        despues={
+          <div className="flex flex-wrap items-center justify-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
             <a href="#tutoriales" className="transition-colors hover:text-slate-300">Tutoriales</a>
             {showPricing && <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>}
@@ -875,8 +884,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}
             <Link href="/login" className="transition-colors hover:text-slate-300">Acceso</Link>
           </div>
-        </div>
-      </footer>
+        }
+      />
       )}
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
