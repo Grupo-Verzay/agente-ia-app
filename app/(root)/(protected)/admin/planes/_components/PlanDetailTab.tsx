@@ -140,9 +140,6 @@ const VACIO: Detalle = {
   ogImageUrl: "",
 };
 
-/** Lo que se guardaba antes y la página ya no enseña. Solo para avisar que sigue ahí. */
-const LO_DE_ANTES = ["testimonials", "galleryImages", "stats", "featureSections"] as const;
-
 /** El aire que se deja encima de un bloque al ir a él desde el índice. */
 const AIRE_AL_IR_A_UN_BLOQUE = 8;
 
@@ -256,7 +253,6 @@ export function PlanDetailTab({
   const [recuadrosGuardados, setRecuadrosGuardados] = useState<unknown>(null);
   const [recuadrosEscritos, setRecuadrosEscritos] = useState<RecuadroDeCapacidad[] | null>(null);
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
-  const [hayDeAntes, setHayDeAntes] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -306,7 +302,6 @@ export function PlanDetailTab({
             return { id: nuevoId(), question: texto(o.question), answer: texto(o.answer) };
           }),
         );
-        setHayDeAntes(LO_DE_ANTES.some((k) => Array.isArray(d?.[k]) && (d![k] as unknown[]).length > 0));
       })
       .catch((e) => {
         console.error("[planes] no se pudo leer el detalle del plan", e);
@@ -804,29 +799,6 @@ export function PlanDetailTab({
 
   return (
     <div className="space-y-3" data-detalle-del-plan>
-      <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-muted/50 p-3">
-        <p className="max-w-md text-[11px] text-muted-foreground">
-          La página pública se arma sola con lo de la pestaña Configuración: nombre, precio, créditos y las
-          funciones encendidas, una tarjeta por función en el orden en que las arrastras allí. Aquí va lo que es
-          solo de este plan, en el mismo orden en que sale en la página.
-        </p>
-        {planActivo ? (
-          <a
-            href={enlaceDeLaPagina}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
-            data-ver-pagina-publica
-          >
-            Ver página pública <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : (
-          <span className="shrink-0 text-[11px] text-amber-600 dark:text-amber-400">
-            El plan está apagado: su página no se ve hasta encenderlo.
-          </span>
-        )}
-      </div>
-
       <Bloque
         titulo="Orden de la página"
         ayuda="Es el orden de los bloques de abajo, que es el de la página. Muévelos aquí o arrastrando cada bloque por su asa; pulsa un nombre para ir a él."
@@ -942,17 +914,26 @@ export function PlanDetailTab({
         </div>
       </Bloque>
 
-      {hayDeAntes && (
-        <p className="text-[11px] text-muted-foreground" data-lo-de-antes>
-          Este plan tiene guardados testimonios, galería, estadísticas o secciones de antes. Ya no salen en la
-          página; se conservan sin tocar.
-        </p>
-      )}
-
-      <div className="flex justify-end pt-1">
-        <Button onClick={handleSave} disabled={saving} data-guardar-detalle>
+      {/* El pie: a la izquierda la página pública (o por qué no se ve), a la derecha Guardar. */}
+      <div className="flex items-center justify-between gap-3 pt-1" data-pie-del-detalle>
+        {planActivo ? (
+          <a
+            href={enlaceDeLaPagina}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            data-ver-pagina-publica
+          >
+            Ver página pública <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : (
+          <span className="text-xs text-amber-600 dark:text-amber-400">
+            El plan está apagado: su página no se ve hasta encenderlo.
+          </span>
+        )}
+        <Button onClick={handleSave} disabled={saving} className="shrink-0" data-guardar-detalle>
           {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-          Guardar detalle
+          Guardar
         </Button>
       </div>
     </div>
