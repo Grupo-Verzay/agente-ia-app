@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { comoFunciones, losFeaturesDeLasFunciones, type FuncionDelPlan } from "@/lib/pagina-de-plan";
+import { comoFunciones, laLlaveDelNombre, losFeaturesDeLasFunciones, type FuncionDelPlan } from "@/lib/pagina-de-plan";
 import {
     asegurarLaTablaDeFunciones,
     esTablaQueFalta,
@@ -153,6 +153,15 @@ function mismasFeatures(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /**
+ * Las mismas funciones escritas con otras tildes o mayúsculas. Sin un cambio
+ * pedido, eso NO se reescribe: un plan apagado guarda «Básico» donde la
+ * plantilla dice «Basico», y abrir el panel no puede tocarle ni una letra.
+ */
+function soloCambiaLaEscritura(a: readonly string[], b: readonly string[]): boolean {
+    return a.length === b.length && a.every((x, i) => laLlaveDelNombre(x) === laLlaveDelNombre(b[i]));
+}
+
+/**
  * Pone la plantilla de una audiencia y sus planes de acuerdo, y aplica el
  * cambio si llega. La primera vez arma la plantilla con el inventario de lo que
  * tienen los planes hoy y deja cada plan con SUS encendidas, en SU orden y con
@@ -212,7 +221,13 @@ function sincronizar(audiencia: Audiencia, cambio?: CambioDeLaPlantilla): Promis
                 guardadas: porPlan.get(p.id),
             }));
 
-            const { plantilla: completa, agregadas } = completarLaPlantilla(base, filas);
+            // El plan que se guarda NO aporta a la plantilla por su fila: lo
+            // suyo entra por su lista, que trae los ids del editor. Completando
+            // desde su fila recién escrita, una función nueva nacería con un
+            // id inventado y el editor la perdería de vista.
+            const queCompletan =
+                cambio?.tipo === "plan" && cambio.funciones !== undefined ? filas.filter((f) => f.id !== planId) : filas;
+            const { plantilla: completa, agregadas } = completarLaPlantilla(base, queCompletan);
 
             let nueva: FuncionDeLaPlantilla[] = completa;
             const listaDe = new Map<string, FuncionDelPlan[]>();
@@ -231,8 +246,8 @@ function sincronizar(audiencia: Audiencia, cambio?: CambioDeLaPlantilla): Promis
             } else if (cambio?.tipo === "plan" && cambio.funciones !== undefined) {
                 const fila = filas.find((f) => f.id === planId);
                 if (!fila) throw new Rechazo("Ese plan no existe.");
-                const { nuevas, estados } = laListaQueManda(completa, cambio.funciones);
-                nueva = [...completa, ...nuevas];
+                const { nuevas, estados, editadas } = laListaQueManda(completa, cambio.funciones);
+                nueva = [...completa.map((t) => editadas.get(t.id) ?? t), ...nuevas];
                 for (const f of filas) {
                     listaDe.set(f.id, f.id === fila.id ? conLaPlantilla(estados, nueva) : laListaDelPlan(f, nueva));
                 }
@@ -268,7 +283,7 @@ function sincronizar(audiencia: Audiencia, cambio?: CambioDeLaPlantilla): Promis
                     `;
                     tocado = true;
                 }
-                if (!mismasFeatures(fila.features, features)) {
+                if (!mismasFeatures(fila.features, features) && !(cambio === undefined && soloCambiaLaEscritura(fila.features, features))) {
                     await tx.subscriptionPlan.update({ where: { id: fila.id }, data: { features } });
                     tocado = true;
                 }

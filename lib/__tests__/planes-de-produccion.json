@@ -1,0 +1,1226 @@
+{
+ "nota": "Foto saneada de los planes de produccion (2026-10-04): solo nivel, asistencia, si es de reseller, si esta activo, sus features y sus funciones guardadas. Sin precios, sin enlaces de pago y con ids inventados.",
+ "planes": [
+  {
+   "id": "fx-c-lite-humano",
+   "plan": "lite",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 1,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Concatenación de mensajes",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número",
+    "3.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V"
+   ]
+  },
+  {
+   "id": "fx-r-lite-humano",
+   "plan": "lite",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 0,
+   "features": []
+  },
+  {
+   "id": "fx-c-lite-ia",
+   "plan": "lite",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 1,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Concatenación de mensajes",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número",
+    "1.000 créditos totalmente gratis IA",
+    "Cuenta con asistencia con IA 24/7"
+   ]
+  },
+  {
+   "id": "fx-r-lite-ia",
+   "plan": "lite",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 1,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Concatenación de mensajes",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número"
+   ]
+  },
+  {
+   "id": "fx-c-basico-humano",
+   "plan": "basico",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": true,
+   "order": 2,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Catálogo web 10 ítems",
+    "Gestión de tus contactos",
+    "Notas y apuntes de datos",
+    "Embudos Kanban etiquetas",
+    "Entrenamiento del agente IA",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número",
+    "5.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V",
+    "Estadísticas e informes de tu negocio",
+    "Reportes generales de conversaciones",
+    "Configuración de conexión y comportamiento"
+   ]
+  },
+  {
+   "id": "fx-r-basico-humano",
+   "plan": "basico",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 1,
+   "features": []
+  },
+  {
+   "id": "fx-c-basico-ia",
+   "plan": "basico",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 2,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Catálogo 10 ítems imágenes",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número",
+    "3.000 créditos totalmente gratis IA",
+    "Cuenta con asistencia con IA 24/7"
+   ]
+  },
+  {
+   "id": "fx-r-basico-ia",
+   "plan": "basico",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 2,
+   "features": [
+    "Incluye todo lo del Lite",
+    "Catálogo 10 ítems imagen",
+    "Respuestas rápidas en texto",
+    "Dashboard gráficos básicos",
+    "Mis tareas con notificaciones",
+    "Módulo de agregar notas varias",
+    "Embudos Kanban con etapas/tags"
+   ]
+  },
+  {
+   "id": "fx-c-intermedio-humano",
+   "plan": "intermedio",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 3,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Envío de archivos multimedia",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número",
+    "8.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V"
+   ]
+  },
+  {
+   "id": "fx-r-intermedio-humano",
+   "plan": "intermedio",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": false,
+   "order": 2,
+   "features": []
+  },
+  {
+   "id": "fx-c-intermedio-ia",
+   "plan": "intermedio",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 3,
+   "features": [
+    "Incluye todo lo del Básico",
+    "Envía archivos multimedia",
+    "Embudos Kanban de tags",
+    "Herramientas y tools varias",
+    "Captura datos dashboard CRM",
+    "Agenda citas con recordatorios",
+    "CRM, Chats, creación de eventos",
+    "5.000 créditos totalmente gratis IA",
+    "Cuenta con asistencia con IA 24/7"
+   ]
+  },
+  {
+   "id": "fx-r-intermedio-ia",
+   "plan": "intermedio",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 3,
+   "features": [
+    "Interpreta audios",
+    "Lectura de imágenes",
+    "Tiene memoria contextual",
+    "Envío de archivos multimedia",
+    "Toma de solicitudes, citas, etc.",
+    "Captura de datos en WhatsApp",
+    "Notificación eventos otro número"
+   ]
+  },
+  {
+   "id": "fx-c-avanzado-humano",
+   "plan": "avanzado",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": true,
+   "order": 4,
+   "features": [
+    "Incluye todo lo del Basico",
+    "Catálogo web de 25 ítems",
+    "Envío archivos multimedia",
+    "Respuestas rápidas archivos",
+    "Captura datos dashboard CRM",
+    "Agenda citas con recordatorios",
+    "CRM, Chats, creación de eventos",
+    "10.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V"
+   ]
+  },
+  {
+   "id": "fx-r-avanzado-humano",
+   "plan": "avanzado",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": false,
+   "order": 3,
+   "features": []
+  },
+  {
+   "id": "fx-c-avanzado-ia",
+   "plan": "avanzado",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 4,
+   "features": [
+    "Incluye todo del Intermedio",
+    "Mensajes inactividad en flujos",
+    "Seguimientos/retargeting Flows",
+    "Crea tableros Kanban con etapas",
+    "Sincroniza datos en Google Sheets",
+    "Reportes, etiquetado, Follow Ups",
+    "Chats, CRM y ficha base de datos",
+    "8.000 créditos totalmente gratis IA",
+    "Cuenta con asistencia con IA 24/7"
+   ]
+  },
+  {
+   "id": "fx-r-avanzado-ia",
+   "plan": "avanzado",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 4,
+   "features": [
+    "Incluye todo del Intermedio",
+    "Mensajes inactividad en flujos",
+    "Seguimientos/retargeting Flows",
+    "Crea tableros Kanban con etapas",
+    "Sincroniza datos en Google Sheets",
+    "Reportes, etiquetado, Follow Ups",
+    "Chats, CRM y ficha de contactos"
+   ]
+  },
+  {
+   "id": "fx-c-enterprise-humano",
+   "plan": "enterprise",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": true,
+   "order": 5,
+   "features": [
+    "Incluye todo del Esencial",
+    "Chats, CRM y llamadas IA",
+    "Mensajes inactividad en flujos",
+    "Seguimientos/retargeting",
+    "Embudos Kanban de las etapas",
+    "Reportes, etiquetado, Follows IA",
+    "Sincronizacion con Google Sheets",
+    "15.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V"
+   ]
+  },
+  {
+   "id": "fx-r-enterprise-humano",
+   "plan": "enterprise",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": false,
+   "order": 4,
+   "features": []
+  },
+  {
+   "id": "fx-c-enterprise-ia",
+   "plan": "enterprise",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 5,
+   "features": [
+    "Incluye todo lo del Avanzado",
+    "Catálogo 100 ítems imágenes",
+    "Analítica de datos/reportes IA",
+    "Campañas masivas con IA-bots",
+    "Métricas de resultados agentes",
+    "Importación metadatos multiplex",
+    "Multiusuarios con autoasignación",
+    "10.000 créditos totalmente gratis IA",
+    "Cuenta con asistencia con IA 24/7"
+   ]
+  },
+  {
+   "id": "fx-r-enterprise-ia",
+   "plan": "enterprise",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 5,
+   "features": [
+    "Incluye todo del Starter",
+    "Agenda citas/recordatorios",
+    "Chats, CRM y llamadas con IA",
+    "Mensajes inactividad en flujos",
+    "Seguimientos/retargeting Flows",
+    "Sincroniza datos Google Sheets",
+    "Reportes, etiquetado, Follow Ups"
+   ]
+  },
+  {
+   "id": "fx-c-personalizado-humano",
+   "plan": "personalizado",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 6,
+   "features": [
+    "Incluye todo lo del Business",
+    "Analítica de datos/reportes IA",
+    "Métricas de resultados agentes",
+    "Campañas masivas con IA-bots",
+    "Captura y registro datos en CRM",
+    "Importación metadatos multiplex",
+    "Multiusuarios con autoasignación",
+    "25.000 créditos totalmente gratis IA",
+    "Asistencia IA 24/7 - Humano hrs-L/V"
+   ]
+  },
+  {
+   "id": "fx-r-personalizado-humano",
+   "plan": "personalizado",
+   "assistanceType": "HUMANO",
+   "isResellerPlan": true,
+   "isActive": false,
+   "order": 5,
+   "features": []
+  },
+  {
+   "id": "fx-c-personalizado-ia",
+   "plan": "personalizado",
+   "assistanceType": "IA",
+   "isResellerPlan": false,
+   "isActive": false,
+   "order": 6,
+   "features": [
+    "Incluye paquetes de licencias",
+    "Capacitación personalizada App",
+    "Dashboard admin de sus clientes",
+    "Sin límite de cobro de tus licencias",
+    "Personalización marca, logo y color",
+    "Acompañamiento proceso adopción",
+    "Cuenta adicional admin plan gratis",
+    "Multiusuarios y tus administradores",
+    "Facturación a nombre de tu empresa",
+    "Asistencia IA 24/7 - Humano hrs - L/V"
+   ]
+  },
+  {
+   "id": "fx-r-personalizado-ia",
+   "plan": "personalizado",
+   "assistanceType": "IA",
+   "isResellerPlan": true,
+   "isActive": true,
+   "order": 6,
+   "features": [
+    "Incluye todo lo del Business",
+    "Analítica de datos/reportes IA",
+    "Métricas de resultados agentes",
+    "Campañas masivas con IA-bots",
+    "Captura y registro datos en CRM",
+    "Importación metadatos multiplex",
+    "Multiusuarios con autoasignación"
+   ]
+  }
+ ],
+ "guardadas": [
+  {
+   "subscriptionPlanId": "fx-c-avanzado-humano",
+   "funciones": [
+    {
+     "id": "f-14sf5se-0",
+     "activa": true,
+     "nombre": "Incluye todo lo del Basico",
+     "tutorial": null,
+     "categoria": "incluye",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-9thzcv-0",
+     "activa": true,
+     "nombre": "Catálogo web de 25 ítems",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-dc3brk-0",
+     "activa": true,
+     "nombre": "Envío archivos multimedia",
+     "tutorial": "chats",
+     "categoria": "bandeja",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1wrx65z-0",
+     "activa": true,
+     "nombre": "Respuestas rápidas archivos",
+     "tutorial": "respuestas-rapidas",
+     "categoria": "automatizaciones",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1nhbie2-0",
+     "activa": true,
+     "nombre": "Captura datos dashboard CRM",
+     "tutorial": "leads",
+     "categoria": "contactos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1b7zj4p-0",
+     "activa": true,
+     "nombre": "Agenda citas con recordatorios",
+     "tutorial": "recordatorios",
+     "categoria": "automatizaciones",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1dkaw6b-0",
+     "activa": true,
+     "nombre": "CRM, Chats, creación de eventos",
+     "tutorial": "chats",
+     "categoria": "bandeja",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1pfj1bm-0",
+     "activa": true,
+     "nombre": "10.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-lite-humano",
+   "funciones": [
+    {
+     "id": "f-1r6zq20-0",
+     "activa": true,
+     "nombre": "Interpreta audios",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-7ou3vr-0",
+     "activa": true,
+     "nombre": "Lectura de imágenes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1nbk7gr-0",
+     "activa": true,
+     "nombre": "Tiene memoria contextual",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-e72j2x-0",
+     "activa": true,
+     "nombre": "Concatenación de mensajes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-asvhul-0",
+     "activa": true,
+     "nombre": "Toma de solicitudes, citas, etc.",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1splsb8-0",
+     "activa": true,
+     "nombre": "Captura de datos en WhatsApp",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-80q86x-0",
+     "activa": true,
+     "nombre": "Notificación eventos otro número",
+     "tutorial": "conexion",
+     "categoria": "conexion-y-ajustes",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-yrdwqs-0",
+     "activa": true,
+     "nombre": "3.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-intermedio-humano",
+   "funciones": [
+    {
+     "id": "f-1r6zq20-0",
+     "activa": true,
+     "nombre": "Interpreta audios",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-7ou3vr-0",
+     "activa": true,
+     "nombre": "Lectura de imágenes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1nbk7gr-0",
+     "activa": true,
+     "nombre": "Tiene memoria contextual",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-oubwqh-0",
+     "activa": true,
+     "nombre": "Envío de archivos multimedia",
+     "tutorial": "chats",
+     "categoria": "bandeja",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-asvhul-0",
+     "activa": true,
+     "nombre": "Toma de solicitudes, citas, etc.",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1splsb8-0",
+     "activa": true,
+     "nombre": "Captura de datos en WhatsApp",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-80q86x-0",
+     "activa": true,
+     "nombre": "Notificación eventos otro número",
+     "tutorial": "conexion",
+     "categoria": "conexion-y-ajustes",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-wsc748-0",
+     "activa": true,
+     "nombre": "8.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-personalizado-humano",
+   "funciones": [
+    {
+     "id": "f-sezqa8-0",
+     "activa": true,
+     "nombre": "Incluye todo lo del Business",
+     "tutorial": null,
+     "categoria": "incluye",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-14pxhjw-0",
+     "activa": true,
+     "nombre": "Analítica de datos/reportes IA",
+     "tutorial": null,
+     "categoria": "panel",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-b846qb-0",
+     "activa": true,
+     "nombre": "Métricas de resultados agentes",
+     "tutorial": null,
+     "categoria": "panel",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1qo2fvw-0",
+     "activa": true,
+     "nombre": "Campañas masivas con IA-bots",
+     "tutorial": "campanas",
+     "categoria": "creacion-de-flujos",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1r32cp9-0",
+     "activa": true,
+     "nombre": "Captura y registro datos en CRM",
+     "tutorial": "leads",
+     "categoria": "contactos",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-i8fs34-0",
+     "activa": true,
+     "nombre": "Importación metadatos multiplex",
+     "tutorial": "mis-datos",
+     "categoria": "integraciones",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fg6i9s-0",
+     "activa": true,
+     "nombre": "Multiusuarios con autoasignación",
+     "tutorial": "usuarios",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-760qvs-0",
+     "activa": true,
+     "nombre": "25.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-lite-ia",
+   "funciones": [
+    {
+     "id": "f-1r6zq20-0",
+     "activa": true,
+     "nombre": "Interpreta audios",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-7ou3vr-0",
+     "activa": true,
+     "nombre": "Lectura de imágenes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1nbk7gr-0",
+     "activa": true,
+     "nombre": "Tiene memoria contextual",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-e72j2x-0",
+     "activa": true,
+     "nombre": "Concatenación de mensajes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-asvhul-0",
+     "activa": true,
+     "nombre": "Toma de solicitudes, citas, etc.",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1splsb8-0",
+     "activa": true,
+     "nombre": "Captura de datos en WhatsApp",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-80q86x-0",
+     "activa": true,
+     "nombre": "Notificación eventos otro número",
+     "tutorial": "conexion",
+     "categoria": "conexion-y-ajustes",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-8cqki-0",
+     "activa": true,
+     "nombre": "1.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1bxpgpr-0",
+     "activa": true,
+     "nombre": "Cuenta con asistencia con IA 24/7",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-enterprise-ia",
+   "funciones": [
+    {
+     "id": "f-17phh88-0",
+     "activa": true,
+     "nombre": "Incluye todo lo del Avanzado",
+     "tutorial": null,
+     "categoria": "incluye",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1bxy5zf-0",
+     "activa": true,
+     "nombre": "Catálogo 100 ítems imágenes",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-14pxhjw-0",
+     "activa": true,
+     "nombre": "Analítica de datos/reportes IA",
+     "tutorial": null,
+     "categoria": "panel",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1qo2fvw-0",
+     "activa": true,
+     "nombre": "Campañas masivas con IA-bots",
+     "tutorial": "campanas",
+     "categoria": "creacion-de-flujos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-b846qb-0",
+     "activa": true,
+     "nombre": "Métricas de resultados agentes",
+     "tutorial": null,
+     "categoria": "panel",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-i8fs34-0",
+     "activa": true,
+     "nombre": "Importación metadatos multiplex",
+     "tutorial": "mis-datos",
+     "categoria": "integraciones",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fg6i9s-0",
+     "activa": true,
+     "nombre": "Multiusuarios con autoasignación",
+     "tutorial": "usuarios",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1pfj1bm-0",
+     "activa": true,
+     "nombre": "10.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1bxpgpr-0",
+     "activa": true,
+     "nombre": "Cuenta con asistencia con IA 24/7",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-intermedio-ia",
+   "funciones": [
+    {
+     "id": "f-77789h-0",
+     "activa": true,
+     "nombre": "Incluye todo lo del Básico",
+     "tutorial": null,
+     "categoria": "incluye",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1hncthe-0",
+     "activa": true,
+     "nombre": "Envía archivos multimedia",
+     "tutorial": "chats",
+     "categoria": "bandeja",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1aa0e5z-0",
+     "activa": true,
+     "nombre": "Embudos Kanban de tags",
+     "tutorial": "etiquetas",
+     "categoria": "contactos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-e93l2w-0",
+     "activa": true,
+     "nombre": "Herramientas y tools varias",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1nhbie2-0",
+     "activa": true,
+     "nombre": "Captura datos dashboard CRM",
+     "tutorial": "leads",
+     "categoria": "contactos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1b7zj4p-0",
+     "activa": true,
+     "nombre": "Agenda citas con recordatorios",
+     "tutorial": "recordatorios",
+     "categoria": "automatizaciones",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1dkaw6b-0",
+     "activa": true,
+     "nombre": "CRM, Chats, creación de eventos",
+     "tutorial": "chats",
+     "categoria": "bandeja",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1xaf2x2-0",
+     "activa": true,
+     "nombre": "5.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1bxpgpr-0",
+     "activa": true,
+     "nombre": "Cuenta con asistencia con IA 24/7",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": true,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-enterprise-humano",
+   "funciones": [
+    {
+     "id": "f-7mpcgd-0",
+     "activa": true,
+     "nombre": "Incluye todo del Esencial",
+     "tutorial": null,
+     "categoria": "incluye",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-ofo3wo-0",
+     "activa": true,
+     "nombre": "Chats, CRM y llamadas IA",
+     "tutorial": "llamadas",
+     "categoria": "bandeja",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-jr6h1d-0",
+     "activa": true,
+     "nombre": "Mensajes inactividad en flujos",
+     "tutorial": "flujos",
+     "categoria": "creacion-de-flujos",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1tq2odz-0",
+     "activa": true,
+     "nombre": "Seguimientos/retargeting",
+     "tutorial": "follow-ups",
+     "categoria": "creacion-de-flujos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1oqya6e-0",
+     "activa": true,
+     "nombre": "Embudos Kanban de las etapas",
+     "tutorial": null,
+     "categoria": "panel",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fva6y9-0",
+     "activa": true,
+     "nombre": "Reportes, etiquetado, Follows IA",
+     "tutorial": "follow-ups",
+     "categoria": "creacion-de-flujos",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-mqom2f-0",
+     "activa": true,
+     "nombre": "Sincronizacion con Google Sheets",
+     "tutorial": "google-sheets",
+     "categoria": "integraciones",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-5ovut3-0",
+     "activa": true,
+     "nombre": "15.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  },
+  {
+   "subscriptionPlanId": "fx-c-basico-humano",
+   "funciones": [
+    {
+     "id": "f-1r6zq20-0",
+     "activa": true,
+     "nombre": "Interpreta audios",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-7ou3vr-0",
+     "activa": true,
+     "nombre": "Lectura de imágenes",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1ekeaop-0",
+     "activa": true,
+     "nombre": "Catálogo web 10 ítems",
+     "tutorial": "catalogo",
+     "categoria": "panel",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9dh5tgb26",
+     "activa": true,
+     "nombre": "Gestión de tus contactos",
+     "tutorial": "leads",
+     "categoria": "contactos",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9elrgdkrl",
+     "activa": true,
+     "nombre": "Notas y apuntes de datos",
+     "tutorial": "notas",
+     "categoria": "herramientas",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1g1ib10-0",
+     "activa": true,
+     "nombre": "Embudos Kanban etiquetas",
+     "tutorial": "etiquetas",
+     "categoria": "contactos",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9f7ohg2pi",
+     "activa": true,
+     "nombre": "Entrenamiento del agente IA",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-asvhul-0",
+     "activa": true,
+     "nombre": "Toma de solicitudes, citas, etc.",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1splsb8-0",
+     "activa": true,
+     "nombre": "Captura de datos en WhatsApp",
+     "tutorial": "agente-ia",
+     "categoria": "entrenamiento",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-80q86x-0",
+     "activa": true,
+     "nombre": "Notificación eventos otro número",
+     "tutorial": "conexion",
+     "categoria": "conexion-y-ajustes",
+     "destacada": true,
+     "descripcion": ""
+    },
+    {
+     "id": "f-1xaf2x2-0",
+     "activa": true,
+     "nombre": "5.000 créditos totalmente gratis IA",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-fe5pi7-0",
+     "activa": true,
+     "nombre": "Asistencia IA 24/7 - Humano hrs-L/V",
+     "tutorial": null,
+     "categoria": "capacidad",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9bjojhbvy",
+     "activa": true,
+     "nombre": "Estadísticas e informes de tu negocio",
+     "tutorial": "informes",
+     "categoria": "panel",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9ckzn39ny",
+     "activa": true,
+     "nombre": "Reportes generales de conversaciones",
+     "tutorial": "reportes",
+     "categoria": "panel",
+     "destacada": false,
+     "descripcion": ""
+    },
+    {
+     "id": "f-nmut9g0qruvpf",
+     "activa": true,
+     "nombre": "Configuración de conexión y comportamiento",
+     "tutorial": "conexion",
+     "categoria": "conexion-y-ajustes",
+     "destacada": false,
+     "descripcion": ""
+    }
+   ]
+  }
+ ]
+}

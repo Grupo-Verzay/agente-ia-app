@@ -284,6 +284,39 @@ export function laListaConLaPlantillaNueva(
     return conLaPlantilla(emparejar(lasFuncionesDelPlan(fila.features ?? [], fila.guardadas), anterior), nueva);
 }
 
+/**
+ * La lista que tiene ABIERTA el editor de un plan cuando la plantilla cambia
+ * debajo (se guardó desde la ventana de la plantilla con el plan abierto): lo
+ * de cada función —encendida, destacada, orden— se conserva emparejándolo con
+ * la plantilla ANTERIOR, los textos pasan a ser los de la NUEVA, y lo que se
+ * escribió en el editor y todavía no está en ninguna de las dos se queda donde
+ * estaba. Sin esto, guardar el plan después mandaría la lista vieja y la
+ * plantilla nueva diría que cambió.
+ */
+export function elEditorConLaPlantillaNueva(
+    lista: readonly FuncionDelPlan[],
+    anterior: readonly FuncionDeLaPlantilla[],
+    nueva: readonly FuncionDeLaPlantilla[],
+): FuncionDelPlan[] {
+    const idsAnteriores = new Set(anterior.map((f) => f.id));
+    const llavesAnteriores = new Set(anterior.map((f) => laLlaveDelNombre(f.nombre)));
+    const llavesNuevas = new Set(nueva.map((f) => laLlaveDelNombre(f.nombre)));
+    const escritasAqui = lista.filter((f) => {
+        const llave = laLlaveDelNombre(f.nombre);
+        return !idsAnteriores.has(f.id) && !llavesAnteriores.has(llave) && !llavesNuevas.has(llave);
+    });
+    const conLaNueva = conLaPlantilla(emparejar(lista, anterior), nueva);
+    const ultima = conLaNueva.reduce((u, f, i) => (f.activa ? i : u), -1);
+    const encendidasAqui = escritasAqui.filter((f) => f.activa);
+    const apagadasAqui = escritasAqui.filter((f) => !f.activa);
+    return [
+        ...conLaNueva.slice(0, ultima + 1),
+        ...encendidasAqui,
+        ...conLaNueva.slice(ultima + 1),
+        ...apagadasAqui,
+    ];
+}
+
 /* ─── Guardar un plan ──────────────────────────────────────────────────── */
 
 /**
@@ -296,8 +329,11 @@ export function laListaConLaPlantillaNueva(
 export function laListaQueManda(
     plantilla: readonly FuncionDeLaPlantilla[],
     enviada: unknown,
-): { nuevas: FuncionDeLaPlantilla[]; estados: EstadoEnElPlan[] } {
+): { nuevas: FuncionDeLaPlantilla[]; estados: EstadoEnElPlan[]; editadas: Map<string, FuncionDeLaPlantilla> } {
     const lista = comoFunciones(enviada);
+    // Lo que se edita en el editor de UN plan (descripción, categoría,
+    // tutorial, la escritura del nombre) es de la plantilla: llega a todos.
+    const editadas = new Map<string, FuncionDeLaPlantilla>();
     const porId = new Map(plantilla.map((f) => [f.id, f]));
     const porLlave = new Map(plantilla.map((f) => [laLlaveDelNombre(f.nombre), f]));
     const ids = new Set(plantilla.map((f) => f.id));
@@ -323,9 +359,13 @@ export function laListaQueManda(
         }
         if (vistos.has(t.id)) continue;
         vistos.add(t.id);
+        if (porId.has(t.id)) {
+            const contenido = { ...sinEstado(f), id: t.id };
+            if (JSON.stringify(contenido) !== JSON.stringify(t)) editadas.set(t.id, contenido);
+        }
         estados.push({ id: t.id, activa: f.activa, destacada: f.destacada });
     }
-    return { nuevas, estados };
+    return { nuevas, estados, editadas };
 }
 
 /* ─── Para el panel ────────────────────────────────────────────────────── */
