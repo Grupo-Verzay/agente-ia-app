@@ -982,9 +982,10 @@ export function lasFuncionesQueSeEnsenan(
 
 /**
  * Cómo se reparte «Qué incluye este plan»: las DESTACADAS se ven de entrada y
- * el resto queda detrás de «Ver todas las funciones». Las dos listas conservan
- * el orden del editor. Sin ninguna destacada no hay nada que enseñar de
- * entrada: el botón despliega todas (es lo mismo que «el resto»).
+ * el resto queda detrás de «Ver todas las funciones». Esto CUENTA (cuántas hay
+ * de entrada, si hace falta el botón); lo que se pinta es UNA sola lista en el
+ * orden del editor, y cuál se ve lo decide `seVeLaFuncion`. Sin ninguna
+ * destacada no hay nada que enseñar de entrada: el botón despliega todas.
  */
 export function elRepartoDeLasFunciones<T extends { destacada: boolean }>(
     funciones: readonly T[],
@@ -993,6 +994,58 @@ export function elRepartoDeLasFunciones<T extends { destacada: boolean }>(
         deEntrada: funciones.filter((f) => f.destacada),
         resto: funciones.filter((f) => !f.destacada),
     };
+}
+
+/**
+ * Si una función de «Qué incluye» se ve: con «Ver todas» desplegado, todas;
+ * si no, solo las destacadas. La lista es UNA y va en el orden del editor, de
+ * principio a fin: desplegar no AÑADE el resto al final, enseña cada función
+ * en SU sitio, entre las destacadas. Con dos listas (las destacadas y debajo
+ * el resto) el orden del panel solo se cumplía si todas las destacadas iban
+ * primero.
+ */
+export function seVeLaFuncion(funcion: { destacada: boolean }, todas: boolean): boolean {
+    return todas || funcion.destacada;
+}
+
+/** Cuánto de la guía recién abierta tiene que verse, como mínimo, sin desplazarse. */
+export const LO_QUE_SE_VE_DE_LA_GUIA = 160;
+/** El aire que se deja contra el borde de abajo de la vista. */
+export const MARGEN_CONTRA_EL_BORDE = 16;
+
+/**
+ * Cuánto bajar la página al abrir la guía de una función, para que se vea.
+ *
+ * La regla es NO moverse: la guía se abre justo debajo del video, en el sitio
+ * donde está mirando quien la abrió, y la página se queda donde estaba. Solo
+ * si su principio cae por debajo del borde de la vista se baja LO JUSTO para
+ * ver `LO_QUE_SE_VE_DE_LA_GUIA` de ella —y nunca tanto que lo abierto (el
+ * video, o la fila de la guía si no hay video) se vaya por arriba: perder de
+ * vista lo que se acaba de abrir es el fallo que esto viene a quitar—.
+ *
+ * Todo en coordenadas de la ventana (`getBoundingClientRect`): `inicioDeLaVista`
+ * es donde empieza lo útil (debajo de la barra fija) y `finDeLaVista` donde
+ * acaba. Devuelve píxeles a bajar, nunca negativo: esto no SUBE la página.
+ */
+export function cuantoBajarParaVerLaGuia({
+    arribaDeLaGuia,
+    arribaDeLoAbierto,
+    inicioDeLaVista,
+    finDeLaVista,
+}: {
+    arribaDeLaGuia: number;
+    arribaDeLoAbierto: number;
+    inicioDeLaVista: number;
+    finDeLaVista: number;
+}): number {
+    const valores = [arribaDeLaGuia, arribaDeLoAbierto, inicioDeLaVista, finDeLaVista];
+    if (!valores.every(Number.isFinite)) return 0;
+    const hueco = finDeLaVista - MARGEN_CONTRA_EL_BORDE - inicioDeLaVista;
+    const quiereVer = Math.min(LO_QUE_SE_VE_DE_LA_GUIA, Math.max(0, hueco));
+    const falta = arribaDeLaGuia + quiereVer - (finDeLaVista - MARGEN_CONTRA_EL_BORDE);
+    if (falta <= 0) return 0;
+    const tope = arribaDeLoAbierto - inicioDeLaVista;
+    return Math.round(Math.max(0, Math.min(falta, tope)));
 }
 
 /* ─── El orden de los bloques de la página ─────────────────────────────── */
