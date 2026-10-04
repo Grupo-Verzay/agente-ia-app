@@ -33,7 +33,8 @@ async function ddl(ejecutar: () => Promise<unknown>): Promise<void> {
     }
 }
 
-function asegurarLaTabla(): Promise<void> {
+/** La crea si falta. La usa también la plantilla maestra, que escribe aquí dentro de su transacción. */
+export function asegurarLaTablaDeFunciones(): Promise<void> {
     tablaLista ??= ddl(
         () => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "plan_funciones" (
@@ -49,20 +50,25 @@ function asegurarLaTabla(): Promise<void> {
     return tablaLista;
 }
 
-function esTablaQueFalta(error: unknown): boolean {
+/** El recuerdo de «ya la creé» es del proceso, no de la base: se olvida ante un 42P01. */
+export function olvidarLaTablaDeFunciones(): void {
+    tablaLista = null;
+}
+
+export function esTablaQueFalta(error: unknown): boolean {
     const e = error as { code?: string; meta?: { code?: string }; message?: string };
     return e?.meta?.code === "42P01" || e?.code === "42P01" || Boolean(e?.message?.includes("42P01"));
 }
 
 async function conLaTabla<T>(hacer: () => Promise<T>): Promise<T> {
-    await asegurarLaTabla();
+    await asegurarLaTablaDeFunciones();
     try {
         return await hacer();
     } catch (error) {
         if (!esTablaQueFalta(error)) throw error;
         // El recuerdo de «ya la creé» es del proceso, no de la base.
-        tablaLista = null;
-        await asegurarLaTabla();
+        olvidarLaTablaDeFunciones();
+        await asegurarLaTablaDeFunciones();
         return hacer();
     }
 }

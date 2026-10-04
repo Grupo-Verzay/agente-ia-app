@@ -105,7 +105,7 @@ export const CATEGORIAS_DEL_PLAN: readonly CategoriaDelPlan[] = [
 
 const SLUGS_DE_CATEGORIA = new Set(CATEGORIAS_DEL_PLAN.map((c) => c.slug));
 
-export const TOPE_DE_FUNCIONES = 60;
+export const TOPE_DE_FUNCIONES = 200;
 export const TOPE_DEL_NOMBRE = 120;
 export const TOPE_DE_LA_DESCRIPCION = 400;
 const TOPE_DEL_TUTORIAL = 500;

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { Plan } from "@prisma/client";
+import { Plan, type Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { currentUser } from "@/lib/auth";
@@ -18,7 +18,15 @@ import {
   losFeaturesDeLasFunciones,
   type FuncionDelPlan,
 } from "@/lib/pagina-de-plan";
-import { guardarLasFunciones, lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
+import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
+import {
+  AUDIENCIAS,
+  comoAudiencia,
+  laAudienciaDelPlan,
+  type Audiencia,
+  type FuncionDeLaPlantilla,
+} from "@/lib/plantilla-de-funciones";
+import { LA_PLANTILLA_CAMBIO, sincronizarLaAudiencia } from "@/lib/plantilla-de-funciones-db";
 import { PLAN_LEVEL_LABELS } from "@/types/plans";
 
 export type SubscriptionPlanItem = {
@@ -59,6 +67,59 @@ export type SubscriptionPlanItem = {
 };
 
 /**
+ * La plantilla maestra de una audiencia, como la ve el panel: el inventario,
+ * la versión con la que se guarda y en cuántos planes está encendida cada
+ * función (lo que dice el aviso de borrarla).
+ */
+export type PlantillaDelPanel = {
+  plantilla: FuncionDeLaPlantilla[];
+  version: number;
+  encendidas: Record<string, number>;
+};
+
+/**
+ * Pone cada plantilla y sus planes de acuerdo antes de enseñarlos: la primera
+ * vez arma la plantilla con el inventario de lo que tiene cada plan hoy, y
+ * después recoge lo que haya entrado por otro camino. Si una no se puede, el
+ * panel sigue con lo guardado —sin plantilla para esa audiencia, que es como
+ * funcionaba antes— y se dice.
+ */
+async function lasPlantillas(): Promise<Partial<Record<Audiencia, PlantillaDelPanel>>> {
+  const fuera: Partial<Record<Audiencia, PlantillaDelPanel>> = {};
+  let hubo = false;
+  for (const audiencia of AUDIENCIAS) {
+    try {
+      const r = await sincronizarLaAudiencia(audiencia);
+      if (!r.ok) {
+        console.warn("[planes] la plantilla de funciones no se pudo poner al día", { audiencia, motivo: r.motivo });
+        continue;
+      }
+      fuera[audiencia] = { plantilla: r.plantilla, version: r.version, encendidas: r.encendidas };
+      if (r.hubo) {
+        hubo = true;
+        console.info("[planes] plantilla de funciones puesta al día", {
+          audiencia,
+          agregadas: r.agregadas,
+          planesTocados: r.planesTocados,
+        });
+      }
+    } catch (e) {
+      console.error("[planes] no se pudo leer la plantilla de funciones; el panel sigue sin ella", { audiencia, e });
+    }
+  }
+  if (hubo) {
+    try {
+      revalidarLasPaginasDelPlan();
+    } catch (e) {
+      // Se llama mientras se pinta el panel, y ahí Next no deja revalidar: las
+      // páginas públicas leen en vivo igual.
+      console.warn("[planes] no se pudieron revalidar las páginas de los planes", e);
+    }
+  }
+  return fuera;
+}
+
+/**
  * Le pone a cada plan sus funciones, emparejadas con `features`. Si
  * `plan_funciones` no se puede leer, se deducen de `features`: el panel no se
  * queda sin planes por eso, pero se dice.
@@ -90,11 +151,52 @@ export async function getAllSubscriptionPlans() {
       console.warn("[planes] lectura de todos los planes rechazada", { persona: me?.id ?? null });
       return { success: false, data: [] as SubscriptionPlanItem[] };
     }
-    const planes = await leerLosPlanes(undefined, { conMayorista: esDeLaCasa });
-    return { success: true, data: esDeLaCasa ? await conSusFunciones(planes) : planes };
+    if (!esDeLaCasa) {
+      return { success: true, data: await leerLosPlanes(undefined, { conMayorista: false }) };
+    }
+    // Las plantillas primero: pueden reescribir las funciones de los planes, y
+    // lo que se lee después ya es lo de ahora.
+    const plantillas = await lasPlantillas();
+    const planes = await leerLosPlanes(undefined, { conMayorista: true });
+    return { success: true, data: await conSusFunciones(planes), plantillas };
   } catch (e) {
     console.error("[getAllSubscriptionPlans] Error:", e);
     return { success: false, data: [] as SubscriptionPlanItem[] };
+  }
+}
+
+/**
+ * Guarda la plantilla maestra de una audiencia y la reparte en todos sus
+ * planes: una función nueva entra apagada en todos, un cambio de nombre,
+ * descripción, categoría o tutorial llega a todos, y una función borrada sale
+ * de todos. Lo que es de cada plan —encendida, destacada, orden— no se toca.
+ *
+ * `version` es la que vio quien guarda: si la plantilla cambió desde entonces,
+ * no se guarda nada (dos pestañas no se pisan).
+ */
+export async function guardarLaPlantillaDeFunciones(audienciaRaw: unknown, lista: unknown, versionRaw: unknown) {
+  try {
+    // La plantilla la ven y la pagan todos los planes: la toca la casa y nadie más.
+    if (!(await quienMandaEnLaCasa("guardarLaPlantillaDeFunciones"))) {
+      return { success: false as const, message: "No autorizado" };
+    }
+    const audiencia = comoAudiencia(audienciaRaw);
+    if (!audiencia) return { success: false as const, message: "Esa plantilla no existe." };
+    const version = Number(versionRaw);
+    if (!Number.isInteger(version) || version < 0) return { success: false as const, message: LA_PLANTILLA_CAMBIO };
+
+    const r = await sincronizarLaAudiencia(audiencia, { tipo: "plantilla", lista, version });
+    if (!r.ok) return { success: false as const, message: r.motivo };
+    if (r.hubo) revalidarLasPaginasDelPlan();
+    return {
+      success: true as const,
+      message: r.hubo ? "Plantilla guardada en todos los planes" : "No había nada que cambiar",
+      plantilla: { plantilla: r.plantilla, version: r.version, encendidas: r.encendidas } satisfies PlantillaDelPanel,
+      planesTocados: r.planesTocados,
+    };
+  } catch (e) {
+    console.error("[planes] no se pudo guardar la plantilla de funciones", e);
+    return { success: false as const, message: "No se pudo guardar la plantilla de funciones." };
   }
 }
 
@@ -154,10 +256,18 @@ export async function upsertSubscriptionPlan(data: {
   credits: number;
   features: string[];
   /**
-   * La lista estructurada del editor. Si llega, MANDA: `features` se rehace con
-   * las encendidas, en su orden, y lo demás se guarda en `plan_funciones`.
+   * La lista estructurada del editor. Si llega, MANDA: es el estado de cada
+   * función de la plantilla en ESTE plan (encendida, destacada y orden), y
+   * `features` se rehace con las encendidas. Una función que la plantilla no
+   * tenga entra en ella, apagada en los demás planes.
    */
   funciones?: unknown;
+  /**
+   * La versión de la plantilla con la que se abrió el editor. Si llega y la
+   * plantilla cambió desde entonces, no se guarda nada. `null` es «el panel
+   * no tenía plantilla» (no se comprueba).
+   */
+  versionDeLaPlantilla?: number | null;
   description?: string;
   isPopular?: boolean;
   isActive?: boolean;
@@ -206,34 +316,47 @@ export async function upsertSubscriptionPlan(data: {
       // filas del nivel, abajo.
       ...(nombre !== undefined ? { name: nombre } : {}),
     };
-    const existing = await db.subscriptionPlan.findFirst({
-      where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },
-    });
-    const guardado = existing
-      ? await db.subscriptionPlan.update({ where: { id: existing.id }, data: payload, select: { id: true } })
-      : await db.subscriptionPlan.create({
-          data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
-          select: { id: true },
-        });
-    if (nombre !== undefined) {
-      // Un nivel tiene UN nombre: el de IA, el de Humano y el que se vende a
-      // los resellers. Renombrar una sola fila dejaba las demás —la que está a
-      // la venta y pinta la landing— con el nombre anterior.
-      await db.subscriptionPlan.updateMany({ where: { plan: data.plan }, data: { name: nombre } });
-    }
-    let aviso: string | null = null;
-    if (funciones) {
-      try {
-        await guardarLasFunciones(guardado.id, funciones);
-      } catch (e) {
-        // El plan ya quedó guardado con sus funciones encendidas; lo que se
-        // pierde es la categoría, la descripción y el tutorial. Se dice.
-        console.error("[planes] el plan se guardó pero sus funciones no", { plan: guardado.id, e });
-        aviso = "El plan se guardó, pero no las categorías ni los tutoriales de sus funciones. Vuelve a guardar.";
+    // La fila del plan se escribe DENTRO de la transacción de la plantilla: con
+    // la fila guardada y sus funciones no, el plan quedaría a medias.
+    const guardarLaFila = async (tx: Prisma.TransactionClient): Promise<string> => {
+      const existing = await tx.subscriptionPlan.findFirst({
+        where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },
+        select: { id: true },
+      });
+      // Con `funciones` las encendidas las escribe la plantilla, en esta misma
+      // transacción (`undefined` es «no tocar» para Prisma); la fila nueva nace
+      // con las que manda el editor.
+      const guardado = existing
+        ? await tx.subscriptionPlan.update({
+            where: { id: existing.id },
+            data: funciones ? { ...payload, features: undefined } : payload,
+            select: { id: true },
+          })
+        : await tx.subscriptionPlan.create({
+            data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
+            select: { id: true },
+          });
+      if (nombre !== undefined) {
+        // Un nivel tiene UN nombre: el de IA, el de Humano y el que se vende a
+        // los resellers. Renombrar una sola fila dejaba las demás —la que está
+        // a la venta y pinta la landing— con el nombre anterior.
+        await tx.subscriptionPlan.updateMany({ where: { plan: data.plan }, data: { name: nombre } });
       }
-    }
+      return guardado.id;
+    };
+
+    const version =
+      typeof data.versionDeLaPlantilla === "number" && Number.isFinite(data.versionDeLaPlantilla)
+        ? data.versionDeLaPlantilla
+        : null;
+    const r = await sincronizarLaAudiencia(laAudienciaDelPlan({ isResellerPlan }), {
+      tipo: "plan",
+      guardarLaFila,
+      ...(funciones ? { funciones, version } : {}),
+    });
+    if (!r.ok) return { success: false, message: r.motivo };
     revalidarLasPaginasDelPlan();
-    return aviso ? { success: false, message: aviso } : { success: true, message: "Plan guardado" };
+    return { success: true, message: "Plan guardado" };
   } catch (e) {
     console.error("[upsertSubscriptionPlan]", e);
     return { success: false, message: "Error al guardar el plan" };
