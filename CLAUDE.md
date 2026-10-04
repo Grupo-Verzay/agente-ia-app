@@ -26927,3 +26927,29 @@ PR, ramas, tablas, causas técnicas, ni el detalle de lo que investigaste. Si
 algo salió mal o quedó a medias, dilo en una línea.
 
 Si él pide el detalle, entonces sí lo explicas.
+
+## Planes: UNA plantilla maestra de funciones por audiencia, y cada plan solo enciende y destaca
+
+Cada plan tenía su propia lista de funciones, y una función nueva había que
+crearla seis veces. Ahora hay una plantilla por audiencia (`cliente` y
+`reseller`) en `plan_funciones_maestras` (tabla de la App, sin columnas en
+`subscription_plans`), y cada plan guarda solo **si la tiene encendida, si la
+destaca y el orden de las encendidas** (`plan_funciones`). Lo decide
+`lib/plantilla-de-funciones.ts` (puro) y lo escribe `sincronizarLaAudiencia`
+(`lib/plantilla-de-funciones-db.ts`), en una transacción con candado por
+audiencia.
+
+1. **La primera vez se arma con el inventario de hoy**, sin duplicar por
+   nombre (`laLlaveDelNombre`), y cada plan queda exactamente como estaba: sus
+   encendidas, su orden y sus destacadas; lo que no tenía, apagado.
+2. **Crear o editar en la plantilla llega a los seis planes**; en los que no la
+   tenían, apagada. Lo que se edita en el editor de UN plan (nombre,
+   descripción, categoría, tutorial) también es de la plantilla.
+3. **Una función nueva creada desde un plan conserva su id**: el plan que se
+   guarda no completa la plantilla por su fila.
+4. **Versión**: guardar con una plantilla vieja contesta `LA_PLANTILLA_CAMBIO`.
+5. **Un plan apagado no se reescribe por tildes** sin un cambio pedido.
+
+Lo prueba `scripts/banco-plantilla-de-funciones.sh` contra Postgres con los
+planes de producción saneados; `MODO=roto` afirma que antes no había plantilla.
+`banco-configuracion-de-la-casa.sh` sale 128 también en `main`: es previo.

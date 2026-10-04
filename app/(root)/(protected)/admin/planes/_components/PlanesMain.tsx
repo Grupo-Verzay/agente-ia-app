@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pencil, Loader2, Star, ArrowLeft, Users, Store, ExternalLink } from "lucide-react";
+import { Pencil, Loader2, Star, ArrowLeft, Users, Store, ExternalLink, ListChecks } from "lucide-react";
 import {
   getAllSubscriptionPlans,
+  guardarLaPlantillaDeFunciones,
   upsertSubscriptionPlan,
   toggleSubscriptionPlanActive,
+  type PlantillaDelPanel,
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
@@ -30,7 +32,15 @@ import {
   type FuncionDelPlan,
 } from "@/lib/pagina-de-plan";
 import { MODULOS_CON_GUIA } from "@/lib/introduccion-de-la-guia";
+import {
+  conLaPlantilla,
+  elEditorConLaPlantillaNueva,
+  emparejar,
+  type Audiencia,
+  type FuncionDeLaPlantilla,
+} from "@/lib/plantilla-de-funciones";
 import { FuncionesDelPlanEditor } from "./FuncionesDelPlanEditor";
+import { PlantillaDeFuncionesDialog } from "./PlantillaDeFuncionesDialog";
 import { UsdRateCard } from "./UsdRateCard";
 import dynamic from "next/dynamic";
 const PlanDetailTab = dynamic(() => import("./PlanDetailTab").then(m => m.PlanDetailTab), { ssr: false });
@@ -72,6 +82,12 @@ type EditForm = {
    * la tarjeta de la landing: `features` se rehace con las ENCENDIDAS al guardar.
    */
   funciones: FuncionDelPlan[];
+  /**
+   * La versión de la plantilla maestra con la que se armó `funciones`. Va al
+   * guardar: si la plantilla cambió en otra pestaña desde entonces, el plan no
+   * se guarda encima (`null`: el panel no tenía plantilla y no se comprueba).
+   */
+  versionDeLaPlantilla: number | null;
   description: string;
   isPopular: boolean;
   isActive: boolean;
@@ -94,12 +110,17 @@ export function PlanesMain() {
   const [form, setForm] = useState<EditForm | null>(null);
   const [dialogTab, setDialogTab] = useState<"config" | "detail">("config");
   const [dialogPlanId, setDialogPlanId] = useState<string | null>(null);
+  // La plantilla maestra de cada audiencia: el inventario completo de
+  // funciones que comparten sus planes (`lib/plantilla-de-funciones.ts`).
+  const [plantillas, setPlantillas] = useState<Partial<Record<Audiencia, PlantillaDelPanel>>>({});
+  const [plantillaOpen, setPlantillaOpen] = useState(false);
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getAllSubscriptionPlans();
       if (res.success) setPlans(res.data);
+      if ("plantillas" in res) setPlantillas(res.plantillas ?? {});
     } catch (e) {
       console.error("Error cargando planes:", e);
     } finally {
@@ -110,6 +131,22 @@ export function PlanesMain() {
   useEffect(() => { void fetchPlans(); }, [fetchPlans]);
 
   const isReseller = audience === "reseller";
+  const audienciaDe = (reseller: boolean): Audiencia => (reseller ? "reseller" : "cliente");
+  /** La plantilla de la audiencia que se está mirando (la del botón de arriba). */
+  const plantillaDeLaVista = audience ? plantillas[audienciaDe(isReseller)] ?? null : null;
+  /** La plantilla del plan que está abierto en el editor. */
+  const plantillaDelForm = form ? plantillas[audienciaDe(form.isResellerPlan)] ?? null : null;
+
+  /**
+   * Las funciones del plan con el inventario completo de su plantilla: arriba
+   * las encendidas en su orden, detrás todas las demás apagadas. Un plan que
+   * todavía no existe nace con todas apagadas.
+   */
+  const lasFuncionesConLaPlantilla = (
+    propias: readonly FuncionDelPlan[],
+    plantilla: readonly FuncionDeLaPlantilla[] | null | undefined,
+  ): FuncionDelPlan[] =>
+    plantilla ? conLaPlantilla(emparejar(propias, plantilla), plantilla) : [...propias];
 
   const getPlan = (plan: Plan, type: string) =>
     plans.find((p) => p.plan === plan && p.assistanceType === type && p.isResellerPlan === isReseller);
@@ -141,7 +178,11 @@ export function PlanesMain() {
       credits: existing?.credits ?? defaultCredits[plan][type],
       // Un plan guardado antes de las funciones con categoría las trae deducidas
       // de `features`, en su mismo orden.
-      funciones: existing?.funciones ?? lasFuncionesDelPlan(existing?.features ?? [], null),
+      funciones: lasFuncionesConLaPlantilla(
+        existing?.funciones ?? lasFuncionesDelPlan(existing?.features ?? [], null),
+        plantillas[audienciaDe(isReseller)]?.plantilla,
+      ),
+      versionDeLaPlantilla: plantillas[audienciaDe(isReseller)]?.version ?? null,
       description: existing?.description ?? "",
       isPopular: existing?.isPopular ?? false,
       isActive: existing?.isActive ?? true,
@@ -182,6 +223,7 @@ export function PlanesMain() {
         checkoutUrlQuarterly: form.checkoutUrlQuarterly || undefined,
         checkoutUrlYearly: form.checkoutUrlYearly || undefined,
         name: form.name || null,
+        versionDeLaPlantilla: form.versionDeLaPlantilla,
       });
       if (res.success) {
         toast.success(res.message);
@@ -231,6 +273,44 @@ export function PlanesMain() {
         ],
       )
     : null;
+
+  /**
+   * Guarda la plantilla maestra de la audiencia que se está mirando. Llega a
+   * todos sus planes; si hay un plan abierto en el editor, su lista se pone al
+   * día con la plantilla nueva sin perder lo que se había tocado en él.
+   */
+  const guardarLaPlantilla = async (lista: FuncionDeLaPlantilla[]): Promise<boolean> => {
+    const audiencia = audienciaDe(isReseller);
+    const actual = plantillas[audiencia];
+    if (!actual) return false;
+    try {
+      const res = await guardarLaPlantillaDeFunciones(audiencia, lista, actual.version);
+      if (!res.success) {
+        toast.error(res.message);
+        // Si cambió en otra pestaña, se recarga para que se vea la de ahora.
+        void fetchPlans();
+        return false;
+      }
+      toast.success(res.message);
+      const nueva = res.plantilla;
+      setPlantillas((antes) => ({ ...antes, [audiencia]: nueva }));
+      setForm((f) =>
+        f && audienciaDe(f.isResellerPlan) === audiencia
+          ? {
+              ...f,
+              funciones: elEditorConLaPlantillaNueva(f.funciones, actual.plantilla, nueva.plantilla),
+              versionDeLaPlantilla: nueva.version,
+            }
+          : f,
+      );
+      void fetchPlans();
+      return true;
+    } catch (e) {
+      console.error("[planes] no se pudo guardar la plantilla de funciones", e);
+      toast.error("No se pudo guardar la plantilla. Revisa la conexión y vuelve a intentarlo.");
+      return false;
+    }
+  };
 
   const handleToggle = async (id: string, current: boolean) => {
     const res = await toggleSubscriptionPlanActive(id, !current);
@@ -286,6 +366,18 @@ export function PlanesMain() {
           {audience === "client" && plans.filter((p) => !p.isResellerPlan).length === 0 && !loading && (
             <Button size="sm" onClick={handleSeedAll} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Inicializar planes"}
+            </Button>
+          )}
+          {plantillaDeLaVista && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPlantillaOpen(true)}
+              className="gap-2 text-xs h-8"
+              data-abrir-plantilla-de-funciones
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+              Plantilla de funciones
             </Button>
           )}
           <Button
@@ -641,6 +733,8 @@ export function PlanesMain() {
                   funciones={form.funciones}
                   onChange={(funciones) => setForm({ ...form, funciones })}
                   datos={datosDelFormulario}
+                  plantilla={plantillaDelForm?.plantilla ?? null}
+                  onEditarPlantilla={plantillaDelForm ? () => setPlantillaOpen(true) : undefined}
                 />
               )}
 
@@ -726,6 +820,22 @@ export function PlanesMain() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/*
+        La plantilla de la audiencia que se mira: se abre desde la barra de
+        arriba y desde el candado de una función en el editor de un plan.
+      */}
+      {plantillaDeLaVista && (
+        <PlantillaDeFuncionesDialog
+          open={plantillaOpen}
+          onOpenChange={setPlantillaOpen}
+          titulo={isReseller ? "Resellers" : "Clientes directos"}
+          plantilla={plantillaDeLaVista.plantilla}
+          encendidas={plantillaDeLaVista.encendidas}
+          totalDePlanes={plans.filter((p) => p.isResellerPlan === isReseller).length}
+          onGuardar={guardarLaPlantilla}
+        />
+      )}
     </div>
   );
 }
