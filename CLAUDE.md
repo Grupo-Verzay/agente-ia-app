@@ -26462,6 +26462,53 @@ y afirma los tres recuadros fijos, la asistencia que copiaba la función, el
 tutorial debajo, los títulos con el nombre, «gratis» en la tarjeta, la
 descripción apagada y el párrafo de agencias desalineado.
 
+### Y el FORMULARIO va en el orden de la página, con sus bloques enteros
+
+En el diálogo «Página de detalle» (Panel › Planes) los bloques del formulario
+iban en un orden FIJO —video, para quién, capacidad, preguntas, comenzar— y el
+orden de la página se elegía en una lista aparte, «Orden de la página». Con un
+orden distinto al de fábrica había que saltar arriba y abajo para editar la
+página de arriba a abajo, y «Qué incluye» ni tenía bloque.
+
+> **El formulario pinta sus bloques con `orden`**, el MISMO que guarda la
+> página: mover un bloque del formulario es moverlo en la página y en el índice
+> de arriba, y al revés. Las reglas viven en
+> `lib/bloques-del-formulario-del-plan.ts` (pura): `elOrdenAlSoltar`,
+> `elOrdenAlMover`, `laMarcaDeLaCaida` y `elMasCercanoEnVertical`, y las usan
+> el formulario y el índice. Con dos reglas, un día una diría que el bloque cae
+> delante y la otra detrás.
+
+Seis cosas que hay que mantener:
+
+1. **Cada bloque se mueve ENTERO**: por su asa (ratón y teclado) o con subir y
+   bajar; en el borde la flecha se QUITA, no se apaga. Cada uno dice su puesto
+   y, si no va a salir (sin video, sin recuadros con dato, sin funciones
+   encendidas, sin preguntas), lo dice al lado.
+2. **Lo que flota al arrastrar es una tarjeta corta en un portal al `<body>`**
+   (`createPortal(<DragOverlay>)`): el diálogo tiene `transform`, y dentro de
+   él un `fixed` se coloca contra el diálogo y sale descolocado. Una raya
+   (`data-marca-de-caida`) dice dónde cae, y es la misma cuenta que al soltar.
+3. **La caída se decide por la ALTURA del puntero** (`porLaAltura` con
+   `elMasCercanoEnVertical`), no por el centro: los bloques miden muy distinto
+   —el video unas líneas, la capacidad una pantalla— y por el centro soltar al
+   principio de uno largo caía en el de al lado.
+4. **Mover no hace saltar la pantalla**: el bloque movido se queda a la misma
+   altura (`useLayoutEffect` + `dejarArriba`, que desplaza solo el contenedor
+   del diálogo). **Nada de `scrollIntoView`**, que mueve también la página.
+5. **El índice lleva a cada bloque** (`data-ir-al-bloque`) y le da el foco.
+6. **«Qué incluye» es un bloque más**: enseña las funciones encendidas en su
+   orden (`funcionesQueSalen`, de `lasFuncionesQueSeEnsenan`, que Panel ›
+   Planes le pasa) y se editan donde siempre, en la pestaña de funciones.
+   «Pestaña del navegador y redes» no es un bloque de la página: va fija al
+   final.
+
+Lo prueba `scripts/banco-bloques-del-formulario.sh` (hace falta el build): la
+regla y un barrido, y la pestaña REAL en Chromium dentro del mismo diálogo, a
+1440 y 390, con un orden guardado distinto al de fábrica: el formulario sale en
+ese orden, se mueve con las flechas, con el índice, arrastrando con el ratón y
+con el teclado, el índice lleva al bloque y guardar manda el orden nuevo.
+`MODO=roto` pinta la pestaña de `165a431` y afirma el orden fijo.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

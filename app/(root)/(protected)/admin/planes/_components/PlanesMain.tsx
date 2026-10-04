@@ -22,6 +22,7 @@ import {
   elNombreDelPlan,
   elTutorialQueSeGuarda,
   lasFuncionesDelPlan,
+  lasFuncionesQueSeEnsenan,
   losAvisosDelTexto,
   losDatosDelPlan,
   losFeaturesDeLasFunciones,
@@ -706,6 +707,7 @@ export function PlanesMain() {
                 datos={datosDelFormulario}
                 enlaceDeLaPagina={`/planes/${form.plan}?tipo=${form.assistanceType}`}
                 planActivo={form.isActive}
+                funcionesQueSalen={lasFuncionesQueSeEnsenan(form.funciones, datosDelFormulario, new Map())}
               />
             </div>
           )}
