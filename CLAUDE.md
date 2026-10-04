@@ -654,6 +654,46 @@ y al llegar un mensaje. `MODO=roto` necesita `BUILD_ANTES` (un `.next` de
 Ojo con su semilla: la ficha se empareja con la fila por la llave de SU línea
 (`instanceId === instanceName`), así que la nota se cuelga de esa ficha.
 
+## Chats: la ficha de la conversación abierta es la de SU LÍNEA
+
+El mismo contacto escribe a Ventas y a Atención y tiene una ficha en cada
+línea. Una nota interna escrita en la conversación de Atención **salía también
+en la de Ventas y en la vista previa de su fila**. No se replicaba: se guardaba
+en la ficha equivocada.
+
+La fila de la lista ya se quedaba con la ficha de su línea (`linea::numero`),
+pero la conversación abierta pedía la suya **solo por el número**
+(`getSessionByRemoteJid` sin `instanceId`), y el servidor devolvía la tocada
+la última entre TODAS las líneas. La nota, el estado, las etiquetas y el asesor
+de la cabecera iban a esa ficha.
+
+> **La conversación abierta pide su ficha con su línea**
+> (`laBusquedaDeLaSesionAbierta`, `lib/sesion-de-la-conversacion-abierta.ts`,
+> pura). Una línea sin ficha de ese contacto **no hereda la de otra**. Sin
+> línea conocida, como siempre. El servidor no cambió.
+
+Cinco cosas que hay que mantener:
+
+1. **Cambiar a la otra línea del mismo número vuelve a pedir**: la línea entra
+   en las dependencias del hook y en la llave de la semilla
+   (`laLlaveDeLaConversacionAbierta`). `ChatMain` no se remonta entre líneas
+   del mismo número.
+2. **Una respuesta que llega tarde de la conversación anterior se tira**
+   (`llaveActualRef`), también si falla: si no, pinta su ficha encima.
+3. **Al cambiar de ficha se sueltan las notas de la anterior** (`setNotes([])`
+   antes de la guarda): una conversación sin ficha no enseña las de otra.
+4. **Una nota sin ficha en esta línea se DICE**, no se pierde en silencio.
+5. **La memoria de la bandeja**: la ficha de esta línea solo entra en la llave
+   global si está vacía o ya es esa (`seEscribeEnLaGlobal`), y «no hay ficha en
+   esta línea» no borra la del contacto en otra (`sinFichaEnLaLinea`). La fila
+   se pone al día por id (`conLaSesionAlDia`).
+
+Lo prueba `scripts/banco-nota-por-linea.sh`: la regla y un barrido, el hook
+real montado con `react-test-renderer` (pide su línea, vuelve a pedir al
+cambiar, tira la respuesta tardía) y las acciones contra Postgres (la nota se
+queda en su conversación, su fila y la bandeja). `MODO=roto` contra `97b6d07`
+afirma que desde Atención se resolvía la ficha de Ventas y la nota caía allí.
+
 ## Chats: la sesión se busca por su id, no por el número
 
 Cambiar el estado de un lead desde la lista —Frío, Tibio, Finalizado— **se

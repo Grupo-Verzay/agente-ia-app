@@ -136,6 +136,7 @@ import {
   elCambioDeLaFila,
   type AvisoDeLaFila,
 } from "@/lib/fila-de-chats-al-dia";
+import { seEscribeEnLaGlobal, sinFichaEnLaLinea } from "@/lib/sesion-de-la-conversacion-abierta";
 import { elColorDeLaEtapa } from "@/lib/embudos";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type { UIBubble } from "./chat-message-types";
@@ -2582,16 +2583,14 @@ export function ChatsClient({
   );
 
   const handleSessionResolved = useCallback(
-    (remoteJid: string, session: Session | null) => {
+    (remoteJid: string, session: Session | null, linea?: string) => {
       setChatSessions((previous) => {
         if (!remoteJid) return previous;
 
-        if (!session) {
-          if (!(remoteJid in previous)) return previous;
-          const next = { ...previous };
-          delete next[remoteJid];
-          return next;
-        }
+        // La ficha de la conversación abierta es la de SU línea: no borra ni
+        // pisa en la global la de otra línea del mismo contacto (ver
+        // `lib/sesion-de-la-conversacion-abierta.ts`).
+        if (!session) return sinFichaEnLaLinea(previous, remoteJid, linea);
 
         const mapped = mapSessionToChatContactSummary(session);
         // Preservar customName existente en memoria si el fetch de DB trae null
@@ -2616,7 +2615,10 @@ export function ChatsClient({
         // la cabecera y no en la lista hasta el reloj de sesiones (60 s). Solo
         // los campos que la fila ensena, y nunca las etiquetas (ver
         // `CAMPOS_DE_LA_SESION_PARA_LA_FILA`).
-        const { siguiente } = conLaSesionAlDia(previous, session.id, mapped);
+        const { siguiente, tocadas } = conLaSesionAlDia(previous, session.id, mapped);
+        if (!seEscribeEnLaGlobal(previous, remoteJid, session.id, linea)) {
+          return tocadas ? siguiente : previous;
+        }
         return { ...siguiente, [remoteJid]: mapped };
       });
     },

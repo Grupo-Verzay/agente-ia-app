@@ -128,7 +128,7 @@ type ChatMainProps = {
   quickReplies: ChatQuickReplyOption[];
   /** La línea de la conversación: el panel de Atajos la nombra cuando sale vacío. */
   lineaDeLosAtajos?: string | null;
-  onSessionResolved?: (remoteJid: string, session: Session | null) => void;
+  onSessionResolved?: (remoteJid: string, session: Session | null, instanceName?: string) => void;
   /** El interruptor de la IA cambio: para pintarlo al momento en la lista. */
   onSessionStatusChange?: (sessionId: number, remoteJid: string, status: boolean) => void;
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[], sessionId?: number) => void;
@@ -348,6 +348,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     sessionUserIds,
     remoteJid: info?.remoteJid,
     remoteJidAliases: info?.remoteJidAliases,
+    // La ficha es la de ESTA línea: el mismo contacto tiene una por línea, y
+    // sin la línea se cogía la de otra (la nota interna salía en las dos).
+    instanceName: info?.instanceName,
     onSessionResolved,
     refreshSignal: sessionRefreshSignal,
     initialSession,
@@ -510,6 +513,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {
+    // Las notas son de UNA ficha. Al cambiar de ficha —otra línea del mismo
+    // contacto, que no remonta este componente— se sueltan las de la anterior
+    // antes de pedir las nuevas: si no, salían en la conversación equivocada.
+    setNotes([]);
     if (!session?.id) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -837,7 +844,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   const handleSendNote = useCallback(
     async (content: string) => {
-      if (!session?.id) return;
+      if (!session?.id) {
+        // Sin ficha en ESTA línea no hay dónde colgarla. No es mudo: un botón
+        // que no hace nada se pulsa cinco veces.
+        toast.error('Esta conversación todavía no tiene ficha en esta línea: la nota no se guardó.');
+        return;
+      }
       // Solo cuentan los asesores elegidos cuyo "@Nombre" siga en el texto.
       // Los de la madre cuentan igual: el servidor decide qué hace con cada uno.
       const mentionedUserIds = [...(advisors ?? []), ...(deLaMadre ?? [])]
