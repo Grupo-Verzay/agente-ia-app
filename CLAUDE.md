@@ -26207,6 +26207,49 @@ con el contenedor ancho se leerían a 140. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
 1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
 
+## Las tres públicas llevan UN pie: el mismo texto, la raya al ancho del contenido y el aire de entre bloques
+
+La landing principal, la página de un plan y la propuesta pública tenían tres
+pies distintos: la landing decía «© año Agente IA. Todos los derechos
+reservados.» con una raya de lado a lado y 24 px de aire encima; el plan decía
+«© año Verzay» (sin los derechos), también de lado a lado; y la propuesta no
+tenía ni raya ni derechos, solo «Propuesta preparada por …», con un hueco
+enorme encima (`mt-10` más el `pb-16` del artículo).
+
+> **Las tres pintan `PieDeLasPublicas`** (`components/shared/PieDeLasPublicas.tsx`),
+> y las reglas viven en `lib/pie-de-las-publicas.ts`: el texto
+> (`elTextoDeLosDerechos`, con el año del sistema —las tres páginas son
+> dinámicas, así que se actualiza solo—), la raya (`LINEA_DEL_PIE`, una
+> `border-t` DENTRO del contenedor del contenido, nunca en el `<footer>`) y el
+> aire encima (`AIRE_ENCIMA_DEL_PIE`).
+
+Cinco cosas que hay que mantener:
+
+1. **El aire hasta la raya es el que hay entre dos bloques de ESA pantalla**:
+   la landing separa sus secciones con `py-6` (48 px entre contenidos) y el
+   pie lleva `pt-6`; el plan, con `ESPACIO_DEL_BLOQUE` (`py-8 sm:py-10`), y el
+   pie lo mismo; la propuesta, con `mt-8` (32 px entre recuadros), y el pie
+   `mt-8`. Debajo de la raya, 24 px en las tres. **Si una pantalla cambia el
+   aire entre sus bloques, cambia el del pie**: el banco los compara medidos.
+2. **El texto es UNO y nunca se escribe a mano**: ni un `©` ni un
+   `getFullYear()` en las tres pantallas (lo exige el barrido).
+3. **La propuesta añade encima «Propuesta preparada por <negocio>, Agente IA»**
+   (`elTextoDePreparadaPor`, con el nombre del negocio de la cuenta), sin
+   quitar los derechos. Sin nombre, «Propuesta preparada por Agente IA».
+4. **En la propuesta no hay título encima de la lista**: cada tarjeta dice
+   «Servicios: <nombre>» o «Productos: <nombre>» (`data-rotulo-del-item`), con
+   el plural de `propuesta.tipoDeItems`.
+5. **Las landings de reseller no entran** (`ResellerLandingClient`): tienen su
+   propio pie con su marca.
+
+Lo prueba `scripts/banco-pie-de-las-publicas.sh` (hace falta el build): lo puro
+y un barrido, y las tres pantallas REALES en Chromium sobre el CSS del build a
+1440, 1024 y 390 (la raya al ancho del contenido, el aire medido contra el de
+entre bloques, el mismo texto en las tres, «preparada por» encima y los
+rótulos en cada tarjeta). `MODO=roto` las pinta con el código de `20f8e50` y
+afirma la raya de lado a lado, el aire distinto, el plan sin derechos y la
+propuesta sin raya y con «Servicios» encima de la lista.
+
 ## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
 
 `/demo` es una página pública (noindex, sin sesión) con un vídeo de **entre

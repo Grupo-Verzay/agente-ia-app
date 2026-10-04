@@ -1,6 +1,8 @@
-import { CalendarClock, CalendarDays, CheckCircle2, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
+import { CalendarClock, CalendarDays, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
 
 import { PlanEnLaPropuesta } from "@/components/propuestas/PlanEnLaPropuesta";
+import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
+import { AIRE_ENCIMA_DEL_PIE, elTextoDePreparadaPor } from "@/lib/pie-de-las-publicas";
 import {
     losPlanesDeCadaServicio,
     losPlanesQueSeEnsenan,
@@ -108,7 +110,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
         <article
             data-propuesta
             data-tema-del-plan="dispositivo"
-            className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 text-plan-tinta sm:px-6 sm:pt-10 lg:px-8`}
+            className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pt-6 text-plan-tinta sm:px-6 sm:pt-10 lg:px-8`}
         >
             {/* La tarjeta azul lleva la cabecera DENTRO: arriba, «Preparada
                 para» a la izquierda y el logo a la derecha, a la misma altura;
@@ -163,17 +165,11 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                 </div>
             </section>
 
-            {/* Servicios o productos: lo eligió quien creó la propuesta */}
-            <section className="mt-8">
-                <h2 data-titulo-items className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
-                    {propuesta.tipoDeItems === "productos" ? (
-                        <Package className="h-4 w-4 text-plan-suave" />
-                    ) : (
-                        <FileText className="h-4 w-4 text-plan-suave" />
-                    )}
-                    {rotulos.plural}
-                </h2>
-                <ol className="mt-3 space-y-3">
+            {/* Servicios o productos: lo eligió quien creó la propuesta. Sin
+                título encima de la lista: cada tarjeta lo dice delante de su
+                nombre («Servicios: Plan Business»), así se lee sola. */}
+            <section data-items className="mt-8">
+                <ol className="space-y-3">
                     {propuesta.servicios.map((s, i) => {
                         const plan = porServicio[i];
                         return (
@@ -184,9 +180,21 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                                 className="rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5"
                             >
                                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                                    <h3 className="min-w-0 break-words text-base font-semibold text-plan-tinta">
-                                        <span className="mr-1.5 text-plan-tenue">{i + 1}.</span>
-                                        {s.nombre}
+                                    <h3
+                                        data-titulo-del-item
+                                        className="flex min-w-0 items-start gap-2 break-words text-base font-semibold text-plan-tinta"
+                                    >
+                                        {propuesta.tipoDeItems === "productos" ? (
+                                            <Package className="mt-1 h-4 w-4 shrink-0 text-plan-suave" />
+                                        ) : (
+                                            <FileText className="mt-1 h-4 w-4 shrink-0 text-plan-suave" />
+                                        )}
+                                        <span className="min-w-0">
+                                            <span data-rotulo-del-item className="text-plan-tenue">
+                                                {rotulos.plural}:
+                                            </span>{" "}
+                                            {s.nombre}
+                                        </span>
                                     </h3>
                                     {/* Con un plan que trae su precio, el importe va UNA vez, junto
                                         a su botón «Comenzar con el plan»: aquí sería repetirlo. */}
@@ -306,10 +314,15 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                 </section>
             ) : null}
 
-            <footer className="mt-10 flex items-center justify-center gap-1.5 text-center text-xs text-plan-tenue">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Propuesta preparada por {negocio.nombre || "el equipo"}
-            </footer>
+            {/* El pie de las tres públicas, DENTRO del `article`: la raya mide lo
+                que el contenido, y encima deja el mismo aire que hay entre dos
+                bloques (`mt-8`). Con la línea de quién la preparó encima de los
+                derechos. */}
+            <PieDeLasPublicas
+                tema="propuesta"
+                aire={AIRE_ENCIMA_DEL_PIE.propuesta}
+                preparadaPor={elTextoDePreparadaPor(negocio.nombre)}
+            />
         </article>
     );
 }
