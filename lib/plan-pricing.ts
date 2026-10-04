@@ -4,6 +4,7 @@ import { PLANS } from "@/types/plans";
 
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
+import { losNombresDeLosNiveles } from "@/lib/nombre-del-nivel";
 
 /**
  * Qué se le cobra a una cuenta por un plan, y en qué moneda.
@@ -82,12 +83,13 @@ async function leerEtiquetaDePlan(
             if (propio?.name?.trim()) return propio.name.trim();
         }
 
-        const dePlataforma = await db.subscriptionPlan.findFirst({
-            where: { plan, isResellerPlan: false },
-            select: { name: true },
-            orderBy: { assistanceType: "asc" },
+        // El nombre VIGENTE del nivel (`lib/nombre-del-nivel.ts`), no el de la
+        // primera fila que aparezca: esa podía ser la que no se renombró.
+        const dePlataforma = await db.subscriptionPlan.findMany({
+            where: { plan },
+            select: { plan: true, name: true, isResellerPlan: true, updatedAt: true },
         });
-        return dePlataforma?.name?.trim() || null;
+        return losNombresDeLosNiveles(dePlataforma)[plan] || null;
     } catch {
         return null;
     }
@@ -116,21 +118,22 @@ export async function etiquetasDePlanesParaMarca(
         // desplegable el nombre comercial de otra marca.
         // Sin filtro de `isActive`: el nombre de un nivel vale aunque la marca lo
         // tenga apagado; se puede asignar ese nivel a un cliente igual.
-        const filas = resellerUserId
-            ? await db.resellerPlan.findMany({
+        if (resellerUserId) {
+            const filas = await db.resellerPlan.findMany({
                 where: { resellerUserId },
                 select: { plan: true, name: true },
                 orderBy: { assistanceType: "asc" },
-            })
-            : await db.subscriptionPlan.findMany({
-                where: { isResellerPlan: false },
-                select: { plan: true, name: true },
-                orderBy: { assistanceType: "asc" },
             });
-
-        for (const p of filas) {
-            const nombre = p.name?.trim();
-            if (nombre && !etiquetas[p.plan]) etiquetas[p.plan] = nombre;
+            for (const p of filas) {
+                const nombre = p.name?.trim();
+                if (nombre && !etiquetas[p.plan]) etiquetas[p.plan] = nombre;
+            }
+        } else {
+            // La plataforma: el nombre VIGENTE de cada nivel (`lib/nombre-del-nivel.ts`).
+            const filas = await db.subscriptionPlan.findMany({
+                select: { plan: true, name: true, isResellerPlan: true, updatedAt: true },
+            });
+            Object.assign(etiquetas, losNombresDeLosNiveles(filas));
         }
     } catch {
         // Sin nombres se devuelve el mapa vacío y el llamador cae a los niveles.

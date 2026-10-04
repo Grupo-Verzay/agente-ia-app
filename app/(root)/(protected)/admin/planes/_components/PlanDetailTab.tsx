@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { VideoUploader } from "@/components/ui/video-uploader";
 import {
@@ -227,12 +228,16 @@ export function PlanDetailTab({
   subscriptionPlanId,
   datos,
   enlaceDeLaPagina,
+  asistenciaDeLaPagina,
   planActivo,
   funcionesQueSalen,
 }: {
   subscriptionPlanId: string;
   datos: DatosDelPlan;
+  /** `/planes/nivel-N`: la modalidad no va en la dirección (`lib/enlaces-de-planes.ts`). */
   enlaceDeLaPagina: string;
+  /** La modalidad de este plan; se apunta en la cookie al abrir la página. */
+  asistenciaDeLaPagina?: string;
   planActivo: boolean;
   /**
    * Las funciones que salen en «Qué incluye», tal cual están en la pestaña
@@ -921,6 +926,7 @@ export function PlanDetailTab({
             href={enlaceDeLaPagina}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => recordarLaAsistencia(asistenciaDeLaPagina)}
             className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             data-ver-pagina-publica
           >

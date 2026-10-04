@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { conLosNombresVigentes } from "@/lib/nombre-del-nivel.server";
 import type { Prisma } from "@prisma/client";
 import type { SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 
@@ -16,6 +17,10 @@ import type { SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
  * `conMayorista` decide si viaja el precio mayorista, que es lo que la
  * plataforma le cobra a un reseller por licencia. Es un dato de la CASA: en una
  * página pública o en el panel de un cliente no tiene nada que hacer.
+ *
+ * El `name` de cada fila sale con el nombre VIGENTE de su nivel
+ * (`lib/nombre-del-nivel.ts`): un nivel tiene un solo nombre, y la fila que no
+ * se editó la última vez no puede seguir vendiendo el anterior.
  */
 export async function leerLosPlanes(
     where: Prisma.SubscriptionPlanWhereInput | undefined,
@@ -25,7 +30,8 @@ export async function leerLosPlanes(
         where,
         orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
     });
-    return plans.map((p) => ({
+    const conNombre = await conLosNombresVigentes(plans);
+    return conNombre.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
         priceCop: p.priceCop != null ? Number(p.priceCop) : null,

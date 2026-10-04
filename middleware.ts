@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 // Instancia ligera, sin Prisma ni bcrypt: ver auth.middleware.ts. Este archivo
 // corre en cada petición y aquí solo hace falta leer el token de la cookie.
 import { auth } from '@/auth.middleware';
+import { laCookieDeAsistencia, laDireccionLimpiaDelPlan } from '@/lib/enlaces-de-planes';
 const publicRoutes = ["/", "/prices", "/inicio", "/completar-registro"];
 const authRoutes = ["/login", "/register"];
 const apiAuthPrefix = "/api/auth";
@@ -126,6 +127,23 @@ export default auth((req) => {
   if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCotizacionIaPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiUploadFormFilePrefix)) return NextResponse.next();
+  // Las direcciones de los planes van por NIVEL y sin la modalidad a la vista
+  // (`lib/enlaces-de-planes.ts`). Un enlace viejo —`/planes/basico?tipo=HUMANO`,
+  // `/register?plan=avanzado&a=IA`— se lleva a su forma limpia, y la modalidad
+  // que traía se guarda en la cookie para que la página la siga sabiendo. 307 y
+  // no 308: un 308 lo guarda el navegador y la próxima vez no pasaría por aquí
+  // a dejar la cookie. Dentro de un marco de otra web (`sec-fetch-dest:
+  // iframe`) la cookie va particionada, que es la única que vuelve ahí.
+  const limpia = laDireccionLimpiaDelPlan(currentPath, nextUrl.searchParams);
+  if (limpia) {
+    const res = NextResponse.redirect(new URL(limpia.destino, nextUrl));
+    if (limpia.asistencia) {
+      const entreSitios = req.headers.get("sec-fetch-dest") === "iframe";
+      res.headers.append("Set-Cookie", laCookieDeAsistencia(limpia.asistencia, { entreSitios }));
+    }
+    return res;
+  }
+
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {

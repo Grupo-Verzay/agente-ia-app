@@ -31,6 +31,7 @@ import {
     type TarjetaDeCapacidad,
     type VideoDelPlan,
 } from "@/lib/pagina-de-plan";
+import { conLosNombresVigentes } from "@/lib/nombre-del-nivel.server";
 import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
 import { laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado } from "@/lib/plan-para-quien-db";
@@ -85,6 +86,8 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
     if (!plan) return null;
     const tipo = normalizarAsistencia(tipoCrudo);
 
+    // Con el nombre VIGENTE de cada nivel (`lib/nombre-del-nivel.ts`): la fila
+    // que se enseña puede no ser la que se renombró la última vez.
     const planes = await db.subscriptionPlan.findMany({
         where: { isResellerPlan: false },
         select: {
@@ -98,7 +101,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
             features: true,
             description: true,
         },
-    });
+    }).then(conLosNombresVigentes);
 
     const elegido = elPlanQueSeEnsena(planes, plan, tipo);
     if (!elegido) return null;

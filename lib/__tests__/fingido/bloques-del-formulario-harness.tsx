@@ -28,7 +28,7 @@ const funciones = [
 const props: Record<string, unknown> = {
     subscriptionPlanId: "plan-banco",
     datos,
-    enlaceDeLaPagina: "/planes/basico?tipo=IA",
+    enlaceDeLaPagina: "/planes/nivel-2",
     planActivo: !(window as any).planApagado,
     funcionesQueSalen: lasFuncionesQueSeEnsenan(funciones, datos, new Map()),
 };

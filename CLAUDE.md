@@ -26513,6 +26513,59 @@ ese orden, se mueve con las flechas, con el índice, arrastrando con el ratón y
 con el teclado, el índice lleva al bloque y guardar manda el orden nuevo.
 `MODO=roto` pinta la pestaña de `165a431` y afirma el orden fijo.
 
+## Planes: el nombre es UNO por nivel, y la dirección lleva el NIVEL sin la modalidad
+
+Cuatro fallos de la zona de planes, reportados juntos:
+
+| lo que se veía | la causa |
+| --- | --- |
+| la landing vendía el nombre ANTERIOR de un plan | cada nivel son varias filas (IA, Humano y las de reseller) y el panel solo escribía la que se editaba; la landing enseñaba la de Humano |
+| `?tipo=HUMANO` y `&a=HUMANO` a la vista en las direcciones | la modalidad viajaba en la URL |
+| `/planes/basico`, `?plan=avanzado` | la dirección llevaba el nombre interno del nivel |
+| «Ver todo lo que incluye» pegado a «Comenzar ahora» | `space-y-*` no separa un enlace en línea |
+
+> **El nombre comercial es uno por nivel.** Guardar un nombre lo escribe en
+> TODAS las filas del nivel (`updateMany` por `plan` en
+> `upsertSubscriptionPlan`), y guardar sin mandar el nombre lo conserva. Lo que
+> ya estaba escrito distinto se lee con una regla (`losNombresDeLosNiveles`,
+> `lib/nombre-del-nivel.ts`): el más reciente de la plataforma; el de reseller
+> solo si no hay ninguno; sin nada, «Nivel N». La usan la landing, la página
+> del plan, el panel y las etiquetas de marca (`conLosNombresVigentes`).
+
+> **La dirección lleva el nivel y nunca la modalidad.** `/planes/nivel-1` …
+> `/planes/nivel-6` y `?plan=nivel-N`; los enlaces los arma
+> `lib/enlaces-de-planes.ts` (`elEnlaceDeLaPaginaDelPlan`,
+> `elEnlaceDeRegistro`) y nadie los escribe a mano —un barrido lo exige—. La
+> modalidad va en la cookie `plan_asistencia` (7 días; dentro de un marco,
+> `SameSite=None; Secure; Partitioned`).
+
+Cinco cosas que hay que mantener:
+
+1. **El middleware limpia las direcciones viejas** (`laDireccionLimpiaDelPlan`)
+   ANTES de decidir si una ruta es pública: el nombre interno pasa a `nivel-N`,
+   `a=` y `tipo=IA|HUMANO` salen y su modalidad pasa a la cookie (307 con el
+   `Set-Cookie` crudo: `cookies()` de Next no sabe `Partitioned`).
+   `tipo=reseller` se queda: no es una modalidad. La lista de niveles es
+   literal (el edge no lee Prisma) y el banco la compara con `PLANS`.
+2. **La cookie no se da por buena**: `laAsistenciaQueSeVende`
+   (`lib/asistencia-del-plan.server.ts`) solo la acepta si ese nivel se vende
+   así; si no, la que se venda (IA primero). Sin eso, una modalidad apagada
+   salía con precio 0.
+3. **Lo único que lleva la modalidad en la dirección es la landing
+   INCRUSTADA** (abre en otra pestaña, donde la cookie de este sitio puede no
+   llegar); el middleware la pasa a la cookie y la quita al aterrizar.
+4. **Los botones de la tarjeta van en `mt-auto flex flex-col gap-3`**
+   (`data-botones-de-la-tarjeta`), nunca `space-y-*`.
+5. **El nombre comercial se queda en la pantalla**, nunca en la dirección.
+
+Lo prueba `scripts/banco-enlaces-de-planes.sh`: la regla y un barrido, las
+acciones contra Postgres (renombrar desde IA renombra Humano y reseller,
+guardar sin nombre lo conserva, nombres divergentes, la modalidad que se vende),
+las seis tarjetas reales en Chromium a 1440 y 390, y la página SERVIDA
+(`probar-enlaces-de-planes.mjs`: redirecciones con su cookie, `/planes/nivel-3`
+y la landing). `MODO=roto` corre lo mismo contra `a5a9371` y afirma los cuatro
+fallos.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

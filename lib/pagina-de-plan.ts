@@ -59,6 +59,7 @@ import { sinTildes } from "@/lib/pantalla-de-notas";
 import { elTopeDeProductos } from "@/lib/limite-de-catalogo";
 import { laPosicionDelNivel } from "@/lib/nivel-de-la-licencia";
 import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
+import { elEnlaceDeLaPaginaDelPlan, elEnlaceDeRegistro } from "@/lib/enlaces-de-planes";
 
 /* ─── Funciones ────────────────────────────────────────────────────────── */
 
@@ -964,7 +965,8 @@ export function esElOrdenDeFabrica(orden: readonly string[]): boolean {
 /* ─── Qué plan se enseña ───────────────────────────────────────────────── */
 
 /**
- * El plan que se enseña en `/planes/<plan>?tipo=…`: el del tipo pedido si está
+ * El plan que se enseña en `/planes/nivel-N` (con la modalidad de la cookie,
+ * `lib/enlaces-de-planes.ts`): el del tipo pedido si está
  * ACTIVO, y si no, el del otro tipo si lo está. Un plan apagado no se enseña:
  * la landing no lo ofrece y la página no puede venderlo.
  */
@@ -1101,7 +1103,8 @@ export type BotonesGuardados = {
  * plan, o este por un nombre viejo, deja el de siempre (`elTextoDelBoton`).
  *
  * Sin enlace propio, el principal es el de la landing: con precio, el
- * registro con este plan marcado (`/register?plan=…&a=…`); sin precio
+ * registro con este plan marcado (`/register?plan=nivel-N`, la modalidad va en
+ * la cookie); sin precio
  * («A consultar»), escribir por WhatsApp a la marca, como la tarjeta del plan.
  */
 export function losBotonesDelPlan(
@@ -1110,7 +1113,7 @@ export function losBotonesDelPlan(
     sitio: { whatsappNumber?: string | null },
 ): { principal: BotonDelPlan; secundario: BotonDelPlan | null } {
     const g = guardados ?? {};
-    const registro = `/register?plan=${encodeURIComponent(datos.plan)}&a=${datos.asistencia}`;
+    const registro = elEnlaceDeRegistro(datos.plan);
     const propio = comoEnlaceDelBoton(g.ctaButtonUrl);
     let principal: BotonDelPlan;
     if (propio) {
@@ -1297,6 +1300,7 @@ export function elPlanSuperior<
         plan: elegido.plan,
         tipo: suTipo,
         nombre: elNombreDelPlan(elegido),
-        url: `/planes/${encodeURIComponent(elegido.plan)}${suTipo === "HUMANO" ? "?tipo=HUMANO" : ""}`,
+        // Por su nivel y sin la modalidad: la pone en la cookie quien pulsa (`tipo`).
+        url: elEnlaceDeLaPaginaDelPlan(elegido.plan),
     };
 }

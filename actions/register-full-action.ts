@@ -17,6 +17,7 @@ import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import { cookies } from "next/headers";
 import { elegirServidorConCupo } from "@/lib/evolution-capacity";
 import { precioDePlanParaCuenta } from "@/lib/plan-pricing";
+import { laAsistenciaElegida, laAsistenciaQueSeVende } from "@/lib/asistencia-del-plan.server";
 import { diasDePruebaDeMarca } from "@/lib/trial-days.server";
 import { laLlaveParaUnaCuentaNueva } from "@/lib/llaves-de-verzay";
 
@@ -402,9 +403,20 @@ export async function fullRegisterAction(
     }
   }
 
+  // La modalidad ya no viaja en la dirección: llega de la cookie (por la
+  // pantalla o leída aquí) y solo vale si ese nivel se vende así; si no, la que
+  // se venda. Sin esto, una cookie vieja o ausente podía dejar la cuenta en la
+  // modalidad apagada, y con ella un precio de cero.
+  const asistencia = planElegidoRef?.planSlug
+    ? await laAsistenciaQueSeVende(
+        planElegidoRef.planSlug,
+        planElegidoRef.assistanceType ?? laAsistenciaElegida(),
+        resellerUserId,
+      )
+    : planElegidoRef?.assistanceType;
   const planElegido = await precioDePlanParaCuenta(
     planElegidoRef?.planSlug,
-    planElegidoRef?.assistanceType,
+    asistencia,
     resellerUserId,
   );
 
