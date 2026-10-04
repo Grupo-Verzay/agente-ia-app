@@ -18,8 +18,22 @@
  *
  * Es la regla de siempre de un precio: el que se le mandó a un cliente no puede
  * cambiar solo porque alguien retocó la tarifa de la casa.
+ *
+ * # Una plantilla ENLAZADA a un plan del panel de Planes no guarda la copia
+ *
+ * Quien manda en la casa puede enlazar una plantilla a un plan del panel de
+ * Planes (`plan`: su nivel y su modalidad). Esa plantilla NO guarda nombre,
+ * precio ni características de verdad —los que se guardan son solo una foto
+ * para ordenar la lista—: al cargarla en una propuesta NUEVA se leen EN VIVO
+ * del panel (`lib/plan-de-la-propuesta.server.ts`), con sus créditos, su
+ * catálogo, su asistencia y su «Qué incluye». Editar el plan en el panel se ve
+ * en la siguiente propuesta sin tocar la plantilla.
+ *
+ * Lo que la propuesta guarda sigue siendo una COPIA de la fila: la propuesta ya
+ * mandada no cambia porque alguien edite el plan después.
  */
 
+import { comoRefDePlan, type RefDePlan } from "@/lib/plan-de-la-propuesta";
 import { comoImporte, comoMoneda, MONEDAS, type Moneda } from "@/lib/propuestas";
 
 export const TOPE_DE_NOMBRE_DEL_PLAN = 150;
@@ -33,11 +47,13 @@ export type PlantillaDePlan = {
     precio: number;
     moneda: Moneda;
     caracteristicas: string[];
+    /** El plan del panel de Planes al que está enlazada; `null` = plantilla a mano. */
+    plan: RefDePlan | null;
     creadaEn: string;
     actualizadaEn: string;
 };
 
-export type DatosDePlantilla = Pick<PlantillaDePlan, "nombre" | "precio" | "moneda" | "caracteristicas">;
+export type DatosDePlantilla = Pick<PlantillaDePlan, "nombre" | "precio" | "moneda" | "caracteristicas" | "plan">;
 
 export type VeredictoDePlantilla = { ok: true; datos: DatosDePlantilla } | { ok: false; motivo: string };
 
@@ -64,11 +80,27 @@ export function comoCaracteristicas(v: unknown): string[] {
 /** Lo que se guarda, a partir de lo que llega del navegador. Se vuelve a comprobar en el servidor. */
 export function comoPlantilla(raw: unknown): VeredictoDePlantilla {
     const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-    const nombre = unaLinea(r.nombre, TOPE_DE_NOMBRE_DEL_PLAN);
-    if (!nombre) return { ok: false, motivo: "Escribe el nombre del plan." };
     if (typeof r.moneda === "string" && r.moneda.trim() && !(MONEDAS as readonly string[]).includes(r.moneda.trim().toUpperCase())) {
         return { ok: false, motivo: "Esa moneda no está en la lista." };
     }
+    // Enlazada a un plan del panel: el nombre, el precio y las características
+    // los pone el servidor leyendo el plan, así que aquí no se exigen.
+    if (r.plan !== null && r.plan !== undefined && r.plan !== "") {
+        const plan = comoRefDePlan(r.plan);
+        if (!plan) return { ok: false, motivo: "Ese plan no está en el panel de Planes." };
+        return {
+            ok: true,
+            datos: {
+                nombre: unaLinea(r.nombre, TOPE_DE_NOMBRE_DEL_PLAN),
+                precio: comoImporte(r.precio) ?? 0,
+                moneda: comoMoneda(r.moneda),
+                caracteristicas: [],
+                plan,
+            },
+        };
+    }
+    const nombre = unaLinea(r.nombre, TOPE_DE_NOMBRE_DEL_PLAN);
+    if (!nombre) return { ok: false, motivo: "Escribe el nombre del plan." };
     const crudoPrecio = r.precio;
     if (crudoPrecio === null || crudoPrecio === undefined || String(crudoPrecio).trim() === "") {
         return { ok: false, motivo: `Escribe el precio de «${nombre}».` };
@@ -76,7 +108,7 @@ export function comoPlantilla(raw: unknown): VeredictoDePlantilla {
     // Un precio que no se entiende no se sustituye por cero: es lo que se le cobra al cliente.
     const precio = comoImporte(crudoPrecio);
     if (precio === null) return { ok: false, motivo: `El precio de «${nombre}» no es un importe válido.` };
-    return { ok: true, datos: { nombre, precio, moneda: comoMoneda(r.moneda), caracteristicas: comoCaracteristicas(r.caracteristicas) } };
+    return { ok: true, datos: { nombre, precio, moneda: comoMoneda(r.moneda), caracteristicas: comoCaracteristicas(r.caracteristicas), plan: null } };
 }
 
 /**
@@ -111,9 +143,17 @@ export function conLaPlantillaCargada<T extends FilaEditable>(filas: readonly T[
     filas: FilaEditable[];
     cabe: boolean;
 } {
+    return conLaFilaCargada(filas, laFilaDeLaPlantilla(plantilla), tope);
+}
+
+/** Lo mismo con una fila ya hecha (la que sale de un plan del panel, `laFilaDelPlan`). */
+export function conLaFilaCargada<T extends FilaEditable>(filas: readonly T[], fila: FilaEditable, tope: number): {
+    filas: FilaEditable[];
+    cabe: boolean;
+} {
     const llenas = filas.filter((f) => !estaVacia(f)).map((f) => ({ nombre: f.nombre, alcance: f.alcance, inversion: f.inversion }));
     if (llenas.length >= tope) return { filas: filas.map((f) => ({ ...f })), cabe: false };
-    return { filas: [...llenas, laFilaDeLaPlantilla(plantilla)], cabe: true };
+    return { filas: [...llenas, { nombre: String(fila.nombre), alcance: String(fila.alcance), inversion: String(fila.inversion) }], cabe: true };
 }
 
 /** Orden de la lista: por precio y, a igual precio, por nombre. Es como se lee una escalera de planes. */

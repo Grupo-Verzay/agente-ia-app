@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { comoCaracteristicas, ordenarPlantillas, type DatosDePlantilla, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import { comoListaDeRefs, comoRefDePlan } from "@/lib/plan-de-la-propuesta";
 import {
     comoEslogan,
     comoMoneda,
@@ -108,6 +109,13 @@ function asegurarLasTablas(): Promise<void> {
             CREATE UNIQUE INDEX IF NOT EXISTS "propuestas_comerciales_slug_key"
             ON "propuestas_comerciales" ("slug") WHERE "slug" <> ''
         `);
+        // Los planes del panel de Planes que lleva la propuesta: solo su
+        // REFERENCIA (nivel y modalidad). El video y el enlace a su página
+        // pública se leen al abrir la propuesta, así que salen como están hoy.
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "propuestas_comerciales"
+                ADD COLUMN IF NOT EXISTS "planes" JSONB NOT NULL DEFAULT '[]'::jsonb
+        `);
         // Las PLANTILLAS DE PLANES de la cuenta: independientes de Productos y
         // sin tope de cuántas. Una propuesta no guarda su id: guarda una COPIA
         // (ver `lib/plantillas-de-planes.ts`), así que editarlas o borrarlas no
@@ -124,6 +132,14 @@ function asegurarLasTablas(): Promise<void> {
                 "creadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "actualizadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
+        `);
+        // Una plantilla ENLAZADA a un plan del panel de Planes guarda su nivel y
+        // su modalidad; todo lo demás se lee en vivo al cargarla
+        // (`lib/plan-de-la-propuesta.ts`). En nulo es una plantilla a mano.
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "propuestas_plantillas"
+                ADD COLUMN IF NOT EXISTS "planNivel" TEXT,
+                ADD COLUMN IF NOT EXISTS "planAsistencia" TEXT
         `);
         await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "propuestas_plantillas_cuenta_idx"
@@ -192,12 +208,13 @@ type Fila = {
     metodoPago: string | null;
     medioPago: string | null;
     slug: string | null;
+    planes: unknown;
 };
 
 const COLUMNAS = `"id", "token", "cliente", "fecha", "moneda", "servicios", "mantenimientoMensual",
        "mantenimientoDescripcion", "condiciones", "vecesAbierta", "ultimaVezAbierta", "creadaEn", "actualizadaEn",
        "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota", "notaVisibilidad",
-       "metodoPago", "medioPago", "slug"`;
+       "metodoPago", "medioPago", "slug", "planes"`;
 
 function comoServicios(v: unknown): ServicioDePropuesta[] {
     const lista = Array.isArray(v) ? v : typeof v === "string" ? safeParse(v) : [];
@@ -249,6 +266,7 @@ function comoPropuestaDeLaFila(f: Fila): Propuesta {
         metodoPago: f.metodoPago ?? "",
         medioPago: f.medioPago ?? "",
         slug: f.slug ?? "",
+        planes: comoListaDeRefs(f.planes),
         vecesAbierta: Number(f.vecesAbierta ?? 0) || 0,
         ultimaVezAbierta: f.ultimaVezAbierta ? new Date(f.ultimaVezAbierta).toISOString() : null,
         creadaEn: new Date(f.creadaEn).toISOString(),
@@ -270,6 +288,7 @@ function camposNuevos(d: DatosDePropuesta): unknown[] {
         d.metodoPago,
         d.medioPago,
         d.slug,
+        JSON.stringify(comoListaDeRefs(d.planes)),
     ];
 }
 
@@ -339,9 +358,9 @@ export async function crearPropuesta(datos: DatosDePropuesta & { cuentaId: strin
                 ("id", "cuentaId", "token", "cliente", "fecha", "moneda", "servicios",
                  "mantenimientoMensual", "mantenimientoDescripcion", "condiciones", "creadoPorId",
                  "tipoDeItems", "empresa", "whatsapp", "linea", "correo", "vigencia", "nota",
-                 "notaVisibilidad", "metodoPago", "medioPago", "slug")
+                 "notaVisibilidad", "metodoPago", "medioPago", "slug", "planes")
              VALUES ($1, $2, $3, $4, $5::date, $6, $7::jsonb, $8::numeric, $9, $10, $11,
-                     $12, $13, $14, $15, $16, $17::date, $18, $19, $20, $21, $22)
+                     $12, $13, $14, $15, $16, $17::date, $18, $19, $20, $21, $22, $23::jsonb)
              RETURNING ${COLUMNAS}`,
             randomUUID(),
             datos.cuentaId,
@@ -373,7 +392,7 @@ export async function editarPropuesta(cuentaId: string, id: string, datos: Datos
                 "condiciones" = $9, "tipoDeItems" = $10, "empresa" = $11, "whatsapp" = $12,
                 "linea" = $13, "correo" = $14, "vigencia" = $15::date, "nota" = $16,
                 "notaVisibilidad" = $17, "metodoPago" = $18, "medioPago" = $19, "slug" = $20,
-                "actualizadaEn" = CURRENT_TIMESTAMP
+                "planes" = $21::jsonb, "actualizadaEn" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "cuentaId" = $2
              RETURNING ${COLUMNAS}`,
             id,
@@ -459,6 +478,7 @@ export async function laPropuestaPublica(llave: string): Promise<PropuestaPublic
             nota: laNotaQueSeEnsena(p),
             metodoPago: p.metodoPago,
             medioPago: p.medioPago,
+            planes: p.planes,
             negocio: { nombre, logo: elLogoQueSeEnsena(imagen, process.env.S3_PUBLIC_URL), eslogan },
         };
     });
@@ -538,11 +558,13 @@ type FilaDePlantilla = {
     precio: unknown;
     moneda: string;
     caracteristicas: unknown;
+    planNivel: string | null;
+    planAsistencia: string | null;
     creadaEn: Date;
     actualizadaEn: Date;
 };
 
-const COLUMNAS_DE_PLANTILLA = `"id", "nombre", "precio", "moneda", "caracteristicas", "creadaEn", "actualizadaEn"`;
+const COLUMNAS_DE_PLANTILLA = `"id", "nombre", "precio", "moneda", "caracteristicas", "planNivel", "planAsistencia", "creadaEn", "actualizadaEn"`;
 
 function comoPlantillaDeLaFila(f: FilaDePlantilla): PlantillaDePlan {
     const car = typeof f.caracteristicas === "string" ? safeParse(f.caracteristicas) : f.caracteristicas;
@@ -552,6 +574,7 @@ function comoPlantillaDeLaFila(f: FilaDePlantilla): PlantillaDePlan {
         precio: Number(f.precio) || 0,
         moneda: comoMoneda(f.moneda),
         caracteristicas: comoCaracteristicas(car),
+        plan: comoRefDePlan({ nivel: f.planNivel, asistencia: f.planAsistencia }),
         creadaEn: new Date(f.creadaEn).toISOString(),
         actualizadaEn: new Date(f.actualizadaEn).toISOString(),
     };
@@ -573,8 +596,8 @@ export async function crearPlantilla(
 ): Promise<PlantillaDePlan> {
     return conLasTablas(async () => {
         const filas = await db.$queryRawUnsafe<FilaDePlantilla[]>(
-            `INSERT INTO "propuestas_plantillas" ("id", "cuentaId", "nombre", "precio", "moneda", "caracteristicas", "creadoPorId")
-             VALUES ($1, $2, $3, $4::numeric, $5, $6::jsonb, $7)
+            `INSERT INTO "propuestas_plantillas" ("id", "cuentaId", "nombre", "precio", "moneda", "caracteristicas", "creadoPorId", "planNivel", "planAsistencia")
+             VALUES ($1, $2, $3, $4::numeric, $5, $6::jsonb, $7, $8, $9)
              RETURNING ${COLUMNAS_DE_PLANTILLA}`,
             randomUUID(),
             datos.cuentaId,
@@ -583,6 +606,8 @@ export async function crearPlantilla(
             datos.moneda,
             JSON.stringify(datos.caracteristicas),
             datos.creadoPorId,
+            datos.plan?.nivel ?? null,
+            datos.plan?.asistencia ?? null,
         );
         return comoPlantillaDeLaFila(filas[0]!);
     });
@@ -594,6 +619,7 @@ export async function editarPlantilla(cuentaId: string, id: string, datos: Datos
         const filas = await db.$queryRawUnsafe<FilaDePlantilla[]>(
             `UPDATE "propuestas_plantillas" SET
                 "nombre" = $3, "precio" = $4::numeric, "moneda" = $5, "caracteristicas" = $6::jsonb,
+                "planNivel" = $7, "planAsistencia" = $8,
                 "actualizadaEn" = CURRENT_TIMESTAMP
              WHERE "id" = $1 AND "cuentaId" = $2
              RETURNING ${COLUMNAS_DE_PLANTILLA}`,
@@ -603,6 +629,8 @@ export async function editarPlantilla(cuentaId: string, id: string, datos: Datos
             datos.precio,
             datos.moneda,
             JSON.stringify(datos.caracteristicas),
+            datos.plan?.nivel ?? null,
+            datos.plan?.asistencia ?? null,
         );
         return filas[0] ? comoPlantillaDeLaFila(filas[0]) : null;
     });

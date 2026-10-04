@@ -30,6 +30,8 @@
  *    Es ÚNICO entre todas las propuestas de la plataforma (la URL es global).
  */
 
+import { comoListaDeRefs, type RefDePlan } from "@/lib/plan-de-la-propuesta";
+
 export const MONEDAS = ["COP", "USD", "EUR", "MXN", "PEN", "CLP", "ARS", "BRL", "GTQ", "DOP", "CRC", "BOB", "PYG", "UYU"] as const;
 export type Moneda = (typeof MONEDAS)[number];
 export const MONEDA_POR_DEFECTO: Moneda = "COP";
@@ -153,6 +155,12 @@ export type DatosDePropuesta = {
     medioPago: string;
     /** El enlace personalizado; `""` = sin personalizar (se usa el token). */
     slug: string;
+    /**
+     * Los planes del panel de Planes que lleva: solo su REFERENCIA. La página
+     * pública lee al abrirse su video y el enlace a su página, como están hoy
+     * (`lib/plan-de-la-propuesta.ts`).
+     */
+    planes: RefDePlan[];
 };
 
 export type Propuesta = DatosDePropuesta & {
@@ -366,6 +374,7 @@ export function comoPropuesta(raw: unknown): Veredicto {
             metodoPago: linea(r.metodoPago, TOPE_DE_METODO_DE_PAGO),
             medioPago: texto(r.medioPago, TOPE_DE_MEDIO_DE_PAGO),
             slug,
+            planes: comoListaDeRefs(r.planes),
         },
     };
 }

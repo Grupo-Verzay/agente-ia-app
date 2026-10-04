@@ -16,14 +16,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MONEDA_POR_DEFECTO, MONEDAS } from "@/lib/propuestas";
 import { TOPE_DE_NOMBRE_DEL_PLAN, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import { comoRefDePlan, elRotuloDelPlan, laLlaveDelPlan, type PlanParaElegir, type RefDePlan } from "@/lib/plan-de-la-propuesta";
 
 const SELECTOR = "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 
-export type BorradorDePlantilla = { nombre: string; precio: string; moneda: string; caracteristicas: string };
+export type BorradorDePlantilla = {
+    nombre: string;
+    precio: string;
+    moneda: string;
+    caracteristicas: string;
+    /** El plan del panel de Planes al que se enlaza; `null` = plantilla escrita a mano. */
+    plan: RefDePlan | null;
+};
 
 export function borradorDePlantilla(p: PlantillaDePlan | null): BorradorDePlantilla {
-    if (!p) return { nombre: "", precio: "", moneda: MONEDA_POR_DEFECTO, caracteristicas: "" };
-    return { nombre: p.nombre, precio: String(p.precio), moneda: p.moneda, caracteristicas: p.caracteristicas.join("\n") };
+    if (!p) return { nombre: "", precio: "", moneda: MONEDA_POR_DEFECTO, caracteristicas: "", plan: null };
+    return { nombre: p.nombre, precio: String(p.precio), moneda: p.moneda, caracteristicas: p.caracteristicas.join("\n"), plan: p.plan ?? null };
 }
 
 /**
@@ -34,12 +42,15 @@ export function borradorDePlantilla(p: PlantillaDePlan | null): BorradorDePlanti
 export function FormularioDePlantilla({
     abierto,
     plantilla,
+    planes = [],
     guardando,
     onCerrar,
     onGuardar,
 }: {
     abierto: boolean;
     plantilla: PlantillaDePlan | null;
+    /** Los planes del panel de Planes. Vacío = quien mira no manda en la casa y no enlaza. */
+    planes?: PlanParaElegir[];
     guardando: boolean;
     onCerrar: () => void;
     onGuardar: (b: BorradorDePlantilla) => void;
@@ -70,6 +81,54 @@ export function FormularioDePlantilla({
                         onGuardar(b);
                     }}
                 >
+                    {(planes.length > 0 || b.plan) && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="plantilla-plan">Plan del panel de Planes</Label>
+                            <select
+                                id="plantilla-plan"
+                                data-plan-del-panel
+                                value={b.plan ? laLlaveDelPlan(b.plan) : ""}
+                                onChange={(e) => {
+                                    const [nivel, asistencia] = e.target.value.split(":");
+                                    setB((x) => ({ ...x, plan: e.target.value ? comoRefDePlan({ nivel, asistencia }) : null }));
+                                }}
+                                className={SELECTOR}
+                            >
+                                <option value="">Ninguno (escribirla a mano)</option>
+                                {planes.map((pl) => (
+                                    <option key={laLlaveDelPlan(pl.ref)} value={laLlaveDelPlan(pl.ref)}>
+                                        {elRotuloDelPlan(pl)}
+                                    </option>
+                                ))}
+                            </select>
+                            {b.plan && (
+                                <p data-nota-plan-enlazado className="text-xs text-muted-foreground">
+                                    El nombre, el precio, los créditos, el catálogo, la asistencia, lo que incluye, el video y el
+                                    enlace a su página se leen del panel de Planes cada vez que cargues esta plantilla en una
+                                    propuesta nueva. Editar el plan allí se ve aquí sin tocar nada.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {b.plan ? (
+                        <div className="space-y-1.5 sm:max-w-[11rem]">
+                            <Label htmlFor="plantilla-moneda">Moneda de las propuestas</Label>
+                            <select
+                                id="plantilla-moneda"
+                                value={b.moneda}
+                                onChange={(e) => setB((x) => ({ ...x, moneda: e.target.value }))}
+                                className={SELECTOR}
+                            >
+                                {MONEDAS.map((m) => (
+                                    <option key={m} value={m}>
+                                        {m}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    ) : (
+                    <>
                     <div className="grid gap-3 sm:grid-cols-[1fr_11rem_7rem]">
                         <div className="space-y-1.5">
                             <Label htmlFor="plantilla-nombre">Nombre del plan</Label>
@@ -121,6 +180,8 @@ export function FormularioDePlantilla({
                         />
                         <p className="text-xs text-muted-foreground">Una característica por línea.</p>
                     </div>
+                    </>
+                    )}
                 </form>
 
                 {/* Los botones son hijos DIRECTOS del pie: es `justify-between`. */}
