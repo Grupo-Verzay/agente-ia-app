@@ -26501,6 +26501,10 @@ Seis cosas que hay que mantener:
    Planes le pasa) y se editan donde siempre, en la pestaña de funciones.
    «Pestaña del navegador y redes» no es un bloque de la página: va fija al
    final.
+7. **Sin textos de explicación arriba ni abajo.** El pie es una fila:
+   «Ver página pública» a la izquierda (o, con el plan apagado, por qué no se
+   ve) y «Guardar» a la derecha (`data-pie-del-detalle`). Lo de antes
+   (testimonios, galería…) sigue guardado y no se avisa.
 
 Lo prueba `scripts/banco-bloques-del-formulario.sh` (hace falta el build): la
 regla y un barrido, y la pestaña REAL en Chromium dentro del mismo diálogo, a

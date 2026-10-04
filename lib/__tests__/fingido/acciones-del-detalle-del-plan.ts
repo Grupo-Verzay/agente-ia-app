@@ -24,6 +24,8 @@ export async function getPlanDetailBySubscriptionPlanId(id: string) {
             metaTitle: "",
             metaDescription: "",
             ogImageUrl: "",
+            // Lo de antes que la página ya no enseña: la pestaña vieja lo avisaba con un texto.
+            testimonials: [{ name: "Ana", text: "Muy bueno." }],
             faqs: [
                 { question: "¿Cuánto tarda la puesta en marcha?", answer: "Un día hábil." },
                 { question: "¿Puedo cambiar de plan?", answer: "Sí, cuando quieras." },

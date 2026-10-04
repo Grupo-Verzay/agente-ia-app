@@ -29,7 +29,7 @@ const props: Record<string, unknown> = {
     subscriptionPlanId: "plan-banco",
     datos,
     enlaceDeLaPagina: "/planes/basico?tipo=IA",
-    planActivo: true,
+    planActivo: !(window as any).planApagado,
     funcionesQueSalen: lasFuncionesQueSeEnsenan(funciones, datos, new Map()),
 };
 const Pestana = PlanDetailTab as unknown as React.ComponentType<Record<string, unknown>>;
