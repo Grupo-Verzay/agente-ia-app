@@ -7,14 +7,19 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession, resolverSesionesAction } from "@/actions/advisor-assign-actions";
 import { estaResuelta } from "@/lib/total-de-todos";
-import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
+import { lasNotasDeLaBandejaAction } from "@/actions/internal-notes-actions";
 import {
   EVENTO_NOTAS_DE_LA_FILA,
   avisarQueCambioLaFila,
-  conLasNotasDeLaFila,
   INTERVALO_DE_LAS_NOTAS_MS,
   type NotasDeLaFila,
 } from "@/lib/fila-de-chats-al-dia";
+import {
+  conLaUltimaNota,
+  elMapaDeLasNotas,
+  laVistaPreviaDeLaFila,
+  type UltimaNotaDeLaFila,
+} from "@/lib/nota-en-la-vista-previa";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateLeadPushNameAction } from "@/actions/registro-action";
 import {
@@ -451,7 +456,14 @@ export function ChatSidebar({
   const [renameTarget, setRenameTarget] = useState<SidebarContact | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
-  const [notedSessionIds, setNotedSessionIds] = useState<Set<number>>(new Set());
+  /**
+   * La última nota interna de cada conversación de la bandeja, por id de sesión.
+   * Pinta el candado de la fila y, cuando la nota es lo último que pasó, su
+   * vista previa (`lib/nota-en-la-vista-previa.ts`).
+   */
+  const [notasDeLasFilas, setNotasDeLasFilas] = useState<ReadonlyMap<number, UltimaNotaDeLaFila>>(
+    () => new Map(),
+  );
   const canDeleteChats = advisorRole !== "agente";
   const [notesOnly, setNotesOnly] = useState(false);
   // Filtro por rango de fechas. Por defecto corta por el INICIO de la
@@ -594,6 +606,16 @@ export function ChatSidebar({
           repartidasEntreLineas,
         );
         const chatSession = getSessionForChat(chat, chatSessions) ?? null;
+        const ultimaNota = chatSession ? notasDeLasFilas.get(chatSession.id) ?? null : null;
+        // Si lo último que pasó es una nota interna, la vista previa es la nota
+        // —el candado y su texto—; en cuanto entra o sale un mensaje posterior,
+        // vuelve a ser el mensaje. El orden, la hora y el «sin leer» siguen
+        // siendo los del mensaje: una nota no es actividad del cliente.
+        const vistaPrevia = laVistaPreviaDeLaFila({
+          textoDelMensaje: lastMsgData.text,
+          ultimoMensajeMs: ts,
+          nota: ultimaNota,
+        });
 
         return {
           id: chat.remoteJid,
@@ -607,11 +629,16 @@ export function ChatSidebar({
             return nameFrom(chat, advisorRole);
           })(),
           avatarSrc: avatarFrom(chat),
-          lastMessage: lastMsgData.text,
+          lastMessage: vistaPrevia.texto,
+          vistaPreviaEsNota: vistaPrevia.esNota,
           lastMessageId: lastMsgData.id,
-          messageType: lastMsgData.messageType,
-          // La palomita de la fila, como en WhatsApp: solo para lo que mando la linea.
-          estadoDelUltimo: lastMsgData.fromMe ? normalizeDeliveryState(chat.lastMessage?.status) : null,
+          messageType: vistaPrevia.esNota ? undefined : lastMsgData.messageType,
+          // La palomita de la fila, como en WhatsApp: solo para lo que mando la
+          // linea. Una nota interna no se envia, asi que no lleva palomita.
+          estadoDelUltimo:
+            !vistaPrevia.esNota && lastMsgData.fromMe
+              ? normalizeDeliveryState(chat.lastMessage?.status)
+              : null,
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
           // Inicio de la conversación para el filtro por rango. Si la fila no
@@ -631,7 +658,7 @@ export function ChatSidebar({
           instanceDisplayName: chat.instanceName
             ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
             : undefined,
-          hasNotes: notedSessionIds.has(chatSession?.id ?? -1),
+          hasNotes: ultimaNota !== null,
           identidades: getChatIdentityCandidates(chat),
           // Para la pasada barata de abajo, que decide lo de "no leido" sin
           // tener que volver a mirar el chat entero.
@@ -672,7 +699,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, instancias, notedSessionIds, result, repartidasEntreLineas]);
+  }, [chatPreferences, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
@@ -1237,7 +1264,8 @@ export function ChatSidebar({
   }, []);
 
   /*
-   * El candado de notas internas de cada fila.
+   * Las notas internas de cada fila: el candado y, si la nota es lo último que
+   * pasó, la vista previa.
    *
    * Se leía UNA vez al montar y no se volvía a mirar: una nota escrita desde la
    * conversación abierta no salía en su fila hasta recargar. Ahora:
@@ -1251,15 +1279,15 @@ export function ChatSidebar({
     const ahora = Date.now();
     if (ahora - notasLeidasEnRef.current < INTERVALO_DE_LAS_NOTAS_MS) return;
     notasLeidasEnRef.current = ahora;
-    void getSessionIdsWithNotesAction().then((ids) => setNotedSessionIds(new Set(ids)));
+    void lasNotasDeLaBandejaAction().then((notas) => setNotasDeLasFilas(elMapaDeLasNotas(notas)));
   }, [chatSessions]);
 
   React.useEffect(() => {
     const alCambiar = (evento: Event) => {
       const detalle = (evento as CustomEvent<NotasDeLaFila>).detail;
       if (!detalle || typeof detalle.sessionId !== "number") return;
-      setNotedSessionIds((previo) =>
-        conLasNotasDeLaFila(previo, detalle.sessionId, detalle.tieneNotas) as Set<number>,
+      setNotasDeLasFilas((previo) =>
+        conLaUltimaNota(previo, detalle.sessionId, detalle.ultimaNota ?? null),
       );
     };
     window.addEventListener(EVENTO_NOTAS_DE_LA_FILA, alCambiar);

@@ -45,6 +45,7 @@ import {
 } from '@/lib/whatsapp-jid';
 import { laVe } from '@/lib/personales';
 import { lasDuenasDeEtiquetas, quienVeLoPersonal } from '@/lib/personales-db';
+import { comoUltimaNota, type UltimaNotaDeLaFila } from '@/lib/nota-en-la-vista-previa';
 
 // schema para agregar varios tags a una sesión
 const addTagsToSessionSchema = z.object({
@@ -651,7 +652,7 @@ export async function getSesionesDeLaCuenta(
  */
 export async function laFilaDeLaSesionAction(
   sessionId: number,
-): Promise<SessionResponse<ChatContactSessionSummary & { tieneNotas: boolean }>> {
+): Promise<SessionResponse<ChatContactSessionSummary & { tieneNotas: boolean; ultimaNota: UltimaNotaDeLaFila | null }>> {
   try {
     if (!Number.isInteger(sessionId) || sessionId <= 0) {
       return { success: false, message: 'Sesión no válida.' };
@@ -665,8 +666,19 @@ export async function laFilaDeLaSesionAction(
     const sesion = r.success ? r.data?.find((s) => s.id === sessionId) : undefined;
     if (!sesion) return { success: false, message: r.message || 'Sesión no encontrada.' };
 
-    const notas = await (db as any).internalNote.count({ where: { sessionId } });
-    return { success: true, message: 'Fila al día.', data: { ...sesion, tieneNotas: notas > 0 } };
+    // La última nota viaja con su texto: es la vista previa de la fila cuando
+    // es lo último que pasó (ver `lib/nota-en-la-vista-previa.ts`).
+    const nota = await (db as any).internalNote.findFirst({
+      where: { sessionId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { content: true, createdAt: true },
+    });
+    const ultimaNota = comoUltimaNota(nota ? { contenido: nota.content, creadaEn: nota.createdAt } : null);
+    return {
+      success: true,
+      message: 'Fila al día.',
+      data: { ...sesion, tieneNotas: !!nota, ultimaNota },
+    };
   } catch (error) {
     console.error('[chats] no se pudo leer la fila de la sesion', { sessionId, error });
     return { success: false, message: 'No se pudo leer la fila de la sesión.' };

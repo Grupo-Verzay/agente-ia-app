@@ -2709,7 +2709,7 @@ export function ChatsClient({
                 return;
               }
               aplicarEnLaSesion(sessionId, r.data.remoteJid, elCambioDeLaFila(r.data), porQue);
-              avisarDeLasNotasDeLaFila(sessionId, r.data.tieneNotas);
+              avisarDeLasNotasDeLaFila(sessionId, r.data.ultimaNota ?? null);
             })
             .catch((error) => {
               console.warn("[chats] no se pudo poner al dia la fila tras un cambio", { sessionId, porQue, error });

@@ -12,6 +12,11 @@ export type SidebarContact = {
   isPinned: boolean;
   isUnreadLocal: boolean;
   lastMessage: string;
+  /**
+   * La vista previa es la ÚLTIMA NOTA INTERNA y no un mensaje: la nota es lo
+   * último que pasó en la conversación (`lib/nota-en-la-vista-previa.ts`).
+   */
+  vistaPreviaEsNota?: boolean;
   lastMessageId: string;
   messageType?: string;
   /** Palomita del ultimo mensaje cuando lo mando la linea; null si lo mando el contacto. */

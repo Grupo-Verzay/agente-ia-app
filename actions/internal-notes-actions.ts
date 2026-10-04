@@ -14,6 +14,11 @@ import { crearLosAvisos } from "@/lib/avisos-de-tarea";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { separarLasMenciones, tituloDeLaMencionEnNota } from "@/lib/menciones-de-la-madre";
 import {
+  comoUltimaNota,
+  TOPE_DEL_TEXTO_DE_LA_NOTA,
+  type NotaDeLaFila,
+} from "@/lib/nota-en-la-vista-previa";
+import {
   losAdministradoresDeLaMadre,
   type AdministradorDeLaMadre,
 } from "@/lib/administradores-de-la-madre.server";
@@ -42,7 +47,7 @@ import {
  * `laCuentaDeLaConversacion` (`lib/dueno-del-dato.server.ts`), que saca el
  * dueño de la FILA y lo pregunta con la puerta de siempre.
  *
- * Lo que **no** se toca es `getSessionIdsWithNotesAction`, que filtra por
+ * Lo que **no** se toca es `lasNotasDeLaBandejaAction`, que filtra por
  * `session.userId`: eso es ALCANCE —de qué cuenta son esas conversaciones— y
  * el alcance se pregunta a la fila efectiva (con las cuentas que la bandeja
  * enseña, `lasCuentasQueVeLaBandeja`). Resolver la persona ahí es exactamente
@@ -237,21 +242,46 @@ export async function getInternalNotesBySessionAction(
   }
 }
 
-export async function getSessionIdsWithNotesAction(): Promise<number[]> {
+/**
+ * La ÚLTIMA nota interna de cada conversación que enseña la bandeja: su texto
+ * (una línea) y cuándo se escribió.
+ *
+ * La lista la usa para dos cosas, y por eso viaja el texto y no solo el id:
+ * el candado ámbar de la fila (la conversación tiene notas) y la VISTA PREVIA
+ * cuando la nota es lo último que pasó en la conversación
+ * (`lib/nota-en-la-vista-previa.ts`). Antes solo llegaban los ids, así que la
+ * fila podía pintar el candado y nunca el texto.
+ *
+ * Una consulta para toda la bandeja: `DISTINCT ON` por conversación con su
+ * nota más reciente, entrando por `internal_notes(sessionId)`. Y el texto se
+ * corta en la base (`left`): la fila enseña una línea, y una nota de varios
+ * párrafos no tiene por qué viajar entera cada minuto.
+ */
+export async function lasNotasDeLaBandejaAction(): Promise<NotaDeLaFila[]> {
   try {
     const user = await assertAuthorized();
     // Las cuentas que ENSEÑA la bandeja, no solo la fila efectiva: con
     // `user.id` a secas, una conversación de una cuenta que cuelga de esta
     // nunca pintaba su candado aunque tuviera notas.
     const cuentas = await lasCuentasQueVeLaBandeja(user);
-    const rows = await (db as any).internalNote.findMany({
-      where: { session: { userId: { in: cuentas.length ? cuentas : [user.id] } } },
-      select: { sessionId: true },
-      distinct: ['sessionId'],
-    });
-    return rows.map((r: { sessionId: number }) => r.sessionId);
+    const alcance = cuentas.length ? cuentas : [user.id];
+    const filas = await db.$queryRaw<Array<{ sessionId: number; contenido: string | null; creadaEn: Date | null }>>`
+      SELECT DISTINCT ON (n."sessionId")
+             n."sessionId" AS "sessionId",
+             left(n."content", ${TOPE_DEL_TEXTO_DE_LA_NOTA * 2}::int) AS "contenido",
+             n."createdAt" AS "creadaEn"
+        FROM "internal_notes" n
+        JOIN "Session" s ON s."id" = n."sessionId"
+       WHERE s."userId" = ANY(${alcance}::text[])
+       ORDER BY n."sessionId", n."createdAt" DESC, n."id" DESC`;
+    const notas: NotaDeLaFila[] = [];
+    for (const f of filas) {
+      const nota = comoUltimaNota({ contenido: f.contenido, creadaEn: f.creadaEn });
+      if (nota) notas.push({ sessionId: Number(f.sessionId), ...nota });
+    }
+    return notas;
   } catch (error) {
-    console.warn("[chats] no se pudieron leer las conversaciones con notas internas", error);
+    console.warn("[chats] no se pudieron leer las notas internas de la bandeja", error);
     return [];
   }
 }
