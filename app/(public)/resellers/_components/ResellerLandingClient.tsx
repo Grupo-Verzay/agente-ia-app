@@ -15,6 +15,7 @@ import { elSlugDelNivel } from "@/lib/enlaces-de-planes";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
+import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
@@ -515,7 +516,7 @@ export function ResellerLandingClient({
           <div className="absolute -left-20 top-20 h-80 w-80 rounded-full bg-violet-500/8 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-60 w-96 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
         </div>
-        <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda: texto */}
@@ -611,7 +612,7 @@ export function ResellerLandingClient({
       {/* ══ MARQUEE INTEGRACIONES ══════════════════════════════════════════ */}
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <div className="relative overflow-hidden rounded-xl"
             style={{
               maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
@@ -630,7 +631,7 @@ export function ResellerLandingClient({
 
       {/* ══ BENEFICIOS ═════════════════════════════════════════════════════ */}
       <section id="benefits" className="py-8 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">¿Por qué ser reseller de Agente IA?</h2>
@@ -657,7 +658,7 @@ export function ResellerLandingClient({
 
       {/* ══ CÓMO FUNCIONA ══════════════════════════════════════════════════ */}
       <section id="how" className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Cómo funciona el programa</h2>
@@ -682,7 +683,7 @@ export function ResellerLandingClient({
 
       {/* ══ QUÉ INCLUYE ════════════════════════════════════════════════════ */}
       <section id="included" className="py-8 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
               <div>
@@ -735,7 +736,7 @@ export function ResellerLandingClient({
 
       {/* ══ IDEAL PARA ═════════════════════════════════════════════════════ */}
       <section className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">¿Para quién es el programa?</h2>
@@ -760,7 +761,7 @@ export function ResellerLandingClient({
 
       {/* ══ TESTIMONIOS ════════════════════════════════════════════════════ */}
       <section className="py-8 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros resellers</h2>
@@ -812,7 +813,7 @@ export function ResellerLandingClient({
 
       {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
       <section id="pricing" className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
@@ -853,7 +854,7 @@ export function ResellerLandingClient({
 
       {/* ══ FAQ ════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
@@ -886,7 +887,7 @@ export function ResellerLandingClient({
 
       {/* ══ CTA FINAL ══════════════════════════════════════════════════════ */}
       <section className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-10 text-center">
               <Badge className="mb-4 inline-flex items-center gap-1.5 border-blue-500/30 bg-blue-500/10 text-blue-400">

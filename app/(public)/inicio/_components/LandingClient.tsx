@@ -21,6 +21,7 @@ import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding"
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
 import { ANCLA_DEL_INICIO } from "@/lib/tutoriales-de-la-landing";
 import { elEnlaceDeLaPaginaDelPlan, elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
+import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -364,7 +365,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
                style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
-        <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda */}
@@ -446,7 +447,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ SOCIAL PROOF BAR ════════════════════════════════════════════════ */}
       <section className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
               {[
@@ -470,7 +471,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ MARQUEE INTEGRACIONES ══════════════════════════════════════════ */}
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <div className="relative overflow-hidden rounded-xl"
             style={{
               maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
@@ -489,7 +490,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ PAIN POINTS ════════════════════════════════════════════════════ */}
       <section className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -509,7 +510,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ ANTES vs DESPUÉS ═══════════════════════════════════════════════ */}
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <h2 className="mb-5 text-center text-2xl font-bold text-white sm:text-3xl">¿Qué cambia con Agente IA?</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -546,7 +547,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ INDUSTRIAS ═════════════════════════════════════════════════════ */}
       <section className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Funciona para tu tipo de negocio</h2>
@@ -571,7 +572,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ 3 PASOS ════════════════════════════════════════════════════════ */}
       <section id="how" className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Tu agente listo en 3 pasos</h2>
@@ -589,7 +590,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ VIDEO ══════════════════════════════════════════════════════════ */}
       {videoUrl && (
         <section className="py-6">
-          <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <div className={ANCHO_DE_LA_LANDING}>
             <FadeIn>
               <VideoDeLaLanding valor={videoUrl} />
             </FadeIn>
@@ -599,7 +600,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ FUNCIONES ══════════════════════════════════════════════════════ */}
       <section id="features" className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Todo lo que hace por ti</h2>
@@ -624,7 +625,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ TESTIMONIOS ════════════════════════════════════════════════════ */}
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros clientes</h2>
@@ -673,7 +674,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ TUTORIALES ═════════════════════════════════════════════════════ */}
       {guiasDeAyuda && (
       <section id="tutoriales" className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-white sm:text-3xl">Tutoriales</h2>
             <p className="mt-2 text-slate-400">Guías paso a paso de la plataforma, con su vídeo.</p>
@@ -686,7 +687,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
       {showPricing && (
       <section id="pricing" className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
@@ -765,7 +766,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ ENTERPRISE / AGENCIAS ══════════════════════════════════════════ */}
       <section className="py-4">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <BloqueDeAgencias whatsappNumber={whatsappNumber} />
           </FadeIn>
@@ -774,7 +775,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ FAQ ════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
@@ -802,7 +803,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ CTA FINAL ══════════════════════════════════════════════════════ */}
       {!embed && (
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div
               className={cn("rounded-2xl border px-10 py-8 text-center", !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}

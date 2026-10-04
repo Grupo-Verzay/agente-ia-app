@@ -39,15 +39,15 @@ export default function SeccionDeLaGuiaDeFinanzas({ params }: { params: { seccio
             <article className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
                 <header className="space-y-3">
                     <div className="flex items-center gap-2">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-guia-acento-suave text-guia-acento">
                             <IconoDeSeccion nombre={seccion.icono} className="h-5 w-5" />
                         </span>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-guia-tenue">
                             Finanzas · Sección {numero} de {SECCIONES.length}
                         </span>
                     </div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{seccion.titulo}</h1>
-                    <p className="text-base leading-relaxed text-slate-600">{seccion.resumen}</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-guia-texto sm:text-3xl">{seccion.titulo}</h1>
+                    <p className="text-base leading-relaxed text-guia-medio">{seccion.resumen}</p>
                 </header>
 
                 <ol className="space-y-10">

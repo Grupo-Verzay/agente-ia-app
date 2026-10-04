@@ -121,7 +121,7 @@ export function GuiaEnLaLanding({
                     ) : null}
                 </div>
             ) : (
-                <div data-guia className="overflow-hidden rounded-2xl bg-slate-50 text-slate-900">
+                <div data-guia data-guia-tema="claro" className="overflow-hidden rounded-2xl bg-guia-fondo text-guia-texto">
                     {laSeccion ? (
                         <ArticuloDeLaSeccion
                             carpeta={publica.carpeta}
@@ -133,7 +133,7 @@ export function GuiaEnLaLanding({
                     ) : (
                         <div className={`${CONTENEDOR_DEL_INDICE} pb-6`}>
                             <section ref={video} data-demostracion className="scroll-mt-24" aria-label="Demostración en 1 minuto">
-                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm">
+                                <div className="overflow-hidden rounded-2xl border border-guia-borde bg-slate-900 shadow-sm">
                                     <video
                                         data-video-de-la-guia
                                         controls
@@ -152,8 +152,8 @@ export function GuiaEnLaLanding({
 
                             <section className="space-y-4" aria-label="Secciones">
                                 <div className="flex items-baseline justify-between gap-3">
-                                    <h2 className="text-lg font-semibold text-slate-900">Secciones</h2>
-                                    <span className="text-sm text-slate-500">{publica.secciones.length} guías paso a paso</span>
+                                    <h2 className="text-lg font-semibold text-guia-texto">Secciones</h2>
+                                    <span className="text-sm text-guia-suave">{publica.secciones.length} guías paso a paso</span>
                                 </div>
                                 <CuadriculaDeSecciones
                                     secciones={publica.secciones}

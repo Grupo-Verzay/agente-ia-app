@@ -46,7 +46,7 @@ export default async function IndiceDeLaGuiaDeProductos() {
                 aire de arriba es el mismo que el de los lados (px-4 / px-6). */}
             <div className={CONTENEDOR_DEL_INDICE}>
                 <section id="demostracion" data-demostracion className="scroll-mt-20" aria-label={DEMOSTRACION}>
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm">
+                    <div className="overflow-hidden rounded-2xl border border-guia-borde bg-slate-900 shadow-sm">
                         <video
                             data-video-de-la-guia
                             controls
@@ -65,10 +65,10 @@ export default async function IndiceDeLaGuiaDeProductos() {
 
                 <section className="space-y-4" aria-labelledby="secciones">
                     <div className="flex items-baseline justify-between gap-3">
-                        <h2 id="secciones" className="text-lg font-semibold text-slate-900">
+                        <h2 id="secciones" className="text-lg font-semibold text-guia-texto">
                             Secciones
                         </h2>
-                        <span className="text-sm text-slate-500">{SECCIONES.length} guías paso a paso</span>
+                        <span className="text-sm text-guia-suave">{SECCIONES.length} guías paso a paso</span>
                     </div>
                     <CuadriculaDeSecciones
                         secciones={SECCIONES}

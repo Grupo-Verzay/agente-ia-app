@@ -26566,6 +26566,78 @@ las seis tarjetas reales en Chromium a 1440 y 390, y la página SERVIDA
 y la landing). `MODO=roto` corre lo mismo contra `a5a9371` y afirma los cuatro
 fallos.
 
+## La página de un plan: «Qué incluye» es un acordeón, y todos los bloques miden lo de la landing
+
+Dos fallos de `/planes/<plan>`, reportados juntos:
+
+| lo que se veía | ahora |
+| --- | --- |
+| cada función llevaba de enlace el NOMBRE de su guía: «Guía de Agente IA» en funciones que no tenían nada que ver entre sí | el enlace dice **«Ver tutorial»** (`TEXTO_DEL_TUTORIAL`), nunca el nombre de la guía |
+| el tutorial sacaba al cliente de la página | cada función es un **acordeón** (como Preguntas frecuentes) que al abrirse enseña ahí mismo su descripción y su video |
+| los bloques medían cada uno lo suyo y llevaban una raya entre ellos | todos van en **`ANCHO_DE_LA_LANDING`** (`lib/ancho-de-la-landing.ts`), el MISMO que usan las tres landings, y sin `divide-y` |
+
+Cinco cosas que hay que mantener:
+
+1. **Abierto, uno a la vez**, y una fila solo se abre si tiene algo dentro
+   (descripción o tutorial). La marca es `button[data-cabeza-de-la-funcion]`
+   con su `aria-expanded`, y el cuerpo `[data-cuerpo-de-la-funcion]`.
+2. **Qué video se mete lo decide `elTutorialDeLaFuncion`** (puro, en
+   `lib/pagina-de-plan.ts`): una guía publicada enseña su
+   `/guia/<modulo>/demostracion.webm` con su portada; un enlace de YouTube,
+   Vimeo, Loom o Drive se inserta (`REPRODUCTORES_QUE_SE_INSERTAN`, una lista
+   cerrada); un archivo de video se pinta con `<video>`; lo demás no se
+   inserta. Debajo va además el enlace para abrirlo en otra pestaña («Ver la
+   guía paso a paso», «Abrir en otra pestaña»), con `noopener noreferrer`, y
+   ninguno lleva el nombre de la guía.
+3. **Las guías que existen se le pasan como un conjunto** (`GUIAS_QUE_SE_ENSENAN`,
+   sacado de `GUIAS_PUBLICADAS`): una guía que no se publica no tiene video.
+4. **El ancho se escribe UNA vez.** Cada `section[data-seccion]` lleva su
+   contenido dentro de `ANCHO_DE_LA_LANDING` (`data-ancho-del-bloque`), y la
+   barra de arriba también. Un bloque con su propio `max-w-*` vuelve a salir
+   más angosto que el de al lado.
+5. **Sin rayas entre bloques**: el aire lo pone el relleno de cada sección.
+
+## Las guías (`/guia/*`) siguen el tema de la App, con tokens `--guia-*`
+
+Las guías se quedaban **blancas** aunque el cliente tuviera la App en oscuro.
+
+**El diagnóstico, que es lo que decide la forma del arreglo:** las piezas son
+compartidas (`components/guia/Guia.tsx`: el video, la introducción, la
+cuadrícula de secciones, el artículo de una sección, el fin), pero **cada una
+de las 35 guías tiene su propia copia** de la página del índice y de la página
+de una sección (70 ficheros en `app/guia/*`), y todas llevaban sus colores
+`slate-*` escritos a mano. Así que no bastaba con cambiar una plantilla.
+
+> **Cada color de una guía es una variable `--guia-*`** (`app/globals.css`)
+> y se pinta con `bg-guia-*`, `text-guia-*` y `border-guia-*`
+> (`tailwind.config.ts`). El valor claro es exactamente el `slate-*` de antes
+> —en claro no cambia ni un píxel— y `.dark` pone los oscuros. next-themes ya
+> pone `dark` en `<html>`, y las guías son del mismo origen.
+
+Cuatro cosas que hay que mantener:
+
+1. **Una guía nueva usa los tokens**, nunca un `slate-*` ni un `white`. El
+   banco barre los 70 ficheros y `Guia.tsx` y falla si aparece uno.
+2. **Lo que vive sobre su propia superficie de color se queda fijo**, y el
+   banco lo tiene en su lista de permitidos con el motivo: el marco del video
+   (`bg-slate-900`), lo que va encima de una captura, el número en su círculo
+   azul y la tarjeta azul de «Contáctanos».
+3. **La guía abierta DENTRO de la landing sigue clara**
+   (`data-guia-tema="claro"` en `GuiaEnLaLanding`): sus capturas son claras y
+   la landing es oscura por su cuenta. Ese atributo vuelve a poner los valores
+   claros en ese elemento, aunque cuelgue de un `.dark`.
+4. **El orden de la página no cambia**: el video primero, después la
+   introducción y después la cuadrícula de secciones, que NO es un acordeón.
+
+Lo prueba `scripts/banco-plan-acordeon-y-guias-tema.sh` (hace falta el build):
+lo puro y dos barridos (el ancho de los bloques y los colores de las guías), la
+página del plan real en Chromium a 1440 y 390 (todos los bloques del mismo
+ancho que la landing, sin rayas, «Ver tutorial» en todas, el acordeón que abre
+uno a la vez con su video) y el índice y una sección de una guía en claro y en
+oscuro, más la guía de la landing que sigue clara. `MODO=roto` pinta lo mismo
+con el código de `2fda6a3` y afirma los fallos: el nombre de la guía como
+enlace, ningún acordeón, anchos distintos y la guía blanca en oscuro.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

@@ -237,20 +237,20 @@ export function CabeceraDeLaGuia({
     modulo: string;
 }) {
     return (
-        <header data-cabecera-de-la-guia className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header data-cabecera-de-la-guia className="sticky top-0 z-20 border-b border-guia-borde bg-guia-superficie/90 backdrop-blur">
             <div className="mx-auto grid h-14 w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:gap-3 sm:px-6">
                 <div data-lado="izquierdo" className="flex min-w-0 justify-self-start">
                     {volver ? (
                         <Link
                             href={volver.href}
-                            className="-ml-2 inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            className="-ml-2 inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-guia-medio hover:bg-guia-hundido hover:text-guia-texto"
                         >
                             <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="truncate">{volver.texto}</span>
                         </Link>
                     ) : (
-                        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900" title="Guía de la plataforma">
-                            <BookOpen className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-guia-texto" title="Guía de la plataforma">
+                            <BookOpen className="h-4 w-4 shrink-0 text-guia-acento" aria-hidden />
                             <span className={demostracion ? "sr-only truncate sm:not-sr-only" : "truncate"}>Guía de la plataforma</span>
                         </span>
                     )}
@@ -259,16 +259,16 @@ export function CabeceraDeLaGuia({
                     <a
                         href={demostracion.href}
                         data-lado="centro"
-                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[13px] font-semibold text-slate-900 hover:bg-slate-100 sm:gap-2 sm:text-sm"
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[13px] font-semibold text-guia-texto hover:bg-guia-hundido sm:gap-2 sm:text-sm"
                     >
-                        <PlayCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                        <PlayCircle className="h-4 w-4 shrink-0 text-guia-acento" aria-hidden />
                         {demostracion.texto}
                     </a>
                 ) : (
                     <span data-lado="centro" aria-hidden />
                 )}
                 <div data-lado="derecho" className="flex min-w-0 justify-self-end">
-                    <span className="truncate rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                    <span className="truncate rounded-full bg-guia-acento-suave px-2.5 py-0.5 text-xs font-medium text-guia-acento-fuerte">
                         Módulo {modulo}
                     </span>
                 </div>
@@ -290,7 +290,7 @@ export function Captura({ carpeta, imagen, alt, prioridad = false }: { carpeta: 
             href={src}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative block overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-blue-500/0 transition hover:shadow-md hover:ring-2 hover:ring-blue-500/30"
+            className="group relative block overflow-hidden rounded-xl border border-guia-borde bg-guia-superficie shadow-sm ring-guia-anillo/0 transition hover:shadow-md hover:ring-2 hover:ring-guia-anillo/30"
             title="Ver la imagen a tamaño completo"
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -327,9 +327,9 @@ export function TarjetaDeSeccion({
             href={`${moduloPath}/${seccion.slug}`}
             alPulsar={alAbrir}
             data-tarjeta-de-seccion={seccion.slug}
-            className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+            className="group flex flex-col overflow-hidden rounded-2xl border border-guia-borde bg-guia-superficie shadow-sm transition hover:-translate-y-0.5 hover:border-guia-acento-borde hover:shadow-md"
         >
-            <div className="aspect-[16/9] overflow-hidden border-b border-slate-100 bg-slate-100">
+            <div className="aspect-[16/9] overflow-hidden border-b border-guia-borde-suave bg-guia-hundido">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                     src={`${moduloPath}/${seccion.miniatura}`}
@@ -340,16 +340,16 @@ export function TarjetaDeSeccion({
             </div>
             <div className="flex flex-1 flex-col gap-2 p-4">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-guia-acento-suave text-guia-acento">
                         <IconoDeSeccion nombre={seccion.icono} className="h-4 w-4" />
                     </span>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-guia-tenue">
                         Sección {numero}
                     </span>
                 </div>
-                <h2 className="text-base font-semibold leading-snug text-slate-900">{seccion.titulo}</h2>
-                <p className="text-sm leading-relaxed text-slate-600">{seccion.resumen}</p>
-                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium text-blue-600">
+                <h2 className="text-base font-semibold leading-snug text-guia-texto">{seccion.titulo}</h2>
+                <p className="text-sm leading-relaxed text-guia-medio">{seccion.resumen}</p>
+                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium text-guia-acento">
                     Ver la guía
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
                 </span>
@@ -366,8 +366,8 @@ export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso:
                     {numero}
                 </span>
                 <div className="min-w-0 space-y-1 pt-0.5">
-                    <h3 className="text-base font-semibold leading-snug text-slate-900">{paso.titulo}</h3>
-                    <p className="text-sm leading-relaxed text-slate-600">{paso.texto}</p>
+                    <h3 className="text-base font-semibold leading-snug text-guia-texto">{paso.titulo}</h3>
+                    <p className="text-sm leading-relaxed text-guia-medio">{paso.texto}</p>
                 </div>
             </div>
             <Captura carpeta={carpeta} imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
@@ -378,12 +378,12 @@ export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso:
 export function Consejos({ consejos }: { consejos: string[] }) {
     if (consejos.length === 0) return null;
     return (
-        <aside className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
-            <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-amber-900">
+        <aside className="rounded-2xl border border-guia-aviso-borde bg-guia-aviso-fondo p-4 sm:p-5">
+            <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-guia-aviso-texto">
                 <Lightbulb className="h-4 w-4" aria-hidden />
                 Bueno saber
             </p>
-            <ul className="space-y-1.5 text-sm leading-relaxed text-amber-900/90">
+            <ul className="space-y-1.5 text-sm leading-relaxed text-guia-aviso-texto/90">
                 {consejos.map((c) => (
                     <li key={c} className="flex gap-2">
                         <span aria-hidden>•</span>
@@ -414,12 +414,12 @@ export function NavegacionEntreSecciones({
                 <EnlaceDeLaGuia
                     href={`${carpeta}/${anterior.slug}`}
                     alPulsar={alAbrir ? () => alAbrir(anterior.slug) : undefined}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"
+                    className="flex items-center gap-3 rounded-xl border border-guia-borde bg-guia-superficie p-4 hover:border-guia-acento-borde"
                 >
-                    <ArrowLeft className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    <ArrowLeft className="h-4 w-4 shrink-0 text-guia-tenue" aria-hidden />
                     <span className="min-w-0">
-                        <span className="block text-xs text-slate-500">Anterior</span>
-                        <span className="block truncate text-sm font-medium text-slate-900">{anterior.titulo}</span>
+                        <span className="block text-xs text-guia-suave">Anterior</span>
+                        <span className="block truncate text-sm font-medium text-guia-texto">{anterior.titulo}</span>
                     </span>
                 </EnlaceDeLaGuia>
             ) : (
@@ -429,22 +429,22 @@ export function NavegacionEntreSecciones({
                 <EnlaceDeLaGuia
                     href={`${carpeta}/${siguiente.slug}`}
                     alPulsar={alAbrir ? () => alAbrir(siguiente.slug) : undefined}
-                    className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
+                    className="flex items-center justify-end gap-3 rounded-xl border border-guia-borde bg-guia-superficie p-4 text-right hover:border-guia-acento-borde"
                 >
                     <span className="min-w-0">
-                        <span className="block text-xs text-slate-500">Siguiente</span>
-                        <span className="block truncate text-sm font-medium text-slate-900">{siguiente.titulo}</span>
+                        <span className="block text-xs text-guia-suave">Siguiente</span>
+                        <span className="block truncate text-sm font-medium text-guia-texto">{siguiente.titulo}</span>
                     </span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    <ArrowRight className="h-4 w-4 shrink-0 text-guia-tenue" aria-hidden />
                 </EnlaceDeLaGuia>
             ) : (
                 <EnlaceDeLaGuia
                     href={carpeta}
                     alPulsar={alAbrir ? () => alAbrir(null) : undefined}
-                    className="flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white p-4 text-right hover:border-blue-300"
+                    className="flex items-center justify-end gap-3 rounded-xl border border-guia-borde bg-guia-superficie p-4 text-right hover:border-guia-acento-borde"
                 >
-                    <span className="block text-sm font-medium text-slate-900">Volver al índice</span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    <span className="block text-sm font-medium text-guia-texto">Volver al índice</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-guia-tenue" aria-hidden />
                 </EnlaceDeLaGuia>
             )}
         </nav>
@@ -463,12 +463,12 @@ export function NavegacionEntreSecciones({
 export function IntroduccionDeLaGuia({ introduccion }: { introduccion: Introduccion }) {
     return (
         <section data-introduccion-de-la-guia className="space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Guía del módulo</p>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{introduccion.titulo}</h1>
-            <p className="text-lg font-medium text-slate-700">{introduccion.subtitulo}</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-guia-acento">Guía del módulo</p>
+            <h1 className="text-3xl font-bold tracking-tight text-guia-texto sm:text-4xl">{introduccion.titulo}</h1>
+            <p className="text-lg font-medium text-guia-fuerte">{introduccion.subtitulo}</p>
             <div className="space-y-3">
                 {losParrafos(introduccion.descripcion).map((p, i) => (
-                    <p key={i} className="text-base leading-relaxed text-slate-600">
+                    <p key={i} className="text-base leading-relaxed text-guia-medio">
                         {p}
                     </p>
                 ))}
@@ -549,14 +549,14 @@ export function CuadriculaDeSecciones({
                             : undefined
                     }
                     data-tarjeta-de-cierre="video"
-                    className={`${cierre.video} group ${MARCO_DE_TARJETA} border-slate-200 bg-white hover:border-blue-300`}
+                    className={`${cierre.video} group ${MARCO_DE_TARJETA} border-guia-borde bg-guia-superficie hover:border-guia-acento-borde`}
                 >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-guia-acento-suave text-guia-acento">
                         <PlayCircle className="h-5 w-5" aria-hidden />
                     </span>
-                    <h2 className="text-base font-semibold leading-snug text-slate-900">Ver el vídeo de nuevo</h2>
-                    <p className="max-w-md text-sm leading-relaxed text-slate-600">La demostración completa del módulo en un minuto.</p>
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-blue-600">
+                    <h2 className="text-base font-semibold leading-snug text-guia-texto">Ver el vídeo de nuevo</h2>
+                    <p className="max-w-md text-sm leading-relaxed text-guia-medio">La demostración completa del módulo en un minuto.</p>
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-guia-acento">
                         Ir al vídeo
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
                     </span>
@@ -577,7 +577,7 @@ export function CuadriculaDeSecciones({
 export const CONTENEDOR_DEL_INDICE = "mx-auto w-full max-w-5xl space-y-10 px-4 pt-4 sm:px-6 sm:pt-6";
 
 export function FinDeLaGuia() {
-    return <hr data-fin-de-la-guia className="border-0 border-t border-slate-200" />;
+    return <hr data-fin-de-la-guia className="border-0 border-t border-guia-borde" />;
 }
 
 /**
@@ -607,15 +607,15 @@ export function ArticuloDeLaSeccion({
         <article data-seccion-de-la-guia={seccion.slug} className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
             <header className="space-y-3">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-guia-acento-suave text-guia-acento">
                         <IconoDeSeccion nombre={seccion.icono} className="h-5 w-5" />
                     </span>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-guia-tenue">
                         {nombre} · Sección {i + 1} de {secciones.length}
                     </span>
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{seccion.titulo}</h1>
-                <p className="text-base leading-relaxed text-slate-600">{seccion.resumen}</p>
+                <h1 className="text-2xl font-bold tracking-tight text-guia-texto sm:text-3xl">{seccion.titulo}</h1>
+                <p className="text-base leading-relaxed text-guia-medio">{seccion.resumen}</p>
             </header>
 
             <ol className="space-y-10">

@@ -77,9 +77,8 @@ export type PaginaDelPlan = {
     orden: BloqueDeLaPagina[];
 };
 
-const TITULO_DE_LAS_GUIAS: ReadonlyMap<string, string> = new Map(
-    GUIAS_PUBLICADAS.map((g) => [g.modulo, `Guía de ${g.contenido.titulo}`]),
-);
+/** Las guías que se pueden enseñar como tutorial: solo se pregunta si el módulo está. */
+const GUIAS_QUE_SE_ENSENAN: ReadonlySet<string> = new Set(GUIAS_PUBLICADAS.map((g) => g.modulo));
 
 export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | null): Promise<PaginaDelPlan | null> => {
     const plan = normalizarPlan(slug);
@@ -143,7 +142,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
             : null,
         paraQuien: elParaQuienQueSale(paraQuienGuardado, datos),
         capacidad: laCapacidadDelPlan(datos, paginaGuardada?.recuadros),
-        funciones: lasFuncionesQueSeEnsenan(funciones, datos, TITULO_DE_LAS_GUIAS),
+        funciones: lasFuncionesQueSeEnsenan(funciones, datos, GUIAS_QUE_SE_ENSENAN),
         preguntas: lasPreguntasQueSalen(detalle?.faqs, datos),
         botones: losBotonesDelPlan(detalle, datos, sitio),
         planSuperior: elPlanSuperior(planes, elegido),

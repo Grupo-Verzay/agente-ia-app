@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   Briefcase,
   Check,
   ChevronDown,
   ChevronUp,
   ExternalLink,
   Play,
+  PlayCircle,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,11 @@ import {
   conReproduccionAutomatica,
   type BloqueDeLaPagina,
   type BotonDelPlan,
+  type FuncionQueSeEnsena,
   type PreguntaDelPlan,
+  type TutorialDeLaFuncion,
 } from "@/lib/pagina-de-plan";
+import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
 import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
 import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 
@@ -38,12 +41,19 @@ import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
  *      plan, con su icono y su dato (un recuadro sin dato no sale, nunca un
  *      «No incluido»);
  *   4. qué incluye: UNA tarjeta por función encendida, en una sola columna y
- *      en el orden del editor de funciones;
+ *      en el orden del editor de funciones; cada una es un desplegable, como
+ *      las preguntas, que al abrirse enseña ahí mismo su descripción y el
+ *      video de su tutorial (sin sacar a nadie de la página);
  *   5. las preguntas frecuentes de ese plan, si tiene;
  *   6. el botón de comenzar, UNA sola vez, con el precio y la línea discreta
  *      al plan inmediato superior.
  *
  * En la barra fija no hay botón: se decide después de leer lo que trae el plan.
+ *
+ * **Todos los bloques y la barra miden lo mismo: el ancho de la landing**
+ * (`ANCHO_DE_LA_LANDING`), sin cajas más angostas ni más anchas entre sí, y
+ * sin rayas entre ellos: el aire de cada uno (`ESPACIO_DEL_BLOQUE`) es lo que
+ * los separa.
  *
  * No hay ni un texto de venta escrito aquí: todo llega armado de
  * `lib/pagina-de-plan.server.ts`, que lo lee del panel de Planes.
@@ -223,12 +233,158 @@ function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
 }
 
 /**
+ * El aire de arriba y abajo de cada bloque, el mismo en todos. Sin rayas entre
+ * bloques, este hueco es lo único que los separa: con uno distinto en cada
+ * uno, la página se leería descuadrada.
+ */
+const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
+
+/**
+ * El tutorial de una función, DENTRO de su desplegable: el video ahí mismo
+ * (la demostración de la guía, o el reproductor del enlace propio) y un enlace
+ * para abrirlo entero en otra pestaña. Un enlace propio que no es un video que
+ * se deje meter en la página es solo el enlace, también en otra pestaña:
+ * nada de lo de aquí saca a nadie de la página del plan.
+ *
+ * Ningún texto nombra la guía: varias funciones comparten la misma.
+ */
+function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncion; nombre: string }) {
+  const texto = !tutorial.video ? tutorial.titulo : tutorial.externo ? "Abrir en otra pestaña" : "Ver la guía paso a paso";
+  const enlace = (
+    <a
+      href={tutorial.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
+      data-abrir-tutorial={tutorial.url}
+    >
+      {texto}
+      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+    </a>
+  );
+  if (!tutorial.video) return enlace;
+  return (
+    <div className="space-y-3">
+      {tutorial.video.tipo === "archivo" ? (
+        <video
+          src={tutorial.video.url}
+          poster={tutorial.portada ?? undefined}
+          controls
+          playsInline
+          preload="metadata"
+          className="block h-auto w-full rounded-lg bg-black"
+          aria-label={`Tutorial: ${nombre}`}
+          data-video-del-tutorial="archivo"
+        />
+      ) : (
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+          <iframe
+            src={tutorial.video.url}
+            title={`Tutorial: ${nombre}`}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="h-full w-full"
+            data-video-del-tutorial="iframe"
+          />
+        </div>
+      )}
+      {enlace}
+    </div>
+  );
+}
+
+/**
+ * Qué incluye el plan: una fila por función, que se abre como las preguntas
+ * frecuentes —una a la vez—. Cerrada enseña el nombre y, si tiene tutorial,
+ * «Ver tutorial» a la derecha; abierta, su descripción y el tutorial ahí
+ * mismo. Una función sin descripción ni tutorial no tiene nada que abrir: va
+ * sin flecha y no es un botón.
+ */
+function QueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const prefijo = useId();
+  return (
+    <ul className="space-y-3" data-lista-de-funciones>
+      {funciones.map((f, i) => {
+        const seAbre = Boolean(f.descripcion || f.tutorial);
+        const estaAbierta = seAbre && abierta === f.id;
+        const idDelCuerpo = `${prefijo}-funcion-${i}`;
+        const cabeza = (
+          <>
+            <Check className="h-5 w-5 shrink-0 text-emerald-400" />
+            {/* El nombre y su tutorial en la MISMA fila: el tutorial pegado a la derecha. */}
+            <span className="flex min-w-0 flex-1 items-center justify-between gap-3" data-fila-de-la-funcion>
+              <span className="min-w-0 flex-1 text-base font-medium text-white" data-nombre-de-la-funcion>
+                {f.nombre}
+              </span>
+              {f.tutorial && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-blue-400"
+                  data-tutorial={f.tutorial.url}
+                >
+                  <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+                  {f.tutorial.titulo}
+                </span>
+              )}
+            </span>
+          </>
+        );
+        return (
+          <li
+            key={f.id}
+            className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
+            data-funcion={f.id}
+            data-abierta={estaAbierta ? "si" : "no"}
+          >
+            {seAbre ? (
+              <button
+                type="button"
+                onClick={() => setAbierta(estaAbierta ? null : f.id)}
+                aria-expanded={estaAbierta}
+                aria-controls={idDelCuerpo}
+                className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/5"
+                data-cabeza-de-la-funcion
+              >
+                {cabeza}
+                {estaAbierta ? (
+                  <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                )}
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 px-5 py-4" data-cabeza-de-la-funcion>
+                {cabeza}
+                {/* El hueco de la flecha: el nombre arranca y acaba donde el de las demás. */}
+                <span className="h-4 w-4 shrink-0" aria-hidden />
+              </div>
+            )}
+            {estaAbierta && (
+              <div id={idDelCuerpo} className="space-y-4 border-t border-white/10 px-5 pb-5 pt-4" data-cuerpo-de-la-funcion>
+                {f.descripcion && (
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-slate-400" data-descripcion-de-la-funcion>
+                    {f.descripcion}
+                  </p>
+                )}
+                {f.tutorial && <TutorialEnLaPagina tutorial={f.tutorial} nombre={f.nombre} />}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
  * Cuántas columnas lleva el resumen según cuántos recuadros haya (de uno a
  * `TOPE_DE_RECUADROS`): filas llenas, nunca una última fila con uno suelto.
+ * Uno solo ocupa el ancho del bloque, como todos: nada más angosto.
  * Clases literales: Tailwind no ve las compuestas.
  */
 const COLUMNAS_DE_CAPACIDAD: Record<number, string> = {
-  1: "mx-auto max-w-sm",
+  1: "grid-cols-1",
   2: "sm:grid-cols-2",
   3: "sm:grid-cols-3",
   4: "sm:grid-cols-2 lg:grid-cols-4",
@@ -253,8 +409,8 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
     switch (clave) {
       case "video":
         return pagina.video ? (
-          <section key={clave} className="px-4 py-10" data-seccion="video">
-            <div className="mx-auto max-w-4xl">
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="video">
+            <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
               <MarcoDelVideo titulo={pagina.video.titulo} gradiente={gradiente}>
                 <VideoDelPlan video={pagina.video} />
               </MarcoDelVideo>
@@ -264,8 +420,8 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
 
       case "paraquien":
         return (
-          <section key={clave} className="px-4 py-10" data-seccion="paraquien">
-            <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="paraquien">
+            <div className={cn(ANCHO_DE_LA_LANDING, "grid gap-4 md:grid-cols-2")} data-ancho-del-bloque>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-para-quien>
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-400">
                   <Users className="h-4 w-4" /> Para quién es este plan
@@ -284,8 +440,11 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
 
       case "capacidad":
         return pagina.capacidad.length > 0 ? (
-          <section key={clave} className="bg-white/[0.02] px-4 py-10" data-seccion="capacidad">
-            <div className={cn("mx-auto grid max-w-5xl gap-4", COLUMNAS_DE_CAPACIDAD[pagina.capacidad.length] ?? "sm:grid-cols-3")}>
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="capacidad">
+            <div
+              className={cn(ANCHO_DE_LA_LANDING, "grid gap-4", COLUMNAS_DE_CAPACIDAD[pagina.capacidad.length] ?? "sm:grid-cols-3")}
+              data-ancho-del-bloque
+            >
               {pagina.capacidad.map((t) => {
                 const Icono = elDibujoDelRecuadro(t.icono);
                 return (
@@ -314,49 +473,18 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
 
       case "funciones":
         return pagina.funciones.length > 0 ? (
-          <section key={clave} className="px-4 py-12" data-seccion="funciones">
-            <div className="mx-auto max-w-3xl">
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="funciones">
+            <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
               <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Qué incluye este plan</h2>
-              <ul className="space-y-3" data-lista-de-funciones>
-                {pagina.funciones.map((f) => (
-                  <li
-                    key={f.id}
-                    className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5"
-                    data-funcion={f.id}
-                  >
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
-                    <div className="min-w-0 flex-1">
-                      {/* El nombre y su guía en la MISMA fila: la guía pegada a la derecha. */}
-                      <div className="flex items-start justify-between gap-3" data-fila-de-la-funcion>
-                        <p className="min-w-0 flex-1 text-base font-medium text-white" data-nombre-de-la-funcion>
-                          {f.nombre}
-                        </p>
-                        {f.tutorial && (
-                          <Enlace
-                            url={f.tutorial.url}
-                            externo={f.tutorial.externo}
-                            className="mt-0.5 inline-flex max-w-[45%] shrink-0 items-center gap-1 text-right text-xs font-medium text-blue-400 hover:text-blue-300"
-                            data-tutorial={f.tutorial.url}
-                          >
-                            <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                            <span>{f.tutorial.externo ? "Ver tutorial" : f.tutorial.titulo}</span>
-                            {f.tutorial.externo && <ExternalLink className="h-3 w-3 shrink-0" />}
-                          </Enlace>
-                        )}
-                      </div>
-                      {f.descripcion && <p className="mt-1 text-sm leading-relaxed text-slate-400">{f.descripcion}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <QueIncluye funciones={pagina.funciones} />
             </div>
           </section>
         ) : null;
 
       case "preguntas":
         return pagina.preguntas.length > 0 ? (
-          <section key={clave} className="px-4 py-12" data-seccion="preguntas">
-            <div className="mx-auto max-w-3xl">
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="preguntas">
+            <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
               <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes</h2>
               <Preguntas preguntas={pagina.preguntas} />
             </div>
@@ -365,8 +493,8 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
 
       case "comenzar":
         return (
-          <section key={clave} className="px-4 py-14" data-seccion="comenzar">
-            <div className="mx-auto max-w-3xl text-center">
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="comenzar">
+            <div className={cn(ANCHO_DE_LA_LANDING, "text-center")} data-ancho-del-bloque>
               <h2 className="text-2xl font-bold sm:text-3xl">Empieza con el plan {pagina.nombre}</h2>
               <p className="mt-3 text-slate-400" data-precio-final>
                 {pagina.precio.aConsultar ? "Precio a consultar según tu operación." : `${pagina.precio.texto} USD al mes.`}
@@ -400,7 +528,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
     <div className="min-h-full bg-[#0a0f1a] text-white" data-pagina-de-plan={pagina.plan}>
       {/* ── Barra ── */}
       <div className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0f1a]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+        <div className={cn(ANCHO_DE_LA_LANDING, "flex items-center justify-between gap-3 py-3")} data-ancho-de-la-barra>
           <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">
             <ArrowLeft className="h-4 w-4" /> Volver a planes
           </Link>
@@ -412,13 +540,15 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         Plan {pagina.nombre}
       </h1>
 
-      {/* Los bloques, en el orden del panel, separados por una raya igual sea cual sea el orden. */}
-      <main className="divide-y divide-white/10" data-bloques>
+      {/* Los bloques, en el orden del panel, sin rayas entre ellos: los separa su propio aire. */}
+      <main data-bloques>
         {pagina.orden.map(bloque)}
       </main>
 
-      <footer className="border-t border-white/10 px-4 py-6 text-center text-xs text-slate-500">
-        © {anio} {pagina.marca}
+      <footer className="border-t border-white/10 py-6 text-center text-xs text-slate-500">
+        <div className={ANCHO_DE_LA_LANDING}>
+          © {anio} {pagina.marca}
+        </div>
       </footer>
     </div>
   );

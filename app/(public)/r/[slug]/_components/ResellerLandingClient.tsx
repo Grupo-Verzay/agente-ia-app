@@ -16,6 +16,7 @@ import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
 import { elPeriodoDeEntrada } from "@/lib/tarjeta-de-plan";
 import { elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
+import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -551,7 +552,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
                style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
-        <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
             <div className="flex flex-col justify-center">
               <Badge className={cn("mb-4 inline-flex w-fit items-center gap-1.5 border px-3 py-1", brand ? "brand-text brand-bg-soft brand-border" : "border-blue-500/20 bg-blue-500/10 text-blue-400")}>
@@ -622,7 +623,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ SOCIAL PROOF ════════════════════════════════════════════════════ */}
       <section className="py-8">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
               {[{ to: 500, suffix: "+", label: "Negocios activos" }, { to: 1, suffix: "M+", label: "Mensajes respondidos" }, { to: 4.9, suffix: "★", label: "Calificación promedio", decimals: 1 }, { to: 40, suffix: "%", label: "Aumento en ventas" }].map((s) => (
@@ -639,7 +640,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       {/* ══ MARQUEE ═════════════════════════════════════════════════════════ */}
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <div className="relative overflow-hidden rounded-xl"
             style={{ maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)", WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)" }}>
             <div className="flex w-max gap-3 py-1" style={{ animation: "marquee 28s linear infinite" }}>
@@ -655,7 +656,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ PAIN POINTS ═════════════════════════════════════════════════════ */}
       <section className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -675,7 +676,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ ANTES vs DESPUÉS ════════════════════════════════════════════════ */}
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <h2 className="mb-5 text-center text-2xl font-bold text-white sm:text-3xl">¿Qué cambia con Agente IA?</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -694,7 +695,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ INDUSTRIAS ══════════════════════════════════════════════════════ */}
       <section className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Funciona para tu tipo de negocio</h2>
@@ -716,7 +717,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ 3 PASOS ═════════════════════════════════════════════════════════ */}
       <section id="how" className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Tu agente listo en 3 pasos</h2>
@@ -740,7 +741,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           : videoUrl;
         return (
           <section className="py-6 bg-white/[0.02]">
-            <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+            <div className={ANCHO_DE_LA_LANDING}>
               <FadeIn>
                 <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
                   <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
@@ -753,7 +754,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ FUNCIONES ═══════════════════════════════════════════════════════ */}
       <section id="features" className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Todo lo que hace por ti</h2>
@@ -778,7 +779,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ TESTIMONIOS ═════════════════════════════════════════════════════ */}
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros clientes</h2>
@@ -827,7 +828,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       {/* ══ PRECIOS ═════════════════════════════════════════════════════════ */}
       {showPricing && (
       <section id="pricing" className="py-6 bg-white/[0.02]">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
@@ -873,7 +874,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ FAQ ═════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
@@ -900,7 +901,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ CTA FINAL ═══════════════════════════════════════════════════════ */}
       <section className="py-6">
-        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+        <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div
               className={cn("rounded-2xl border px-10 py-8 text-center", !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
