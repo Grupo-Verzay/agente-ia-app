@@ -26851,6 +26851,44 @@ el video que desaparece, la guía oscura en oscuro y clara en claro, e «Inicio�
 a la derecha. `MODO=roto` pinta la misma página con el código de `15568a8` y
 afirma los fallos.
 
+## La página de un plan: «Ver todas» en el orden del editor, y abrir la guía no mueve la página
+
+> **Esta sección manda sobre las dos de arriba** en el orden de «Ver todas» y en
+> qué pasa con el video al abrir la guía: el video ya NO se esconde.
+
+| lo que se veía | la causa | ahora |
+| --- | --- | --- |
+| «Ver todas las funciones» pegaba las no destacadas DETRÁS de las destacadas | eran dos listas: las destacadas y un bloque `data-resto-de-funciones` debajo | UNA lista en el orden del editor; cada función decide si se ve con `seVeLaFuncion(funcion, todas)` y lo que no se ve va en SU sitio con `hidden` |
+| al abrir la guía la página saltaba y el video y el principio de la guía quedaban fuera de vista | se escondía el video (`reproductor && !guiaAbierta`): lo de arriba se encogía de golpe y el navegador recolocaba la página | el video se queda; la guía sale justo debajo y la página no se mueve. Solo si la guía cae por debajo de la vista se baja lo justo (`cuantoBajarParaVerLaGuia`), sin que el video se vaya por arriba |
+
+Cuatro cosas que hay que mantener:
+
+1. **La lista es una** (`<ul data-lista-de-funciones>`, un solo `QueIncluye`) y
+   el botón la controla con `aria-controls`. Dos listas vuelven a ordenar las
+   destacadas primero. Lo abierto dentro sigue abierto al recoger y volver a
+   desplegar.
+2. **Lo que se desplaza es el CONTENEDOR de la página pública**
+   (`PANTALLA_PUBLICA_QUE_SE_DESPLAZA`), no la ventana: el `<body>` va con
+   `overflow-hidden`. `quienSeDesplaza` lo busca subiendo desde el tutorial, y
+   ningún `window.scrollBy`/`scrollTo` en esta pantalla.
+3. **Bajar es lo justo y nunca por encima del video**: `cuantoBajarParaVerLaGuia`
+   (pura, `lib/pagina-de-plan.ts`) quiere ver `LO_QUE_SE_VE_DE_LA_GUIA` (160 px)
+   de la guía a `MARGEN_CONTRA_EL_BORDE` (16) del borde de abajo, y topa en lo
+   que sube el video hasta debajo de la barra fija (`scroll-mt-20`). Si ya se
+   ve, 0: la página se queda donde estaba.
+4. **«Ir al vídeo» desde la guía sube al video y deja la guía abierta**: ya no
+   hay que recogerla para que el video exista.
+
+Lo prueba `scripts/banco-plan-orden-y-guia-sin-saltos.sh` (hace falta el build):
+las dos reglas, un barrido, y la página REAL en Chromium dentro de su contenedor
+de página pública, a 1440 y 390: el orden después de «Ver todas» (también sin
+ninguna destacada), y abrir la guía con la fila a media pantalla, con el video
+cortado arriba y con la fila abajo del todo, midiendo el desplazamiento y dónde
+quedan el video y la guía antes y después, con la guía tardando en cargar.
+`MODO=roto` pinta la misma página con el código de `0764700` y afirma los dos
+fallos: el orden con las destacadas primero y el video que desaparece. Los
+bancos de las dos secciones de arriba se ajustaron a esto.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas
