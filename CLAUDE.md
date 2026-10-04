@@ -26119,6 +26119,47 @@ Postgres (ocho plantillas, otra cuenta y un agente no tocan nada, independencia
 en los dos sentidos) y la pantalla real en Chromium a 1440/1024/390. `MODO=roto`
 lee `f8057cb` y afirma que no había plantillas.
 
+### Una plantilla ENLAZADA a un plan del panel lo lee EN VIVO, y la propuesta lleva su video y su enlace
+
+Quien manda en la casa puede enlazar una plantilla a un plan del panel de Planes
+(su nivel y su modalidad, `RefDePlan`). Esa plantilla **no guarda el plan**: lo
+que guarda de nombre y precio es una foto para ordenar la lista, y al cargarla
+en una propuesta todo se lee HOY del panel (`elPlanParaCargar`,
+`lib/plan-de-la-propuesta.server.ts`, con las MISMAS funciones que la página
+pública del plan): el nombre vigente, el precio en la moneda de la propuesta,
+los recuadros de capacidad (créditos, catálogo, asistencia…) y «Qué incluye»
+con los mismos ítems y en el mismo orden. Editar el plan en el panel se ve en la
+SIGUIENTE propuesta sin tocar la plantilla.
+
+> **La propuesta guarda una COPIA de la fila y la REFERENCIA al plan**
+> (`propuestas_comerciales.planes`, JSONB, con `ADD COLUMN IF NOT EXISTS`). La
+> fila no cambia aunque se edite el plan después —lo mandado a un cliente no se
+> mueve—; el video del plan y el enlace a su página los resuelve la página
+> pública de la propuesta AL ABRIRSE (`losPlanesDeLaPropuesta`), al final, en
+> «Conoce el plan». Las reglas puras viven en `lib/plan-de-la-propuesta.ts`.
+
+Cinco cosas que hay que mantener:
+
+1. **Solo la casa enlaza, carga y pone planes** (`SOLO_LA_CASA`). Un cliente que
+   lo pida a mano: la plantilla se rechaza, la propuesta se guarda sin planes y
+   al editar se conservan los que ya tenía.
+2. **Sin precio en esa moneda la inversión va vacía**, nunca un cero inventado;
+   y el alcance que no cabe dice «…y N más», no se corta a media palabra.
+3. **Un plan apagado no tiene página**: al cargarlo se avisa
+   (`elAvisoDelPlanApagado`) y la propuesta sale con su video y sin enlace.
+4. **El enlace lleva `?tipo=`** (segunda excepción a «la modalidad no va en la
+   dirección»): quien abre la propuesta no tiene la cookie. El texto que se ve
+   va sin `https://` y sin la consulta (`elTextoDelEnlace`).
+5. **El video es el mismo componente que la página del plan**
+   (`components/planes/VideoDelPlan.tsx`), sacado de `PlanDetailPage` para que
+   los dos no se separen.
+
+Lo prueba `scripts/banco-propuestas-con-plan.sh`: la regla pura, las acciones
+contra Postgres (cargar en vivo, editar el plan y que la propuesta vieja no
+cambie y la nueva sí, plan apagado, un cliente) y la página pública pintada con
+React (video y enlace al final). `MODO=roto` lee `0764700` y afirma que no
+existía nada de esto.
+
 ### La cabecera: solo el logo y el eslogan, a la misma altura
 
 La cabecera lleva **el logo a la izquierda y el eslogan de la cuenta a la
@@ -26640,7 +26681,9 @@ Cinco cosas que hay que mantener:
    salía con precio 0.
 3. **Lo único que lleva la modalidad en la dirección es la landing
    INCRUSTADA** (abre en otra pestaña, donde la cookie de este sitio puede no
-   llegar); el middleware la pasa a la cookie y la quita al aterrizar.
+   llegar); el middleware la pasa a la cookie y la quita al aterrizar. Y el
+   enlace al plan que va al final de una PROPUESTA, por lo mismo: quien la abre
+   no tiene la cookie.
 4. **Los botones de la tarjeta van en `mt-auto flex flex-col gap-3`**
    (`data-botones-de-la-tarjeta`), nunca `space-y-*`.
 5. **El nombre comercial se queda en la pantalla**, nunca en la dirección.

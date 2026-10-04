@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,22 @@ import {
     type TipoDeItems,
     type VisibilidadDeNota,
 } from "@/lib/propuestas";
-import { conLaPlantillaCargada, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import { conLaFilaCargada, conLaPlantillaCargada, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import {
+    conElPlan,
+    elNombreDeLaAsistencia,
+    elNumeroDelNivel,
+    elPrecioEnLaMoneda,
+    laFilaDelPlan,
+    laLlaveDelPlan,
+    sinElPlan,
+    type PlanParaElegir,
+    type RefDePlan,
+} from "@/lib/plan-de-la-propuesta";
+import { cargarPlanEnLaPropuestaAction } from "@/actions/propuestas-actions";
+
+/** El tope del alcance de un servicio: el mismo `maxLength` del campo. */
+const TOPE_DEL_ALCANCE = 3000;
 
 export type LineaDelFormulario = { instanceName: string; nombre: string; tipo: string };
 
@@ -67,6 +82,12 @@ export type BorradorDePropuesta = {
     metodoPago: string;
     medioPago: string;
     slug: string;
+    /**
+     * Los planes del panel de Planes que la propuesta lleva: solo su referencia.
+     * Al cargar una plantilla enlazada se añade el suyo, y la página pública de
+     * la propuesta enseña su video y el enlace a su página leídos al abrirse.
+     */
+    planes: RefDePlan[];
 };
 
 const CAMPOS_NUEVOS_VACIOS = {
@@ -81,6 +102,7 @@ const CAMPOS_NUEVOS_VACIOS = {
     metodoPago: "",
     medioPago: "",
     slug: "",
+    planes: [] as RefDePlan[],
 };
 
 const SERVICIO_VACIO: ServicioEnEdicion = { nombre: "", alcance: "", inversion: "" };
@@ -96,6 +118,7 @@ export function borradorDe(p: Propuesta | null): BorradorDePropuesta {
             mantenimientoDescripcion: "",
             condiciones: "",
             ...CAMPOS_NUEVOS_VACIOS,
+            planes: [],
         };
     }
     return {
@@ -119,7 +142,15 @@ export function borradorDe(p: Propuesta | null): BorradorDePropuesta {
         metodoPago: p.metodoPago,
         medioPago: p.medioPago,
         slug: p.slug ?? "",
+        planes: (p.planes ?? []).map((r) => ({ ...r })),
     };
+}
+
+/** Cómo se nombra un plan en el formulario: con su nombre del panel, o con su nivel si no se sabe. */
+function elNombreDelPlanEnElFormulario(ref: RefDePlan, planes: readonly PlanParaElegir[]): string {
+    const del = planes.find((p) => laLlaveDelPlan(p.ref) === laLlaveDelPlan(ref));
+    const nombre = del ? del.nombre : `Nivel ${elNumeroDelNivel(ref.nivel)}`;
+    return `${nombre} · ${elNombreDeLaAsistencia(ref.asistencia)}${del && !del.activo ? " (apagado)" : ""}`;
 }
 
 /**
@@ -133,6 +164,7 @@ export function FormularioDePropuesta({
     lineas,
     origen = "",
     plantillas = [],
+    planesDelPanel = [],
     guardando,
     onCerrar,
     onGuardar,
@@ -143,15 +175,28 @@ export function FormularioDePropuesta({
     /** Para enseñar el enlace como va a quedar. */
     origen?: string;
     plantillas?: PlantillaDePlan[];
+    /** Los planes del panel de Planes, para nombrar los que lleva la propuesta. */
+    planesDelPanel?: PlanParaElegir[];
     guardando: boolean;
     onCerrar: () => void;
     onGuardar: (b: BorradorDePropuesta) => void;
 }) {
     const [b, setB] = useState<BorradorDePropuesta>(() => borradorDe(propuesta));
+    // Cargar un plan enlazado pide el plan al servidor: mientras va, el selector
+    // se apaga, y lo que vuelve se aplica sobre el borrador de ESE momento.
+    const [cargandoPlan, setCargandoPlan] = useState(false);
+    const bRef = useRef(b);
+    bRef.current = b;
+    // Una respuesta de una apertura anterior no pinta sobre la siguiente.
+    const aperturaRef = useRef(0);
 
     // Cada apertura empieza de la propuesta que se abre, no del borrador de la anterior.
     useEffect(() => {
-        if (abierto) setB(borradorDe(propuesta));
+        if (abierto) {
+            aperturaRef.current += 1;
+            setCargandoPlan(false);
+            setB(borradorDe(propuesta));
+        }
     }, [abierto, propuesta]);
 
     const total = useMemo(
@@ -177,6 +222,10 @@ export function FormularioDePropuesta({
     const cargarPlantilla = (id: string) => {
         const plantilla = plantillas.find((p) => p.id === id);
         if (!plantilla) return;
+        if (plantilla.plan) {
+            void cargarPlanEnlazado(plantilla);
+            return;
+        }
         const r = conLaPlantillaCargada(b.servicios, plantilla, TOPE_DE_SERVICIOS);
         if (!r.cabe) {
             toast.error(`Ya hay ${TOPE_DE_SERVICIOS} ${rotulos.plural.toLowerCase()}: quita alguno antes de cargar otro plan.`);
@@ -187,6 +236,51 @@ export function FormularioDePropuesta({
             toast.warning(`El plan «${plantilla.nombre}» está en ${plantilla.moneda} y la propuesta en ${b.moneda}: revisa el importe.`);
         }
         setB((x) => ({ ...x, servicios: r.filas, moneda: sinNada ? plantilla.moneda : x.moneda }));
+    };
+
+    /**
+     * Una plantilla ENLAZADA a un plan del panel de Planes: el plan se lee HOY
+     * en el servidor (`cargarPlanEnLaPropuestaAction`) y entra como una fila más
+     * —nombre, precio en la moneda de la propuesta, créditos, catálogo,
+     * asistencia y «Qué incluye»—, y su referencia se añade a `planes`, que es
+     * lo que hace que la página pública enseñe su video y el enlace a su página.
+     */
+    const cargarPlanEnlazado = async (plantilla: PlantillaDePlan) => {
+        const apertura = aperturaRef.current;
+        setCargandoPlan(true);
+        let r: Awaited<ReturnType<typeof cargarPlanEnLaPropuestaAction>>;
+        try {
+            r = await cargarPlanEnLaPropuestaAction(plantilla.id);
+        } catch (e) {
+            console.error("[propuestas] la carga del plan no llegó al servidor", e);
+            r = { success: false, message: "No se pudo leer el plan. Revisa la conexión." };
+        }
+        if (apertura !== aperturaRef.current) return;
+        setCargandoPlan(false);
+        if (!r.success) {
+            toast.error(r.message);
+            return;
+        }
+        const { plan, avisos } = r.data;
+        const actual = bRef.current;
+        const sinNada = actual.servicios.every((s) => !s.nombre.trim() && !s.alcance.trim() && !s.inversion.trim());
+        const moneda = sinNada ? plantilla.moneda : actual.moneda;
+        const fila = laFilaDelPlan(plan, moneda, TOPE_DEL_ALCANCE);
+        const cargada = conLaFilaCargada(actual.servicios, fila, TOPE_DE_SERVICIOS);
+        if (!cargada.cabe) {
+            toast.error(`Ya hay ${TOPE_DE_SERVICIOS} ${rotulos.plural.toLowerCase()}: quita alguno antes de cargar otro plan.`);
+            return;
+        }
+        setB((x) => ({ ...x, servicios: cargada.filas, moneda, planes: conElPlan(x.planes, plan.ref) }));
+        for (const aviso of avisos) toast.warning(aviso);
+        if (elPrecioEnLaMoneda(plan, moneda) === null) {
+            toast.warning(`El panel de Planes no tiene el precio de «${plan.nombre}» en ${moneda}: escríbelo a mano.`);
+        }
+        toast.success(
+            plan.enlace
+                ? `«${plan.nombre}» cargado del panel de Planes. La propuesta llevará ${plan.video ? "su video y " : ""}el enlace a su página.`
+                : `«${plan.nombre}» cargado del panel de Planes.`,
+        );
     };
 
     const cambiarServicio = (i: number, campo: keyof ServicioEnEdicion, valor: string) =>
@@ -371,16 +465,48 @@ export function FormularioDePropuesta({
                                     id="propuesta-cargar-plan"
                                     data-cargar-plan
                                     value=""
+                                    disabled={cargandoPlan}
+                                    aria-busy={cargandoPlan}
                                     onChange={(e) => cargarPlantilla(e.target.value)}
                                     className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
                                 >
-                                    <option value="">Elige una plantilla de plan…</option>
+                                    <option value="">{cargandoPlan ? "Leyendo el plan del panel de Planes…" : "Elige una plantilla de plan…"}</option>
                                     {plantillas.map((p) => (
                                         <option key={p.id} value={p.id}>
                                             {p.nombre} · {comoSeLeeElImporte(p.precio, p.moneda)}
+                                            {p.plan ? " · panel de Planes" : ""}
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+                        ) : null}
+                        {b.planes.length > 0 ? (
+                            <div data-planes-del-formulario className="space-y-1.5 rounded-lg border border-dashed p-3">
+                                <p className="text-xs text-muted-foreground">
+                                    Al final de la propuesta salen el video y el enlace a la página de cada plan, como estén en
+                                    el panel de Planes al abrirla.
+                                </p>
+                                <ul className="flex flex-wrap gap-2">
+                                    {b.planes.map((ref) => (
+                                        <li
+                                            key={laLlaveDelPlan(ref)}
+                                            data-plan-del-formulario={laLlaveDelPlan(ref)}
+                                            className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 py-1 pl-2.5 pr-1 text-xs"
+                                        >
+                                            <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                            <span>{elNombreDelPlanEnElFormulario(ref, planesDelPanel)}</span>
+                                            <button
+                                                type="button"
+                                                className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                                                aria-label={`Quitar el enlace a ${elNombreDelPlanEnElFormulario(ref, planesDelPanel)}`}
+                                                title="Quitar el video y el enlace de este plan"
+                                                onClick={() => setB((x) => ({ ...x, planes: sinElPlan(x.planes, ref) }))}
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         ) : null}
                         {b.servicios.map((s, i) => (
@@ -418,7 +544,7 @@ export function FormularioDePropuesta({
                                 <Textarea
                                     aria-label={`Alcance del ${rotulos.singular} ${i + 1}`}
                                     value={s.alcance}
-                                    maxLength={3000}
+                                    maxLength={TOPE_DEL_ALCANCE}
                                     rows={3}
                                     onChange={(e) => cambiarServicio(i, "alcance", e.target.value)}
                                     placeholder={`Alcance: qué incluye este ${rotulos.singular}`}

@@ -229,7 +229,7 @@ export async function precioDePlanParaCuenta(
  * la conversión desde dólares de siempre — así ningún plan que nadie haya tocado
  * cambia de precio.
  */
-function precioEnPesosEscrito(
+export function precioEnPesosEscrito(
     valor: { toString(): string } | null | undefined,
 ): { price: number; currency: string } | null {
     const pesos = Number(valor ?? 0);

@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarraDeAcciones, BotonDeCrear } from "@/components/shared/BarraDeAcciones";
 import { cn } from "@/lib/utils";
 import { ordenarPlantillas, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import type { PlanParaElegir } from "@/lib/plan-de-la-propuesta";
 import {
     borrarPlantillaAction,
     borrarPropuestaAction,
@@ -82,12 +83,15 @@ export function PropuestasClient({
     lineas,
     esloganInicial,
     plantillasIniciales = [],
+    planes = [],
 }: {
     inicial: Propuesta[];
     origen: string;
     lineas: LineaDelFormulario[];
     esloganInicial: string;
     plantillasIniciales?: PlantillaDePlan[];
+    /** Los planes del panel de Planes. Vacío = quien mira no manda en la casa y no enlaza. */
+    planes?: PlanParaElegir[];
 }) {
     // Dos secciones en la misma pantalla: las propuestas y las plantillas de
     // planes. La barra y la tabla son las mismas; cambia lo que hay dentro.
@@ -340,9 +344,15 @@ export function PropuestasClient({
                                         {comoSeLeeElImporte(p.precio, p.moneda)}
                                     </TableCell>
                                     <TableCell className="max-w-[28rem]">
-                                        <div className="line-clamp-2 text-sm text-muted-foreground" title={p.caracteristicas.join("\n")}>
-                                            {p.caracteristicas.length === 0 ? "—" : p.caracteristicas.join(" · ")}
-                                        </div>
+                                        {p.plan ? (
+                                            <div data-plantilla-enlazada className="text-sm text-muted-foreground">
+                                                Enlazada al panel de Planes: lo que incluye, el video y el enlace se leen en vivo.
+                                            </div>
+                                        ) : (
+                                            <div className="line-clamp-2 text-sm text-muted-foreground" title={p.caracteristicas.join("\n")}>
+                                                {p.caracteristicas.length === 0 ? "—" : p.caracteristicas.join(" · ")}
+                                            </div>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
@@ -545,6 +555,7 @@ export function PropuestasClient({
             <FormularioDePlantilla
                 abierto={plantillaAbierta}
                 plantilla={plantillaEnEdicion}
+                planes={planes}
                 guardando={guardandoPlantilla}
                 onCerrar={() => setPlantillaAbierta(false)}
                 onGuardar={(b) => void guardarPlantilla(b)}
@@ -572,6 +583,7 @@ export function PropuestasClient({
                 lineas={lineas}
                 origen={base}
                 plantillas={plantillas}
+                planesDelPanel={planes}
                 guardando={guardando}
                 onCerrar={() => setFormAbierto(false)}
                 onGuardar={(b) => void guardar(b)}

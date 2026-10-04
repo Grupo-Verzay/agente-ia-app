@@ -15,7 +15,16 @@ import {
     type DatosDePropuesta,
     type Propuesta,
 } from "@/lib/propuestas";
-import { comoPlantilla, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import { comoPlantilla, type DatosDePlantilla, type PlantillaDePlan } from "@/lib/plantillas-de-planes";
+import { mandaEnLaCasaDeVerdad } from "@/lib/mando-de-la-casa";
+import {
+    elAvisoDelPlanApagado,
+    elPrecioEnLaMoneda,
+    laLlaveDelPlan,
+    type PlanParaCargar,
+    type PlanParaElegir,
+} from "@/lib/plan-de-la-propuesta";
+import { elPlanParaCargar, losPlanesParaElegir, losResumenesDeLosPlanes } from "@/lib/plan-de-la-propuesta.server";
 import {
     borrarPlantilla,
     borrarPropuesta,
@@ -51,12 +60,45 @@ type Respuesta<T> = { success: true; data: T } | { success: false; message: stri
 
 const RUTA = "/panel/propuestas";
 
-async function quienManda(): Promise<{ cuenta: string; personaId: string } | null> {
+type QuienManda = {
+    cuenta: string;
+    personaId: string;
+    /**
+     * ¿Manda en la CASA? Solo la casa enlaza una plantilla a un plan del panel
+     * de Planes y pone planes en una propuesta: esos planes son los que vende la
+     * plataforma. Se pregunta solo cuando hace falta (cuesta una consulta).
+     */
+    esDeLaCasa: () => Promise<boolean>;
+};
+
+async function quienManda(): Promise<QuienManda | null> {
     const user = await currentUser();
     if (!user || !canManageWorkspace(user)) return null;
     const cuenta = await laCuentaDeLaAccion();
     if (!cuenta) return null;
-    return { cuenta, personaId: laPersonaQueActua(user).id };
+    let casa: Promise<boolean> | null = null;
+    return {
+        cuenta,
+        personaId: laPersonaQueActua(user).id,
+        esDeLaCasa: () => (casa ??= mandaEnLaCasaDeVerdad(user).catch(() => false)),
+    };
+}
+
+const SOLO_LA_CASA = "Solo quien administra la plataforma puede enlazar una plantilla a un plan del panel de Planes.";
+
+/**
+ * Las plantillas con lo VIGENTE de su plan: una enlazada se pinta con el nombre
+ * y el precio de hoy del panel de Planes, no con la foto que se guardó.
+ */
+async function conLoVigente(plantillas: PlantillaDePlan[]): Promise<PlantillaDePlan[]> {
+    const refs = plantillas.flatMap((p) => (p.plan ? [p.plan] : []));
+    if (refs.length === 0) return plantillas;
+    const vigentes = await losResumenesDeLosPlanes(refs);
+    return plantillas.map((p) => {
+        const v = p.plan ? vigentes.get(laLlaveDelPlan(p.plan)) : undefined;
+        if (!v) return p;
+        return { ...p, nombre: v.nombre, precio: elPrecioEnLaMoneda(v, p.moneda) ?? p.precio };
+    });
 }
 
 const ENLACE_OCUPADO = "Ese enlace personalizado ya lo usa otra propuesta: elige otro.";
@@ -64,19 +106,28 @@ const ENLACE_OCUPADO = "Ese enlace personalizado ya lo usa otra propuesta: elige
 const NO_AUTORIZADO = { success: false as const, message: "No autorizado." };
 
 export async function listarPropuestasAction(): Promise<
-    Respuesta<{ propuestas: Propuesta[]; origen: string; lineas: LineaParaEnviar[]; eslogan: string; plantillas: PlantillaDePlan[] }>
+    Respuesta<{
+        propuestas: Propuesta[];
+        origen: string;
+        lineas: LineaParaEnviar[];
+        eslogan: string;
+        plantillas: PlantillaDePlan[];
+        /** Los planes del panel de Planes que se pueden enlazar. Vacío si no manda en la casa. */
+        planes: PlanParaElegir[];
+    }>
 > {
     const q = await quienManda();
     if (!q) return NO_AUTORIZADO;
     try {
-        const [propuestas, origen, lineas, eslogan, plantillas] = await Promise.all([
+        const [propuestas, origen, lineas, eslogan, plantillas, planes] = await Promise.all([
             lasPropuestasDe(q.cuenta),
             elOrigenDeLaApp(),
             lasLineasParaEnviar(q.cuenta),
             elEsloganDe(q.cuenta),
-            lasPlantillasDe(q.cuenta),
+            lasPlantillasDe(q.cuenta).then(conLoVigente),
+            q.esDeLaCasa().then((casa) => (casa ? losPlanesParaElegir() : [])),
         ]);
-        return { success: true, data: { propuestas, origen, lineas, eslogan, plantillas } };
+        return { success: true, data: { propuestas, origen, lineas, eslogan, plantillas, planes } };
     } catch (error) {
         console.error("[propuestas] no se pudieron leer", { cuenta: q.cuenta, error: String(error) });
         return { success: false, message: "No se pudieron cargar las propuestas." };
@@ -101,8 +152,9 @@ export async function crearPropuestaAction(raw: unknown): Promise<Respuesta<Prop
     if (!v.ok) return { success: false, message: v.motivo };
     const malaLinea = await laLineaEsDeLaCuenta(q.cuenta, v.datos);
     if (malaLinea) return { success: false, message: malaLinea };
+    const planes = (await q.esDeLaCasa()) ? v.datos.planes : [];
     try {
-        const p = await crearPropuesta({ ...v.datos, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
+        const p = await crearPropuesta({ ...v.datos, planes, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
         revalidatePath(RUTA);
         return { success: true, data: p };
     } catch (error) {
@@ -121,7 +173,14 @@ export async function editarPropuestaAction(id: unknown, raw: unknown): Promise<
     const malaLinea = await laLineaEsDeLaCuenta(q.cuenta, v.datos);
     if (malaLinea) return { success: false, message: malaLinea };
     try {
-        const p = await editarPropuesta(q.cuenta, id, v.datos);
+        // Quien no manda en la casa no pone ni quita planes: se quedan los que tenía.
+        let planes = v.datos.planes;
+        if (!(await q.esDeLaCasa())) {
+            const antes = await laPropuestaDeLaCuenta(q.cuenta, id);
+            if (!antes) return { success: false, message: "Propuesta no encontrada." };
+            planes = antes.planes;
+        }
+        const p = await editarPropuesta(q.cuenta, id, { ...v.datos, planes });
         if (!p) return { success: false, message: "Propuesta no encontrada." };
         revalidatePath(RUTA);
         return { success: true, data: p };
@@ -153,13 +212,34 @@ export async function borrarPropuestaAction(id: unknown): Promise<Respuesta<null
  * sesión. Sin tope de cuántas. Ninguna toca una propuesta: las propuestas
  * guardan su copia.
  */
+/**
+ * Una plantilla enlazada guarda solo la referencia al plan; el nombre y el
+ * precio que se guardan son una FOTO para ordenar la lista, sacada del plan hoy.
+ * Lo de verdad se lee al cargarla (`cargarPlanEnLaPropuestaAction`).
+ */
+async function conLaFotoDelPlan(
+    q: QuienManda,
+    datos: DatosDePlantilla,
+): Promise<{ ok: true; datos: typeof datos } | { ok: false; message: string }> {
+    if (!datos.plan) return { ok: true, datos };
+    if (!(await q.esDeLaCasa())) return { ok: false, message: SOLO_LA_CASA };
+    const plan = await elPlanParaCargar(datos.plan, await elOrigenDeLaApp());
+    if (!plan) return { ok: false, message: "Ese plan no está en el panel de Planes." };
+    return {
+        ok: true,
+        datos: { ...datos, nombre: plan.nombre, precio: elPrecioEnLaMoneda(plan, datos.moneda) ?? 0, caracteristicas: [] },
+    };
+}
+
 export async function crearPlantillaAction(raw: unknown): Promise<Respuesta<PlantillaDePlan>> {
     const q = await quienManda();
     if (!q) return NO_AUTORIZADO;
     const v = comoPlantilla(raw);
     if (!v.ok) return { success: false, message: v.motivo };
+    const foto = await conLaFotoDelPlan(q, v.datos);
+    if (!foto.ok) return { success: false, message: foto.message };
     try {
-        const p = await crearPlantilla({ ...v.datos, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
+        const p = await crearPlantilla({ ...foto.datos, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
         revalidatePath(RUTA);
         return { success: true, data: p };
     } catch (error) {
@@ -174,8 +254,10 @@ export async function editarPlantillaAction(id: unknown, raw: unknown): Promise<
     if (typeof id !== "string" || !id.trim()) return { success: false, message: "Plantilla no encontrada." };
     const v = comoPlantilla(raw);
     if (!v.ok) return { success: false, message: v.motivo };
+    const foto = await conLaFotoDelPlan(q, v.datos);
+    if (!foto.ok) return { success: false, message: foto.message };
     try {
-        const p = await editarPlantilla(q.cuenta, id, v.datos);
+        const p = await editarPlantilla(q.cuenta, id, foto.datos);
         if (!p) return { success: false, message: "Plantilla no encontrada." };
         revalidatePath(RUTA);
         return { success: true, data: p };
@@ -197,6 +279,33 @@ export async function borrarPlantillaAction(id: unknown): Promise<Respuesta<null
     } catch (error) {
         console.error("[propuestas] no se pudo borrar la plantilla", { cuenta: q.cuenta, id, error: String(error) });
         return { success: false, message: "No se pudo eliminar la plantilla." };
+    }
+}
+
+/**
+ * Lo que trae una plantilla ENLAZADA al cargarla en una propuesta: el plan del
+ * panel de Planes leído HOY —nombre, precios, recuadros de capacidad, «Qué
+ * incluye», si tiene video y el enlace a su página pública—. Solo llega el id de
+ * la plantilla, que se busca acotada por la cuenta.
+ */
+export async function cargarPlanEnLaPropuestaAction(
+    plantillaId: unknown,
+): Promise<Respuesta<{ plan: PlanParaCargar; avisos: string[] }>> {
+    const q = await quienManda();
+    if (!q) return NO_AUTORIZADO;
+    if (typeof plantillaId !== "string" || !plantillaId.trim()) return { success: false, message: "Plantilla no encontrada." };
+    try {
+        const plantilla = (await lasPlantillasDe(q.cuenta)).find((p) => p.id === plantillaId);
+        if (!plantilla) return { success: false, message: "Plantilla no encontrada." };
+        if (!plantilla.plan) return { success: false, message: "Esa plantilla no está enlazada a un plan del panel de Planes." };
+        if (!(await q.esDeLaCasa())) return { success: false, message: SOLO_LA_CASA };
+        const plan = await elPlanParaCargar(plantilla.plan, await elOrigenDeLaApp());
+        if (!plan) return { success: false, message: "El plan de esa plantilla ya no está en el panel de Planes." };
+        const avisos = plan.activo ? [] : [elAvisoDelPlanApagado(plan.nombre)];
+        return { success: true, data: { plan, avisos } };
+    } catch (error) {
+        console.error("[propuestas] no se pudo cargar el plan de la plantilla", { cuenta: q.cuenta, plantillaId, error: String(error) });
+        return { success: false, message: "No se pudo leer el plan del panel de Planes." };
     }
 }
 

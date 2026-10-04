@@ -22,6 +22,7 @@ export default async function PropuestasPage() {
             lineas={r.data.lineas}
             esloganInicial={r.data.eslogan}
             plantillasIniciales={r.data.plantillas}
+            planes={r.data.planes}
         />
     );
 }

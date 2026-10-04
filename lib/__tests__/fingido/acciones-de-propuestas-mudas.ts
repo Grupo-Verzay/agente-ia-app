@@ -12,6 +12,7 @@ function plantilla(raw: any, id?: string) {
         precio: Number(String(raw?.precio ?? "0").replace(/\./g, "")) || 0,
         moneda: raw?.moneda ?? "COP",
         caracteristicas: String(raw?.caracteristicas ?? "").split("\n").filter(Boolean),
+        plan: raw?.plan ?? null,
         creadaEn: new Date().toISOString(),
         actualizadaEn: new Date().toISOString(),
     };
@@ -24,3 +25,12 @@ export async function editarPropuestaAction(id: string, raw: unknown) { pedidas.
 export async function borrarPropuestaAction(id: string) { pedidas.push({ accion: "borrarPropuesta", args: [id] }); return ok(null); }
 export async function enviarPropuestaPorWhatsappAction() { return { success: false as const, message: "banco" }; }
 export async function ponerEsloganAction(e: string) { return ok(e); }
+
+/** El plan que trae una plantilla enlazada. Se puede cambiar desde el banco. */
+export let planDeMentira: any = null;
+export function ponerElPlan(p: any) { planDeMentira = p; }
+export async function cargarPlanEnLaPropuestaAction(id: string) {
+    pedidas.push({ accion: "cargarPlan", args: [id] });
+    if (!planDeMentira) return { success: false as const, message: "Esa plantilla no está enlazada a un plan del panel de Planes." };
+    return ok({ plan: planDeMentira, avisos: planDeMentira.activo ? [] : [`El plan «${planDeMentira.nombre}» está apagado.`] });
+}
