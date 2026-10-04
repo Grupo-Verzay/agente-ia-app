@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function LayoutDeLaGuia({ children }: { children: React.ReactNode }) {
     return (
-        <main data-guia className={`bg-slate-50 text-slate-900 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
+        <main data-guia className={`bg-guia-fondo text-guia-texto ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
             {children}
         </main>
     );

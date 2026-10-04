@@ -82,8 +82,8 @@ try {
                      <CabeceraDeLaGuia ${props} />
                      <div className=${JSON.stringify(contenedor)}>
                          <section id="demostracion" data-demostracion className=${JSON.stringify(seccion)}>
-                             ${tituloAparte ? `<h2 data-titulo-aparte className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900">Demostración en 1 minuto</h2>` : ""}
-                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-sm">
+                             ${tituloAparte ? `<h2 data-titulo-aparte className="inline-flex items-center gap-2 text-lg font-semibold text-guia-texto">Demostración en 1 minuto</h2>` : ""}
+                             <div className="overflow-hidden rounded-2xl border border-guia-borde bg-slate-900 shadow-sm">
                                  <div data-video className="block aspect-[16/10] w-full bg-slate-900" />
                              </div>
                          </section>

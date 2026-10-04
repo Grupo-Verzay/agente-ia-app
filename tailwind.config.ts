@@ -78,6 +78,29 @@ module.exports = {
 					DEFAULT: 'hsl(var(--popover))',
 					foreground: 'hsl(var(--popover-foreground))'
 				},
+				// Las guías públicas (`/guia/...`) siguen el tema claro u oscuro del
+				// cliente: cada color es una variable `--guia-*` (app/globals.css) con
+				// su valor claro y su valor oscuro, y nunca un `slate-*` escrito a mano.
+				guia: {
+					fondo: 'hsl(var(--guia-fondo) / <alpha-value>)',
+					superficie: 'hsl(var(--guia-superficie) / <alpha-value>)',
+					hundido: 'hsl(var(--guia-hundido) / <alpha-value>)',
+					borde: 'hsl(var(--guia-borde) / <alpha-value>)',
+					'borde-suave': 'hsl(var(--guia-borde-suave) / <alpha-value>)',
+					texto: 'hsl(var(--guia-texto) / <alpha-value>)',
+					fuerte: 'hsl(var(--guia-fuerte) / <alpha-value>)',
+					medio: 'hsl(var(--guia-medio) / <alpha-value>)',
+					suave: 'hsl(var(--guia-suave) / <alpha-value>)',
+					tenue: 'hsl(var(--guia-tenue) / <alpha-value>)',
+					acento: 'hsl(var(--guia-acento) / <alpha-value>)',
+					'acento-fuerte': 'hsl(var(--guia-acento-fuerte) / <alpha-value>)',
+					'acento-suave': 'hsl(var(--guia-acento-suave) / <alpha-value>)',
+					'acento-borde': 'hsl(var(--guia-acento-borde) / <alpha-value>)',
+					anillo: 'hsl(var(--guia-anillo) / <alpha-value>)',
+					'aviso-fondo': 'hsl(var(--guia-aviso-fondo) / <alpha-value>)',
+					'aviso-borde': 'hsl(var(--guia-aviso-borde) / <alpha-value>)',
+					'aviso-texto': 'hsl(var(--guia-aviso-texto) / <alpha-value>)',
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

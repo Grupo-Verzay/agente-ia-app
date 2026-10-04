@@ -865,7 +865,24 @@ export function laCapacidadDelPlan(datos: DatosDelPlan, raw?: unknown): TarjetaD
 
 /* ─── Qué incluye: una tarjeta por función ─────────────────────────────── */
 
-export type TutorialDeLaFuncion = { url: string; titulo: string; externo: boolean };
+/**
+ * El texto del enlace al tutorial de una función: **siempre este, nunca el
+ * nombre de la guía**. Varias funciones sin relación entre sí cuelgan de la
+ * misma guía (todo lo del agente, de «Agente IA»), y con su nombre la lista
+ * repetía «Guía de Agente IA» al lado de cosas que no tienen que ver.
+ */
+export const TEXTO_DEL_TUTORIAL = "Ver tutorial";
+
+export type TutorialDeLaFuncion = {
+    /** Dónde se abre entero: la guía o el enlace propio. Siempre en otra pestaña. */
+    url: string;
+    titulo: typeof TEXTO_DEL_TUTORIAL;
+    externo: boolean;
+    /** Lo que se reproduce DENTRO de la página al abrir la función. `null`: solo el enlace. */
+    video: VideoDelPlan | null;
+    /** La imagen del video antes de darle a reproducir (la portada de la guía). */
+    portada: string | null;
+};
 
 export type FuncionQueSeEnsena = {
     id: string;
@@ -875,19 +892,50 @@ export type FuncionQueSeEnsena = {
 };
 
 /**
- * El enlace del tutorial de una función: una guía PUBLICADA (si el módulo ya
- * no existe, nada) o una dirección web. `guias` lo pone quien llama, en el
- * servidor: la lista de guías es pesada y no viaja al navegador.
+ * El video y la portada de una guía publicada. Es la convención de
+ * `laGuiaDe` (`lib/guia-de-modulo.ts`): `public/guia/<modulo>/` guarda las dos,
+ * y el banco comprueba que existan para cada guía publicada.
+ */
+export function elVideoDeLaGuia(modulo: string): { video: VideoDelPlan; portada: string } {
+    return {
+        video: { tipo: "archivo", url: `/guia/${modulo}/demostracion.webm` },
+        portada: `/guia/${modulo}/portada.webp`,
+    };
+}
+
+/**
+ * Los reproductores que se dejan meter en una página ajena. Un enlace propio
+ * que NO es de uno de estos (o un archivo de video) no se inserta: casi todas
+ * las páginas web se niegan a ir dentro de otra y quedaría un recuadro en
+ * blanco. Esos se abren en otra pestaña.
+ */
+const REPRODUCTORES_QUE_SE_INSERTAN =
+    /^https:\/\/(www\.youtube\.com\/embed\/|player\.vimeo\.com\/video\/|www\.loom\.com\/embed\/|drive\.google\.com\/file\/d\/)/;
+
+/** El video de un tutorial que es un enlace propio, si se puede ver dentro de la página. */
+export function elVideoDelTutorial(url: string): VideoDelPlan | null {
+    const v = elVideoDelPlan(url);
+    if (!v) return null;
+    return v.tipo === "archivo" || REPRODUCTORES_QUE_SE_INSERTAN.test(v.url) ? v : null;
+}
+
+/**
+ * El tutorial de una función: una guía PUBLICADA (si el módulo ya no existe,
+ * nada) o una dirección web. `guias` lo pone quien llama, en el servidor: la
+ * lista de guías es pesada y no viaja al navegador; aquí solo se pregunta si
+ * el módulo está.
  */
 export function elTutorialDeLaFuncion(
     tutorial: string | null,
-    guias: ReadonlyMap<string, string>,
+    guias: { has(modulo: string): boolean },
 ): TutorialDeLaFuncion | null {
     const t = comoTutorial(tutorial);
     if (!t) return null;
-    if (/^https?:\/\//i.test(t)) return { url: t, titulo: "Ver tutorial", externo: true };
-    const titulo = guias.get(t);
-    return titulo ? { url: `/guia/${t}`, titulo, externo: false } : null;
+    if (/^https?:\/\//i.test(t)) {
+        return { url: t, titulo: TEXTO_DEL_TUTORIAL, externo: true, video: elVideoDelTutorial(t), portada: null };
+    }
+    if (!guias.has(t)) return null;
+    return { url: `/guia/${t}`, titulo: TEXTO_DEL_TUTORIAL, externo: false, ...elVideoDeLaGuia(t) };
 }
 
 /**
@@ -899,7 +947,7 @@ export function elTutorialDeLaFuncion(
 export function lasFuncionesQueSeEnsenan(
     funciones: readonly FuncionDelPlan[],
     datos: DatosDelPlan,
-    guias: ReadonlyMap<string, string>,
+    guias: { has(modulo: string): boolean },
 ): FuncionQueSeEnsena[] {
     const seListan = new Set(CATEGORIAS_DEL_PLAN.filter((c) => c.seLista).map((c) => c.slug));
     return funciones
