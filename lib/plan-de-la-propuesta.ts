@@ -271,3 +271,20 @@ export function elRotuloDelEnlaceDelPlan(nombre: string): string {
 export function elAvisoDelPlanApagado(nombre: string): string {
     return `El plan «${nombre}» está apagado en el panel de Planes: su página pública no existe, así que la propuesta no lleva el enlace. Actívalo para que salga.`;
 }
+
+/**
+ * Las guías que NO salen dentro de una propuesta. Una propuesta la lee quien
+ * está DECIDIENDO si compra, y la guía del Agente IA («Entrena al asistente que
+ * atiende a tus clientes») es para quien ya compró: le enseña a configurar algo
+ * que todavía no tiene. Una función cuyo tutorial es una de estas sale en
+ * «Qué incluye» con su nombre y su descripción, sin «Ver tutorial», sin video y
+ * sin guía. La página pública del plan no cambia: allí sí salen.
+ */
+export const GUIAS_FUERA_DE_LA_PROPUESTA: ReadonlySet<string> = new Set(["agente-ia"]);
+
+/** Las guías publicadas que SÍ pueden salir dentro de una propuesta. */
+export function lasGuiasDeLaPropuesta(publicadas: Iterable<string>): Set<string> {
+    const fuera = new Set<string>();
+    for (const modulo of publicadas) if (!GUIAS_FUERA_DE_LA_PROPUESTA.has(modulo)) fuera.add(modulo);
+    return fuera;
+}

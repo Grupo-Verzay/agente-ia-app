@@ -11,9 +11,18 @@ import { PropuestaPublica } from "@/components/propuestas/PropuestaPublica";
 import { lasFuncionesQueSeEnsenan } from "@/lib/pagina-de-plan";
 import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
+import * as propuestaLib from "@/lib/plan-de-la-propuesta";
 
 const w = window as any;
-const guias = new Map<string, string>(GUIAS_PUBLICADAS.map((g) => [g.modulo, `Guía de ${g.contenido.titulo}`]));
+// Las guías que salen DENTRO de una propuesta: las MISMAS que deja el servidor
+// (`lasGuiasDeLaPropuesta`). En el árbol de antes esa función no existe, y
+// entonces salen todas, que es lo que hacía el servidor de antes.
+const filtrar = (propuestaLib as any).lasGuiasDeLaPropuesta as ((m: string[]) => Set<string>) | undefined;
+const modulos = GUIAS_PUBLICADAS.map((g) => g.modulo);
+const enLaPropuesta = typeof filtrar === "function" ? filtrar(modulos) : new Set(modulos);
+const guias = new Map<string, string>(
+    GUIAS_PUBLICADAS.filter((g) => enLaPropuesta.has(g.modulo)).map((g) => [g.modulo, `Guía de ${g.contenido.titulo}`]),
+);
 const funciones = (lasFuncionesQueSeEnsenan as any)(w.__crudo, w.__datos, guias);
 const planes = (w.__planes as any[]).map((p) => ({ ...p, funciones: p.conFunciones ? funciones : [] }));
 

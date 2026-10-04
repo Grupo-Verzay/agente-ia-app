@@ -15,6 +15,9 @@
  * En un teléfono no hay huecos: «Contáctanos» va siempre al final, como una
  * tarjeta más.
  *
+ * Sin «Contáctanos» (`conContacto: false`, la guía dentro de una propuesta),
+ * «Ver el vídeo de nuevo» ocupa su sitio con la misma regla: nunca un hueco.
+ *
  * Se decide POR ANCHURA y no una vez: la misma guía de 7 secciones deja 2
  * huecos en escritorio y 1 en tableta. Como la página se pinta en el servidor
  * (no sabe la anchura), la decisión se traduce a clases con prefijo de
@@ -39,8 +42,17 @@ export function losHuecos(n: number, columnas: number): number {
     return (columnas - (total % columnas)) % columnas;
 }
 
+/**
+ * Opciones del cierre. `conContacto: false` es la guía desplegada DENTRO de una
+ * propuesta (`sinSalidas`): ahí «Contáctanos» no se ofrece —saca al cliente de
+ * la propuesta—, así que el sitio que dejaba lo llena «Ver el vídeo de nuevo».
+ * Sin esto quedaba un hueco donde iba el contacto.
+ */
+export type OpcionesDelCierre = { conContacto?: boolean };
+
 /** Qué tarjetas de cierre van detrás de `n` secciones con `columnas` columnas. */
-export function elCierre(n: number, columnas: number): TarjetaDeCierre[] {
+export function elCierre(n: number, columnas: number, { conContacto = true }: OpcionesDelCierre = {}): TarjetaDeCierre[] {
+    if (!conContacto) return elCierreSinContacto(n, columnas);
     if (columnas <= 1) return [{ tipo: "contacto", ocupa: 1 }];
     const huecos = losHuecos(n, columnas);
     if (huecos === 0) return [{ tipo: "contacto", ocupa: columnas }];
@@ -53,6 +65,17 @@ export function elCierre(n: number, columnas: number): TarjetaDeCierre[] {
     ];
 }
 
+/**
+ * Sin «Contáctanos», el vídeo es la ÚNICA tarjeta de cierre y ocupa todo lo que
+ * aquella ocupaba: en un teléfono, una más al final; con la última fila llena,
+ * una fila nueva entera; y si no, todos los huecos de la última fila.
+ */
+function elCierreSinContacto(n: number, columnas: number): TarjetaDeCierre[] {
+    if (columnas <= 1) return [{ tipo: "video", ocupa: 1 }];
+    const huecos = losHuecos(n, columnas);
+    return [{ tipo: "video", ocupa: huecos === 0 ? columnas : huecos }];
+}
+
 const OCUPA_EN_TABLETA: Record<number, string> = { 1: "sm:col-span-1", 2: "sm:col-span-2" };
 const OCUPA_EN_ESCRITORIO: Record<number, string> = { 1: "lg:col-span-1", 2: "lg:col-span-2", 3: "lg:col-span-3" };
 
@@ -60,9 +83,21 @@ const OCUPA_EN_ESCRITORIO: Record<number, string> = { 1: "lg:col-span-1", 2: "lg
  * Las clases de cada tarjeta de cierre, para las tres anchuras a la vez.
  * `null` = esa tarjeta no se pinta en ninguna anchura.
  */
-export function lasClasesDelCierre(n: number): { contacto: string; video: string | null } {
-    const porAnchura = (a: Anchura) => elCierre(n, COLUMNAS[a]);
+export function lasClasesDelCierre(n: number, opciones: OpcionesDelCierre = {}): { contacto: string | null; video: string | null } {
+    const porAnchura = (a: Anchura) => elCierre(n, COLUMNAS[a], opciones);
     const ocupa = (a: Anchura, tipo: TarjetaDeCierre["tipo"]) => porAnchura(a).find((t) => t.tipo === tipo)?.ocupa ?? 0;
+
+    if (opciones.conContacto === false) {
+        // El vídeo sale en las tres anchuras, ocupando lo que ocupaba el contacto.
+        const video = [
+            "flex col-span-1",
+            OCUPA_EN_TABLETA[ocupa("tableta", "video")],
+            OCUPA_EN_ESCRITORIO[ocupa("escritorio", "video")],
+        ]
+            .filter(Boolean)
+            .join(" ");
+        return { contacto: null, video };
+    }
 
     const contacto = ["col-span-1", OCUPA_EN_TABLETA[ocupa("tableta", "contacto")], OCUPA_EN_ESCRITORIO[ocupa("escritorio", "contacto")]]
         .filter(Boolean)
@@ -84,10 +119,10 @@ export function lasClasesDelCierre(n: number): { contacto: string; video: string
  * anchura queda llena. La usa el banco; se deja aquí para que la regla y su
  * comprobación no puedan separarse.
  */
-export function lasFilasQuedanLlenas(n: number): boolean {
+export function lasFilasQuedanLlenas(n: number, opciones: OpcionesDelCierre = {}): boolean {
     return (Object.keys(COLUMNAS) as Anchura[]).every((a) => {
         const cols = COLUMNAS[a];
-        const celdas = n + elCierre(n, cols).reduce((s, t) => s + t.ocupa, 0);
+        const celdas = n + elCierre(n, cols, opciones).reduce((s, t) => s + t.ocupa, 0);
         return celdas % cols === 0;
     });
 }
