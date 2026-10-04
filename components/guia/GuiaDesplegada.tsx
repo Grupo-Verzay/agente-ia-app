@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import type { GuiaPublica } from "@/actions/guia-publica-actions";
 import { ArticuloDeLaSeccion, CONTENEDOR_DEL_INDICE, CuadriculaDeSecciones, IntroduccionDeLaGuia } from "@/components/guia/Guia";
@@ -19,10 +20,20 @@ import { pedirLaGuiaPublica } from "@/components/guia/pedir-la-guia-publica";
  * (`ArticuloDeLaSeccion` con `alAbrir`), y «Anterior», «Siguiente» y «Volver
  * al índice» cambian de vista sin navegar.
  *
- * Va en su propio recuadro CLARO (`data-guia-tema="claro"`): sus capturas lo
- * son, y la página del plan es oscura. Lo que sí sale fuera es lo que no es la
- * guía: ampliar una captura y «Contáctanos», igual que en la landing.
+ * Su recuadro sigue el TEMA que el cliente tenga activo en la App
+ * (`elTemaDeLaGuiaDesplegada`): claro si la App está en claro, oscuro si está
+ * en oscuro o si todavía no se sabe —la página del plan es oscura, y así nada
+ * desentona mientras carga—. Lo dice con `data-guia-tema`, que pone los tokens
+ * `--guia-*` de ese tema (`app/globals.css`); la página pública va entera bajo
+ * un `.dark` fijo, así que sin el atributo saldría oscura siempre. Lo que sí
+ * sale fuera es lo que no es la guía: ampliar una captura y «Contáctanos»,
+ * igual que en la landing.
  */
+
+/** Claro solo si la App lo está; si no —oscuro o sin saberse todavía—, oscuro. */
+export function elTemaDeLaGuiaDesplegada(temaDeLaApp: string | undefined): "claro" | "oscuro" {
+    return temaDeLaApp === "light" ? "claro" : "oscuro";
+}
 
 type Estado = { modulo: string; guia: GuiaPublica | null; fallo: boolean } | null;
 
@@ -42,6 +53,7 @@ export function GuiaDesplegada({
     const [seccion, setSeccion] = useState<string | null>(null);
     const caja = useRef<HTMLDivElement>(null);
     const seccionVista = useRef<string | null>(null);
+    const tema = elTemaDeLaGuiaDesplegada(useTheme().resolvedTheme);
 
     useEffect(() => {
         let vivo = true;
@@ -97,7 +109,7 @@ export function GuiaDesplegada({
                     ) : null}
                 </div>
             ) : (
-                <div data-guia data-guia-tema="claro" className="overflow-hidden rounded-xl bg-guia-fondo text-guia-texto">
+                <div data-guia data-guia-tema={tema} className="overflow-hidden rounded-xl border border-guia-borde bg-guia-fondo text-guia-texto">
                     {laSeccion ? (
                         <ArticuloDeLaSeccion
                             carpeta={publica.carpeta}

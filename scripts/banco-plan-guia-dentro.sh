@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # El banco de cuatro arreglos que se pidieron juntos:
 #
-# 1. En la página de un plan, «Ver la guía paso a paso» de una función se
-#    DESPLIEGA dentro del mismo acordeón, debajo del video, sin salir de la
-#    página ni abrir otra pestaña; y el video se compacta para dejarle sitio.
-# 2. «Qué incluye este plan» arranca PLEGADO bajo un solo encabezado.
+# 1. En la página de un plan, la guía paso a paso de una función se DESPLIEGA
+#    dentro del mismo acordeón, sin salir de la página ni abrir otra pestaña;
+#    con la guía abierta el video de la función no se pinta («Ver guía» /
+#    «Ocultar guía», a la derecha de su título).
+# 2. «Qué incluye este plan» enseña de entrada las funciones destacadas, y el
+#    resto detrás de «Ver todas las funciones».
 # 3. El cierre del plan no lleva título: el precio en blanco y destacado encima
 #    del botón verde «Comenzar con el plan X».
 # 4. Las landings no llevan franjas, líneas ni sombras entre secciones.

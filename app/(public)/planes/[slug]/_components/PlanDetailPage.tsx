@@ -9,8 +9,8 @@ import {
   Briefcase,
   Check,
   ChevronDown,
-  ChevronUp,
   ExternalLink,
+  Home,
   Play,
   PlayCircle,
   Users,
@@ -21,6 +21,7 @@ import { GuiaDesplegada } from "@/components/guia/GuiaDesplegada";
 import { cn } from "@/lib/utils";
 import {
   conReproduccionAutomatica,
+  elRepartoDeLasFunciones,
   type BloqueDeLaPagina,
   type BotonDelPlan,
   type FuncionQueSeEnsena,
@@ -42,21 +43,25 @@ import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
  *   3. el resumen de capacidad: los recuadros que el panel haya puesto a ESE
  *      plan, con su icono y su dato (un recuadro sin dato no sale, nunca un
  *      «No incluido»);
- *   4. qué incluye: NACE PLEGADO bajo un solo encabezado («Qué incluye este
- *      plan», con cuántas funciones trae), para que se decida si abrirlo o
- *      seguir bajando. Dentro, UNA tarjeta por función encendida, en una sola
- *      columna y en el orden del editor de funciones; cada una es un
- *      desplegable, como las preguntas, que al abrirse enseña ahí mismo su
- *      descripción y el video de su tutorial. Si el tutorial es una guía de
- *      la plataforma, «Ver la guía paso a paso» la DESPLIEGA ahí mismo, debajo
- *      del video (que se compacta para dejarle sitio): nada saca a nadie de la
- *      página ni abre otra pestaña;
+ *   4. qué incluye: el título centrado («Qué incluye este plan», con cuántas
+ *      funciones trae) y debajo, DE ENTRADA, solo las funciones DESTACADAS
+ *      —la misma marca que decide la tarjeta corta de la landing—; el resto,
+ *      detrás de «Ver todas las funciones», en el orden del editor. UNA
+ *      tarjeta por función, en una sola columna; cada una es un desplegable,
+ *      como las preguntas, que al abrirse enseña ahí mismo su descripción y el
+ *      video de su tutorial. Si el tutorial es una guía de la plataforma, la
+ *      fila «Guía paso a paso» lleva a la derecha «Ver guía», que la DESPLIEGA
+ *      ahí mismo y ESCONDE el video (no lo encoge: un video pequeño al lado de
+ *      un hueco vacío no sirve); «Ocultar guía» lo devuelve. Nada saca a nadie
+ *      de la página ni abre otra pestaña;
  *   5. las preguntas frecuentes de ese plan, si tiene;
  *   6. el cierre: SIN título, solo el precio en blanco destacado y debajo el
  *      botón verde «Comenzar con el plan <nombre>» (`elTextoDelBotonDelPlan`),
  *      UNA sola vez, con la línea discreta al plan inmediato superior.
  *
- * En la barra fija no hay botón: se decide después de leer lo que trae el plan.
+ * En la barra fija no hay botón de comprar: se decide después de leer lo que
+ * trae el plan. Lleva «Volver a planes» a la izquierda e «Inicio» (la landing
+ * principal) a la derecha.
  *
  * **Todos los bloques y la barra miden lo mismo: el ancho de la landing**
  * (`ANCHO_DE_LA_LANDING`), sin cajas más angostas ni más anchas entre sí, y
@@ -217,6 +222,27 @@ function MarcoDelVideo({
   );
 }
 
+/**
+ * La flecha de abrir y cerrar, la MISMA en todos los desplegables de la página
+ * (cada función, «Ver todas las funciones», cada pregunta). Era un
+ * `slate-400` suelto sobre el fondo casi negro y casi no se distinguía: ahora
+ * es blanca, dentro de un círculo claro, y gira al abrirse.
+ */
+function FlechaDelDesplegable({ abierto }: { abierto: boolean }) {
+  return (
+    <span
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+      aria-hidden
+      data-flecha-del-desplegable={abierto ? "abierta" : "cerrada"}
+    >
+      <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", abierto && "rotate-180")} />
+    </span>
+  );
+}
+
+/** El hueco de la flecha, para una fila que no se abre: el texto acaba donde el de las demás. */
+const HUECO_DE_LA_FLECHA = "h-6 w-6 shrink-0";
+
 function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
   const [abierta, setAbierta] = useState<number | null>(null);
   return (
@@ -230,11 +256,7 @@ function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
             className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-medium text-white hover:bg-white/5"
           >
             {p.question}
-            {abierta === i ? (
-              <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-            )}
+            <FlechaDelDesplegable abierto={abierta === i} />
           </button>
           {abierta === i && (
             <div className="whitespace-pre-line border-t border-white/10 px-5 pb-4 pt-3 text-sm leading-relaxed text-slate-400">
@@ -258,9 +280,12 @@ const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
  * El tutorial de una función, DENTRO de su desplegable: el video ahí mismo
  * (la demostración de la guía, o el reproductor del enlace propio) y debajo:
  *
- * - si es una guía de la plataforma, el botón «Ver la guía paso a paso», que
- *   la DESPLIEGA ahí mismo, debajo del video (`GuiaDesplegada`), y el video se
- *   compacta para dejarle sitio. Nada sale de la página ni abre otra pestaña;
+ * - si es una guía de la plataforma, la fila «Guía paso a paso», con el mismo
+ *   reparto que la cabecera de la función (el título a la izquierda, la
+ *   acción a la derecha): «Ver guía» la DESPLIEGA ahí mismo
+ *   (`GuiaDesplegada`) y esconde el video del todo —encogido dejaba un hueco
+ *   vacío al lado—; «Ocultar guía» la recoge y el video vuelve. Nada sale de
+ *   la página ni abre otra pestaña;
  * - si es un enlace propio, el enlace para abrirlo en otra pestaña (no es
  *   nuestro: no se puede desplegar aquí).
  *
@@ -269,7 +294,17 @@ const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
 function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncion; nombre: string }) {
   const [guiaAbierta, setGuiaAbierta] = useState(false);
   const video = useRef<HTMLDivElement>(null);
+  const irAlVideo = useRef(false);
   const idDeLaGuia = useId();
+
+  // «Ir al vídeo» desde la guía: el video está escondido mientras la guía está
+  // abierta, así que primero se recoge la guía y, ya pintado el video, se baja
+  // hasta él.
+  useEffect(() => {
+    if (guiaAbierta || !irAlVideo.current) return;
+    irAlVideo.current = false;
+    video.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [guiaAbierta]);
 
   const abrirFuera = (
     <a
@@ -284,19 +319,26 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
     </a>
   );
 
-  const verLaGuia = tutorial.modulo ? (
-    <button
-      type="button"
-      onClick={() => setGuiaAbierta((v) => !v)}
-      aria-expanded={guiaAbierta}
-      aria-controls={idDeLaGuia}
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
-      data-ver-la-guia={tutorial.modulo}
-    >
-      <BookOpen className="h-3.5 w-3.5 shrink-0" />
-      {guiaAbierta ? "Ocultar la guía paso a paso" : "Ver la guía paso a paso"}
-      {guiaAbierta ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
-    </button>
+  // La fila de la guía: el título a la izquierda y la acción a la derecha,
+  // como la cabecera de la función («nombre» … «Ver tutorial»).
+  const filaDeLaGuia = tutorial.modulo ? (
+    <div className="flex items-center justify-between gap-3" data-fila-de-la-guia>
+      <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white" data-titulo-de-la-guia>
+        <BookOpen className="h-4 w-4 shrink-0 text-blue-400" />
+        Guía paso a paso
+      </span>
+      <button
+        type="button"
+        onClick={() => setGuiaAbierta((v) => !v)}
+        aria-expanded={guiaAbierta}
+        aria-controls={idDeLaGuia}
+        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-blue-400 hover:text-blue-300"
+        data-ver-la-guia={tutorial.modulo}
+      >
+        {guiaAbierta ? "Ocultar guía" : "Ver guía"}
+        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", guiaAbierta && "rotate-180")} />
+      </button>
+    </div>
   ) : null;
 
   const reproductor = !tutorial.video ? null : tutorial.video.tipo === "archivo" ? (
@@ -326,23 +368,22 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
 
   return (
     <div className="space-y-3">
-      {reproductor && (
-        // Con la guía abierta el video se compacta: deja de ocupar el ancho y
-        // le cede el sitio a la guía, sin dejar de poderse ver.
-        <div
-          ref={video}
-          className={cn("scroll-mt-20 transition-[max-width] duration-300", guiaAbierta ? "max-w-[14rem] sm:max-w-sm" : "max-w-full")}
-          data-video-compacto={guiaAbierta ? "si" : "no"}
-        >
+      {/* Con la guía abierta el video no se pinta: ni encogido ni detrás. Así
+          deja de sonar si estaba sonando y no queda ningún hueco. */}
+      {reproductor && !guiaAbierta && (
+        <div ref={video} className="scroll-mt-20" data-caja-del-video>
           {reproductor}
         </div>
       )}
-      {verLaGuia ?? abrirFuera}
+      {filaDeLaGuia ?? abrirFuera}
       {tutorial.modulo && guiaAbierta && (
         <GuiaDesplegada
           modulo={tutorial.modulo}
           id={idDeLaGuia}
-          alVerElVideo={() => video.current?.scrollIntoView({ block: "start", behavior: "smooth" })}
+          alVerElVideo={() => {
+            irAlVideo.current = true;
+            setGuiaAbierta(false);
+          }}
         />
       )}
     </div>
@@ -350,17 +391,27 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
 }
 
 /**
- * Qué incluye el plan: una fila por función, que se abre como las preguntas
- * frecuentes —una a la vez—. Cerrada enseña el nombre y, si tiene tutorial,
- * «Ver tutorial» a la derecha; abierta, su descripción y el tutorial ahí
- * mismo. Una función sin descripción ni tutorial no tiene nada que abrir: va
- * sin flecha y no es un botón.
+ * Una lista de funciones: una fila por función, que se abre como las
+ * preguntas frecuentes. Cerrada enseña el nombre y, si tiene tutorial, «Ver
+ * tutorial» a la derecha; abierta, su descripción y el tutorial ahí mismo. Una
+ * función sin descripción ni tutorial no tiene nada que abrir: va sin flecha y
+ * no es un botón. Cuál está abierta lo lleva el bloque, que pinta dos listas
+ * (las destacadas y el resto) y deja abierta una sola entre las dos.
  */
-function QueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
-  const [abierta, setAbierta] = useState<string | null>(null);
+function QueIncluye({
+  funciones,
+  cuales,
+  abierta,
+  alAbrir,
+}: {
+  funciones: FuncionQueSeEnsena[];
+  cuales: "destacadas" | "resto";
+  abierta: string | null;
+  alAbrir: (id: string | null) => void;
+}) {
   const prefijo = useId();
   return (
-    <ul className="space-y-3" data-lista-de-funciones>
+    <ul className="space-y-3" data-lista-de-funciones={cuales}>
       {funciones.map((f, i) => {
         const seAbre = Boolean(f.descripcion || f.tutorial);
         const estaAbierta = seAbre && abierta === f.id;
@@ -390,29 +441,26 @@ function QueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
             key={f.id}
             className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
             data-funcion={f.id}
+            data-destacada={f.destacada ? "si" : "no"}
             data-abierta={estaAbierta ? "si" : "no"}
           >
             {seAbre ? (
               <button
                 type="button"
-                onClick={() => setAbierta(estaAbierta ? null : f.id)}
+                onClick={() => alAbrir(estaAbierta ? null : f.id)}
                 aria-expanded={estaAbierta}
                 aria-controls={idDelCuerpo}
                 className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/5"
                 data-cabeza-de-la-funcion
               >
                 {cabeza}
-                {estaAbierta ? (
-                  <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                )}
+                <FlechaDelDesplegable abierto={estaAbierta} />
               </button>
             ) : (
               <div className="flex items-center gap-3 px-5 py-4" data-cabeza-de-la-funcion>
                 {cabeza}
                 {/* El hueco de la flecha: el nombre arranca y acaba donde el de las demás. */}
-                <span className="h-4 w-4 shrink-0" aria-hidden />
+                <span className={HUECO_DE_LA_FLECHA} aria-hidden />
               </div>
             )}
             {estaAbierta && (
@@ -433,41 +481,65 @@ function QueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
 }
 
 /**
- * «Qué incluye este plan» nace PLEGADO bajo un solo encabezado: quien quiere
- * el detalle lo abre, y quien no sigue bajando hasta el precio sin recorrer
- * todas las funciones. La lista se queda montada y escondida (`hidden`), así
- * lo que se abrió dentro sigue abierto al volver a desplegarla.
+ * «Qué incluye este plan»: el título CENTRADO, como el de las preguntas, y
+ * debajo, de entrada, las funciones DESTACADAS —las mismas que salen en la
+ * tarjeta corta de la landing (`elRepartoDeLasFunciones`)—. El resto, en el
+ * orden del editor, queda detrás de «Ver todas las funciones» y se queda
+ * montado y escondido (`hidden`): lo que se abrió dentro sigue abierto al
+ * volver a desplegarlo. Si todas son destacadas no hay botón; si no hay
+ * ninguna, el botón las despliega todas.
  */
 function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
-  const [abierto, setAbierto] = useState(false);
-  const idDeLaLista = useId();
+  const { deEntrada, resto } = elRepartoDeLasFunciones(funciones);
+  const [todas, setTodas] = useState(false);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const idDelResto = useId();
+  const boton = useRef<HTMLButtonElement>(null);
+  const recogidoConElBoton = useRef(false);
+
+  // Al recoger, el botón sube de golpe (la lista de encima se esconde): se
+  // deja a la vista, o quien lo pulsó se queda mirando lo que había debajo.
+  useEffect(() => {
+    if (todas || !recogidoConElBoton.current) return;
+    recogidoConElBoton.current = false;
+    boton.current?.scrollIntoView({ block: "nearest" });
+  }, [todas]);
+
   return (
-    <div data-que-incluye={abierto ? "abierto" : "plegado"}>
-      <h2>
-        <button
-          type="button"
-          onClick={() => setAbierto((a) => !a)}
-          aria-expanded={abierto}
-          aria-controls={idDeLaLista}
-          className="flex w-full items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-5 text-left hover:bg-white/5"
-          data-abrir-que-incluye
-        >
-          <span className="min-w-0">
-            <span className="block text-xl font-bold text-white sm:text-2xl" data-titulo-del-bloque>Qué incluye este plan</span>
-            <span className="mt-1 block text-sm font-normal text-slate-400" data-cuantas-funciones>
-              {funciones.length === 1 ? "1 función" : `${funciones.length} funciones`}
-            </span>
-          </span>
-          {abierto ? (
-            <ChevronUp className="h-5 w-5 shrink-0 text-slate-400" />
-          ) : (
-            <ChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
-          )}
-        </button>
-      </h2>
-      <div id={idDeLaLista} className="mt-4" hidden={!abierto}>
-        <QueIncluye funciones={funciones} />
+    <div data-que-incluye={resto.length === 0 || todas ? "todas" : "destacadas"}>
+      <div className="mb-8 text-center">
+        <h2 className="text-2xl font-bold sm:text-3xl" data-titulo-del-bloque>Qué incluye este plan</h2>
+        <p className="mt-2 text-sm text-slate-400" data-cuantas-funciones>
+          {funciones.length === 1 ? "1 función" : `${funciones.length} funciones`}
+        </p>
       </div>
+      {deEntrada.length > 0 && (
+        <QueIncluye funciones={deEntrada} cuales="destacadas" abierta={abierta} alAbrir={setAbierta} />
+      )}
+      {resto.length > 0 && (
+        <>
+          <div id={idDelResto} className={deEntrada.length > 0 ? "mt-3" : undefined} hidden={!todas} data-resto-de-funciones>
+            <QueIncluye funciones={resto} cuales="resto" abierta={abierta} alAbrir={setAbierta} />
+          </div>
+          <div className="mt-6 flex justify-center">
+            <button
+              ref={boton}
+              type="button"
+              onClick={() => {
+                if (todas) recogidoConElBoton.current = true;
+                setTodas((t) => !t);
+              }}
+              aria-expanded={todas}
+              aria-controls={idDelResto}
+              className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/[0.04] py-2 pl-5 pr-2 text-sm font-medium text-white hover:bg-white/10"
+              data-ver-todas-las-funciones
+            >
+              {todas ? "Ver menos funciones" : "Ver todas las funciones"}
+              <FlechaDelDesplegable abierto={todas} />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -629,8 +701,12 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
       {/* ── Barra ── */}
       <div className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0f1a]/95 backdrop-blur-sm">
         <div className={cn(ANCHO_DE_LA_LANDING, "flex items-center justify-between gap-3 py-3")} data-ancho-de-la-barra>
-          <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white">
+          <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white" data-volver-a-planes>
             <ArrowLeft className="h-4 w-4" /> Volver a planes
+          </Link>
+          {/* A la landing principal, arriba del todo: «Volver a planes» baja a los precios. */}
+          <Link href="/inicio" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white" data-ir-al-inicio>
+            <Home className="h-4 w-4" /> Inicio
           </Link>
         </div>
       </div>

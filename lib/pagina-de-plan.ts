@@ -895,6 +895,13 @@ export type FuncionQueSeEnsena = {
     nombre: string;
     descripcion: string;
     tutorial: TutorialDeLaFuncion | null;
+    /**
+     * La MISMA marca que decide la tarjeta corta de la landing
+     * (`lasFuncionesDestacadas`): en «Qué incluye este plan» las destacadas se
+     * ven de entrada y las demás detrás de «Ver todas las funciones». No es un
+     * campo nuevo: es el de siempre, leído aquí también.
+     */
+    destacada: boolean;
 };
 
 /**
@@ -969,7 +976,23 @@ export function lasFuncionesQueSeEnsenan(
             nombre: conCreditosIncluidos(conLosDatosDelPlan(f.nombre, datos)),
             descripcion: conCreditosIncluidos(conLosDatosDelPlan(f.descripcion, datos)),
             tutorial: elTutorialDeLaFuncion(f.tutorial, guias),
+            destacada: f.destacada,
         }));
+}
+
+/**
+ * Cómo se reparte «Qué incluye este plan»: las DESTACADAS se ven de entrada y
+ * el resto queda detrás de «Ver todas las funciones». Las dos listas conservan
+ * el orden del editor. Sin ninguna destacada no hay nada que enseñar de
+ * entrada: el botón despliega todas (es lo mismo que «el resto»).
+ */
+export function elRepartoDeLasFunciones<T extends { destacada: boolean }>(
+    funciones: readonly T[],
+): { deEntrada: T[]; resto: T[] } {
+    return {
+        deEntrada: funciones.filter((f) => f.destacada),
+        resto: funciones.filter((f) => !f.destacada),
+    };
 }
 
 /* ─── El orden de los bloques de la página ─────────────────────────────── */
