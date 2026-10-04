@@ -1,6 +1,5 @@
 import { redirect, notFound } from "next/navigation";
 
-import { db } from "@/lib/db";
 import { normalizarPlan } from "@/lib/plan-pricing";
 import { PLANS } from "@/types/plans";
 
@@ -20,31 +19,7 @@ type Props = {
   searchParams: Record<string, string | string[] | undefined>;
 };
 
-/**
- * La modalidad que de verdad está a la venta en ese nivel.
- *
- * Cada nivel tiene dos filas, IA y Humano, con su propio precio, y el precio
- * sale de la fila. Si el enlace no dice cuál, apuntar a ciegas a IA crearía la
- * cuenta en $0 cuando esa fila está inactiva —que es justo el caso cuando solo
- * se vende la de Humano—. Así que se mira cuál está activa.
- */
-async function modalidadALaVenta(plan: (typeof PLANS)[number]): Promise<"IA" | "HUMANO"> {
-  const activas = await db.subscriptionPlan
-    .findMany({
-      where: { plan, isResellerPlan: false, isActive: true },
-      select: { assistanceType: true },
-    })
-    .catch(() => []);
-
-  const tipos = new Set(activas.map((fila) => fila.assistanceType?.toUpperCase()));
-  if (tipos.has("IA")) return "IA";
-  if (tipos.has("HUMANO")) return "HUMANO";
-
-  // Ninguna activa: se manda la de siempre y el formulario decide.
-  return "IA";
-}
-
-export default async function EnlaceCortoDePlan({ params, searchParams }: Props) {
+export default function EnlaceCortoDePlan({ params, searchParams }: Props) {
   const plan = normalizarPlan(params.nivel);
 
   // Un nivel que no existe no se convierte en una prueba gratis a escondidas:
@@ -61,7 +36,10 @@ export default async function EnlaceCortoDePlan({ params, searchParams }: Props)
     if (texto) destino.set(clave, texto);
   }
 
-  if (!destino.has("a")) destino.set("a", await modalidadALaVenta(plan));
-
+  // La modalidad NO se pone aquí: viaja en la cookie (`lib/enlaces-de-planes.ts`)
+  // y el registro elige la que de verdad se vende en ese nivel
+  // (`laAsistenciaQueSeVende`), así que una fila inactiva no puede dejar la
+  // cuenta en $0. Si el enlace trae `a=`, se copia y el middleware la pasa a la
+  // cookie y la quita de la dirección.
   redirect(`/completar-registro?${destino.toString()}`);
 }

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
 import { elPeriodoDeEntrada } from "@/lib/tarjeta-de-plan";
+import { elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
@@ -373,7 +374,15 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
              o de Verzay, ni a qué cuenta activarle los 30 días. Registrando
              primero, la cuenta queda ligada al reseller y con el precio de
              ESTE plan suyo. */
-          <Link href={`/register?r=${resellerSlug}&plan=${plan.plan}&a=${assistanceType}`}>
+          /* La dirección lleva el NIVEL (`/register?r=…&plan=nivel-N`), nunca la
+             modalidad: esa viaja en la cookie que se apunta al pulsar
+             (`lib/enlaces-de-planes.ts`), y el registro comprueba que ese
+             nivel se venda así. */
+          <Link
+            href={elEnlaceDeRegistro(plan.plan, { r: resellerSlug })}
+            prefetch={false}
+            onClick={() => recordarLaAsistencia(assistanceType, { entreSitios: estaEnUnMarco() })}
+          >
             <Button className={cn("w-full text-white", plan.isPopular ? (brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500") : "border border-white/10 bg-white/10 hover:bg-white/20")}>
               Comenzar ahora
             </Button>
@@ -447,6 +456,12 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
   const effectiveType: AssistanceType = availableTypes.includes(assistanceType)
     ? assistanceType
     : (availableTypes[0] ?? "IA");
+
+  // La modalidad que se mira es la que se apunta (`plan_asistencia`): así el
+  // registro sabe cuál se eligió sin que viaje en la dirección.
+  useEffect(() => {
+    recordarLaAsistencia(effectiveType, { entreSitios: estaEnUnMarco() });
+  }, [effectiveType]);
 
   const brandName = businessName ?? slug;
   const waNumber = whatsappNumber?.replace(/\D/g, "") ?? "";

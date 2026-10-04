@@ -8,6 +8,7 @@ import { getSiteConfig } from '@/actions/admin/site-config-actions';
 import { getPublicBrandingBySlug } from '@/actions/public-branding-actions';
 import { getCountryCodes } from '@/actions/get-country-action';
 import { normalizarPlan } from '@/lib/plan-pricing';
+import { laAsistenciaElegida } from '@/lib/asistencia-del-plan.server';
 import { PLANS } from '@/types/plans';
 
 interface Props {
@@ -101,7 +102,9 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
           countries={countries}
           isReseller={isReseller}
           planSlug={planSlug}
-          assistanceType={searchParams.a}
+          // La modalidad (IA o Humano) ya no va en la dirección: la dice la
+          // cookie (`lib/enlaces-de-planes.ts`) y el registro comprueba que se venda.
+          assistanceType={laAsistenciaElegida() ?? undefined}
           apiKeyRef={searchParams.ref}
           affiliateCode={searchParams.aff}
         />

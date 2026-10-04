@@ -18,6 +18,7 @@ import {
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
+import { elEnlaceDeLaPaginaDelPlan, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import {
   elNombreDelPlan,
   elTutorialQueSeGuarda,
@@ -456,9 +457,10 @@ export function PlanesMain() {
                                   {/* La página pública solo existe para un plan de clientes activo. */}
                                   {p && !isReseller && p.isActive && (
                                     <a
-                                      href={`/planes/${plan}?tipo=${type}`}
+                                      href={elEnlaceDeLaPaginaDelPlan(plan)}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={() => recordarLaAsistencia(type)}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                                       title="Ver página pública del plan"
                                       aria-label="Ver página pública del plan"
@@ -705,7 +707,8 @@ export function PlanesMain() {
               <PlanDetailTab
                 subscriptionPlanId={dialogPlanId}
                 datos={datosDelFormulario}
-                enlaceDeLaPagina={`/planes/${form.plan}?tipo=${form.assistanceType}`}
+                enlaceDeLaPagina={elEnlaceDeLaPaginaDelPlan(form.plan)}
+                asistenciaDeLaPagina={form.assistanceType}
                 planActivo={form.isActive}
                 funcionesQueSalen={lasFuncionesQueSeEnsenan(form.funciones, datosDelFormulario, new Map())}
               />

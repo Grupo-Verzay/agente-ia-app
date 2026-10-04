@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
 import { elNivelDeSuLicencia } from "@/lib/nivel-de-la-licencia.server";
+import { conLosNombresVigentes } from "@/lib/nombre-del-nivel.server";
 import {
     normalizarAsistencia,
     normalizarPlan,
@@ -68,10 +69,12 @@ export async function getPlanesParaPagar(): Promise<{
             })
             : [];
 
+        // Con el nombre VIGENTE de su nivel (`lib/nombre-del-nivel.ts`). Los del
+        // reseller no: son de su marca y los nombra él.
         const dePlataforma = await db.subscriptionPlan.findMany({
             where: { isActive: true, isResellerPlan: false },
             orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
-        });
+        }).then(conLosNombresVigentes);
 
         // Los del reseller mandan; los de la plataforma solo rellenan lo que ese
         // reseller no vende. Mezclarlos al revés le pondría al cliente precios

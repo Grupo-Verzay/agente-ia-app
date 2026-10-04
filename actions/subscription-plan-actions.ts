@@ -180,6 +180,7 @@ export async function upsertSubscriptionPlan(data: {
     if (credits === null) return { success: false, message: "Los créditos no son válidos" };
     const isResellerPlan = data.isResellerPlan ?? false;
     const funciones = data.funciones !== undefined ? comoFunciones(data.funciones) : null;
+    const nombre = data.name === undefined ? undefined : data.name?.trim() || null;
     const features = funciones
       ? losFeaturesDeLasFunciones(funciones)
       : (Array.isArray(data.features) ? data.features : []).filter((f) => typeof f === "string" && f.trim());
@@ -199,7 +200,11 @@ export async function upsertSubscriptionPlan(data: {
       checkoutUrlMonthly: data.checkoutUrlMonthly ?? null,
       checkoutUrlQuarterly: data.checkoutUrlQuarterly ?? null,
       checkoutUrlYearly: data.checkoutUrlYearly ?? null,
-      name: data.name ?? null,
+      // El nombre es del NIVEL, no de la fila (`lib/nombre-del-nivel.ts`): sin
+      // `name` en la petición no se toca —antes se ponía a nulo, y por eso
+      // «Inicializar» borraba los nombres—, y con él se escribe en todas las
+      // filas del nivel, abajo.
+      ...(nombre !== undefined ? { name: nombre } : {}),
     };
     const existing = await db.subscriptionPlan.findFirst({
       where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },
@@ -210,6 +215,12 @@ export async function upsertSubscriptionPlan(data: {
           data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
           select: { id: true },
         });
+    if (nombre !== undefined) {
+      // Un nivel tiene UN nombre: el de IA, el de Humano y el que se vende a
+      // los resellers. Renombrar una sola fila dejaba las demás —la que está a
+      // la venta y pinta la landing— con el nombre anterior.
+      await db.subscriptionPlan.updateMany({ where: { plan: data.plan }, data: { name: nombre } });
+    }
     let aviso: string | null = null;
     if (funciones) {
       try {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -24,6 +24,7 @@ import {
   type PreguntaDelPlan,
 } from "@/lib/pagina-de-plan";
 import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
+import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 
 /**
  * La página pública de un plan. Arranca DIRECTO con el video —el nombre, el
@@ -78,8 +79,11 @@ function Enlace({
       </a>
     );
   }
+  // Sin precarga: el registro lee la modalidad de la cookie que esta página
+  // apunta al montarse (`lib/enlaces-de-planes.ts`), y una precarga podría
+  // pedirlo antes de que quede puesta.
   return (
-    <Link href={url} className={className} {...resto}>
+    <Link href={url} prefetch={false} className={className} {...resto}>
       {children}
     </Link>
   );
@@ -237,6 +241,13 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
   const { principal, secundario } = pagina.botones;
   const anio = new Date().getFullYear();
 
+  // La modalidad que se está enseñando (puede no ser la pedida, si ese nivel
+  // no se vende así) queda apuntada para el registro: la dirección ya no la
+  // lleva (`lib/enlaces-de-planes.ts`).
+  useEffect(() => {
+    recordarLaAsistencia(pagina.tipo, { entreSitios: estaEnUnMarco() });
+  }, [pagina.tipo]);
+
   /** Cada bloque, o `null` si ese plan no tiene qué enseñar en él. */
   const bloque = (clave: BloqueDeLaPagina): React.ReactNode => {
     switch (clave) {
@@ -369,6 +380,10 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
                   ¿Necesitas más capacidad?{" "}
                   <Link
                     href={pagina.planSuperior.url}
+                    // Su modalidad viaja en la cookie, no en la dirección; sin
+                    // precarga, que se pediría sin ella.
+                    prefetch={false}
+                    onClick={() => recordarLaAsistencia(pagina.planSuperior?.tipo, { entreSitios: estaEnUnMarco() })}
                     className="inline-flex items-center gap-1 font-medium text-slate-300 underline-offset-4 hover:text-white hover:underline"
                   >
                     Conoce el plan {pagina.planSuperior.nombre} <ArrowRight className="h-3.5 w-3.5" />

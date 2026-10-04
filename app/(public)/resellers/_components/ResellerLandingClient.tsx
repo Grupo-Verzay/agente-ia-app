@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { elSlugDelNivel } from "@/lib/enlaces-de-planes";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
@@ -365,7 +366,7 @@ function ResellerPlanCard({ plan, packSize }: {
             </Button>
           </a>
         ) : (
-          <Link href={`/completar-registro?tipo=reseller&plan=${plan.plan}`}>
+          <Link href={`/completar-registro?tipo=reseller&plan=${elSlugDelNivel(plan.plan) ?? plan.plan}`}>
             <Button className={cn("w-full", plan.isPopular
               ? "bg-blue-600 text-white hover:bg-blue-500"
               : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>

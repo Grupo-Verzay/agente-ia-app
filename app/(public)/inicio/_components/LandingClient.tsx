@@ -20,6 +20,7 @@ import { AnimatedChat } from "@/components/custom/AnimatedChat";
 import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding";
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
 import { ANCLA_DEL_INICIO } from "@/lib/tutoriales-de-la-landing";
+import { elEnlaceDeLaPaginaDelPlan, elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -217,6 +218,11 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
+  // La pestaña IA/Humano elegida viaja en una cookie, no en la dirección de la
+  // página del plan ni del registro (`lib/enlaces-de-planes.ts`).
+  useEffect(() => {
+    recordarLaAsistencia(assistanceType, { entreSitios: estaEnUnMarco() });
+  }, [assistanceType]);
   // Periodos habilitados. Si se desactivan los tres, la landing no muestra precios:
   // solo queda la prueba gratuita y el plan de pago se contrata dentro del panel.
   const availablePeriods: BillingPeriod[] = [];
@@ -1101,9 +1107,17 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
           ))}
         </ul>
       )}
-      <div className="mt-auto space-y-2.5">
+      {/* `flex flex-col gap-3`, no `space-y-*`: los dos botones van dentro de
+          enlaces (`<a>` en línea), y un margen de `space-y` sobre un elemento
+          en línea no separa nada — quedaban pegados en los seis planes. */}
+      <div className="mt-auto flex flex-col gap-3" data-botones-de-la-tarjeta>
         <Link
-          href={`/planes/${plan.plan}?tipo=${assistanceType}`}
+          // Por NIVEL y sin la modalidad (la lleva la cookie). Incrustada en
+          // otra web la cookie del marco puede no llegar a la pestaña nueva,
+          // así que ahí viaja en la dirección y el middleware la recoge.
+          href={elEnlaceDeLaPaginaDelPlan(plan.plan, enOtraPestana ? assistanceType : null)}
+          prefetch={false}
+          onClick={() => recordarLaAsistencia(assistanceType, { entreSitios: estaEnUnMarco() })}
           {...(enOtraPestana ? { target: "_blank", rel: "noopener noreferrer" } : {})}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-500/10 py-2 text-sm font-semibold text-blue-300 transition-colors hover:border-blue-400/70 hover:bg-blue-500/20 hover:text-blue-200"
           data-ver-el-plan
@@ -1124,7 +1138,11 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
              que activar porque todavía no existe. Registrándose primero, la
              cuenta queda creada con este plan y su precio, y el botón de pagar
              del perfil ya lleva la cuenta dentro. */
-          <Link href={`/register?plan=${plan.plan}&a=${assistanceType}`}>
+          <Link
+            href={elEnlaceDeRegistro(plan.plan, { asistenciaQueViaja: enOtraPestana ? assistanceType : null })}
+            prefetch={false}
+            onClick={() => recordarLaAsistencia(assistanceType, { entreSitios: estaEnUnMarco() })}
+          >
             <Button className={cn("w-full", plan.isPopular
               ? "bg-blue-600 text-white hover:bg-blue-500"
               : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
