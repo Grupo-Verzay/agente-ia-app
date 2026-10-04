@@ -69,6 +69,7 @@ import {
   losAvisosDelBoton,
   losAvisosDelParaQuien,
   losAvisosDelTexto,
+  elTextoDelBotonDelPlan,
   losRecuadrosDeFabrica,
   revisarLosRecuadros,
   unRecuadroNuevo,
@@ -730,20 +731,20 @@ export function PlanDetailTab({
     comenzar: {
       titulo: "Comenzar",
       ayuda: sinPrecio
-        ? "El precio, los botones y el enlace al plan siguiente; los botones salen una sola vez, aquí. Este plan no tiene precio: el botón principal abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
-        : "El precio, los botones y el enlace al plan siguiente; los botones salen una sola vez, aquí. Sin enlace propio, el botón principal lleva al registro con este plan elegido.",
+        ? "El precio en blanco y, debajo, el botón verde «Comenzar con el plan X», una sola vez, aquí. Este plan no tiene precio: el botón abre WhatsApp con el mensaje de abajo, salvo que le pongas un enlace propio."
+        : "El precio en blanco y, debajo, el botón verde «Comenzar con el plan X», una sola vez, aquí. Sin enlace propio, el botón lleva al registro con este plan elegido.",
       cuerpo: (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label>Texto del botón principal</Label>
-              <Input
-                value={form.ctaButtonText}
-                onChange={(e) => cambiar("ctaButtonText", e.target.value)}
-                placeholder={sinPrecio ? "Contactar" : "Comenzar ahora"}
-                data-campo-del-detalle="ctaButtonText"
-              />
-              <Avisos avisos={avisosDelTexto(form.ctaButtonText, datos)} />
+              <Label>Botón principal</Label>
+              {/* El texto es fijo y sale del nombre del plan: «Comenzar con el plan X». */}
+              <div
+                className="flex h-10 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground"
+                data-texto-del-boton-principal
+              >
+                {elTextoDelBotonDelPlan(datos)}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Enlace propio (opcional)</Label>
@@ -751,6 +752,7 @@ export function PlanDetailTab({
                 value={form.ctaButtonUrl}
                 onChange={(e) => cambiar("ctaButtonUrl", e.target.value)}
                 placeholder="https://..."
+                data-campo-del-detalle="ctaButtonUrl"
               />
               <Avisos avisos={avisosDelEnlace(form.ctaButtonUrl)} />
             </div>

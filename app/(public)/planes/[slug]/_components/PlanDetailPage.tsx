@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Briefcase,
   Check,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { elDibujoDelRecuadro } from "@/components/shared/DibujoDelRecuadro";
+import { GuiaDesplegada } from "@/components/guia/GuiaDesplegada";
 import { cn } from "@/lib/utils";
 import {
   conReproduccionAutomatica,
@@ -40,13 +42,19 @@ import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
  *   3. el resumen de capacidad: los recuadros que el panel haya puesto a ESE
  *      plan, con su icono y su dato (un recuadro sin dato no sale, nunca un
  *      «No incluido»);
- *   4. qué incluye: UNA tarjeta por función encendida, en una sola columna y
- *      en el orden del editor de funciones; cada una es un desplegable, como
- *      las preguntas, que al abrirse enseña ahí mismo su descripción y el
- *      video de su tutorial (sin sacar a nadie de la página);
+ *   4. qué incluye: NACE PLEGADO bajo un solo encabezado («Qué incluye este
+ *      plan», con cuántas funciones trae), para que se decida si abrirlo o
+ *      seguir bajando. Dentro, UNA tarjeta por función encendida, en una sola
+ *      columna y en el orden del editor de funciones; cada una es un
+ *      desplegable, como las preguntas, que al abrirse enseña ahí mismo su
+ *      descripción y el video de su tutorial. Si el tutorial es una guía de
+ *      la plataforma, «Ver la guía paso a paso» la DESPLIEGA ahí mismo, debajo
+ *      del video (que se compacta para dejarle sitio): nada saca a nadie de la
+ *      página ni abre otra pestaña;
  *   5. las preguntas frecuentes de ese plan, si tiene;
- *   6. el botón de comenzar, UNA sola vez, con el precio y la línea discreta
- *      al plan inmediato superior.
+ *   6. el cierre: SIN título, solo el precio en blanco destacado y debajo el
+ *      botón verde «Comenzar con el plan <nombre>» (`elTextoDelBotonDelPlan`),
+ *      UNA sola vez, con la línea discreta al plan inmediato superior.
  *
  * En la barra fija no hay botón: se decide después de leer lo que trae el plan.
  *
@@ -99,10 +107,17 @@ function Enlace({
   );
 }
 
-function BotonPrincipal({ boton, gradiente }: { boton: BotonDelPlan; gradiente: string }) {
+/**
+ * El botón de comenzar es VERDE en todos los planes: es la única acción de la
+ * página y tiene que leerse igual en cualquiera (el color del plan queda para
+ * el marco del video). Su texto lo pone `elTextoDelBotonDelPlan`.
+ */
+const VERDE_DEL_BOTON = "bg-emerald-600 hover:bg-emerald-500";
+
+function BotonPrincipal({ boton }: { boton: BotonDelPlan }) {
   return (
     <Enlace url={boton.url} externo={boton.externo} data-boton="principal">
-      <Button size="lg" className={cn("w-full border-0 bg-gradient-to-r px-8 text-white hover:opacity-90 sm:w-auto", gradiente)}>
+      <Button size="lg" className={cn("w-full border-0 px-8 text-base font-semibold text-white sm:w-auto", VERDE_DEL_BOTON)}>
         {boton.texto}
       </Button>
     </Enlace>
@@ -241,16 +256,22 @@ const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
 
 /**
  * El tutorial de una función, DENTRO de su desplegable: el video ahí mismo
- * (la demostración de la guía, o el reproductor del enlace propio) y un enlace
- * para abrirlo entero en otra pestaña. Un enlace propio que no es un video que
- * se deje meter en la página es solo el enlace, también en otra pestaña:
- * nada de lo de aquí saca a nadie de la página del plan.
+ * (la demostración de la guía, o el reproductor del enlace propio) y debajo:
+ *
+ * - si es una guía de la plataforma, el botón «Ver la guía paso a paso», que
+ *   la DESPLIEGA ahí mismo, debajo del video (`GuiaDesplegada`), y el video se
+ *   compacta para dejarle sitio. Nada sale de la página ni abre otra pestaña;
+ * - si es un enlace propio, el enlace para abrirlo en otra pestaña (no es
+ *   nuestro: no se puede desplegar aquí).
  *
  * Ningún texto nombra la guía: varias funciones comparten la misma.
  */
 function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncion; nombre: string }) {
-  const texto = !tutorial.video ? tutorial.titulo : tutorial.externo ? "Abrir en otra pestaña" : "Ver la guía paso a paso";
-  const enlace = (
+  const [guiaAbierta, setGuiaAbierta] = useState(false);
+  const video = useRef<HTMLDivElement>(null);
+  const idDeLaGuia = useId();
+
+  const abrirFuera = (
     <a
       href={tutorial.url}
       target="_blank"
@@ -258,38 +279,72 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
       className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
       data-abrir-tutorial={tutorial.url}
     >
-      {texto}
+      {tutorial.video ? "Abrir en otra pestaña" : tutorial.titulo}
       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
     </a>
   );
-  if (!tutorial.video) return enlace;
+
+  const verLaGuia = tutorial.modulo ? (
+    <button
+      type="button"
+      onClick={() => setGuiaAbierta((v) => !v)}
+      aria-expanded={guiaAbierta}
+      aria-controls={idDeLaGuia}
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
+      data-ver-la-guia={tutorial.modulo}
+    >
+      <BookOpen className="h-3.5 w-3.5 shrink-0" />
+      {guiaAbierta ? "Ocultar la guía paso a paso" : "Ver la guía paso a paso"}
+      {guiaAbierta ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+    </button>
+  ) : null;
+
+  const reproductor = !tutorial.video ? null : tutorial.video.tipo === "archivo" ? (
+    <video
+      src={tutorial.video.url}
+      poster={tutorial.portada ?? undefined}
+      controls
+      playsInline
+      preload="metadata"
+      className="block h-auto w-full rounded-lg bg-black"
+      aria-label={`Tutorial: ${nombre}`}
+      data-video-del-tutorial="archivo"
+    />
+  ) : (
+    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+      <iframe
+        src={tutorial.video.url}
+        title={`Tutorial: ${nombre}`}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        className="h-full w-full"
+        data-video-del-tutorial="iframe"
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-3">
-      {tutorial.video.tipo === "archivo" ? (
-        <video
-          src={tutorial.video.url}
-          poster={tutorial.portada ?? undefined}
-          controls
-          playsInline
-          preload="metadata"
-          className="block h-auto w-full rounded-lg bg-black"
-          aria-label={`Tutorial: ${nombre}`}
-          data-video-del-tutorial="archivo"
-        />
-      ) : (
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-          <iframe
-            src={tutorial.video.url}
-            title={`Tutorial: ${nombre}`}
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-            className="h-full w-full"
-            data-video-del-tutorial="iframe"
-          />
+      {reproductor && (
+        // Con la guía abierta el video se compacta: deja de ocupar el ancho y
+        // le cede el sitio a la guía, sin dejar de poderse ver.
+        <div
+          ref={video}
+          className={cn("scroll-mt-20 transition-[max-width] duration-300", guiaAbierta ? "max-w-[14rem] sm:max-w-sm" : "max-w-full")}
+          data-video-compacto={guiaAbierta ? "si" : "no"}
+        >
+          {reproductor}
         </div>
       )}
-      {enlace}
+      {verLaGuia ?? abrirFuera}
+      {tutorial.modulo && guiaAbierta && (
+        <GuiaDesplegada
+          modulo={tutorial.modulo}
+          id={idDeLaGuia}
+          alVerElVideo={() => video.current?.scrollIntoView({ block: "start", behavior: "smooth" })}
+        />
+      )}
     </div>
   );
 }
@@ -374,6 +429,46 @@ function QueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * «Qué incluye este plan» nace PLEGADO bajo un solo encabezado: quien quiere
+ * el detalle lo abre, y quien no sigue bajando hasta el precio sin recorrer
+ * todas las funciones. La lista se queda montada y escondida (`hidden`), así
+ * lo que se abrió dentro sigue abierto al volver a desplegarla.
+ */
+function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
+  const [abierto, setAbierto] = useState(false);
+  const idDeLaLista = useId();
+  return (
+    <div data-que-incluye={abierto ? "abierto" : "plegado"}>
+      <h2>
+        <button
+          type="button"
+          onClick={() => setAbierto((a) => !a)}
+          aria-expanded={abierto}
+          aria-controls={idDeLaLista}
+          className="flex w-full items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-5 text-left hover:bg-white/5"
+          data-abrir-que-incluye
+        >
+          <span className="min-w-0">
+            <span className="block text-xl font-bold text-white sm:text-2xl" data-titulo-del-bloque>Qué incluye este plan</span>
+            <span className="mt-1 block text-sm font-normal text-slate-400" data-cuantas-funciones>
+              {funciones.length === 1 ? "1 función" : `${funciones.length} funciones`}
+            </span>
+          </span>
+          {abierto ? (
+            <ChevronUp className="h-5 w-5 shrink-0 text-slate-400" />
+          ) : (
+            <ChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
+          )}
+        </button>
+      </h2>
+      <div id={idDeLaLista} className="mt-4" hidden={!abierto}>
+        <QueIncluye funciones={funciones} />
+      </div>
+    </div>
   );
 }
 
@@ -475,8 +570,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.funciones.length > 0 ? (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="funciones">
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
-              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Qué incluye este plan</h2>
-              <QueIncluye funciones={pagina.funciones} />
+              <BloqueQueIncluye funciones={pagina.funciones} />
             </div>
           </section>
         ) : null;
@@ -495,12 +589,18 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="comenzar">
             <div className={cn(ANCHO_DE_LA_LANDING, "text-center")} data-ancho-del-bloque>
-              <h2 className="text-2xl font-bold sm:text-3xl">Empieza con el plan {pagina.nombre}</h2>
-              <p className="mt-3 text-slate-400" data-precio-final>
-                {pagina.precio.aConsultar ? "Precio a consultar según tu operación." : `${pagina.precio.texto} USD al mes.`}
+              {/* Sin título: el precio, en blanco, es lo que se lee antes del botón. */}
+              <p
+                className={cn(
+                  "font-bold text-white",
+                  pagina.precio.aConsultar ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl",
+                )}
+                data-precio-final
+              >
+                {pagina.precio.aConsultar ? "Precio a consultar según tu operación." : `${pagina.precio.texto} USD al mes`}
               </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <BotonPrincipal boton={principal} gradiente={gradiente} />
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <BotonPrincipal boton={principal} />
                 {secundario && <BotonSecundario boton={secundario} />}
               </div>
               {pagina.planSuperior && (
