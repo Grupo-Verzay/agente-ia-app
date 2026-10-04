@@ -630,7 +630,7 @@ export function ResellerLandingClient({
       </section>
 
       {/* ══ BENEFICIOS ═════════════════════════════════════════════════════ */}
-      <section id="benefits" className="py-8 bg-white/[0.02]">
+      <section id="benefits" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">
@@ -682,7 +682,7 @@ export function ResellerLandingClient({
       </section>
 
       {/* ══ QUÉ INCLUYE ════════════════════════════════════════════════════ */}
-      <section id="included" className="py-8 bg-white/[0.02]">
+      <section id="included" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
@@ -760,7 +760,7 @@ export function ResellerLandingClient({
       </section>
 
       {/* ══ TESTIMONIOS ════════════════════════════════════════════════════ */}
-      <section className="py-8 bg-white/[0.02]">
+      <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="mb-8 text-center">

@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
-# El banco de tres arreglos que se pidieron juntos:
+# El banco de cuatro arreglos que se pidieron juntos:
 #
-# 1. En la página de un plan, «Qué incluye» es un ACORDEÓN: cada función se
-#    abre ahí mismo con su video o su guía, y su enlace dice «Ver tutorial»,
-#    nunca el nombre de la guía (antes «Guía de Agente IA» salía en funciones
-#    que no tenían nada que ver entre sí).
-# 2. Todos los bloques de esa página miden lo MISMO que la landing
-#    (`ANCHO_DE_LA_LANDING`), sin rayas entre bloques.
-# 3. Las páginas de las guías (`/guia/*`) siguen el tema de la App (claro u
-#    oscuro) con los tokens `--guia-*`; la guía metida en la landing sigue clara.
+# 1. En la página de un plan, «Ver la guía paso a paso» de una función se
+#    DESPLIEGA dentro del mismo acordeón, debajo del video, sin salir de la
+#    página ni abrir otra pestaña; y el video se compacta para dejarle sitio.
+# 2. «Qué incluye este plan» arranca PLEGADO bajo un solo encabezado.
+# 3. El cierre del plan no lleva título: el precio en blanco y destacado encima
+#    del botón verde «Comenzar con el plan X».
+# 4. Las landings no llevan franjas, líneas ni sombras entre secciones.
 #
-# Lo puro y un barrido del código sin navegador, y las pantallas REALES en
-# Chromium sobre el CSS del build. `MODO=roto` pinta las mismas pantallas con el
-# código de ANTES_REF —pinchado a un commit, nunca `origin/main`— y AFIRMA los
-# fallos.
+# Un barrido del código sin navegador, y las pantallas REALES en Chromium sobre
+# el CSS del build. `MODO=roto` pinta las mismas pantallas con el código de
+# ANTES_REF —pinchado a un commit, nunca `origin/main`— y AFIRMA los fallos.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,7 +21,7 @@ export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/c
 
 MODO="${MODO:-bueno}"
 export MODO
-ANTES_REF="${ANTES_REF:-2fda6a3}"
+ANTES_REF="${ANTES_REF:-97b6d07}"
 export ANTES_REF
 
 if [ ! -d ".next/static/css" ]; then
@@ -31,8 +29,11 @@ if [ ! -d ".next/static/css" ]; then
   exit 1
 fi
 
+# El empaquetador de las acciones mudas busca esbuild en la caché de npx.
+npx esbuild --version >/dev/null
+
 RAIZ="$PWD"
-OUT=lib/__tests__/.compilado/plan-acordeon
+OUT=lib/__tests__/.compilado/plan-guia-dentro
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
@@ -50,31 +51,31 @@ NAVEGADOR=(
   --log-level=error
 )
 
-empaquetar_pantallas() {
+empaquetar() {
   # $1: el árbol del que se empaqueta (el de hoy o el de antes).
   (cd "$1" && npx esbuild $F/plan-acordeon-harness.tsx "${NAVEGADOR[@]}" \
     --outfile="$RAIZ/$OUT/plan.js" "${ALIAS_GUIA[@]}")
-  (cd "$1" && npx esbuild $F/guia-tema-harness.tsx "${NAVEGADOR[@]}" \
-    --outfile="$RAIZ/$OUT/guia.js" "${ALIAS_GUIA[@]}")
+  (cd "$1" && node "$RAIZ/scripts/empaquetar-con-acciones-mudas.mjs" \
+    $F/landing-entera-harness.tsx "$RAIZ/$OUT/landing.js" \
+    --alias:next/link=./$F/next-link-ssr.tsx \
+    --alias:next/navigation=./$F/next-navigation-mudo.ts)
 }
 
 if [ "$MODO" = "roto" ]; then
   # El código de ANTES, en un árbol aparte: sus `@/…` resuelven a SUS ficheros.
-  ANTES="$RAIZ/lib/__tests__/.antes/plan-acordeon"
+  ANTES="$RAIZ/lib/__tests__/.antes/plan-guia-dentro"
   git worktree remove --force "$ANTES" 2>/dev/null || rm -rf "$ANTES"
   git worktree add --detach "$ANTES" "$ANTES_REF" >/dev/null 2>&1
   ln -s "$RAIZ/node_modules" "$ANTES/node_modules"
   mkdir -p "$ANTES/$F/guia-tema"
-  cp $F/plan-acordeon-harness.tsx $F/guia-tema-harness.tsx $F/next-link-ssr.tsx "$ANTES/$F/"
+  cp $F/plan-acordeon-harness.tsx $F/landing-entera-harness.tsx \
+    $F/next-link-ssr.tsx $F/next-navigation-mudo.ts "$ANTES/$F/"
   cp $F/guia-tema/*.ts "$ANTES/$F/guia-tema/"
-  empaquetar_pantallas "$ANTES"
+  empaquetar "$ANTES"
   git worktree remove --force "$ANTES" 2>/dev/null || rm -rf "$ANTES"
   git worktree prune
 else
-  # Lo puro, para node.
-  npx esbuild $F/entrada-plan-acordeon.ts --bundle --platform=node --format=esm \
-    --outfile="$OUT/puro.mjs" --external:@prisma/client --log-level=error
-  empaquetar_pantallas "$RAIZ"
+  empaquetar "$RAIZ"
 fi
 
-node --test --test-concurrency=1 lib/__tests__/plan-acordeon-y-guias-tema.test.mjs "$@"
+node --test --test-concurrency=1 lib/__tests__/plan-guia-dentro.test.mjs "$@"

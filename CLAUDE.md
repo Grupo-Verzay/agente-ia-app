@@ -26534,8 +26534,8 @@ la ventana intermedia de la landing.
 4. **El tutorial de cada función va a la DERECHA, en la línea de su nombre**
    (`data-fila-de-la-funcion`), no debajo.
 5. **Los títulos de sección no repiten el nombre del plan**: «Qué incluye este
-   plan» y «Preguntas frecuentes». «Empieza con el plan X» se queda: es el
-   cierre con el precio y el único sitio donde el nombre se ve.
+   plan» y «Preguntas frecuentes». El cierre tampoco lleva título: el nombre
+   va en el botón (ver *la guía se DESPLIEGA dentro, «Qué incluye» nace plegado*).
 6. **El video va en su marco** (`data-marco-del-video`): un recuadro más claro
    que el fondo, con su borde y el título encima, para que no se lea como una
    imagen ni se pierda en el fondo oscuro.
@@ -26673,9 +26673,10 @@ Cinco cosas que hay que mantener:
    `/guia/<modulo>/demostracion.webm` con su portada; un enlace de YouTube,
    Vimeo, Loom o Drive se inserta (`REPRODUCTORES_QUE_SE_INSERTAN`, una lista
    cerrada); un archivo de video se pinta con `<video>`; lo demás no se
-   inserta. Debajo va además el enlace para abrirlo en otra pestaña («Ver la
-   guía paso a paso», «Abrir en otra pestaña»), con `noopener noreferrer`, y
-   ninguno lleva el nombre de la guía.
+   inserta. Debajo va «Ver la guía paso a paso», que la DESPLIEGA ahí mismo
+   (ver la sección siguiente); solo un enlace de fuera se abre en otra pestaña
+   («Abrir en otra pestaña», con `noopener noreferrer`). Ninguno lleva el
+   nombre de la guía.
 3. **Las guías que existen se le pasan como un conjunto** (`GUIAS_QUE_SE_ENSENAN`,
    sacado de `GUIAS_PUBLICADAS`): una guía que no se publica no tiene video.
 4. **El ancho se escribe UNA vez.** Cada `section[data-seccion]` lleva su
@@ -26724,6 +26725,47 @@ uno a la vez con su video) y el índice y una sección de una guía en claro y e
 oscuro, más la guía de la landing que sigue clara. `MODO=roto` pinta lo mismo
 con el código de `2fda6a3` y afirma los fallos: el nombre de la guía como
 enlace, ningún acordeón, anchos distintos y la guía blanca en oscuro.
+
+## La página de un plan: la guía se DESPLIEGA dentro, «Qué incluye» nace plegado, y la landing sin franjas
+
+Cuatro cosas pedidas juntas, y ninguna saca al cliente de la página:
+
+| lo que se veía | ahora |
+| --- | --- |
+| «Ver la guía paso a paso» abría `/guia/<modulo>` en otra pestaña | la guía se **despliega dentro del mismo acordeón**, debajo del video (`GuiaDesplegada`), y el video **se compacta** (`data-video-compacto`: 14rem en el teléfono, 24rem desde `sm`) para dejarle sitio |
+| «Qué incluye este plan» enseñaba todas las funciones abiertas | nace **plegado** bajo un solo encabezado (`button[data-abrir-que-incluye]`, con «N funciones»), y quien no quiere leerlo sigue bajando |
+| el cierre decía «Empieza con el plan X» encima del precio | sin título: el **precio en blanco y destacado** (`[data-precio-final]`) encima del **botón verde «Comenzar con el plan X»** (`VERDE_DEL_BOTON`) |
+| la landing separaba secciones con franjas `bg-white/[0.02]` | ninguna sección lleva fondo, raya ni sombra, en las tres landings |
+
+Cinco cosas que hay que mantener:
+
+1. **La guía desplegada son las MISMAS piezas** que la de la landing
+   (`components/guia/Guia.tsx`, con sus callbacks): el índice y una sección se
+   cambian ahí mismo (`alAbrirSeccion`), en su recuadro claro
+   (`data-guia-tema="claro"`), sin tocar la dirección ni abrir pestañas. El
+   contenido se pide al abrir con `pedirLaGuiaPublica`
+   (`components/guia/pedir-la-guia-publica.ts`), la MISMA caché que usa
+   `GuiaEnLaLanding`; un fallo dice «Reintentar».
+2. **Un tutorial de fuera** (YouTube, un enlace suelto) **sigue abriendo otra
+   pestaña**: no es una guía de la plataforma y no hay nada que desplegar. Lo
+   decide `TutorialDeLaFuncion.modulo` (`null` si no es de la plataforma).
+3. **El texto del botón principal es FIJO**, «Comenzar con el plan X»
+   (`elTextoDelBotonDelPlan`), y en el panel se ve de solo lectura
+   (`data-texto-del-boton-principal`): un texto propio repetiría lo que ya no
+   dice el título. El enlace sigue siendo editable.
+4. **El precio va en `text-white`**, no en el blanco del tema: la página es
+   oscura siempre.
+5. **Una sección de la landing no se separa pintándola**: el aire lo pone su
+   relleno, como en la página del plan.
+
+Lo prueba `scripts/banco-plan-guia-dentro.sh` (hace falta el build): un barrido
+del código y, en Chromium sobre el CSS del build a 1440 y 390, la página del
+plan real (el bloque plegado, la guía desplegada dentro de su función con el
+video compactado, una sección que se abre sin cambiar la dirección ni abrir
+otra pestaña, el enlace de fuera que sí la abre, y el cierre sin título con el
+precio en blanco encima del botón verde) y la landing entera sin franjas ni
+sombras. `MODO=roto` pinta lo mismo con el código de `97b6d07` y afirma los
+fallos.
 
 ## Cómo reportar al terminar
 

@@ -99,6 +99,16 @@ ALIAS_TARJETA=(
   --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx
   --alias:next/navigation=./lib/__tests__/fingido/next-navigation-mudo.ts
 )
+# La página de hoy despliega la guía paso a paso DENTRO de cada función: su
+# acción pública, su enrutador y sus dos lecturas del servidor van con los
+# mismos dobles que el banco de las guías.
+ALIAS_PAGINA=(
+  --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx
+  --alias:next/navigation=./lib/__tests__/fingido/guia-tema/next-navigation.ts
+  --alias:@/lib/introduccion-publica.server=./lib/__tests__/fingido/guia-tema/introduccion-publica.ts
+  --alias:@/lib/contacto-de-la-guia.server=./lib/__tests__/fingido/guia-tema/contacto-de-la-guia.ts
+  --alias:@/actions/guia-publica-actions=./lib/__tests__/fingido/guia-tema/guia-publica-actions.ts
+)
 
 if [ "$MODO" = "roto" ]; then
   # El código de ANTES, en un árbol aparte: sus `@/…` resuelven a SUS ficheros.
@@ -220,7 +230,7 @@ sed -i '/server-only/d' "$OUT/entrada-de-pagina-de-plan.js"
 npx esbuild lib/__tests__/fingido/pagina-de-plan-harness.tsx --bundle --format=iife \
   --outfile="$OUT/harness.js" --jsx=automatic \
   --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
-  --alias:next/link=./lib/__tests__/fingido/next-link-ssr.tsx --log-level=error
+  "${ALIAS_PAGINA[@]}" --log-level=error
 
 # 4. La tarjeta corta de la landing y su video, los de VERDAD.
 node scripts/empaquetar-con-acciones-mudas.mjs lib/__tests__/fingido/tarjeta-de-plan-harness.tsx \
