@@ -600,12 +600,59 @@ bajo la llave GLOBAL del contacto mientras la fila lee la de SU línea.
 > que traerá el reloj. **Si se añade otro sitio que cambie un icono de la fila,
 > avisa igual.**
 
-El candado de notas va aparte (`EVENTO_NOTAS_DE_LA_FILA`), y la lista de
-conversaciones con notas mira las cuentas que la bandeja enseña
+El candado de notas va aparte (`EVENTO_NOTAS_DE_LA_FILA`, que lleva la ÚLTIMA
+nota, no solo «tiene notas»: ver la sección de abajo), y la lista de las notas
+(`lasNotasDeLaBandejaAction`) mira las cuentas que la bandeja enseña
 (`lasCuentasQueVeLaBandeja`). Los avisos de la misma sesión se agrupan en una
 lectura (`ESPERA_PARA_LEER_LA_FILA_MS`). Lo prueba
 `scripts/banco-iconos-de-la-fila.sh` (barrido y la acción contra Postgres);
 `MODO=roto` lee `ffe0583` y afirma que nadie avisaba.
+
+## Chats: la nota interna es la vista previa si es LO ÚLTIMO
+
+Un asesor escribía una nota interna, era lo último que pasaba en la
+conversación, y la fila de la lista enseñaba el candado y nada más: la vista
+previa seguía diciendo el mensaje de antes. Con una imagen, una nota de voz o
+una llamada sí se veía qué era. La causa: las notas viven en `internal_notes`,
+la vista previa salía solo de `chat.lastMessage`, y a la lista solo le llegaba
+QUÉ conversaciones tenían notas (un conjunto de ids), nunca qué decían.
+
+> **La lista recibe la ÚLTIMA nota de cada conversación —texto y hora—, y
+> `laVistaPreviaDeLaFila` (`lib/nota-en-la-vista-previa.ts`, pura) decide: la
+> nota manda solo si es ESTRICTAMENTE posterior al último mensaje, y entonces
+> la vista previa es «🔒 su texto».** En cuanto llega o sale un mensaje, ese
+> mensaje es más reciente y vuelve a ser la vista previa sin que nadie toque
+> nada; la nota se queda solo en el candado de la fila de iconitos.
+
+Cinco cosas que hay que mantener:
+
+1. **Las dos horas se comparan en MILISEGUNDOS** (`epochToMs`): el mensaje
+   llega en segundos o en milisegundos, la nota es un `Date`. **A igualdad,
+   manda el mensaje**: es lo que el cliente ve.
+2. **Lo que NO cambia**: el orden de la lista y la hora de la fila siguen
+   siendo los del último mensaje (escribir una nota no sube la conversación),
+   no cuenta como sin leer, y el candado lo sigue decidiendo `hasNotes`. Con la
+   nota en la vista previa se esconden el icono de tipo y la palomita del
+   mensaje de debajo, que ya no es el que se lee.
+3. **Dos caminos traen la nota, y dicen lo mismo.** Al cargar la bandeja (y a lo
+   sumo cada 60 s, `INTERVALO_DE_LAS_NOTAS_MS`), `lasNotasDeLaBandejaAction`
+   trae una nota por conversación (`DISTINCT ON`, acotada por
+   `lasCuentasQueVeLaBandeja`); al escribir o borrar una nota desde la
+   conversación abierta, `laFilaDeLaSesionAction` trae `ultimaNota` y
+   `avisarDeLasNotasDeLaFila(sessionId, ultimaNota)` la pinta al momento
+   (`conLaUltimaNota`). Borrar la última nota vuelve a la anterior, o al mensaje.
+4. **La nota se busca por el `id` de la ficha de la fila**
+   (`notasDeLasFilas.get(chatSession.id)`), la misma con la que el candado decide.
+5. **Fuera de esto**: la nota de escalado que escribe la IA vive en
+   `chat_messages` (`raw.notaInterna`) y ya es un mensaje; no pasa por aquí.
+
+Lo prueba `scripts/banco-nota-en-la-vista-previa.sh`: la regla y un barrido,
+las acciones contra Postgres (la madre ve las notas de su hija y no al revés),
+y la bandeja SERVIDA en Chromium: al entrar, al escribir una nota, al recargar
+y al llegar un mensaje. `MODO=roto` necesita `BUILD_ANTES` (un `.next` de
+`2fda6a3`) y afirma el candado sin texto; la vuelta al mensaje pasa en los dos.
+Ojo con su semilla: la ficha se empareja con la fila por la llave de SU línea
+(`instanceId === instanceName`), así que la nota se cuelga de esa ficha.
 
 ## Chats: la sesión se busca por su id, no por el número
 
@@ -14320,7 +14367,7 @@ Tres cosas que hay que mantener:
    mismo con el «no mencionarse a sí mismo» y con el «no avisarse a sí mismo» de
    los participantes: los ids que llegan son personas.
 2. **Lo que NO se movió, y es la mitad que protege el banco.**
-   `getSessionIdsWithNotesAction` filtra por `session.userId`,
+   `lasNotasDeLaBandejaAction` filtra por `session.userId`,
    `getTeamMemberIds` por `ownerId ?? id`, y `requireOwnerOrAdmin` devuelve
    ahora **las dos cosas por separado** (`personaId` firma, `ownerId` alcanza).
    El banco comprueba **en la misma fila** que la columna de alcance de al lado

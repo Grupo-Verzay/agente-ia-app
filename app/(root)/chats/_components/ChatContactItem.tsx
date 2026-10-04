@@ -597,7 +597,9 @@ function ChatContactItemBase({
                 ) : (
                   <>
                     {contact.estadoDelUltimo && <PalomitaDeLaFila estado={contact.estadoDelUltimo} />}
-                    <span>{contact.lastMessage || "-"}</span>
+                    <span data-vista-previa={contact.vistaPreviaEsNota ? "nota" : "mensaje"}>
+                      {contact.lastMessage || "-"}
+                    </span>
                   </>
                 )}
               </div>

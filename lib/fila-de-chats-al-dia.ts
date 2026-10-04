@@ -21,6 +21,7 @@
  * el panel de recordatorio, la conversación, el menú de la fila).
  */
 import type { ChatContactSessionSummary } from "@/types/session";
+import type { UltimaNotaDeLaFila } from "@/lib/nota-en-la-vista-previa";
 
 export const EVENTO_FILA_DE_CHAT = "chats:fila-cambio";
 export const EVENTO_NOTAS_DE_LA_FILA = "chats:notas-de-la-fila";
@@ -41,7 +42,13 @@ export const ESPERA_PARA_LEER_LA_FILA_MS = 250;
 export const INTERVALO_DE_LAS_NOTAS_MS = 60_000;
 
 export type AvisoDeLaFila = { sessionId: number; porQue: string };
-export type NotasDeLaFila = { sessionId: number; tieneNotas: boolean };
+/**
+ * Las notas de UNA fila: la última, con su texto y su hora, o `null` si ya no
+ * le queda ninguna. Lleva el texto y no un «tiene/no tiene» porque la nota es
+ * además la VISTA PREVIA de la fila cuando es lo último que pasó
+ * (`lib/nota-en-la-vista-previa.ts`).
+ */
+export type NotasDeLaFila = { sessionId: number; ultimaNota: UltimaNotaDeLaFila | null };
 
 /**
  * Los campos de la sesión que la FILA enseña y que se toman de la lectura
@@ -89,23 +96,16 @@ export function avisarQueCambioLaFila(sessionId: number | null | undefined, porQ
   );
 }
 
-/** El candado de las notas internas vive aparte (la lista lo lleva en un `Set`). */
-export function avisarDeLasNotasDeLaFila(sessionId: number, tieneNotas: boolean): void {
+/**
+ * Las notas internas viven aparte (la lista las lleva en un mapa por sesión):
+ * el candado de la fila y, si la nota es lo último, la vista previa.
+ */
+export function avisarDeLasNotasDeLaFila(
+  sessionId: number,
+  ultimaNota: UltimaNotaDeLaFila | null,
+): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
-    new CustomEvent<NotasDeLaFila>(EVENTO_NOTAS_DE_LA_FILA, { detail: { sessionId, tieneNotas } }),
+    new CustomEvent<NotasDeLaFila>(EVENTO_NOTAS_DE_LA_FILA, { detail: { sessionId, ultimaNota } }),
   );
-}
-
-/** Pone o quita una sesión del conjunto de las que tienen notas, sin copiar si no cambia. */
-export function conLasNotasDeLaFila(
-  conNotas: ReadonlySet<number>,
-  sessionId: number,
-  tieneNotas: boolean,
-): ReadonlySet<number> {
-  if (conNotas.has(sessionId) === tieneNotas) return conNotas;
-  const siguiente = new Set(conNotas);
-  if (tieneNotas) siguiente.add(sessionId);
-  else siguiente.delete(sessionId);
-  return siguiente;
 }
