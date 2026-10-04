@@ -1,4 +1,12 @@
-import { CalendarClock, CalendarDays, CheckCircle2, CreditCard, FileText, Package, RefreshCw, ScrollText, StickyNote } from "lucide-react";
+import { ArrowUpRight, CalendarClock, CalendarDays, CheckCircle2, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
+
+import { VideoDelPlan } from "@/components/planes/VideoDelPlan";
+import {
+    elRotuloDelEnlaceDelPlan,
+    elTextoDelEnlace,
+    losPlanesQueSeEnsenan,
+    type PlanDeLaPropuesta,
+} from "@/lib/plan-de-la-propuesta";
 
 import {
     comoSeLeeElImporte,
@@ -54,8 +62,9 @@ export const ANCHO_DE_LA_PROPUESTA = "max-w-2xl lg:max-w-4xl xl:max-w-5xl 2xl:ma
  */
 export const TOPE_DE_LECTURA = "max-w-3xl";
 
-export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
+export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos; planes?: readonly PlanDeLaPropuesta[] }) {
     const total = elTotal(propuesta.servicios);
+    const planesQueSeVen = losPlanesQueSeEnsenan(planes);
     const { negocio } = propuesta;
     const conMantenimiento = propuesta.mantenimientoMensual !== null;
     const rotulos = losRotulosDeItems(propuesta.tipoDeItems);
@@ -235,6 +244,46 @@ export function PropuestaPublica({ propuesta }: { propuesta: Datos }) {
                             </div>
                         ) : null}
                     </dl>
+                </section>
+            ) : null}
+
+            {/* Los planes del panel de Planes que lleva la propuesta: su video
+                principal y el enlace a su página pública, AL FINAL. Se leen EN
+                VIVO al abrir la página (`losPlanesDeLaPropuesta`), así que un plan
+                editado se ve como está hoy, y uno apagado sale sin enlace. */}
+            {planesQueSeVen.length > 0 ? (
+                <section data-planes-de-la-propuesta className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <PlayCircle className="h-4 w-4 text-slate-500" />
+                        {planesQueSeVen.length === 1 ? "Conoce el plan" : "Conoce los planes"}
+                    </h2>
+                    <div className="mt-3 space-y-6">
+                        {planesQueSeVen.map((plan) => (
+                            <div key={plan.llave} data-plan-de-la-propuesta={plan.llave} className="space-y-3">
+                                <p className="break-words text-sm font-semibold text-slate-900">{plan.nombre}</p>
+                                {plan.video ? (
+                                    <div data-video-del-plan className={TOPE_DE_LECTURA}>
+                                        <VideoDelPlan video={plan.video} />
+                                    </div>
+                                ) : null}
+                                {plan.enlace ? (
+                                    <a
+                                        href={plan.enlace}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        data-enlace-del-plan
+                                        className="group flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 transition-colors hover:bg-blue-100"
+                                    >
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-sm font-semibold text-blue-700">{elRotuloDelEnlaceDelPlan(plan.nombre)}</span>
+                                            <span className="mt-0.5 block break-all text-xs text-blue-600/80">{elTextoDelEnlace(plan.enlace)}</span>
+                                        </span>
+                                        <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                                    </a>
+                                ) : null}
+                            </div>
+                        ))}
+                    </div>
                 </section>
             ) : null}
 

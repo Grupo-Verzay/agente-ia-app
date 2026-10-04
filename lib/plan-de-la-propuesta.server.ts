@@ -12,12 +12,12 @@ import {
     lasFuncionesDelPlan,
     lasFuncionesQueSeEnsenan,
     losDatosDelPlan,
-    type VideoDelPlan,
 } from "@/lib/pagina-de-plan";
 import {
     comoRefDePlan,
     laLlaveDelPlan,
     ordenarPlanesParaElegir,
+    type PlanDeLaPropuesta,
     type PlanParaCargar,
     type PlanParaElegir,
     type RefDePlan,
@@ -135,13 +135,7 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
 }
 
 /** Lo que la página pública de una propuesta enseña de cada plan: su video y su enlace. */
-export type PlanDeLaPropuesta = {
-    llave: string;
-    nombre: string;
-    video: (VideoDelPlan & { titulo: string; miniatura: string | null }) | null;
-    /** `null`: el plan está apagado y su página pública no existe. */
-    enlace: string | null;
-};
+export type { PlanDeLaPropuesta };
 
 export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen: string): Promise<PlanDeLaPropuesta[]> {
     if (refs.length === 0) return [];

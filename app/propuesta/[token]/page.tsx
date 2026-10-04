@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { FileText } from "lucide-react";
 
+import { elOrigenDeLaApp } from "@/lib/origen-de-la-app";
+import { losPlanesDeLaPropuesta } from "@/lib/plan-de-la-propuesta.server";
 import { laPropuestaPublica } from "@/lib/propuestas-db";
 import { PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 import { PropuestaPublica } from "@/components/propuestas/PropuestaPublica";
@@ -59,9 +61,15 @@ export default async function PaginaDePropuesta({ params }: { params: Promise<{ 
         );
     }
 
+    // Los planes del panel de Planes: su video y su enlace, leídos HOY. Que no
+    // se puedan leer no tumba la propuesta: sale sin esa sección (y se dice).
+    const planes = propuesta.planes.length
+        ? await losPlanesDeLaPropuesta(propuesta.planes, await elOrigenDeLaApp())
+        : [];
+
     return (
         <main className={`bg-slate-50 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
-            <PropuestaPublica propuesta={propuesta} />
+            <PropuestaPublica propuesta={propuesta} planes={planes} />
         </main>
     );
 }

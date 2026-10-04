@@ -22,6 +22,7 @@
  */
 
 import { comoAsistencia, elNivelDelSlug, NIVELES_DE_PLAN, type Asistencia, type NivelDePlan } from "@/lib/enlaces-de-planes";
+import type { VideoDelPlan } from "@/lib/pagina-de-plan";
 
 export type RefDePlan = { nivel: NivelDePlan; asistencia: Asistencia };
 
@@ -167,9 +168,34 @@ export function laFilaDelPlan(p: PlanParaCargar, moneda: string, tope: number): 
     };
 }
 
-/** La dirección como se lee: sin `https://` ni la barra del final. */
+/**
+ * La dirección como se lee: sin `https://`, sin la barra del final y SIN la
+ * consulta. El enlace lleva `?tipo=` —quien abre la propuesta no tiene la
+ * cookie de la modalidad— pero eso es para el servidor, no para leerlo.
+ */
 export function elTextoDelEnlace(href: string): string {
-    return href.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    return href.replace(/^https?:\/\//i, "").replace(/[?#].*$/, "").replace(/\/$/, "");
+}
+
+/** Lo que la página pública de una propuesta enseña de cada plan, resuelto EN VIVO al abrirla. */
+export type PlanDeLaPropuesta = {
+    llave: string;
+    nombre: string;
+    /** El video principal del plan en el panel; `null` = no tiene. */
+    video: (VideoDelPlan & { titulo: string; miniatura: string | null }) | null;
+    /** La dirección de su página pública; `null` = el plan está apagado y no la tiene. */
+    enlace: string | null;
+};
+
+/** Lo que de verdad se pinta: un plan sin video ni enlace no deja un recuadro vacío. */
+export function losPlanesQueSeEnsenan<T extends Pick<PlanDeLaPropuesta, "video" | "enlace">>(planes: readonly T[]): T[] {
+    return planes.filter((p) => Boolean(p.video || p.enlace));
+}
+
+/** El rótulo del enlace a la página de un plan. */
+export function elRotuloDelEnlaceDelPlan(nombre: string): string {
+    const limpio = nombre.trim();
+    return limpio ? `Ver todo lo que incluye el plan ${limpio}` : "Ver todo lo que incluye el plan";
 }
 
 /** El aviso cuando un plan no tiene página pública. */
