@@ -32,7 +32,8 @@ import {
  *
  * **Sigue el modo claro u oscuro del DISPOSITIVO** (`data-tema-del-plan=
  * "dispositivo"` y los tokens `--plan-*` de `globals.css`): en claro, el azul
- * cielo de siempre; en oscuro, la paleta de la landing de planes. Por eso aquí
+ * cielo de siempre; en oscuro, la paleta de la landing de planes con la tarjeta
+ * en un azul más hondo (sigue siendo la tarjeta azul). Por eso aquí
  * no hay ni un `slate-*` ni un `bg-white` de fondo: un color escrito a mano no
  * cambia con el dispositivo.
  *
