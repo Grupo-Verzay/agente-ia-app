@@ -91,6 +91,11 @@
    que en claro no cambia ni un píxel. `data-guia-tema="claro"` lo devuelve
    dentro de algo oscuro: la guía que se abre DENTRO de la landing (que es
    oscura por su cuenta) sigue clara, como era.
+
+   `data-guia-tema="oscuro"` es su pareja: lo pone quien decide el tema de una
+   guía por su cuenta —la guía desplegada en la página de un plan, que sigue
+   el tema que el cliente tenga en la App (`GuiaDesplegada`)— y vale aunque no
+   haya ningún `.dark` encima.
    ─────────────────────────────────────────────────────────────────────────── */
 :root,
 [data-guia-tema="claro"] {
@@ -113,7 +118,8 @@
   --guia-aviso-borde: 48 96.6% 76.7%;   /* amber-200 */
   --guia-aviso-texto: 21.7 77.8% 26.5%; /* amber-900 */
 }
-.dark {
+.dark,
+[data-guia-tema="oscuro"] {
   --guia-fondo: 222.2 84% 4.9%;         /* el fondo oscuro de la App */
   --guia-superficie: 222.2 47.4% 11.2%; /* slate-900 */
   --guia-hundido: 217.2 32.6% 17.5%;    /* slate-800 */

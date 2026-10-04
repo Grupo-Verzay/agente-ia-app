@@ -26732,8 +26732,8 @@ Cuatro cosas pedidas juntas, y ninguna saca al cliente de la página:
 
 | lo que se veía | ahora |
 | --- | --- |
-| «Ver la guía paso a paso» abría `/guia/<modulo>` en otra pestaña | la guía se **despliega dentro del mismo acordeón**, debajo del video (`GuiaDesplegada`), y el video **se compacta** (`data-video-compacto`: 14rem en el teléfono, 24rem desde `sm`) para dejarle sitio |
-| «Qué incluye este plan» enseñaba todas las funciones abiertas | nace **plegado** bajo un solo encabezado (`button[data-abrir-que-incluye]`, con «N funciones»), y quien no quiere leerlo sigue bajando |
+| «Ver la guía paso a paso» abría `/guia/<modulo>` en otra pestaña | la guía se **despliega dentro del mismo acordeón** (`GuiaDesplegada`), y con ella abierta **el video no se pinta** (ver la sección siguiente) |
+| «Qué incluye este plan» enseñaba todas las funciones abiertas | de entrada, **solo las destacadas**, y el resto detrás de «Ver todas las funciones» (ver la sección siguiente) |
 | el cierre decía «Empieza con el plan X» encima del precio | sin título: el **precio en blanco y destacado** (`[data-precio-final]`) encima del **botón verde «Comenzar con el plan X»** (`VERDE_DEL_BOTON`) |
 | la landing separaba secciones con franjas `bg-white/[0.02]` | ninguna sección lleva fondo, raya ni sombra, en las tres landings |
 
@@ -26741,8 +26741,8 @@ Cinco cosas que hay que mantener:
 
 1. **La guía desplegada son las MISMAS piezas** que la de la landing
    (`components/guia/Guia.tsx`, con sus callbacks): el índice y una sección se
-   cambian ahí mismo (`alAbrirSeccion`), en su recuadro claro
-   (`data-guia-tema="claro"`), sin tocar la dirección ni abrir pestañas. El
+   cambian ahí mismo (`alAbrirSeccion`), con el tema de la App (ver la
+   sección siguiente), sin tocar la dirección ni abrir pestañas. El
    contenido se pide al abrir con `pedirLaGuiaPublica`
    (`components/guia/pedir-la-guia-publica.ts`), la MISMA caché que usa
    `GuiaEnLaLanding`; un fallo dice «Reintentar».
@@ -26766,6 +26766,47 @@ otra pestaña, el enlace de fuera que sí la abre, y el cierre sin título con e
 precio en blanco encima del botón verde) y la landing entera sin franjas ni
 sombras. `MODO=roto` pinta lo mismo con el código de `97b6d07` y afirma los
 fallos.
+
+## La página de un plan: de entrada las DESTACADAS, la guía sin video y con el tema de la App, e «Inicio» arriba
+
+> **Esta sección manda sobre la de arriba** en cómo abre «Qué incluye» y en
+> qué pasa con el video y el tema al desplegar la guía.
+
+| lo que se veía | ahora |
+| --- | --- |
+| «Qué incluye» nacía plegado bajo un encabezado, y abierto enseñaba todas | el título **centrado** (`data-titulo-del-bloque`, con «N funciones») y debajo, de entrada, **las funciones DESTACADAS**; el resto, en el orden del editor, detrás del botón centrado «Ver todas las funciones» / «Ver menos funciones» (`data-ver-todas-las-funciones`) |
+| la flecha de abrir casi no se veía en oscuro | `FlechaDelDesplegable`: blanca, en un círculo `bg-white/15`, en el bloque y en cada función |
+| «Ver la guía paso a paso» iba a la izquierda | la fila de la guía es como la de la función: **«Guía paso a paso»** a la izquierda (`data-titulo-de-la-guia`) y **«Ver guía» / «Ocultar guía»** a la derecha (`data-ver-la-guia`) |
+| con la guía abierta el video se encogía y dejaba un hueco al lado | **el video no se pinta** mientras la guía está abierta; al cerrarla vuelve |
+| la guía desplegada salía siempre en blanco | sigue el **tema de la App**: `elTemaDeLaGuiaDesplegada(resolvedTheme)` pone `data-guia-tema="oscuro"` o `"claro"` |
+| la barra de arriba solo llevaba «Volver a planes» | y a la derecha **«Inicio»** (`data-ir-al-inicio`), a `/inicio` |
+
+Cinco cosas que hay que mantener:
+
+1. **«Destacada» es la MISMA marca que la tarjeta corta de la landing**
+   (`FuncionDelPlan.destacada`, la del editor de funciones). No hay un campo
+   nuevo: lo reparte `elRepartoDeLasFunciones` (`lib/pagina-de-plan.ts`, pura),
+   y lo de antes sin marca nace destacado (`comoFunciones`). Si todas son
+   destacadas no hay botón; si no hay ninguna, el botón las despliega todas.
+2. **El resto se queda montado y escondido** (`hidden`): lo que se abrió dentro
+   sigue abierto al volver a desplegarlo. Al recoger con el botón, el botón se
+   deja a la vista (solo entonces: nunca al cargar la página).
+3. **Solo el tema de la App decide**: el layout público lleva un `.dark` fijo,
+   así que la guía desplegada pone su propio `data-guia-tema` y
+   `[data-guia-tema="oscuro"]` va en `globals.css` junto a `.dark`. Sin tema
+   guardado (`system` sin resolver) es oscura, como la página.
+4. **La guía de la landing SIGUE clara** (`GuiaEnLaLanding`, `data-guia-tema="claro"`):
+   esto es solo la de la página de un plan.
+5. **«Inicio» es un enlace a `/inicio`**, en la misma barra que «Volver a
+   planes» (`data-ancho-de-la-barra`), los dos en la misma línea.
+
+Lo prueba `scripts/banco-plan-destacadas-y-guia.sh` (hace falta el build): las
+reglas sin navegador y un barrido, y la página REAL en Chromium sobre el CSS
+del build, bajo el `ThemeProvider` de la App, a 1440 y 390: las destacadas de
+entrada y el resto en su orden, la flecha que se distingue, la fila de la guía,
+el video que desaparece, la guía oscura en oscuro y clara en claro, e «Inicio»
+a la derecha. `MODO=roto` pinta la misma página con el código de `15568a8` y
+afirma los fallos.
 
 ## Cómo reportar al terminar
 
