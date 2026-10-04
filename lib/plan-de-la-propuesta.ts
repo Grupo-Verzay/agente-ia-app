@@ -22,7 +22,7 @@
  */
 
 import { comoAsistencia, elNivelDelSlug, NIVELES_DE_PLAN, type Asistencia, type NivelDePlan } from "@/lib/enlaces-de-planes";
-import type { VideoDelPlan } from "@/lib/pagina-de-plan";
+import type { BotonDelPlan, FuncionQueSeEnsena, TarjetaDeCapacidad, VideoDelPlan } from "@/lib/pagina-de-plan";
 
 export type RefDePlan = { nivel: NivelDePlan; asistencia: Asistencia };
 
@@ -177,7 +177,13 @@ export function elTextoDelEnlace(href: string): string {
     return href.replace(/^https?:\/\//i, "").replace(/[?#].*$/, "").replace(/\/$/, "");
 }
 
-/** Lo que la página pública de una propuesta enseña de cada plan, resuelto EN VIVO al abrirla. */
+/**
+ * Lo que la página pública de una propuesta enseña de cada plan, resuelto EN
+ * VIVO al abrirla, con las MISMAS funciones que la página pública del plan: el
+ * video con su título, los recuadros de capacidad, «Qué incluye este plan» y el
+ * precio con su botón. Lo demás de esa página («para quién es», el caso típico,
+ * las preguntas y el plan superior) no entra en una propuesta.
+ */
 export type PlanDeLaPropuesta = {
     llave: string;
     nombre: string;
@@ -185,11 +191,74 @@ export type PlanDeLaPropuesta = {
     video: (VideoDelPlan & { titulo: string; miniatura: string | null }) | null;
     /** La dirección de su página pública; `null` = el plan está apagado y no la tiene. */
     enlace: string | null;
+    /** El nivel (`basico`…), que decide el color del marco del video. */
+    plan?: string;
+    tipo?: "IA" | "HUMANO";
+    activo?: boolean;
+    /** Los recuadros de capacidad de su página pública, en su orden. */
+    capacidad?: TarjetaDeCapacidad[];
+    /** «Qué incluye este plan»: las mismas tarjetas y en el mismo orden que su página. */
+    funciones?: FuncionQueSeEnsena[];
+    precio?: { texto: string; aConsultar: boolean };
+    /** El botón de comenzar de su página; `null` = el plan está apagado. */
+    boton?: BotonDelPlan | null;
 };
 
-/** Lo que de verdad se pinta: un plan sin video ni enlace no deja un recuadro vacío. */
-export function losPlanesQueSeEnsenan<T extends Pick<PlanDeLaPropuesta, "video" | "enlace">>(planes: readonly T[]): T[] {
-    return planes.filter((p) => Boolean(p.video || p.enlace));
+/** ¿Tiene algo que pintar? Un plan sin nada no deja un recuadro vacío. */
+function tieneQuePintar(p: Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones">): boolean {
+    return Boolean(p.video || p.enlace || (p.capacidad?.length ?? 0) > 0 || (p.funciones?.length ?? 0) > 0);
+}
+
+/** Lo que de verdad se pinta: un plan sin nada que enseñar no deja un recuadro vacío. */
+export function losPlanesQueSeEnsenan<T extends Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones">>(
+    planes: readonly T[],
+): T[] {
+    return planes.filter(tieneQuePintar);
+}
+
+/**
+ * El nombre con el que se empareja un servicio de la propuesta con un plan:
+ * sin mayúsculas, sin tildes, sin espacios de más y sin un «Plan » delante.
+ * La fila de servicio que carga un plan lleva su nombre (`laFilaDelPlan`), así
+ * que al abrir la propuesta se sabe a qué servicio pertenece cada plan.
+ */
+export function elNombreParaEmparejar(nombre: string): string {
+    return String(nombre ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/^plan\s+/, "")
+        .trim();
+}
+
+/**
+ * A qué servicio pertenece cada plan. Cada servicio se queda con el PRIMER plan
+ * de su mismo nombre que no se haya llevado otro; un plan se usa una sola vez.
+ * Lo que no casa con ningún servicio sale aparte (`sueltos`), en el orden de la
+ * propuesta: un plan renombrado en el panel después de hacer la propuesta deja
+ * de llamarse como su fila, y se enseña igual, debajo de los servicios.
+ */
+export function losPlanesDeCadaServicio<P extends { nombre: string }>(
+    servicios: readonly { nombre: string }[],
+    planes: readonly P[],
+): { porServicio: (P | null)[]; sueltos: P[] } {
+    const usados = new Set<number>();
+    const porServicio = servicios.map((s) => {
+        const llave = elNombreParaEmparejar(s.nombre);
+        if (!llave) return null;
+        const i = planes.findIndex((p, j) => !usados.has(j) && elNombreParaEmparejar(p.nombre) === llave);
+        if (i < 0) return null;
+        usados.add(i);
+        return planes[i]!;
+    });
+    return { porServicio, sueltos: planes.filter((_, j) => !usados.has(j)) };
+}
+
+/** Lo que dice el precio al final del plan, como en su página. */
+export function elTextoDelPrecioDelPlan(precio: { texto: string; aConsultar: boolean }): string {
+    return precio.aConsultar ? "Precio a consultar según tu operación." : `${precio.texto} USD al mes`;
 }
 
 /** El rótulo del enlace a la página de un plan. */

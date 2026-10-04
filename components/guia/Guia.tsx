@@ -283,8 +283,29 @@ export function CabeceraDeLaGuia({
  * `carpeta` es la de la guía (`/guia/<modulo>`, `laGuiaDe`): la misma
  * dirección sirve las páginas y, en `public/`, sus capturas.
  */
-export function Captura({ carpeta, imagen, alt, prioridad = false }: { carpeta: string; imagen: string; alt: string; prioridad?: boolean }) {
+export function Captura({
+    carpeta,
+    imagen,
+    alt,
+    prioridad = false,
+    sinSalidas = false,
+}: {
+    carpeta: string;
+    imagen: string;
+    alt: string;
+    prioridad?: boolean;
+    /** Dentro de una propuesta: la captura se ve, pero no abre otra pestaña. */
+    sinSalidas?: boolean;
+}) {
     const src = `${carpeta}/${imagen}`;
+    if (sinSalidas) {
+        return (
+            <div data-captura-sin-salida className="relative block overflow-hidden rounded-xl border border-guia-borde bg-guia-superficie shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={alt} loading={prioridad ? "eager" : "lazy"} className="block h-auto w-full" />
+            </div>
+        );
+    }
     return (
         <a
             href={src}
@@ -358,7 +379,7 @@ export function TarjetaDeSeccion({
     );
 }
 
-export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso: Paso; numero: number }) {
+export function PasoDeLaGuia({ carpeta, paso, numero, sinSalidas = false }: { carpeta: string; paso: Paso; numero: number; sinSalidas?: boolean }) {
     return (
         <li data-paso className="flex flex-col gap-3">
             <div className="flex items-start gap-3">
@@ -370,7 +391,7 @@ export function PasoDeLaGuia({ carpeta, paso, numero }: { carpeta: string; paso:
                     <p className="text-sm leading-relaxed text-guia-medio">{paso.texto}</p>
                 </div>
             </div>
-            <Captura carpeta={carpeta} imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} />
+            <Captura carpeta={carpeta} imagen={paso.imagen} alt={paso.alt} prioridad={numero === 1} sinSalidas={sinSalidas} />
         </li>
     );
 }
@@ -493,6 +514,7 @@ export function CuadriculaDeSecciones({
     videoHref,
     alAbrirSeccion,
     alVerElVideo,
+    sinSalidas = false,
 }: {
     secciones: readonly Seccion[];
     moduloPath: string;
@@ -505,6 +527,8 @@ export function CuadriculaDeSecciones({
      * (`#demostracion` pisaría la de los tutoriales y se perdería la vista).
      */
     alVerElVideo?: () => void;
+    /** Dentro de una propuesta: sin la tarjeta de «Contáctanos», que abre otra pestaña. */
+    sinSalidas?: boolean;
 }) {
     const cierre = lasClasesDelCierre(secciones.length);
     return (
@@ -518,6 +542,7 @@ export function CuadriculaDeSecciones({
                     alAbrir={alAbrirSeccion ? () => alAbrirSeccion(s.slug) : undefined}
                 />
             ))}
+            {!sinSalidas && (
             <a
                 href={contactoHref}
                 target="_blank"
@@ -537,6 +562,7 @@ export function CuadriculaDeSecciones({
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
                 </span>
             </a>
+            )}
             {cierre.video ? (
                 <a
                     href={videoHref}
@@ -592,6 +618,7 @@ export function ArticuloDeLaSeccion({
     secciones,
     seccion,
     alAbrir,
+    sinSalidas = false,
 }: {
     carpeta: string;
     /** El nombre del módulo («Leads»). */
@@ -599,6 +626,8 @@ export function ArticuloDeLaSeccion({
     secciones: readonly Seccion[];
     seccion: Seccion;
     alAbrir?: (slug: string | null) => void;
+    /** Dentro de una propuesta: las capturas no abren otra pestaña. */
+    sinSalidas?: boolean;
 }) {
     const i = secciones.findIndex((s) => s.slug === seccion.slug);
     const anterior = secciones[i - 1] ?? null;
@@ -620,7 +649,7 @@ export function ArticuloDeLaSeccion({
 
             <ol className="space-y-10">
                 {seccion.pasos.map((p, n) => (
-                    <PasoDeLaGuia key={p.imagen + n} carpeta={carpeta} paso={p} numero={n + 1} />
+                    <PasoDeLaGuia key={p.imagen + n} carpeta={carpeta} paso={p} numero={n + 1} sinSalidas={sinSalidas} />
                 ))}
             </ol>
 

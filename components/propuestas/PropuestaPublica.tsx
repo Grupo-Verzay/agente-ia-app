@@ -1,9 +1,8 @@
-import { ArrowUpRight, CalendarClock, CalendarDays, CheckCircle2, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
+import { CalendarClock, CalendarDays, CheckCircle2, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
 
-import { VideoDelPlan } from "@/components/planes/VideoDelPlan";
+import { PlanEnLaPropuesta } from "@/components/propuestas/PlanEnLaPropuesta";
 import {
-    elRotuloDelEnlaceDelPlan,
-    elTextoDelEnlace,
+    losPlanesDeCadaServicio,
     losPlanesQueSeEnsenan,
     type PlanDeLaPropuesta,
 } from "@/lib/plan-de-la-propuesta";
@@ -28,14 +27,30 @@ import {
  *
  * **El azul es el de la plataforma, claro** (`blue-500` → `blue-400`): el
  * `slate-900` de antes se leía como un azul casi negro y apagado que no casaba
- * con ningún logo. Vive en `AZUL_DE_LA_PROPUESTA` para que la cabecera, las
- * iniciales y el total no puedan salir de dos azules distintos.
+ * con ningún logo. Vive en `AZUL_DE_LA_PROPUESTA` para que la tarjeta y las
+ * iniciales no puedan salir de dos azules distintos.
+ *
+ * **Sigue el modo claro u oscuro del DISPOSITIVO** (`data-tema-del-plan=
+ * "dispositivo"` y los tokens `--plan-*` de `globals.css`): en claro, el azul
+ * cielo de siempre; en oscuro, la paleta de la landing de planes. Por eso aquí
+ * no hay ni un `slate-*` ni un `bg-white` de fondo: un color escrito a mano no
+ * cambia con el dispositivo.
+ *
+ * **El logo y el eslogan van DENTRO de la tarjeta azul**: el logo arriba, a la
+ * altura de «Preparada para», y el eslogan abajo, a la altura de «Inversión
+ * total». Sueltos encima se leían como de otra página.
+ *
+ * **Un servicio que es un plan del panel enseña el plan**, no un alcance
+ * escrito a mano: su video, sus recuadros, «Qué incluye» y el precio con su
+ * botón (`PlanEnLaPropuesta`), emparejados por el NOMBRE
+ * (`losPlanesDeCadaServicio`). Lo que no empareja sale después de los
+ * servicios, con el mismo bloque.
  *
  * Sin `"use client"`: no hay nada que hacer en el navegador, así que se pinta
  * entera en el servidor y llega como HTML — que es lo que carga rápido con la
  * conexión de un móvil.
  */
-export const AZUL_DE_LA_PROPUESTA = "bg-gradient-to-br from-blue-500 to-blue-400";
+export const AZUL_DE_LA_PROPUESTA = "bg-gradient-to-br from-[color:var(--plan-hero-desde)] to-[color:var(--plan-hero-hasta)]";
 
 /**
  * La letra del eslogan de la cabecera. Iba en `text-sm` (14 px), por debajo de
@@ -65,54 +80,55 @@ export const TOPE_DE_LECTURA = "max-w-3xl";
 export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos; planes?: readonly PlanDeLaPropuesta[] }) {
     const total = elTotal(propuesta.servicios);
     const planesQueSeVen = losPlanesQueSeEnsenan(planes);
+    const { porServicio, sueltos } = losPlanesDeCadaServicio(propuesta.servicios, planesQueSeVen);
     const { negocio } = propuesta;
     const conMantenimiento = propuesta.mantenimientoMensual !== null;
     const rotulos = losRotulosDeItems(propuesta.tipoDeItems);
     const conPago = Boolean(propuesta.metodoPago || propuesta.medioPago);
 
-    return (
-        <article data-propuesta className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8`}>
-            {/* Cabecera: solo el logo a la izquierda y, a la derecha, el
-                eslogan de la cuenta si lo tiene. Ni el nombre de la cuenta (el
-                logo lo dice, y sale en el pie) ni el rótulo «Propuesta
-                comercial» debajo del logo: la página entera ya lo es.
-                `items-center`: el eslogan va a la altura del CENTRO del logo.
-                Su letra es `ESLOGAN_DE_LA_PROPUESTA`: a 14 px se leía menor
-                que cualquier otro texto de la página. */}
-            <header data-cabecera className="flex items-center justify-between gap-4">
-                {negocio.logo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        data-logo-propuesta
-                        src={negocio.logo}
-                        alt={negocio.nombre || "Logo"}
-                        className="h-12 w-12 shrink-0 rounded-xl border bg-white object-contain"
-                    />
-                ) : (
-                    <div data-logo-propuesta className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold text-white ${AZUL_DE_LA_PROPUESTA}`}>
-                        {lasIniciales(negocio.nombre)}
-                    </div>
-                )}
-                {negocio.eslogan ? (
-                    <p
-                        data-eslogan
-                        className={`min-w-0 max-w-[70%] break-words text-right font-bold text-slate-700 ${ESLOGAN_DE_LA_PROPUESTA}`}
-                    >
-                        {negocio.eslogan}
-                    </p>
-                ) : null}
-            </header>
+    const logo = negocio.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            data-logo-propuesta
+            src={negocio.logo}
+            alt={negocio.nombre || "Logo"}
+            className="h-12 w-12 shrink-0 rounded-xl border border-white/30 bg-white object-contain"
+        />
+    ) : (
+        <div
+            data-logo-propuesta
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 text-base font-semibold text-white"
+        >
+            {lasIniciales(negocio.nombre)}
+        </div>
+    );
 
-            <section data-hero className={`mt-6 rounded-2xl p-5 text-white shadow-sm sm:p-7 ${AZUL_DE_LA_PROPUESTA}`}>
-                <p className="text-xs uppercase tracking-wide text-white/80">Preparada para</p>
-                <h1 data-cliente className="mt-1 break-words text-2xl font-bold leading-tight sm:text-3xl">
-                    {propuesta.cliente}
-                </h1>
-                {propuesta.empresa ? (
-                    <p data-empresa className="mt-1 break-words text-base font-medium text-white/90">
-                        {propuesta.empresa}
-                    </p>
-                ) : null}
+    return (
+        <article
+            data-propuesta
+            data-tema-del-plan="dispositivo"
+            className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pb-16 pt-6 text-plan-tinta sm:px-6 sm:pt-10 lg:px-8`}
+        >
+            {/* La tarjeta azul lleva la cabecera DENTRO: arriba, «Preparada
+                para» a la izquierda y el logo a la derecha, a la misma altura;
+                abajo, «Inversión total» a la izquierda y el eslogan a la
+                derecha. Ni el nombre de la cuenta (el logo lo dice, y sale en
+                el pie) ni el rótulo «Propuesta comercial». */}
+            <section data-hero className={`rounded-2xl p-5 text-white shadow-sm sm:p-7 ${AZUL_DE_LA_PROPUESTA}`}>
+                <div data-hero-arriba className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <p data-preparada-para className="text-xs uppercase tracking-wide text-white/80">Preparada para</p>
+                        <h1 data-cliente className="mt-1 break-words text-2xl font-bold leading-tight sm:text-3xl">
+                            {propuesta.cliente}
+                        </h1>
+                        {propuesta.empresa ? (
+                            <p data-empresa className="mt-1 break-words text-base font-medium text-white/90">
+                                {propuesta.empresa}
+                            </p>
+                        ) : null}
+                    </div>
+                    {logo}
+                </div>
                 <p className="mt-3 flex items-center gap-1.5 text-sm text-white/80">
                     <CalendarDays className="h-4 w-4 shrink-0" />
                     {comoSeLeeLaFecha(propuesta.fecha)}
@@ -123,14 +139,24 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                         Válida hasta el {comoSeLeeLaFecha(propuesta.vigencia)}
                     </p>
                 ) : null}
-                <div className="mt-5 border-t border-white/25 pt-4">
-                    <p className="text-xs uppercase tracking-wide text-white/80">Inversión total</p>
-                    <p data-total className="mt-1 break-words text-3xl font-bold sm:text-4xl">
-                        {comoSeLeeElImporte(total, propuesta.moneda)}
-                    </p>
-                    {conMantenimiento ? (
-                        <p className="mt-1 text-sm text-white/80">
-                            + {comoSeLeeElImporte(propuesta.mantenimientoMensual!, propuesta.moneda)} / mes de mantenimiento
+                <div data-hero-abajo className="mt-5 flex items-end justify-between gap-4 border-t border-white/25 pt-4">
+                    <div className="min-w-0">
+                        <p data-inversion-total className="text-xs uppercase tracking-wide text-white/80">Inversión total</p>
+                        <p data-total className="mt-1 break-words text-3xl font-bold sm:text-4xl">
+                            {comoSeLeeElImporte(total, propuesta.moneda)}
+                        </p>
+                        {conMantenimiento ? (
+                            <p className="mt-1 text-sm text-white/80">
+                                + {comoSeLeeElImporte(propuesta.mantenimientoMensual!, propuesta.moneda)} / mes de mantenimiento
+                            </p>
+                        ) : null}
+                    </div>
+                    {negocio.eslogan ? (
+                        <p
+                            data-eslogan
+                            className={`min-w-0 max-w-[55%] break-words text-right font-bold text-white ${ESLOGAN_DE_LA_PROPUESTA}`}
+                        >
+                            {negocio.eslogan}
                         </p>
                     ) : null}
                 </div>
@@ -138,58 +164,91 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
 
             {/* Servicios o productos: lo eligió quien creó la propuesta */}
             <section className="mt-8">
-                <h2 data-titulo-items className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <h2 data-titulo-items className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                     {propuesta.tipoDeItems === "productos" ? (
-                        <Package className="h-4 w-4 text-slate-500" />
+                        <Package className="h-4 w-4 text-plan-suave" />
                     ) : (
-                        <FileText className="h-4 w-4 text-slate-500" />
+                        <FileText className="h-4 w-4 text-plan-suave" />
                     )}
                     {rotulos.plural}
                 </h2>
                 <ol className="mt-3 space-y-3">
-                    {propuesta.servicios.map((s, i) => (
-                        <li key={i} data-servicio className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                                <h3 className="min-w-0 break-words text-base font-semibold text-slate-900">
-                                    <span className="mr-1.5 text-slate-400">{i + 1}.</span>
-                                    {s.nombre}
-                                </h3>
-                                <p className="shrink-0 text-base font-semibold text-slate-900 sm:text-right">
-                                    {comoSeLeeElImporte(s.inversion, propuesta.moneda)}
-                                </p>
-                            </div>
-                            {s.alcance ? (
-                                <div className="mt-2">
-                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Alcance</p>
-                                    <p data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
-                                        {s.alcance}
+                    {propuesta.servicios.map((s, i) => {
+                        const plan = porServicio[i];
+                        return (
+                            <li
+                                key={i}
+                                data-servicio
+                                data-servicio-con-plan={plan ? plan.llave : undefined}
+                                className="rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5"
+                            >
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                                    <h3 className="min-w-0 break-words text-base font-semibold text-plan-tinta">
+                                        <span className="mr-1.5 text-plan-tenue">{i + 1}.</span>
+                                        {s.nombre}
+                                    </h3>
+                                    <p className="shrink-0 text-base font-semibold text-plan-tinta sm:text-right">
+                                        {comoSeLeeElImporte(s.inversion, propuesta.moneda)}
                                     </p>
                                 </div>
-                            ) : null}
-                        </li>
-                    ))}
+                                {plan ? (
+                                    // Es un plan del panel: se enseña el plan, no un alcance copiado a mano.
+                                    <div className="mt-5">
+                                        <PlanEnLaPropuesta plan={plan} />
+                                    </div>
+                                ) : s.alcance ? (
+                                    <div className="mt-2">
+                                        <p className="text-xs font-medium uppercase tracking-wide text-plan-tenue">Alcance</p>
+                                        <p data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-plan-suave`}>
+                                            {s.alcance}
+                                        </p>
+                                    </div>
+                                ) : null}
+                            </li>
+                        );
+                    })}
                 </ol>
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 sm:px-5">
-                    <span className="text-sm font-medium text-slate-600">Total</span>
-                    <span className="text-right text-base font-bold text-slate-900">
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-plan-acento/30 bg-plan-acento/10 px-4 py-3 sm:px-5">
+                    <span className="text-sm font-medium text-plan-suave">Total</span>
+                    <span className="text-right text-base font-bold text-plan-tinta">
                         {comoSeLeeElImporte(total, propuesta.moneda)}
                     </span>
                 </div>
             </section>
 
+            {/* Un plan que la propuesta lleva y que no es ninguno de sus
+                servicios (otro nombre, o se renombró después): sale aquí, con
+                el mismo bloque y dentro de la misma propuesta. */}
+            {sueltos.length > 0 ? (
+                <section data-planes-de-la-propuesta className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
+                        <PlayCircle className="h-4 w-4 text-plan-suave" />
+                        {sueltos.length === 1 ? "Conoce el plan" : "Conoce los planes"}
+                    </h2>
+                    <div className="mt-4 space-y-10">
+                        {sueltos.map((plan) => (
+                            <div key={plan.llave} data-plan-de-la-propuesta={plan.llave} className="space-y-4">
+                                <p className="break-words text-base font-semibold text-plan-tinta">{plan.nombre}</p>
+                                <PlanEnLaPropuesta plan={plan} />
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            ) : null}
+
             {conMantenimiento ? (
-                <section data-mantenimiento className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <RefreshCw className="h-4 w-4 text-slate-500" />
+                <section data-mantenimiento className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
+                        <RefreshCw className="h-4 w-4 text-plan-suave" />
                         Mantenimiento mensual
                     </h2>
-                    <p className="mt-2 text-xl font-bold text-slate-900">
+                    <p className="mt-2 text-xl font-bold text-plan-tinta">
                         {propuesta.mantenimientoMensual === 0
                             ? "Incluido"
                             : `${comoSeLeeElImporte(propuesta.mantenimientoMensual!, propuesta.moneda)} / mes`}
                     </p>
                     {propuesta.mantenimientoDescripcion ? (
-                        <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
+                        <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-plan-suave`}>
                             {propuesta.mantenimientoDescripcion}
                         </p>
                     ) : null}
@@ -197,24 +256,24 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             ) : null}
 
             {propuesta.nota ? (
-                <section data-nota className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <StickyNote className="h-4 w-4 text-slate-500" />
+                <section data-nota className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
+                        <StickyNote className="h-4 w-4 text-plan-suave" />
                         Nota
                     </h2>
-                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
+                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-plan-suave`}>
                         {propuesta.nota}
                     </p>
                 </section>
             ) : null}
 
             {propuesta.condiciones ? (
-                <section data-condiciones className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <ScrollText className="h-4 w-4 text-slate-500" />
+                <section data-condiciones className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
+                        <ScrollText className="h-4 w-4 text-plan-suave" />
                         Condiciones
                     </h2>
-                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600`}>
+                    <p data-lectura className={`mt-2 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-plan-suave`}>
                         {propuesta.condiciones}
                     </p>
                 </section>
@@ -223,22 +282,22 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             {/* Cómo pagar: después de las condiciones y antes del pie. Sin días
                 de licencia ni vencimientos — el cliente todavía no contrató. */}
             {conPago ? (
-                <section data-pago className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <CreditCard className="h-4 w-4 text-slate-500" />
+                <section data-pago className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                    <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
+                        <CreditCard className="h-4 w-4 text-plan-suave" />
                         Información de pago
                     </h2>
                     <dl className="mt-2 space-y-3">
                         {propuesta.metodoPago ? (
                             <div data-metodo-pago>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Método de pago</dt>
-                                <dd className="mt-1 break-words text-sm leading-relaxed text-slate-700">{propuesta.metodoPago}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-plan-tenue">Método de pago</dt>
+                                <dd className="mt-1 break-words text-sm leading-relaxed text-plan-medio">{propuesta.metodoPago}</dd>
                             </div>
                         ) : null}
                         {propuesta.medioPago ? (
                             <div data-medio-pago>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Medio de pago</dt>
-                                <dd data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700`}>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-plan-tenue">Medio de pago</dt>
+                                <dd data-lectura className={`mt-1 ${TOPE_DE_LECTURA} whitespace-pre-wrap break-words text-sm leading-relaxed text-plan-medio`}>
                                     {propuesta.medioPago}
                                 </dd>
                             </div>
@@ -247,47 +306,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                 </section>
             ) : null}
 
-            {/* Los planes del panel de Planes que lleva la propuesta: su video
-                principal y el enlace a su página pública, AL FINAL. Se leen EN
-                VIVO al abrir la página (`losPlanesDeLaPropuesta`), así que un plan
-                editado se ve como está hoy, y uno apagado sale sin enlace. */}
-            {planesQueSeVen.length > 0 ? (
-                <section data-planes-de-la-propuesta className="mt-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-                    <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <PlayCircle className="h-4 w-4 text-slate-500" />
-                        {planesQueSeVen.length === 1 ? "Conoce el plan" : "Conoce los planes"}
-                    </h2>
-                    <div className="mt-3 space-y-6">
-                        {planesQueSeVen.map((plan) => (
-                            <div key={plan.llave} data-plan-de-la-propuesta={plan.llave} className="space-y-3">
-                                <p className="break-words text-sm font-semibold text-slate-900">{plan.nombre}</p>
-                                {plan.video ? (
-                                    <div data-video-del-plan className={TOPE_DE_LECTURA}>
-                                        <VideoDelPlan video={plan.video} />
-                                    </div>
-                                ) : null}
-                                {plan.enlace ? (
-                                    <a
-                                        href={plan.enlace}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        data-enlace-del-plan
-                                        className="group flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 transition-colors hover:bg-blue-100"
-                                    >
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block text-sm font-semibold text-blue-700">{elRotuloDelEnlaceDelPlan(plan.nombre)}</span>
-                                            <span className="mt-0.5 block break-all text-xs text-blue-600/80">{elTextoDelEnlace(plan.enlace)}</span>
-                                        </span>
-                                        <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                                    </a>
-                                ) : null}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            ) : null}
-
-            <footer className="mt-10 flex items-center justify-center gap-1.5 text-center text-xs text-slate-400">
+            <footer className="mt-10 flex items-center justify-center gap-1.5 text-center text-xs text-plan-tenue">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Propuesta preparada por {negocio.nombre || "el equipo"}
             </footer>
