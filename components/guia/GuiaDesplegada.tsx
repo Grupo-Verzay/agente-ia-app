@@ -41,19 +41,26 @@ export function GuiaDesplegada({
     modulo,
     id,
     alVerElVideo,
+    sinSalidas = false,
+    tema: temaPedido,
 }: {
     modulo: string;
     /** El `id` del recuadro, para el `aria-controls` del botón que la abre. */
     id?: string;
     /** «Ir al vídeo» baja al video de la función, sin tocar el ancla. */
     alVerElVideo?: () => void;
+    /** Dentro de una propuesta: nada de la guía abre otra pestaña. */
+    sinSalidas?: boolean;
+    /** Dentro de una propuesta: el tema del DISPOSITIVO, no el de la App. */
+    tema?: "dispositivo";
 }) {
     const [estado, setEstado] = useState<Estado>(null);
     const [intento, setIntento] = useState(0);
     const [seccion, setSeccion] = useState<string | null>(null);
     const caja = useRef<HTMLDivElement>(null);
     const seccionVista = useRef<string | null>(null);
-    const tema = elTemaDeLaGuiaDesplegada(useTheme().resolvedTheme);
+    const temaDeLaApp = elTemaDeLaGuiaDesplegada(useTheme().resolvedTheme);
+    const tema = temaPedido ?? temaDeLaApp;
 
     useEffect(() => {
         let vivo = true;
@@ -89,20 +96,20 @@ export function GuiaDesplegada({
     return (
         <div ref={caja} id={id} className="scroll-mt-20" data-guia-desplegada={modulo} data-seccion-abierta={laSeccion?.slug ?? ""}>
             {!cargada ? (
-                <div className="flex items-center justify-center gap-2 rounded-xl bg-white/[0.03] py-10 text-sm text-slate-400" data-guia-cargando>
+                <div className="flex items-center justify-center gap-2 rounded-xl bg-plan-tinta/[0.03] py-10 text-sm text-plan-suave" data-guia-cargando>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     Cargando la guía…
                 </div>
             ) : !publica ? (
-                <div className="flex flex-col items-center gap-3 rounded-xl bg-white/[0.03] py-10 text-center" data-guia-sin-cargar>
-                    <p className="text-sm font-medium text-white">
+                <div className="flex flex-col items-center gap-3 rounded-xl bg-plan-tinta/[0.03] py-10 text-center" data-guia-sin-cargar>
+                    <p className="text-sm font-medium text-plan-tinta">
                         {cargada.fallo ? "No se pudo cargar la guía." : "Esta guía ya no está publicada."}
                     </p>
                     {cargada.fallo ? (
                         <button
                             type="button"
                             onClick={() => setIntento((n) => n + 1)}
-                            className="rounded-md border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                            className="rounded-md border border-plan-tinta/20 px-3 py-1.5 text-sm text-plan-tinta hover:bg-plan-tinta/10"
                         >
                             Reintentar
                         </button>
@@ -117,6 +124,7 @@ export function GuiaDesplegada({
                             secciones={publica.secciones}
                             seccion={laSeccion}
                             alAbrir={setSeccion}
+                            sinSalidas={sinSalidas}
                         />
                     ) : (
                         <div className={`${CONTENEDOR_DEL_INDICE} pb-6`}>
@@ -132,6 +140,7 @@ export function GuiaDesplegada({
                                     contactoHref={publica.contactoHref}
                                     videoHref="#"
                                     alAbrirSeccion={setSeccion}
+                                    sinSalidas={sinSalidas}
                                     alVerElVideo={alVerElVideo ?? (() => caja.current?.scrollIntoView({ block: "start", behavior: "smooth" }))}
                                 />
                             </section>

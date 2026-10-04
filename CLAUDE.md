@@ -26160,17 +26160,41 @@ cambie y la nueva sí, plan apagado, un cliente) y la página pública pintada c
 React (video y enlace al final). `MODO=roto` lee `0764700` y afirma que no
 existía nada de esto.
 
-### La cabecera: solo el logo y el eslogan, a la misma altura
+### La cabecera va DENTRO de la tarjeta azul
 
-La cabecera lleva **el logo a la izquierda y el eslogan de la cuenta a la
-derecha, y nada más**: ni el nombre de la cuenta ni el rótulo «Propuesta
-comercial» debajo del logo, en ninguna anchura —la página entera ya es la
-propuesta—. Van `items-center` (centro del logo = centro del eslogan) y el
-eslogan en `font-bold` con `ESLOGAN_DE_LA_PROPUESTA`: 16 px en el teléfono, 18
-en tableta y 20 en escritorio. Iba a 14, más pequeño que cualquier otro texto
-de la página. Lo prueba `scripts/banco-cabecera-de-la-propuesta.sh` en Chromium
-(con y sin imagen, eslogan corto y largo, 390/768/1024/1440); `MODO=roto` monta
-el de `153f64f` y afirma el rótulo y los 14 px.
+No hay cabecera aparte encima de la tarjeta: **el logo va arriba a la derecha
+de la tarjeta azul y el eslogan de la cuenta abajo a la derecha**
+(`data-hero-arriba`, `data-hero-abajo`), en negrilla con
+`ESLOGAN_DE_LA_PROPUESTA` (16/18/20 px). Ni el nombre de la cuenta ni
+«Propuesta comercial» en ninguna parte. Sin eslogan no se pinta nada. Lo
+prueba `scripts/banco-cabecera-de-la-propuesta.sh` (con y sin imagen, eslogan
+corto, largo y vacío, 390/768/1024/1440); `MODO=roto` monta el de `153f64f`.
+
+### El plan va ENTERO dentro de su servicio, y la página sigue el tema del dispositivo
+
+> **Esta sección manda sobre la de arriba** en dónde va el plan: ya no es un
+> video y un enlace al final.
+
+1. **Un plan cuyo nombre es el de un servicio de la lista se pinta DENTRO de
+   esa fila** (`losPlanesDeCadaServicio`, por nombre normalizado): su video, sus
+   recuadros de capacidad, sus funciones con su acordeón, su precio
+   (`elTextoDelPrecioDelPlan`) y su botón «Comenzar con el plan X». Los que no
+   casan con ningún servicio van en «Conoce el plan», también enteros. Son las
+   MISMAS piezas que la página del plan (`PlanEnLaPropuesta`).
+2. **Nada saca al cliente de la propuesta**: la guía de una función se
+   despliega dentro (`GuiaDesplegada` con `sinSalidas`: sin tarjeta de contacto
+   ni enlaces de salida) y **solo el botón del plan abre otra pestaña**, con
+   `noopener`.
+3. **La página sigue el modo claro u oscuro del teléfono del cliente**:
+   `data-tema-del-plan="dispositivo"` en el `<main>` y en el `article`, y los
+   tokens `--plan-*` de `app/globals.css` cambian con
+   `prefers-color-scheme`. La guía va con `tema="dispositivo"`. Nada de colores
+   `slate-*`/`white` escritos a mano en la propuesta.
+
+Lo prueba `scripts/banco-propuesta-con-plan-dentro.sh` en Chromium (dónde va
+cada plan, la guía sin salidas, el tema claro y oscuro medido y el ancho a
+390/768/1024/1440); `MODO=roto` monta la de `94fcc3c` y afirma la cabecera
+aparte, el plan suelto con su enlace y el fondo que no cambia.
 
 ### El ancho: crece en escritorio por escalones, y el párrafo se topa
 

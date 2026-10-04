@@ -49,13 +49,16 @@ export default async function PaginaDePropuesta({ params }: { params: Promise<{ 
 
     if (!propuesta) {
         return (
-            <main className={`flex items-center justify-center bg-slate-50 px-4 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
-                <div className="w-full max-w-sm space-y-3 rounded-2xl border bg-white p-6 text-center shadow-sm">
-                    <FileText className="mx-auto h-10 w-10 text-slate-400" />
-                    <p className="text-base font-semibold text-slate-900">Esta propuesta no está disponible</p>
+            <main
+                data-tema-del-plan="dispositivo"
+                className={`flex items-center justify-center bg-plan-fondo px-4 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}
+            >
+                <div className="w-full max-w-sm space-y-3 rounded-2xl border border-plan-borde bg-plan-superficie p-6 text-center shadow-sm">
+                    <FileText className="mx-auto h-10 w-10 text-plan-tenue" />
+                    <p className="text-base font-semibold text-plan-tinta">Esta propuesta no está disponible</p>
                     {/* No se dice si existió ni de quién era: quien tiene el
                         enlace puede ser cualquiera. */}
-                    <p className="text-sm text-slate-500">Pídele a quien te la envió un enlace nuevo.</p>
+                    <p className="text-sm text-plan-tenue">Pídele a quien te la envió un enlace nuevo.</p>
                 </div>
             </main>
         );
@@ -68,7 +71,9 @@ export default async function PaginaDePropuesta({ params }: { params: Promise<{ 
         : [];
 
     return (
-        <main className={`bg-slate-50 ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
+        // El fondo sigue el modo claro u oscuro del DISPOSITIVO del cliente
+        // (`data-tema-del-plan="dispositivo"`), como la tarjeta y los planes.
+        <main data-tema-del-plan="dispositivo" className={`bg-plan-fondo ${PANTALLA_PUBLICA_QUE_SE_DESPLAZA}`}>
             <PropuestaPublica propuesta={propuesta} planes={planes} />
         </main>
     );

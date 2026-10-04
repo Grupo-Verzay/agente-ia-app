@@ -117,7 +117,16 @@ createRoot(document.getElementById("app")!).render(
 );
 (window as any).listo = true;
 TSX
+# La propuesta lleva dentro las piezas de la página del plan (y su guía), que
+# traen módulos del servidor: se cambian por los fingidos de siempre.
+F=lib/__tests__/fingido
 npx esbuild "$ENTRY" --bundle --format=iife --outfile="$HARNESS" \
-  --jsx=automatic --define:process.env.NODE_ENV=\"production\" --log-level=error
+  --jsx=automatic --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
+  --alias:next/link=./$F/next-link-ssr.tsx \
+  --alias:next/navigation=./$F/guia-tema/next-navigation.ts \
+  --alias:@/lib/introduccion-publica.server=./$F/guia-tema/introduccion-publica.ts \
+  --alias:@/lib/contacto-de-la-guia.server=./$F/guia-tema/contacto-de-la-guia.ts \
+  --alias:@/actions/guia-publica-actions=./$F/guia-tema/guia-publica-actions.ts \
+  --log-level=error
 
 node --test lib/__tests__/propuestas.test.mjs "$@"

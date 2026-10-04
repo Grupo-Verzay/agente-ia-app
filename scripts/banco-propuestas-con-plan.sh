@@ -67,9 +67,17 @@ npx esbuild lib/__tests__/fingido/entrada-de-propuestas-con-plan.ts --bundle \
 sed -i '/server-only/d' "$OUT/entrada-de-propuestas-con-plan.js"
 
 # 3. La página pública, con el React de verdad (sin el `cache` fingido).
+#    La propuesta lleva dentro las piezas de la página del plan (y su guía),
+#    que traen módulos del servidor: se cambian por los fingidos de siempre.
+F=lib/__tests__/fingido
 npx esbuild lib/__tests__/fingido/entrada-de-la-propuesta-publica.tsx --bundle \
   --platform=node --format=esm --outdir=$OUT --jsx=automatic \
   --define:process.env.NODE_ENV=\"production\" --log-level=error \
+  --alias:next/link=./$F/next-link-ssr.tsx \
+  --alias:next/navigation=./$F/guia-tema/next-navigation.ts \
+  --alias:@/lib/introduccion-publica.server=./$F/guia-tema/introduccion-publica.ts \
+  --alias:@/lib/contacto-de-la-guia.server=./$F/guia-tema/contacto-de-la-guia.ts \
+  --alias:@/actions/guia-publica-actions=./$F/guia-tema/guia-publica-actions.ts \
   --banner:js='import{createRequire as __cr}from "module";import{fileURLToPath as __fu}from "url";import{dirname as __dn}from "path";const require=__cr(import.meta.url);const __filename=__fu(import.meta.url);const __dirname=__dn(__filename);'
 
 node --test lib/__tests__/propuestas-con-plan.test.mjs "$@"

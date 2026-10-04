@@ -76,7 +76,7 @@ import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
  */
 
 /** Solo el color: es estilo, no texto. */
-const COLOR_DEL_PLAN: Record<string, string> = {
+export const COLOR_DEL_PLAN: Record<string, string> = {
   lite: "from-slate-500 to-slate-600",
   basico: "from-emerald-500 to-emerald-600",
   intermedio: "from-blue-500 to-blue-600",
@@ -120,7 +120,7 @@ function Enlace({
  * página y tiene que leerse igual en cualquiera (el color del plan queda para
  * el marco del video). Su texto lo pone `elTextoDelBotonDelPlan`.
  */
-const VERDE_DEL_BOTON = "bg-emerald-600 hover:bg-emerald-500";
+export const VERDE_DEL_BOTON = "bg-emerald-600 hover:bg-emerald-500";
 
 function BotonPrincipal({ boton }: { boton: BotonDelPlan }) {
   return (
@@ -148,7 +148,7 @@ function BotonSecundario({ boton }: { boton: BotonDelPlan }) {
  * color del plan, un fondo más claro que la página y una fila arriba con el
  * icono de reproducir y el título. El video va dentro, sin borde propio.
  */
-function MarcoDelVideo({
+export function MarcoDelVideo({
   titulo,
   gradiente,
   children,
@@ -159,12 +159,12 @@ function MarcoDelVideo({
 }) {
   return (
     <div className={cn("rounded-2xl bg-gradient-to-br p-px shadow-2xl shadow-black/60", gradiente)} data-marco-del-video>
-      <div className="rounded-[15px] bg-slate-800/95 p-2 sm:p-3">
+      <div className="rounded-[15px] bg-plan-marco/95 p-2 sm:p-3">
         <div className="flex items-center gap-2.5 px-1 pb-2 sm:pb-3" data-cabecera-del-video>
           <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br", gradiente)}>
             <Play className="h-3.5 w-3.5 fill-white text-white" />
           </span>
-          <span className="min-w-0 text-sm font-semibold leading-snug text-white">{titulo}</span>
+          <span className="min-w-0 text-sm font-semibold leading-snug text-plan-tinta">{titulo}</span>
         </div>
         {children}
       </div>
@@ -178,10 +178,10 @@ function MarcoDelVideo({
  * `slate-400` suelto sobre el fondo casi negro y casi no se distinguía: ahora
  * es blanca, dentro de un círculo claro, y gira al abrirse.
  */
-function FlechaDelDesplegable({ abierto }: { abierto: boolean }) {
+export function FlechaDelDesplegable({ abierto }: { abierto: boolean }) {
   return (
     <span
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-plan-tinta/15 text-plan-tinta"
       aria-hidden
       data-flecha-del-desplegable={abierto ? "abierta" : "cerrada"}
     >
@@ -198,18 +198,18 @@ function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
   return (
     <div className="space-y-2">
       {preguntas.map((p, i) => (
-        <div key={i} className="overflow-hidden rounded-lg border border-white/10" data-pregunta>
+        <div key={i} className="overflow-hidden rounded-lg border border-plan-tinta/10" data-pregunta>
           <button
             type="button"
             onClick={() => setAbierta(abierta === i ? null : i)}
             aria-expanded={abierta === i}
-            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-medium text-white hover:bg-white/5"
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-medium text-plan-tinta hover:bg-plan-tinta/5"
           >
             {p.question}
             <FlechaDelDesplegable abierto={abierta === i} />
           </button>
           {abierta === i && (
-            <div className="whitespace-pre-line border-t border-white/10 px-5 pb-4 pt-3 text-sm leading-relaxed text-slate-400">
+            <div className="whitespace-pre-line border-t border-plan-tinta/10 px-5 pb-4 pt-3 text-sm leading-relaxed text-plan-suave">
               {p.answer}
             </div>
           )}
@@ -247,7 +247,16 @@ const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
  *
  * Ningún texto nombra la guía: varias funciones comparten la misma.
  */
-function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncion; nombre: string }) {
+function TutorialEnLaPagina({
+  tutorial,
+  nombre,
+  enLaPropuesta = false,
+}: {
+  tutorial: TutorialDeLaFuncion;
+  nombre: string;
+  /** Dentro de una propuesta: nada sale a otra página y la guía sigue el tema del dispositivo. */
+  enLaPropuesta?: boolean;
+}) {
   const [guiaAbierta, setGuiaAbierta] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLDivElement>(null);
@@ -284,7 +293,7 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
       href={tutorial.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-plan-acento hover:text-plan-acento-fuerte"
       data-abrir-tutorial={tutorial.url}
     >
       {tutorial.video ? "Abrir en otra pestaña" : tutorial.titulo}
@@ -296,8 +305,8 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
   // como la cabecera de la función («nombre» … «Ver tutorial»).
   const filaDeLaGuia = tutorial.modulo ? (
     <div className="flex items-center justify-between gap-3" data-fila-de-la-guia>
-      <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white" data-titulo-de-la-guia>
-        <BookOpen className="h-4 w-4 shrink-0 text-blue-400" />
+      <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-plan-tinta" data-titulo-de-la-guia>
+        <BookOpen className="h-4 w-4 shrink-0 text-plan-acento" />
         Guía paso a paso
       </span>
       <button
@@ -305,7 +314,7 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
         onClick={() => setGuiaAbierta((v) => !v)}
         aria-expanded={guiaAbierta}
         aria-controls={idDeLaGuia}
-        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-blue-400 hover:text-blue-300"
+        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-plan-acento hover:text-plan-acento-fuerte"
         data-ver-la-guia={tutorial.modulo}
       >
         {guiaAbierta ? "Ocultar guía" : "Ver guía"}
@@ -348,9 +357,15 @@ function TutorialEnLaPagina({ tutorial, nombre }: { tutorial: TutorialDeLaFuncio
           {reproductor}
         </div>
       )}
-      {filaDeLaGuia ?? abrirFuera}
+      {filaDeLaGuia ?? (enLaPropuesta ? null : abrirFuera)}
       {tutorial.modulo && guiaAbierta && (
-        <GuiaDesplegada modulo={tutorial.modulo} id={idDeLaGuia} alVerElVideo={irAlVideo} />
+        <GuiaDesplegada
+          modulo={tutorial.modulo}
+          id={idDeLaGuia}
+          alVerElVideo={irAlVideo}
+          sinSalidas={enLaPropuesta}
+          tema={enLaPropuesta ? "dispositivo" : undefined}
+        />
       )}
     </div>
   );
@@ -395,12 +410,14 @@ function QueIncluye({
   todas,
   abierta,
   alAbrir,
+  enLaPropuesta = false,
 }: {
   id: string;
   funciones: FuncionQueSeEnsena[];
   todas: boolean;
   abierta: string | null;
   alAbrir: (id: string | null) => void;
+  enLaPropuesta?: boolean;
 }) {
   const prefijo = useId();
   return (
@@ -411,15 +428,15 @@ function QueIncluye({
         const idDelCuerpo = `${prefijo}-funcion-${i}`;
         const cabeza = (
           <>
-            <Check className="h-5 w-5 shrink-0 text-emerald-400" />
+            <Check className="h-5 w-5 shrink-0 text-plan-check" />
             {/* El nombre y su tutorial en la MISMA fila: el tutorial pegado a la derecha. */}
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3" data-fila-de-la-funcion>
-              <span className="min-w-0 flex-1 text-base font-medium text-white" data-nombre-de-la-funcion>
+              <span className="min-w-0 flex-1 text-base font-medium text-plan-tinta" data-nombre-de-la-funcion>
                 {f.nombre}
               </span>
               {f.tutorial && (
                 <span
-                  className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-blue-400"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-plan-acento"
                   data-tutorial={f.tutorial.url}
                 >
                   <PlayCircle className="h-3.5 w-3.5 shrink-0" />
@@ -432,7 +449,7 @@ function QueIncluye({
         return (
           <li
             key={f.id}
-            className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
+            className="overflow-hidden rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03]"
             hidden={!seVeLaFuncion(f, todas)}
             data-funcion={f.id}
             data-destacada={f.destacada ? "si" : "no"}
@@ -444,7 +461,7 @@ function QueIncluye({
                 onClick={() => alAbrir(estaAbierta ? null : f.id)}
                 aria-expanded={estaAbierta}
                 aria-controls={idDelCuerpo}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/5"
+                className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-plan-tinta/5"
                 data-cabeza-de-la-funcion
               >
                 {cabeza}
@@ -458,13 +475,13 @@ function QueIncluye({
               </div>
             )}
             {estaAbierta && (
-              <div id={idDelCuerpo} className="space-y-4 border-t border-white/10 px-5 pb-5 pt-4" data-cuerpo-de-la-funcion>
+              <div id={idDelCuerpo} className="space-y-4 border-t border-plan-tinta/10 px-5 pb-5 pt-4" data-cuerpo-de-la-funcion>
                 {f.descripcion && (
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-slate-400" data-descripcion-de-la-funcion>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-plan-suave" data-descripcion-de-la-funcion>
                     {f.descripcion}
                   </p>
                 )}
-                {f.tutorial && <TutorialEnLaPagina tutorial={f.tutorial} nombre={f.nombre} />}
+                {f.tutorial && <TutorialEnLaPagina tutorial={f.tutorial} nombre={f.nombre} enLaPropuesta={enLaPropuesta} />}
               </div>
             )}
           </li>
@@ -483,7 +500,14 @@ function QueIncluye({
  * el resto pegado detrás. Si todas son destacadas no hay botón; si no hay
  * ninguna, el botón las despliega todas.
  */
-function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
+export function BloqueQueIncluye({
+  funciones,
+  enLaPropuesta = false,
+}: {
+  funciones: FuncionQueSeEnsena[];
+  /** Dentro de una propuesta (`PlanEnLaPropuesta`). */
+  enLaPropuesta?: boolean;
+}) {
   const { deEntrada, resto } = elRepartoDeLasFunciones(funciones);
   const [todas, setTodas] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -503,13 +527,13 @@ function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
     <div data-que-incluye={resto.length === 0 || todas ? "todas" : "destacadas"}>
       <div className="mb-8 text-center">
         <h2 className="text-2xl font-bold sm:text-3xl" data-titulo-del-bloque>Qué incluye este plan</h2>
-        <p className="mt-2 text-sm text-slate-400" data-cuantas-funciones>
+        <p className="mt-2 text-sm text-plan-suave" data-cuantas-funciones>
           {funciones.length === 1 ? "1 función" : `${funciones.length} funciones`}
         </p>
       </div>
       {/* Sin ninguna destacada no hay nada que enseñar de entrada: la lista
           entera está escondida y la abre el botón. */}
-      <QueIncluye id={idDeLaLista} funciones={funciones} todas={todas} abierta={abierta} alAbrir={setAbierta} />
+      <QueIncluye enLaPropuesta={enLaPropuesta} id={idDeLaLista} funciones={funciones} todas={todas} abierta={abierta} alAbrir={setAbierta} />
       {resto.length > 0 && (
         <div className="mt-6 flex justify-center">
           <button
@@ -521,7 +545,7 @@ function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
             }}
             aria-expanded={todas}
             aria-controls={idDeLaLista}
-            className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/[0.04] py-2 pl-5 pr-2 text-sm font-medium text-white hover:bg-white/10"
+            className="inline-flex items-center gap-3 rounded-full border border-plan-tinta/15 bg-plan-tinta/[0.04] py-2 pl-5 pr-2 text-sm font-medium text-plan-tinta hover:bg-plan-tinta/10"
             data-ver-todas-las-funciones
           >
             {todas ? "Ver menos funciones" : "Ver todas las funciones"}
@@ -539,7 +563,40 @@ function BloqueQueIncluye({ funciones }: { funciones: FuncionQueSeEnsena[] }) {
  * Uno solo ocupa el ancho del bloque, como todos: nada más angosto.
  * Clases literales: Tailwind no ve las compuestas.
  */
-const COLUMNAS_DE_CAPACIDAD: Record<number, string> = {
+/**
+ * Los recuadros de capacidad (créditos, catálogo, asistencia…). Los pinta la
+ * página del plan y, tal cual, la propuesta que lleva ese plan dentro.
+ */
+export function RecuadrosDeCapacidad({ capacidad }: { capacidad: PaginaDelPlan["capacidad"] }) {
+  return (
+    <>
+    {capacidad.map((t) => {
+      const Icono = elDibujoDelRecuadro(t.icono);
+      return (
+        <div
+          key={t.id}
+          className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5"
+          data-capacidad={t.id}
+          data-icono={t.icono}
+        >
+          {t.titulo && (
+            <div className="flex items-center gap-2 text-sm font-medium text-plan-suave">
+              <Icono className="h-4 w-4 shrink-0" /> {t.titulo}
+            </div>
+          )}
+          <div className={cn("text-2xl font-bold text-plan-tinta", t.titulo ? "mt-2" : "flex items-center gap-2")}>
+            {!t.titulo && <Icono className="h-5 w-5 shrink-0 text-plan-suave" />}
+            {t.valor}
+          </div>
+          {t.detalle && <p className="mt-1 text-sm text-plan-suave">{t.detalle}</p>}
+        </div>
+      );
+    })}
+    </>
+  );
+}
+
+export const COLUMNAS_DE_CAPACIDAD: Record<number, string> = {
   1: "grid-cols-1",
   2: "sm:grid-cols-2",
   3: "sm:grid-cols-3",
@@ -601,28 +658,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
               className={cn(ANCHO_DE_LA_LANDING, "grid gap-4", COLUMNAS_DE_CAPACIDAD[pagina.capacidad.length] ?? "sm:grid-cols-3")}
               data-ancho-del-bloque
             >
-              {pagina.capacidad.map((t) => {
-                const Icono = elDibujoDelRecuadro(t.icono);
-                return (
-                  <div
-                    key={t.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
-                    data-capacidad={t.id}
-                    data-icono={t.icono}
-                  >
-                    {t.titulo && (
-                      <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-                        <Icono className="h-4 w-4 shrink-0" /> {t.titulo}
-                      </div>
-                    )}
-                    <div className={cn("text-2xl font-bold text-white", t.titulo ? "mt-2" : "flex items-center gap-2")}>
-                      {!t.titulo && <Icono className="h-5 w-5 shrink-0 text-slate-400" />}
-                      {t.valor}
-                    </div>
-                    {t.detalle && <p className="mt-1 text-sm text-slate-400">{t.detalle}</p>}
-                  </div>
-                );
-              })}
+              <RecuadrosDeCapacidad capacidad={pagina.capacidad} />
             </div>
           </section>
         ) : null;

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# La CABECERA de la página pública de una propuesta: SOLO el logo a la
-# izquierda y el eslogan de la cuenta a la derecha, a la MISMA altura (centros
-# alineados), el eslogan en negrilla y con letra que crece con la pantalla
-# (16/18/20 px). Nada de «Propuesta comercial» debajo del logo.
+# La CABECERA de la página pública de una propuesta va DENTRO de la tarjeta
+# azul: el logo arriba a la derecha y el eslogan de la cuenta abajo a la
+# derecha, en negrilla y con letra que crece con la pantalla (16/18/20 px).
+# Nada de «Propuesta comercial» en ninguna parte, y nada de cabecera aparte.
 #
-# Antes (ANTES_REF) el logo llevaba ese rótulo debajo y el eslogan iba a 14 px,
-# más pequeño que cualquier otro texto de la página. Monta el componente REAL
-# sobre el CSS del build en Chromium, con logo de iniciales y con imagen, eslogan
-# corto y largo, a 390/768/1024/1440. `MODO=roto` monta el de ANTES_REF
+# Antes (ANTES_REF) había una cabecera encima de la tarjeta, con el rótulo
+# debajo del logo y el eslogan a 14 px. Monta el componente REAL sobre el CSS
+# del build en Chromium, con logo de iniciales y con imagen, eslogan corto,
+# largo y vacío, a 390/768/1024/1440. `MODO=roto` monta el de ANTES_REF
 # (pinchado a un commit, nunca `origin/main`) y afirma el rótulo y los 14 px.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -60,7 +60,16 @@ createRoot(document.getElementById("app")!).render(
 );
 (window as any).listo = true;
 TSX
+# La propuesta lleva dentro las piezas de la página del plan (y su guía), que
+# traen módulos del servidor: se cambian por los fingidos de siempre.
+F=lib/__tests__/fingido
 npx esbuild "$ENTRY" --bundle --format=iife --outfile=lib/__tests__/.compilado/harness-cabecera-propuesta.js \
-  --jsx=automatic --define:process.env.NODE_ENV=\"production\" --log-level=error
+  --jsx=automatic --define:process.env.NODE_ENV=\"production\" --define:process.env='{}' \
+  --alias:next/link=./$F/next-link-ssr.tsx \
+  --alias:next/navigation=./$F/guia-tema/next-navigation.ts \
+  --alias:@/lib/introduccion-publica.server=./$F/guia-tema/introduccion-publica.ts \
+  --alias:@/lib/contacto-de-la-guia.server=./$F/guia-tema/contacto-de-la-guia.ts \
+  --alias:@/actions/guia-publica-actions=./$F/guia-tema/guia-publica-actions.ts \
+  --log-level=error
 
 node --test lib/__tests__/cabecera-de-la-propuesta.test.mjs "$@"

@@ -1,16 +1,19 @@
 import "server-only";
 
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { db } from "@/lib/db";
 import { elEnlaceDeLaPaginaDelPlan } from "@/lib/enlaces-de-planes";
 import { conLosNombresVigentes } from "@/lib/nombre-del-nivel.server";
 import {
     comoImagenDelPlan,
     elNombreDelPlan,
+    elPrecioQueSeEnsena,
     elTituloDelVideo,
     elVideoDelPlan,
     laCapacidadDelPlan,
     lasFuncionesDelPlan,
     lasFuncionesQueSeEnsenan,
+    losBotonesDelPlan,
     losDatosDelPlan,
 } from "@/lib/pagina-de-plan";
 import {
@@ -134,7 +137,10 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
     }
 }
 
-/** Lo que la página pública de una propuesta enseña de cada plan: su video y su enlace. */
+/**
+ * Lo que la página pública de una propuesta enseña de cada plan: su video, sus
+ * recuadros, «Qué incluye» y el precio con su botón, leídos como su página.
+ */
 export type { PlanDeLaPropuesta };
 
 export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen: string): Promise<PlanDeLaPropuesta[]> {
@@ -150,16 +156,31 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
             .filter((x): x is { ref: RefDePlan; fila: (typeof planes)[number] } => Boolean(x.fila));
         if (filas.length === 0) return [];
 
-        const detalles = await db.planDetail
-            .findMany({
-                where: { subscriptionPlanId: { in: filas.map((x) => x.fila.id) } },
-                select: { subscriptionPlanId: true, videoUrl: true, videoTitle: true, videoThumbnailUrl: true },
-            })
-            .catch((e) => {
-                console.error("[propuestas] no se pudo leer el video de los planes de la propuesta", e);
+        const ids = filas.map((x) => x.fila.id);
+        const [detalles, guardadas, paginas, sitio] = await Promise.all([
+            db.planDetail.findMany({ where: { subscriptionPlanId: { in: ids } } }).catch((e) => {
+                console.error("[propuestas] no se pudo leer el detalle de los planes de la propuesta; salen sin video", e);
                 return [];
-            });
+            }),
+            lasFuncionesGuardadas(ids).catch((e) => {
+                console.error("[propuestas] no se pudieron leer las funciones guardadas de los planes; se deducen", e);
+                return new Map<string, unknown>();
+            }),
+            Promise.all(
+                ids.map((id) =>
+                    laPaginaGuardada(id).catch((e) => {
+                        console.error("[propuestas] no se pudieron leer los recuadros del plan; salen los de fábrica", { plan: id, e });
+                        return null;
+                    }),
+                ),
+            ),
+            getSiteConfig().catch((e) => {
+                console.error("[propuestas] no se pudo leer la configuración del sitio; el botón sale con el registro", e);
+                return {} as { whatsappNumber?: string | null };
+            }),
+        ]);
         const porPlan = new Map(detalles.map((d) => [d.subscriptionPlanId, d]));
+        const paginaDe = new Map(ids.map((id, i) => [id, paginas[i]]));
 
         return filas.map(({ ref, fila }) => {
             const datos = losDatosDelPlan(fila, nombres);
@@ -172,10 +193,21 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
                     ? { ...video, titulo: elTituloDelVideo(detalle?.videoTitle, datos), miniatura: comoImagenDelPlan(detalle?.videoThumbnailUrl) }
                     : null,
                 enlace: fila.isActive ? `${origen}${elEnlaceDeLaPaginaDelPlan(ref.nivel, ref.asistencia)}` : null,
+                plan: fila.plan,
+                tipo: ref.asistencia,
+                activo: fila.isActive,
+                capacidad: laCapacidadDelPlan(datos, paginaDe.get(fila.id)?.recuadros),
+                funciones: lasFuncionesQueSeEnsenan(
+                    lasFuncionesDelPlan(fila.features ?? [], guardadas.get(fila.id)),
+                    datos,
+                    GUIAS_QUE_SE_ENSENAN,
+                ),
+                precio: elPrecioQueSeEnsena(datos),
+                boton: fila.isActive ? losBotonesDelPlan(detalle ?? null, datos, sitio).principal : null,
             };
         });
     } catch (e) {
-        console.error("[propuestas] no se pudieron leer los planes de la propuesta; sale sin video ni enlace", e);
+        console.error("[propuestas] no se pudieron leer los planes de la propuesta; sale sin ellos", e);
         return [];
     }
 }
