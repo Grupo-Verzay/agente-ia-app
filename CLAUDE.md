@@ -26913,6 +26913,51 @@ quedan el video y la guía antes y después, con la guía tardando en cargar.
 fallos: el orden con las destacadas primero y el video que desaparece. Los
 bancos de las dos secciones de arriba se ajustaron a esto.
 
+## La propuesta pública: el precio dos veces, la cuadrícula sin huecos, sin la guía del Agente IA, y el video se compacta
+
+> **Esta sección manda sobre la de arriba** en qué pasa con el video al abrir la
+> guía: se queda, pero se COMPACTA. Y sobre *El plan va ENTERO dentro de su
+> servicio* en dónde va el precio.
+
+Cuatro fallos de `/propuesta/<token>`, reportados juntos:
+
+| lo que se veía | la causa | ahora |
+| --- | --- | --- |
+| el precio salía cuatro veces: «Inversión total», junto al nombre del servicio, junto al botón del plan y en un «Total» al final | la fila del servicio pintaba su importe aunque el plan ya trajera el suyo, y el «Total» de abajo repetía el de arriba | **dos**: «Inversión total» arriba y el precio del plan junto a «Comenzar con el plan». Un servicio que NO es un plan conserva su importe en su fila (`data-precio-del-servicio`) |
+| la cuadrícula de secciones de la guía desplegada dejaba un hueco | con `sinSalidas` se escondía «Contáctanos» y nadie ocupaba su sitio | «Ver el vídeo de nuevo» lo ocupa: `lasClasesDelCierre(n, { conContacto: false })` (`lib/cierre-de-la-guia.ts`), la MISMA regla de la guía de la plataforma |
+| salía la guía del Agente IA («Entrena al asistente que atiende a tus clientes») | la propuesta usaba todas las guías publicadas | `GUIAS_FUERA_DE_LA_PROPUESTA` (`lib/plan-de-la-propuesta.ts`) la deja fuera: la función sale con su nombre y su descripción, sin «Ver guía» ni video |
+| «Ver guía» no compactaba el video | `TutorialEnLaPagina` lo dejaba a todo el ancho | `VIDEO_COMPACTO` (`max-w-[14rem] sm:max-w-sm`) con la guía abierta y `data-video-compacto`; al ocultarla vuelve a su tamaño |
+
+Cinco cosas que hay que mantener:
+
+1. **El «Total» de abajo no vuelve**: el total va UNA vez, arriba. Lo que se
+   quita de la fila es solo el importe de un servicio CON plan que trae precio.
+2. **Sin contacto, el vídeo ocupa todo lo que aquel ocupaba**: una tarjeta más
+   en un teléfono, una fila entera si la última está llena, y si no, todos los
+   huecos. `lasFilasQuedanLlenas` lo comprueba con las dos opciones.
+3. **La guía del Agente IA solo sale de la PROPUESTA**: la página pública del
+   plan y «Cargar plan» siguen con todas las guías (`GUIAS_QUE_SE_ENSENAN`).
+   Una guía más que sea para quien ya compró entra en esa lista.
+4. **La compactación vive en `TutorialEnLaPagina`, compartido**: la página del
+   plan y la propuesta hacen exactamente lo mismo. Va sin transición y con el
+   borde de arriba del video quieto, así que abrir la guía sigue sin mover la
+   página (la regla de `cuantoBajarParaVerLaGuia` no cambia).
+5. **El precio junto al botón es `data-precio-del-plan`** dentro de
+   `data-comenzar-el-plan`, el de `PlanEnLaPropuesta`.
+
+Lo prueba `scripts/banco-propuesta-sin-repeticiones.sh` (hace falta el build):
+la propuesta REAL en Chromium sobre el CSS del build, a 1440, 768 y 390 —el
+importe una sola vez arriba y el precio junto al botón, un servicio sin plan con
+su importe, la cuadrícula sin huecos y con el vídeo en el cierre, la función del
+Agente IA sin su guía y las demás con la suya, y el video que se compacta y
+vuelve—. `MODO=roto` empaqueta lo mismo contra `cbc47f6` y afirma los cuatro
+fallos.
+
+Y `banco-plan-orden-y-guia-sin-saltos` se ajustó a la compactación: cuando el
+video al encogerse ya sube la guía a la vista, no bajar es lo correcto; lo que
+exige es que el borde de arriba del video no se mueva y que en alguna anchura
+(390) se siga ejerciendo el bajar a verla.
+
 ## Cómo reportar al terminar
 
 Carlos no es programador. Al terminar una tarea, repórtale en dos líneas

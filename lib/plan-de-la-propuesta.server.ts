@@ -19,6 +19,7 @@ import {
 import {
     comoRefDePlan,
     laLlaveDelPlan,
+    lasGuiasDeLaPropuesta,
     ordenarPlanesParaElegir,
     type PlanDeLaPropuesta,
     type PlanParaCargar,
@@ -44,6 +45,12 @@ import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 
 /** Las mismas guías que la página pública del plan: decide qué funciones se enseñan. */
 const GUIAS_QUE_SE_ENSENAN: ReadonlySet<string> = new Set(GUIAS_PUBLICADAS.map((g) => g.modulo));
+
+/**
+ * Las que salen DENTRO de la propuesta: las mismas menos las que son para quien
+ * ya compró (`GUIAS_FUERA_DE_LA_PROPUESTA`, hoy la del Agente IA).
+ */
+const GUIAS_EN_LA_PROPUESTA: ReadonlySet<string> = lasGuiasDeLaPropuesta(GUIAS_QUE_SE_ENSENAN);
 
 const COLUMNAS = {
     id: true,
@@ -200,7 +207,7 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
                 funciones: lasFuncionesQueSeEnsenan(
                     lasFuncionesDelPlan(fila.features ?? [], guardadas.get(fila.id)),
                     datos,
-                    GUIAS_QUE_SE_ENSENAN,
+                    GUIAS_EN_LA_PROPUESTA,
                 ),
                 precio: elPrecioQueSeEnsena(datos),
                 boton: fila.isActive ? losBotonesDelPlan(detalle ?? null, datos, sitio).principal : null,

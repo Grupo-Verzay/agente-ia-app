@@ -233,20 +233,30 @@ const ESPACIO_DEL_BLOQUE = "py-8 sm:py-10";
  * - si es una guía de la plataforma, la fila «Guía paso a paso», con el mismo
  *   reparto que la cabecera de la función (el título a la izquierda, la
  *   acción a la derecha): «Ver guía» la DESPLIEGA ahí mismo
- *   (`GuiaDesplegada`), justo debajo del video, que SIGUE en su sitio;
- *   «Ocultar guía» la recoge. Nada sale de la página ni abre otra pestaña;
+ *   (`GuiaDesplegada`), justo debajo del video, que SIGUE en su sitio pero
+ *   se COMPACTA (`VIDEO_COMPACTO`) para cederle el ancho; «Ocultar guía» la
+ *   recoge y el video vuelve a su tamaño. Nada sale de la página ni abre otra
+ *   pestaña;
  * - si es un enlace propio, el enlace para abrirlo en otra pestaña (no es
  *   nuestro: no se puede desplegar aquí).
  *
- * Abrir la guía NO mueve la página: lo de arriba (el video, la fila) no cambia
- * de tamaño, así que nada salta. Solo si el principio de la guía queda por
- * debajo del borde de la vista se baja lo justo para verlo, sin que el video
- * se vaya por arriba (`cuantoBajarParaVerLaGuia`). Esconder el video al abrir
- * —como se hizo— encogía lo de arriba de golpe y el navegador recolocaba la
- * página: la guía y el video quedaban fuera de vista.
+ * Abrir la guía NO mueve la página: el video se compacta con su BORDE DE
+ * ARRIBA quieto, así que lo único que se mueve es lo de debajo (la fila y la
+ * guía suben). Solo si el principio de la guía queda por debajo del borde de
+ * la vista se baja lo justo para verlo, sin que el video se vaya por arriba
+ * (`cuantoBajarParaVerLaGuia`). Esconder el video al abrir —como se hizo—
+ * encogía lo de arriba de golpe y el navegador recolocaba la página: la guía y
+ * el video quedaban fuera de vista. Y la compactación va SIN transición: el
+ * efecto que decide si bajar mide la vista ya compactada.
+ *
+ * Es el MISMO componente en la página del plan y en una propuesta, así que los
+ * dos hacen exactamente lo mismo.
  *
  * Ningún texto nombra la guía: varias funciones comparten la misma.
  */
+/** El video con la guía abierta: deja de ocupar el ancho, sin dejar de poderse ver. */
+export const VIDEO_COMPACTO = "max-w-[14rem] sm:max-w-sm";
+
 function TutorialEnLaPagina({
   tutorial,
   nombre,
@@ -350,10 +360,16 @@ function TutorialEnLaPagina({
 
   return (
     <div ref={caja} className="space-y-3">
-      {/* El video se queda pintado también con la guía abierta: quitarlo
-          encogía lo de arriba de golpe y la página saltaba. */}
+      {/* El video se queda pintado también con la guía abierta —quitarlo
+          encogía lo de arriba de golpe y la página saltaba— pero se compacta
+          con su borde de arriba quieto, para cederle el sitio a la guía. */}
       {reproductor && (
-        <div ref={video} className="scroll-mt-20" data-caja-del-video>
+        <div
+          ref={video}
+          className={cn("scroll-mt-20", guiaAbierta ? VIDEO_COMPACTO : "max-w-full")}
+          data-caja-del-video
+          data-video-compacto={guiaAbierta ? "si" : "no"}
+        >
           {reproductor}
         </div>
       )}

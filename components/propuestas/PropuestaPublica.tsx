@@ -188,9 +188,13 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                                         <span className="mr-1.5 text-plan-tenue">{i + 1}.</span>
                                         {s.nombre}
                                     </h3>
-                                    <p className="shrink-0 text-base font-semibold text-plan-tinta sm:text-right">
-                                        {comoSeLeeElImporte(s.inversion, propuesta.moneda)}
-                                    </p>
+                                    {/* Con un plan que trae su precio, el importe va UNA vez, junto
+                                        a su botón «Comenzar con el plan»: aquí sería repetirlo. */}
+                                    {plan?.precio ? null : (
+                                        <p data-precio-del-servicio className="shrink-0 text-base font-semibold text-plan-tinta sm:text-right">
+                                            {comoSeLeeElImporte(s.inversion, propuesta.moneda)}
+                                        </p>
+                                    )}
                                 </div>
                                 {plan ? (
                                     // Es un plan del panel: se enseña el plan, no un alcance copiado a mano.
@@ -209,12 +213,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                         );
                     })}
                 </ol>
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-plan-acento/30 bg-plan-acento/10 px-4 py-3 sm:px-5">
-                    <span className="text-sm font-medium text-plan-suave">Total</span>
-                    <span className="text-right text-base font-bold text-plan-tinta">
-                        {comoSeLeeElImporte(total, propuesta.moneda)}
-                    </span>
-                </div>
+                {/* Sin «Total» abajo: el total va UNA vez, en «Inversión total» de arriba. */}
             </section>
 
             {/* Un plan que la propuesta lleva y que no es ninguno de sus

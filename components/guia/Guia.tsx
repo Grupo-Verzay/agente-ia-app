@@ -530,7 +530,8 @@ export function CuadriculaDeSecciones({
     /** Dentro de una propuesta: sin la tarjeta de «Contáctanos», que abre otra pestaña. */
     sinSalidas?: boolean;
 }) {
-    const cierre = lasClasesDelCierre(secciones.length);
+    // Sin salidas no hay «Contáctanos», y su sitio lo llena el vídeo: nunca un hueco.
+    const cierre = lasClasesDelCierre(secciones.length, { conContacto: !sinSalidas });
     return (
         <div data-cuadricula-de-secciones className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {secciones.map((s, i) => (
@@ -542,7 +543,7 @@ export function CuadriculaDeSecciones({
                     alAbrir={alAbrirSeccion ? () => alAbrirSeccion(s.slug) : undefined}
                 />
             ))}
-            {!sinSalidas && (
+            {cierre.contacto && (
             <a
                 href={contactoHref}
                 target="_blank"
