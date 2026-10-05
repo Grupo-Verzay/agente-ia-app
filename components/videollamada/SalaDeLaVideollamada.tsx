@@ -2,7 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import DailyIframe, { type DailyCall } from "@daily-co/daily-js";
-import { laOrdenDeLaPantalla, type PaginaDelAvatar } from "@/lib/pantalla-del-avatar";
+import { laOrdenDeLaPantalla, laRutaYElAncla, type PaginaDelAvatar } from "@/lib/pantalla-del-avatar";
+
+/** Baja al ancla dentro del marco (es del mismo origen). La landing pinta
+ * sus secciones después de cargar, así que se insiste unos segundos. */
+function bajarAlAncla(marco: HTMLIFrameElement | null, ancla: string | null) {
+    if (!marco) return;
+    let vueltas = 0;
+    const intentar = () => {
+        try {
+            const doc = marco.contentDocument;
+            if (!ancla) { marco.contentWindow?.scrollTo({ top: 0, behavior: "smooth" }); return; }
+            const el = doc?.getElementById(ancla);
+            if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+        } catch (error) {
+            console.warn("[videollamada] no se pudo bajar al ancla de la pantalla", { ancla, error });
+            return;
+        }
+        if (++vueltas < 25) window.setTimeout(intentar, 200);
+        else console.warn("[videollamada] el ancla de la pantalla no apareció", { ancla });
+    };
+    intentar();
+}
 
 /**
  * La sala de la videollamada con IA. No redirige a Tavus: monta su sala de
@@ -18,6 +39,12 @@ import { laOrdenDeLaPantalla, type PaginaDelAvatar } from "@/lib/pantalla-del-av
 export default function SalaDeLaVideollamada({ url }: { url: string }) {
     const contenedor = useRef<HTMLDivElement>(null);
     const [pagina, setPagina] = useState<PaginaDelAvatar | null>(null);
+    const marco = useRef<HTMLIFrameElement>(null);
+    const destino = pagina ? laRutaYElAncla(pagina.ruta) : null;
+    // Cambiar de sección en la misma página no recarga el marco: solo baja.
+    useEffect(() => {
+        if (destino) bajarAlAncla(marco.current, destino.ancla);
+    }, [destino?.ruta, destino?.ancla]); // eslint-disable-line react-hooks/exhaustive-deps
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -77,8 +104,10 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
                         Verzy te está mostrando: <strong className="text-slate-100">{pagina.titulo}</strong>
                     </header>
                     <iframe
-                        key={pagina.ruta}
-                        src={pagina.ruta}
+                        ref={marco}
+                        key={destino!.ruta}
+                        src={destino!.ruta}
+                        onLoad={() => bajarAlAncla(marco.current, destino!.ancla)}
                         title={`Pantalla de Verzy: ${pagina.titulo}`}
                         className="min-h-0 w-full flex-1 bg-white"
                     />

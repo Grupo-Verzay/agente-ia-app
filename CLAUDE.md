@@ -27081,3 +27081,22 @@ Cinco cosas que hay que mantener:
 Lo prueban `scripts/banco-videollamada-ia.sh` aquí y
 `scripts/banco-ausencia-de-videollamada.sh` en `api-webhook`, los dos con
 `MODO=roto` pinchado al commit de antes.
+
+### La pantalla de Verzy: la herramienta se REGISTRA en la persona, y la página sale del guion
+
+Verzy nombraba la dirección en voz alta y en la pantalla no salía nada: la
+herramienta `mostrar_pantalla` estaba escrita y **nunca se registró en la
+persona de Tavus**, así que el modelo no podía llamarla.
+
+1. **Antes de crear cada conversación se revisa la persona**
+   (`asegurarLaPantallaEnLaPersona`, `lib/persona-de-tavus.server.ts`): `GET`
+   a `/v2/personas/<id>` y, si falta o está vieja, `PATCH` con
+   `elParcheDeLaPersona` (conserva las demás herramientas). Vale para Verzy y
+   para el avatar propio de una cuenta. Se recuerda solo si salió bien, y un
+   fallo nunca tumba la llamada (se dice en la consola).
+2. **Qué página va en cada momento del guion** lo dice `PAGINAS_DEL_AVATAR`
+   (`momento` de cada una; precios → `/inicio#pricing`), y el contexto le
+   prohíbe decir direcciones: llama a la herramienta y dice qué se ve.
+3. **La sala baja al ancla dentro del marco** (`laRutaYElAncla`,
+   `bajarAlAncla`): el marco se monta por ruta sin el `#` y cambiar de sección
+   en la misma página solo desplaza.

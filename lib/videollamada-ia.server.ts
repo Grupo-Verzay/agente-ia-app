@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { elBloqueDeLaPantalla } from "@/lib/pantalla-del-avatar";
+import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
 import {
@@ -176,6 +177,8 @@ async function crearLaConversacion(
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
     const ahora = new Date();
+    // Sin la herramienta en la persona, Verzy no puede compartir pantalla.
+    await asegurarLaPantallaEnLaPersona(tavus);
     const cuerpo: Record<string, unknown> = {
         persona_id: tavus.personaId,
         conversation_name: `Cita ${cita.id}`,
