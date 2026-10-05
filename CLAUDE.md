@@ -27274,27 +27274,37 @@ Lo prueba `scripts/banco-videollamada-ia.sh`; `MODO=roto` lee la sala de
 Lo prueba el mismo banco; `MODO=roto` contra `f0eac70` afirma que nada de esto
 existía.
 
-### El inicio de la llamada, y la pizarra es el CRM REAL de «Verzay Ventas»
+### La pantalla de Verzy es la App REAL de «Verzay Ventas», en un navegador del servidor
 
-1. **Verzy saluda primero**: `custom_greeting = SALUDO_INICIAL` («Hola, muy
-   buenas, ¿me escuchas?») en la conversación nueva (no al reconectar), y el
-   guion le dice que conteste lo mismo si el cliente habla antes. Después,
-   `SEGUNDA_PREGUNTA`; **solo con esa respuesta** abre la pizarra (`crm`) y
-   toma notas. Viven en `lib/videollamada-crm.ts` (puro).
-2. **La pizarra es la ficha del prospecto en la cuenta «Verzay Ventas»**
-   (`/videollamada/vista/crm`, firmada como las demás vistas, noindex), con
-   anclas `#embudo`, `#recordatorios` y `#conversacion`. La arma
-   `elCrmDelProspecto` (`lib/videollamada-crm.server.ts`, `server-only`):
-   busca la sesión por TODAS las formas del número de la cita, la etapa con
-   `lasEtapasDeLaBandeja`, citas y seguimientos pendientes de esa cuenta, y el
-   historial de `chat_messages` en tres ramas con su `LIMIT`. No hay login: el
-   acceso es interno y la vista solo abre con la firma de la cita.
-3. **La cuenta sale de `VERZY_CUENTA_ID`** (stack de Portainer, opcional) y, sin
-   ella, de su nombre (`esLaCuentaDeVerzy`, sin tildes ni barras). Si no se
-   encuentra se dice en la consola y la ficha sale vacía.
-4. **Las notas van AL LADO del CRM** (`esLaVistaDelCrm`), no sueltas; en las
-   páginas públicas no salen. Verzy puede quedarse en el CRM o ir a la landing.
+> **Esta sección manda sobre la anterior en lo que se ve.** Las vistas
+> simuladas (`/videollamada/vista/crm`, `ficha`, `resultados`) y
+> `elCrmDelProspecto` / `esLaVistaDelCrm` ya no existen.
 
+1. **Verzy saluda primero**: `custom_greeting = SALUDO_INICIAL` en la
+   conversación nueva, y **si en `ESPERA_DEL_SALUDO_MS` (4 s) no ha hablado, la
+   sala lo dice ella** con `conversation.echo` (una vez; nunca al reconectar ni
+   si ya habló). Sin eso, una réplica que no arranca dejaba la llamada muda.
+2. **Lo que se comparte es la plataforma de verdad**: un Chromium sin cabeza en
+   el servidor (`lib/pantalla-de-verzy.server.ts`, `playwright-core` externo en
+   `next.config.js`, binario en `CHROMIUM_PATH=/usr/bin/chromium` del
+   Dockerfile) abre la cuenta «Verzay Ventas» y la sala pinta su captura
+   (`<img>` de `/api/videollamada/pantalla`, con `?preparar=1` al montar).
+3. **`mostrar_pantalla` solo elige entre `DESTINOS_DE_VERZY`** (panel, chats,
+   ficha, recordatorios, citas, embudo) **o «ninguna»**: nada de URLs.
+4. **`tomar_nota` guarda en el campo REAL**: `external_client_data.data.notas`
+   del prospecto en esa cuenta, el mismo «Notas» de la ficha de Chats.
+5. **La sesión se fabrica EN PROCESO** (`lib/sesion-de-verzy.server.ts`: cookie
+   de Auth.js firmada con `AUTH_SECRET`, las dos variantes de nombre, con
+   `domain` y `path`). **No hay ruta ni token de servicio**: no hace falta
+   ninguna variable nueva. `VERZY_CUENTA_ID` sigue siendo opcional.
+6. **Las POST a la ruta van PLANAS** (`{tipo:"ir",destino}`,
+   `{tipo:"nota",texto}`), con la firma de la cita en la consulta.
+
+Lo prueban `scripts/banco-videollamada-ia.sh` (las reglas, y la sala MONTADA en
+Chromium con un Daily de mentira: el saludo de respaldo y las herramientas) y la
+prueba local con la App servida (los seis destinos fotografiados y la nota
+leída de la base). `MODO=roto` monta la sala de `9c0e76d` y afirma que se
+quedaba muda.
 Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
 saludo, ni CRM, y que las notas salían sueltas.
 
