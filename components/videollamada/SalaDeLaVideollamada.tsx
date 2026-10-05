@@ -13,6 +13,7 @@ import {
     type PaginaDelAvatar,
 } from "@/lib/pantalla-del-avatar";
 import { conLaNota, loQueDijoElCliente, NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
+import { esLaVistaDelCrm } from "@/lib/videollamada-crm";
 
 /** Baja al ancla dentro del marco (es del mismo origen). La landing pinta
  * sus secciones después de cargar, así que se insiste unos segundos. */
@@ -327,7 +328,9 @@ export default function SalaDeLaVideollamada({
         else llamada.startScreenShare();
     };
     const reentrar = () => window.location.reload();
-    const enMiniatura = !!pagina || notas.length > 0;
+    const enMiniatura = !!pagina;
+    // La pizarra es el CRM: ahí, y solo ahí, van las notas al lado.
+    const conNotas = !!pagina && esLaVistaDelCrm(pagina.ruta);
 
     return (
         <main data-zona="sala" className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100">
@@ -341,32 +344,38 @@ export default function SalaDeLaVideollamada({
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
                         Verzy te está mostrando: <strong className="text-slate-100">{pagina.titulo}</strong>
                     </header>
-                    <iframe
-                        ref={marco}
-                        key={destino!.ruta}
-                        src={destino!.ruta}
-                        onLoad={() => bajarAlAncla(marco.current, destino!.ancla)}
-                        title={`Pantalla de Verzy: ${pagina.titulo}`}
-                        className="min-h-0 w-full flex-1 bg-white"
-                    />
-                </section>
-            )}
-            {!pagina && notas.length > 0 && (
-                <section
-                    data-zona="notas"
-                    className="absolute inset-x-0 top-0 bottom-16 flex flex-col px-4"
-                >
-                    <header className="flex h-10 shrink-0 items-center gap-2 text-sm text-slate-300">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Notas de la llamada
-                    </header>
-                    <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-36 sm:pb-4">
-                        {notas.map((n, i) => (
-                            <li key={`${i}-${n}`} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-slate-100">
-                                {n}
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+                        <iframe
+                            ref={marco}
+                            key={destino!.ruta}
+                            src={destino!.ruta}
+                            onLoad={() => bajarAlAncla(marco.current, destino!.ancla)}
+                            title={`Pantalla de Verzy: ${pagina.titulo}`}
+                            className="min-h-0 w-full flex-1 bg-white"
+                        />
+                        {conNotas && (
+                            <aside
+                                data-zona="notas"
+                                className="flex max-h-[35%] shrink-0 flex-col border-t border-slate-800 bg-slate-950 px-3 md:max-h-none md:w-72 md:border-l md:border-t-0"
+                            >
+                                <header className="flex h-10 shrink-0 items-center gap-2 text-sm text-slate-300">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+                                    Notas de la llamada
+                                </header>
+                                {notas.length ? (
+                                    <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
+                                        {notas.map((n, i) => (
+                                            <li key={`${i}-${n}`} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-slate-100">
+                                                {n}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="pb-4 text-sm text-slate-500">Verzy apunta aquí lo que vas contando.</p>
+                                )}
+                            </aside>
+                        )}
+                    </div>
                 </section>
             )}
             <div

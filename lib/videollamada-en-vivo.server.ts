@@ -23,7 +23,7 @@ import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
  * firmado y, al agendar, el tipo, la fecha y la nota ya validados.
  */
 
-async function laCita(citaId: string) {
+export async function laCita(citaId: string) {
     return db.appointment.findUnique({
         where: { id: citaId },
         select: {
@@ -56,7 +56,7 @@ async function laCita(citaId: string) {
 }
 
 /** El teléfono de la conversación, nunca los dígitos de un `@lid`. */
-function elTelefono(s: { remoteJid: string; remoteJidAlt: string | null } | null | undefined): string {
+export function elTelefono(s: { remoteJid: string; remoteJidAlt: string | null } | null | undefined): string {
     for (const jid of [s?.remoteJid, s?.remoteJidAlt]) {
         if (jid && !jid.endsWith("@lid") && !jid.endsWith("@g.us")) return jid.split("@")[0].replace(/\D/g, "");
     }
