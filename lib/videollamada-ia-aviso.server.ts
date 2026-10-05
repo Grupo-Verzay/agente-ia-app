@@ -1,5 +1,7 @@
 import "server-only";
 
+import { laCitaDeLaVideollamada } from "@/lib/cita-de-la-videollamada.server";
+
 import { db } from "@/lib/db";
 import { persistChatMessage } from "@/lib/chat-persistence";
 import { usarLaIaCobrando } from "@/lib/cobro-de-ia.server";
@@ -104,14 +106,7 @@ async function elResumen(cuentaId: string, transcripcion: string): Promise<strin
 }
 
 async function anotarEnElCrm(citaId: string, transcripcion: string, resumen: string | null): Promise<string | null> {
-    const cita = await db.appointment.findUnique({
-        where: { id: citaId },
-        select: {
-            userId: true,
-            startTime: true,
-            session: { select: { remoteJid: true, remoteJidAlt: true, instanceId: true, pushName: true } },
-        },
-    });
+    const cita = await laCitaDeLaVideollamada(citaId);
     if (!cita?.session) {
         console.warn("[videollamada] la cita no tiene conversación donde anotar", { cita: citaId });
         return null;

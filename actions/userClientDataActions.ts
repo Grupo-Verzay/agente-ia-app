@@ -1107,7 +1107,8 @@ export async function getUserAppointmentUrl() {
   // Sin sesion no hay enlace que dar: antes se armaba uno con "undefined"
   // dentro y se le entregaba igual a quien lo pidiera.
   if (!user) return null;
-  return `https://agente.ia-app.com/schedule/${user.id}`
+  const { elEnlacePublicoDeLaAgenda } = await import("@/lib/enlace-de-agenda.server");
+  return elEnlacePublicoDeLaAgenda("https://agente.ia-app.com", user.effectiveId ?? user.id, "schedule");
 }
 
 export async function updateUserVoiceSettings(

@@ -5,6 +5,7 @@ import { Copy, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { elEnlaceDeReserva } from "@/lib/pantalla-de-agenda";
+import { elSlugDeLaAgendaAction } from "@/actions/enlace-de-agenda-actions";
 
 interface Props {
     userId: string;
@@ -16,7 +17,16 @@ export const ShareScheduleLinkButton = ({ userId }: Props) => {
     // (en el servidor no hay `window`, y las dos salidas no coincidirían).
     const [origen, setOrigen] = useState("");
     useEffect(() => { setOrigen(window.location.origin); }, []);
-    const scheduleUrl = elEnlaceDeReserva(origen, userId);
+    // El nombre legible (`/schedule/<nombre>/agenda`); mientras llega, el id.
+    const [slug, setSlug] = useState<string | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        elSlugDeLaAgendaAction(userId, "schedule")
+            .then((s) => { if (vivo) setSlug(s); })
+            .catch((error) => console.warn("[agenda] no se pudo leer el enlace legible", error));
+        return () => { vivo = false; };
+    }, [userId]);
+    const scheduleUrl = elEnlaceDeReserva(origen, userId, slug);
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {

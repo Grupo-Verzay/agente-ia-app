@@ -26,11 +26,14 @@ export const UpdateMeetingDuration = ({
     meetingDuration,
     meetingUrl,
     minNoticeMinutes: initialMinNotice = 0,
+    conAnticipacion = true,
 }: {
     userId: string;
     meetingDuration: number;
     meetingUrl?: string | null;
     minNoticeMinutes?: number;
+    /** Multiagenda guarda la anticipación por equipo, en su propia tarjeta. */
+    conAnticipacion?: boolean;
 }) => {
     const router = useRouter();
     const { value: initDurVal, unit: initDurUnit } = fromMinutes(meetingDuration);
@@ -129,7 +132,7 @@ export const UpdateMeetingDuration = ({
         if (urlError) return toast.error(urlError);
 
         setLoading(true);
-        const minNotice = noticeValue * toMinutes[noticeUnit];
+        const minNotice = conAnticipacion ? noticeValue * toMinutes[noticeUnit] : initialMinNotice;
         mutation.mutate({ duration: durationMinutes, url: url.trim(), minNotice });
     };
 
@@ -225,12 +228,13 @@ export const UpdateMeetingDuration = ({
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {disponible
-                                ? "Cada cita recibe su propio enlace. La sala se crea cuando el cliente lo abre, desde 15 minutos antes."
+                                ? "Cada cita recibe su propio enlace. La sala se abre cuando el cliente la abre."
                                 : "La videollamada con IA no está disponible en este momento."}
                         </p>
                     </div>
                 )}
 
+                {conAnticipacion && (
                 <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <Timer className="h-3.5 w-3.5 text-muted-foreground" />
@@ -257,6 +261,7 @@ export const UpdateMeetingDuration = ({
                         />
                     </div>
                 </div>
+                )}
 
                 </div>
 

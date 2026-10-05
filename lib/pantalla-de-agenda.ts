@@ -38,7 +38,9 @@ export const TOPE_DE_RECORDATORIOS_DE_AGENDA = 10;
  * escrito a mano. Estaba fijo en `agente.ia-app.com`, así que desde cualquier
  * otro dominio «Copiar enlace» copiaba el de otro sitio.
  */
-export function elEnlaceDeReserva(origen: string, cuentaId: string): string {
+export function elEnlaceDeReserva(origen: string, cuentaId: string, slug?: string | null): string {
     const base = String(origen ?? "").replace(/\/+$/, "");
+    // Con su nombre legible: `/schedule/<nombre>/agenda`. Sin él, con el id.
+    if (slug) return `${base}/schedule/${encodeURIComponent(slug)}/agenda`;
     return `${base}/schedule/${encodeURIComponent(cuentaId)}`;
 }

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { laCitaDeLaVideollamada } from "@/lib/cita-de-la-videollamada.server";
+
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
@@ -110,10 +112,7 @@ export async function elEnlaceDeReunionDeLaCita(cuentaId: string, citaId: string
  */
 async function laLlaveDelEnlace(citaId: string): Promise<string> {
     try {
-        const cita = await db.appointment.findUnique({
-            where: { id: citaId },
-            select: { clientName: true, session: { select: { customName: true, pushName: true } } },
-        });
+        const cita = await laCitaDeLaVideollamada(citaId);
         const base = cita ? elEnlaceDelNombre(elNombreDelProspecto(cita)) : null;
         if (!base) return citaId;
         return await elEnlaceDeLaCita(citaId, base);
@@ -319,21 +318,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     const id = porNombre ?? pedido;
     if (!/^[0-9a-f-]{8,64}$/i.test(id)) return { estado: "no_existe" };
 
-    const cita = (await db.appointment.findUnique({
-        where: { id },
-        select: {
-            id: true,
-            userId: true,
-            startTime: true,
-            endTime: true,
-            timezone: true,
-            status: true,
-            clientName: true,
-            service: { select: { name: true } },
-            session: { select: { remoteJid: true, remoteJidAlt: true, pushName: true, customName: true } },
-            user: { select: { company: true, name: true, email: true, timezone: true } },
-        },
-    })) as CitaParaAbrir | null;
+    const cita: CitaParaAbrir | null = await laCitaDeLaVideollamada(id);
     if (!cita) return { estado: "no_existe" };
 
     const ajustes = await leerLosAjustes(cita.userId).catch(() => null);

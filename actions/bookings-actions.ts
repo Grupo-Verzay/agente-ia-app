@@ -1,5 +1,7 @@
 'use server';
 
+import { elEnlacePublicoDeLaAgenda } from '@/lib/enlace-de-agenda.server';
+
 import { db } from '@/lib/db';
 import { AppointmentStatus } from '@prisma/client';
 import {
@@ -7,7 +9,6 @@ import {
     format,
     parseISO,
     isBefore,
-    isAfter,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
@@ -19,13 +20,14 @@ import { getAuditActorId, writeAuditLog } from './audit-log-actions';
 import { laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
 import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
 import { comoFranjaNueva, elEstadoAlReagendar, laDuracionDeLaCita } from '@/lib/reagendar-cita';
-import { elEnlaceParaReservar } from '@/lib/recordatorios-de-la-reserva';
 import { dispararLasAutomatizacionesDeCita } from '@/lib/automatizaciones-de-cita.server';
 import {
     elJidDelCliente,
     laConversacionDeLaReserva,
     reprogramarLosRecordatoriosDeLaReserva,
 } from '@/lib/reagendar-reserva.server';
+import { elAvisoSinHueco, hayHueco } from '@/lib/capacidad-de-multiagenda';
+import { guardarLaCapacidad, laCapacidadDelEquipo, laCapacidadGuardada } from '@/lib/videollamada-ia-db';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId`, el
@@ -154,6 +156,28 @@ export async function updateTeam(
     } catch (error) {
         console.error('[updateTeam]', error);
         return { success: false, message: 'Error al actualizar el equipo.' };
+    }
+}
+
+/** Cuántas videollamadas a la vez admite cada especialista (solo cuenta con Verzy). */
+export async function leerCapacidadDeMultiagendaAction(teamId: string): Promise<OpResult<{ capacidad: number }>> {
+    try {
+        if (!(await laCuentaDelEquipo(teamId))) return { success: false, message: 'No autorizado.' };
+        return { success: true, message: 'ok', data: { capacidad: await laCapacidadGuardada(teamId) } };
+    } catch (error) {
+        console.error('[multiagenda] no se pudo leer la capacidad', error);
+        return { success: false, message: 'No se pudo leer la capacidad.' };
+    }
+}
+
+export async function guardarCapacidadDeMultiagendaAction(teamId: string, capacidad: number): Promise<OpResult<{ capacidad: number }>> {
+    try {
+        if (!(await laCuentaDelEquipo(teamId))) return { success: false, message: 'No autorizado.' };
+        const valor = await guardarLaCapacidad(teamId, capacidad);
+        return { success: true, message: 'Capacidad guardada.', data: { capacidad: valor } };
+    } catch (error) {
+        console.error('[multiagenda] no se pudo guardar la capacidad', error);
+        return { success: false, message: 'No se pudo guardar la capacidad.' };
     }
 }
 
@@ -443,7 +467,7 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     try {
         // Validar tiempo mínimo de anticipación (especialista sobreescribe al equipo)
         const [team, member] = await Promise.all([
-            db.team.findUnique({ where: { id: teamId }, select: { minNoticeMinutes: true } }),
+            db.team.findUnique({ where: { id: teamId }, select: { minNoticeMinutes: true, userId: true } }),
             db.teamMember.findUnique({ where: { id: teamMemberId }, select: { minNoticeMinutes: true } }),
         ]);
         const effectiveNotice = (member?.minNoticeMinutes ?? 0) > 0
@@ -460,6 +484,8 @@ export async function createBookingAppointment(input: CreateBookingInput) {
         // Evita la doble reserva sin constraint de BD ni migración: una 2ª solicitud
         // simultánea espera a que la 1ª haga commit y entonces su verificación de
         // solape sí ve la cita recién creada. Reservas de otros miembros no se bloquean.
+        // Cuántas a la vez en el mismo turno (solo con la videollamada con IA).
+        const capacidad = team?.userId ? await laCapacidadDelEquipo(teamId, team.userId) : 1;
         const appt = await db.$transaction(async (tx) => {
             // $executeRaw (NO $queryRaw): la función devuelve `void` y $queryRaw
             // fallaba al deserializar (P2010). Si el candado no está disponible,
@@ -470,16 +496,17 @@ export async function createBookingAppointment(input: CreateBookingInput) {
                 console.warn('[createBookingAppointment] advisory lock no disponible, continúo sin él:', lockErr);
             }
 
-            const overlap = await tx.bookingAppointment.findFirst({
+            const solapadas = await tx.bookingAppointment.findMany({
                 where: {
                     teamMemberId,
                     status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
                     startTime: { lt: end },
                     endTime: { gt: start },
                 },
+                select: { startTime: true, endTime: true },
             });
 
-            if (overlap) return null;
+            if (!hayHueco(solapadas, start, end, capacidad)) return null;
 
             return tx.bookingAppointment.create({
                 data: {
@@ -498,7 +525,7 @@ export async function createBookingAppointment(input: CreateBookingInput) {
         });
 
         if (!appt) {
-            return { success: false, message: 'El especialista ya tiene una cita en ese horario.' };
+            return { success: false, message: elAvisoSinHueco(capacidad) };
         }
 
         return { success: true, message: 'Cita agendada exitosamente.', data: appt };
@@ -627,7 +654,7 @@ export async function sendBookingStatusNotification(
             } as unknown as import('@/app/(root)/schedule/helpers/normalizeAppointmentsToEvents').AppointmentWithSession,
             newStatus: status,
             userId: cuenta,
-            scheduleUrl: elEnlaceParaReservar(cuenta),
+            scheduleUrl: await elEnlacePublicoDeLaAgenda('https://agente.ia-app.com', cuenta, 'bookings'),
         });
 
         const apiKeyUrl = reserva.team.user?.apiKey?.url;
@@ -774,7 +801,7 @@ export async function reagendarReservaAction(
         }
         const actual = await db.bookingAppointment.findUnique({
             where: { id },
-            select: { teamMemberId: true, clientPhone: true, startTime: true, endTime: true, status: true, team: { select: { userId: true } } },
+            select: { teamId: true, teamMemberId: true, clientPhone: true, startTime: true, endTime: true, status: true, team: { select: { userId: true } } },
         });
         if (!actual) return { success: false, message: 'La cita ya no existe.' };
 
@@ -783,13 +810,14 @@ export async function reagendarReservaAction(
         const { inicio, fin } = nueva.franja;
         const estado = elEstadoAlReagendar(actual.status);
 
+        const capacidad = await laCapacidadDelEquipo(actual.teamId, actual.team.userId);
         const updated = await db.$transaction(async (tx) => {
             try {
                 await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${actual.teamMemberId}`}))`;
             } catch (lockErr) {
                 console.warn('[multiagenda] advisory lock no disponible, continúo sin él:', lockErr);
             }
-            const pisa = await tx.bookingAppointment.findFirst({
+            const solapadas = await tx.bookingAppointment.findMany({
                 where: {
                     teamMemberId: actual.teamMemberId,
                     id: { not: id },
@@ -797,9 +825,9 @@ export async function reagendarReservaAction(
                     startTime: { lt: fin },
                     endTime: { gt: inicio },
                 },
-                select: { id: true },
+                select: { startTime: true, endTime: true },
             });
-            if (pisa) return null;
+            if (!hayHueco(solapadas, inicio, fin, capacidad)) return null;
             return tx.bookingAppointment.update({
                 where: { id },
                 data: { startTime: inicio, endTime: fin, status: estado },
@@ -808,7 +836,7 @@ export async function reagendarReservaAction(
         });
 
         if (!updated) {
-            return { success: false, message: 'El especialista ya tiene una cita en ese horario.' };
+            return { success: false, message: elAvisoSinHueco(capacidad) };
         }
 
         await writeAuditLog({
@@ -930,6 +958,12 @@ async function calcularHuecosDeReserva(
             select: { startTime: true, endTime: true },
         });
 
+        const miembro = await db.teamMember.findUnique({
+            where: { id: memberId },
+            select: { team: { select: { id: true, userId: true } } },
+        });
+        const capacidad = miembro?.team ? await laCapacidadDelEquipo(miembro.team.id, miembro.team.userId) : 1;
+
         const slots: BookingSlot[] = [];
 
         for (const avail of availability) {
@@ -949,9 +983,7 @@ async function calcularHuecosDeReserva(
                 const slotEnd = addMinutes(cursor, durationMinutes);
 
                 // Verificar si choca con una cita existente
-                const busy = existing.some(
-                    (appt) => isBefore(cursor, appt.endTime) && isAfter(slotEnd, appt.startTime),
-                );
+                const busy = !hayHueco(existing, cursor, slotEnd, capacidad);
 
                 if (!busy && !isBefore(cursor, earliestAllowed)) {
                     const localStart = toZonedTime(cursor, teamTimezone);
