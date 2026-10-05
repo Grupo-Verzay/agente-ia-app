@@ -27361,23 +27361,29 @@ colgado no se reconecta. Lo prueba `scripts/banco-videollamada-ia.sh`.
    esperar `waitForURL` eran 8 s de pantalla congelada. Qué chat está abierto
    lo recuerda `viva.chatAbierto`, y se espera a lo que se VE.
 
-### La pantalla sigue la VOZ, Verzy habla en turnos cortos y saluda tras un margen
+### Auditoría de la sala (2026-10-05): tres causas raíz, sin parches encima
 
-1. **Sin `custom_greeting`.** El saludo lo dice la sala con `conversation.echo`
-   pasados `ESPERA_DEL_SALUDO_MS` (2,5 s) —margen para que el cliente oiga el
-   «hola»— si Verzy no habló antes, y le cuenta que ya saludó (`YA_SALUDASTE`,
-   `append_llm_context`) para que no salude dos veces.
-2. **La pantalla se mueve mientras Verzy habla**: cada tramo de su voz
-   (`conversation.utterance` de la réplica) que nombra una sección la abre
-   (`losDestinosQueNombra`), y entre una y otra la sala pide `{tipo:"recorrer"}`
-   cada `RITMO_AL_HABLAR_MS` (2,2 s), que el servidor hace desplazándose por la
-   pantalla (`recorrerUnPoco`). Lo decide `queHaceLaPantallaAlHablar` (pura).
-   Callada, o sin pantalla compartida, no se mueve nada.
-3. **Turnos cortos**: el guion arranca con «CÓMO HABLAS», que manda sobre todo
-   lo demás: una o dos frases, UNA pregunta concreta, y esperar.
+> **Esta sección manda sobre las anteriores de la videollamada** en el saludo, la
+> entrada y el movimiento de la pantalla con la voz.
 
-Lo prueba `scripts/banco-videollamada-ia.sh`, con la sala montada en Chromium y
-un Daily de mentira que habla.
+| lo que se veía | la causa | ahora |
+| --- | --- | --- |
+| pantalla compartida vacía y avatar que no se achica | el `PATCH` que registra las herramientas en la persona de Tavus rebotaba con **409 `maker_changes`** (la persona tiene ediciones del editor): Verzy nunca tuvo `mostrar_pantalla` | si rebota, **se usa una COPIA de la persona con las herramientas** (`lib/persona-derivada.ts` puro, `laPersonaParaLaConversacion` en `lib/persona-de-tavus.server.ts`), guardada por huella en `videollamada_personas_derivadas` y rehecha cuando la original cambia. **Nunca `force=true`**: borraría lo editado en Tavus |
+| arrancaba «a mitad de conversación» | la entrada (`entroEn`) se marcaba al ABRIR la página —también una precarga del enlace—, y la vigilancia de ausencia daba por empezada una llamada sin nadie | la entrada cuenta solo al unirse de verdad a Daily (`joined-meeting` → `PUT /api/videollamada/sala` → `marcarLaEntradaReal`) |
+| hablaba de más y saludaba dos veces | tres reglas de saludo distintas (guion, contexto y respaldo) y la pantalla «recorriendo» atada a su voz | UNA regla, `REGLA_DEL_SALUDO`; el guion no repite el saludo; **el recorrido por voz se quitó entero** (solo `ir` y `nota`) |
+
+Cuatro cosas que hay que mantener:
+
+1. **Lo que crea la conversación usa `laPersonaParaLaConversacion`**, y nunca
+   lanza: ante un fallo va la original y se dice con `console.error`.
+2. **Una copia con una clave de modelo enmascarada no se crea** (Tavus no la
+   devuelve): se dice.
+3. **La pantalla solo se mueve cuando Verzy llama a `mostrar_pantalla`**, nunca
+   por lo que dice.
+4. Desde este entorno no se llega a Tavus ni a Daily: lo prueba
+   `scripts/banco-videollamada-ia.sh` con los dos fingidos
+   (`persona-derivada.test.mjs`: 409 → copia sin `force`, reutilizada por
+   huella, la vieja borrada al cambiar, y un fallo que no tumba la llamada).
 
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 

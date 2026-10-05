@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * GET  `?stream=1` → el flujo en vivo (multipart/x-mixed-replace), mientras
  *        la sala lo mire. Sin él, la última foto (204 si no hay).
  *        `?preparar=1` deja la sesión y la pantalla listas.
- * POST → una orden: { tipo: "ir", lugar } (la URL que eligió el modelo, cargada tal cual tras sanearla), { tipo: "nota", texto } o { tipo: "recorrer" } (mientras Verzy habla).
+ * POST → una orden: { tipo: "ir", lugar } (la URL que eligió el modelo, cargada tal cual tras sanearla), { tipo: "nota", texto }.
  */
 function laCitaFirmada(req: Request): string | null {
     const url = new URL(req.url);

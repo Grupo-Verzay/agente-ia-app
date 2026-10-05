@@ -61,7 +61,8 @@ function distintos(t0, t1) {
     return { total: tramo.length, distintos: n, porSeg: n / Math.max(0.001, (t1 - t0) / 1000) };
 }
 
-const ir = await orden({ tipo: "ir", destino: "chats" });
+// La URL la elige el modelo (entrenamiento de Videollamadas); aquí, la del chat de Mariana.
+const ir = await orden({ tipo: "ir", lugar: "/chats?jid=573001112233@s.whatsapp.net" });
 const m1 = distintos(ir.t0, ir.t1);
 ok(ir.j?.ok === true, "Verzy abre Chats y la conversación", JSON.stringify(ir.j));
 ok(m1.distintos >= 15 && m1.porSeg >= 3, "MIENTRAS navega a Chats la pantalla se MUEVE", JSON.stringify(m1));

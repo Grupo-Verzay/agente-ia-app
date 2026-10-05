@@ -273,8 +273,6 @@ type Viva = {
     raton: { x: number; y: number };
     /** El chat que Verzy dejó abierto. La URL no lo dice: abrirlo pulsando la fila no pone `?jid=`. */
     chatAbierto?: string | null;
-    /** Cuántas veces se ha recorrido la vista que se ve: alterna el gesto. */
-    pasoDelRecorrido?: number;
     parada: boolean;
 };
 const pantallasVivas = new Map<string, Viva>();
@@ -375,11 +373,8 @@ async function elCiclo(viva: Viva): Promise<void> {
                 SELECT "id", "tipo", "datos" FROM "verzy_ordenes"
                 WHERE "citaId" = ${citaId} AND "hechoEn" IS NULL ORDER BY "id" ASC LIMIT 5
             `;
-            for (const [i, o] of ordenes.entries()) {
-                // Un «recorrer» con otra orden detrás ya llega tarde: se salta.
-                const resultado: ResultadoDeLaOrden = o.tipo === "recorrer" && i < ordenes.length - 1
-                    ? { ok: true, aviso: "Saltado: había otra orden detrás" }
-                    : await hacerLaOrden(viva, { tipo: o.tipo, datos: o.datos } as OrdenDeLaPantalla)
+            for (const o of ordenes) {
+                const resultado: ResultadoDeLaOrden = await hacerLaOrden(viva, { tipo: o.tipo, datos: o.datos } as OrdenDeLaPantalla)
                     .catch((error): ResultadoDeLaOrden => ({ ok: false, motivo: error instanceof Error ? error.message : String(error) }));
                 if (!resultado.ok) console.warn("[verzy] una orden de la pantalla no salió", { cita: citaId, tipo: o.tipo, motivo: resultado.motivo });
                 await db.$executeRaw`
@@ -461,35 +456,6 @@ async function recorrerConLaRueda(viva: Viva): Promise<void> {
     for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, 90); await dormir(70); }
     await dormir(450);
     for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, -90); await dormir(70); }
-}
-
-/**
- * Mientras Verzy habla y no nombra otra sección, la pantalla no se queda
- * quieta: el cursor va a otra parte de la vista y la rueda baja o sube un
- * poco, alternando, como quien va señalando lo que explica. Corto (~1,5 s)
- * para no hacer cola detrás de la siguiente orden.
- */
-const PUNTOS_DEL_RECORRIDO = [
-    { x: 0.62, y: 0.38 },
-    { x: 0.42, y: 0.62 },
-    { x: 0.74, y: 0.55 },
-    { x: 0.5, y: 0.3 },
-] as const;
-
-async function recorrerUnPoco(viva: Viva): Promise<void> {
-    const paso = viva.pasoDelRecorrido ?? 0;
-    viva.pasoDelRecorrido = paso + 1;
-    const punto = PUNTOS_DEL_RECORRIDO[paso % PUNTOS_DEL_RECORRIDO.length];
-    // En Chats y en la ficha lo que se mueve es la conversación del medio.
-    const enChats = new URL(viva.pagina.url()).pathname.startsWith("/chats");
-    const x = enChats ? ANCHO * (0.5 + (paso % 2) * 0.08) : ANCHO * punto.x;
-    await moverA(viva, x, ALTO * punto.y, 520);
-    const hacia = paso % 2 === 0 ? 1 : -1;
-    for (let i = 0; i < 4; i++) {
-        await viva.pagina.mouse.wheel(0, 70 * hacia);
-        await dormir(60);
-    }
-    await dormir(200);
 }
 
 // ---------------------------------------------------------------- las órdenes
@@ -687,11 +653,6 @@ async function hacerLaOrden(viva: Viva, orden: OrdenDeLaPantalla): Promise<Resul
         const texto = String((orden.datos as { texto?: unknown })?.texto ?? "").trim();
         if (!texto) return { ok: false, motivo: "Nota vacía" };
         return tomarLaNota(viva, texto);
-    }
-    if (orden.tipo === "recorrer") {
-        if (!viva.destino) return { ok: true, aviso: "Nada en pantalla" };
-        await recorrerUnPoco(viva);
-        return { ok: true };
     }
     return { ok: false, motivo: "Orden desconocida" };
 }

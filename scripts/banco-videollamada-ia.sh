@@ -27,6 +27,15 @@ else
 fi
 node --test lib/__tests__/videollamada-ia.test.mjs
 
+# La persona con ediciones del editor de Tavus: copia, nunca force (solo modo bueno).
+if [ "$MODO" != roto ]; then
+  npx esbuild lib/persona-de-tavus.server.ts --bundle --format=esm --platform=node \
+    --alias:server-only=./lib/__tests__/fingido/server-only-vacio.ts \
+    --alias:@/lib/videollamada-ia-db=./lib/__tests__/fingido/videollamada-ia-db-de-mentira.ts \
+    --alias:@=. --outfile=lib/__tests__/.compilado/persona-de-tavus.js --log-level=warning
+  node --test lib/__tests__/persona-derivada.test.mjs
+fi
+
 # La sala montada en Chromium con un Daily de mentira: el saludo de respaldo.
 # En modo roto se monta la sala de 9c0e76d (con su iframe y sin respaldo).
 ANTES_SALA_REF="${ANTES_SALA_REF:-9c0e76d}"

@@ -82,8 +82,7 @@ export function conLaNotaAgregada(antes: string, texto: string): string {
 
 export type OrdenDeLaPantalla =
     | { tipo: "ir"; datos: { lugar: LugarDeVerzy } }
-    | { tipo: "nota"; datos: { texto: string } }
-    | { tipo: "recorrer"; datos: Record<string, never> };
+    | { tipo: "nota"; datos: { texto: string } };
 
 export type ResultadoDeLaOrden = { ok: true; aviso?: string } | { ok: false; motivo: string };
 
@@ -95,7 +94,6 @@ export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
         const lugar = comoRutaDeVerzy(c.lugar ?? c.ruta ?? c.url ?? c.destino);
         return lugar ? { tipo: "ir", datos: { lugar } } : null;
     }
-    if (c.tipo === "recorrer") return { tipo: "recorrer", datos: {} };
     if (c.tipo === "nota") {
         const texto = String(c.texto ?? "").replace(/\s+/g, " ").trim().slice(0, TOPE_DE_LA_NOTA);
         return texto ? { tipo: "nota", datos: { texto } } : null;
@@ -110,7 +108,6 @@ export function loQueSeLeCuentaAVerzy(orden: OrdenDeLaPantalla, r: ResultadoDeLa
             ? `La nota quedó guardada en la ficha del cliente en Verzay Ventas: «${orden.datos.texto}».`
             : `La nota NO se pudo guardar (${r.motivo}). No digas que quedó guardada.`;
     }
-    if (orden.tipo === "recorrer") return "";
     const ruta = orden.datos.lugar;
     if (!r.ok) return `No se pudo abrir ${ruta} (${r.motivo}). No digas que lo estás mostrando.`;
     return r.aviso ? `En pantalla: ${ruta}. Aviso: ${r.aviso}.` : `En pantalla: ${ruta}, en vivo.`;
@@ -185,23 +182,3 @@ export function loQueSeBusca(nombre: string, telefono: string | null): string {
     return String(telefono ?? "").replace(/\D/g, "").slice(-7);
 }
 
-// ---------------------------------------------------------------- la pantalla acompaña la voz
-//
-// Mientras Verzy habla, la pantalla que ya está puesta se RECORRE sola cada
-// `RITMO_AL_HABLAR_MS`. A dónde ir lo decide SOLO Verzy con su herramienta,
-// según el tema: no hay palabras sueltas de su voz que cambien de pantalla
-// (eso abría el panel de estadísticas con decir «resumen»). Callada, nada.
-
-/** Cada cuánto se mueve la pantalla mientras Verzy habla. */
-export const RITMO_AL_HABLAR_MS = 2_200;
-
-/** Qué hace la pantalla en este tick mientras Verzy habla. Puro: solo recorrer, nunca cambiar. */
-export function queHaceLaPantallaAlHablar(e: {
-    hablando: boolean;
-    enPantalla: string | null;
-    desdeElUltimoMovimientoMs: number;
-}): { tipo: "recorrer" } | null {
-    if (!e.hablando || !e.enPantalla) return null;
-    if (e.desdeElUltimoMovimientoMs >= RITMO_AL_HABLAR_MS) return { tipo: "recorrer" };
-    return null;
-}
