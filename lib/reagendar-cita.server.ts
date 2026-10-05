@@ -1,4 +1,5 @@
 import "server-only";
+import { elEnlaceDeReunionDeLaCita } from "@/lib/videollamada-ia.server";
 
 import { db } from "@/lib/db";
 import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
@@ -114,6 +115,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
             duracionMinutos: cita.user?.meetingDuration || 60,
             servicio: cita.service?.name ?? "",
+            enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id),
         },
         ahora,
     );
