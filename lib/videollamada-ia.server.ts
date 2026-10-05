@@ -8,7 +8,6 @@ import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { elBloqueDeLaPantalla, elBloqueDelEnvio, elBloqueDelGuion } from "@/lib/pantalla-del-avatar";
 import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
-import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
 import {
@@ -262,9 +261,10 @@ async function crearLaConversacion(
             language: "spanish",
         },
     };
-    // Verzy empieza ella, sin esperar: «Hola, muy buenas, ¿me escuchas?». Si
-    // es una llamada que retoma otra (ya hablaron), no se vuelve a saludar.
-    if (!yaHablado) cuerpo.custom_greeting = SALUDO_INICIAL;
+    // SIN custom_greeting a propósito: Tavus lo dice en el mismo instante en
+    // que el cliente entra, y ese «hola» se pierde mientras ajusta la
+    // pantalla. El saludo lo hace decir la sala pasado un margen
+    // (ESPERA_DEL_SALUDO_MS de SalaDeLaVideollamada).
     if (origen) {
         cuerpo.callback_url =
             `${origen}/api/videollamada/tavus?c=${encodeURIComponent(cita.id)}&f=${laFirmaDeLaCita(cita.id)}`;

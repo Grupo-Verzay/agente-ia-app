@@ -62,7 +62,8 @@ export function conLaNotaAgregada(antes: string, texto: string): string {
 
 export type OrdenDeLaPantalla =
     | { tipo: "ir"; datos: { destino: DestinoDeVerzy } }
-    | { tipo: "nota"; datos: { texto: string } };
+    | { tipo: "nota"; datos: { texto: string } }
+    | { tipo: "recorrer"; datos: Record<string, never> };
 
 export type ResultadoDeLaOrden = { ok: true; aviso?: string } | { ok: false; motivo: string };
 
@@ -73,6 +74,7 @@ export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
         const destino = comoDestino(c.destino);
         return destino ? { tipo: "ir", datos: { destino } } : null;
     }
+    if (c.tipo === "recorrer") return { tipo: "recorrer", datos: {} };
     if (c.tipo === "nota") {
         const texto = String(c.texto ?? "").replace(/\s+/g, " ").trim().slice(0, TOPE_DE_LA_NOTA);
         return texto ? { tipo: "nota", datos: { texto } } : null;
@@ -87,6 +89,7 @@ export function loQueSeLeCuentaAVerzy(orden: OrdenDeLaPantalla, r: ResultadoDeLa
             ? `La nota quedó guardada en la ficha del cliente en Verzay Ventas: «${orden.datos.texto}».`
             : `La nota NO se pudo guardar (${r.motivo}). No digas que quedó guardada.`;
     }
+    if (orden.tipo === "recorrer") return "";
     const nombre = NOMBRES_DE_LOS_DESTINOS[orden.datos.destino];
     if (!r.ok) return `No se pudo abrir ${nombre} (${r.motivo}). No digas que lo estás mostrando.`;
     return r.aviso ? `En pantalla: ${nombre}. Aviso: ${r.aviso}.` : `En pantalla: ${nombre} de Verzay Ventas, en vivo.`;
@@ -159,4 +162,54 @@ export function loQueSeBusca(nombre: string, telefono: string | null): string {
     const n = String(nombre ?? "").replace(/\s+/g, " ").trim();
     if (n.length >= 2) return n.split(" ").slice(0, 2).join(" ");
     return String(telefono ?? "").replace(/\D/g, "").slice(-7);
+}
+
+// ---------------------------------------------------------------- la pantalla acompaña la voz
+//
+// Mientras Verzy habla, la pantalla NO se queda quieta: cada tramo de su
+// discurso que nombra una sección la abre (`losDestinosQueNombra`) y, entre
+// una y otra, la pantalla se recorre sola (`recorrer`) cada `RITMO_AL_HABLAR_MS`.
+// En silencio no se mueve nada.
+
+/** Cada cuánto se mueve la pantalla mientras Verzy habla. */
+export const RITMO_AL_HABLAR_MS = 2_200;
+
+/** Qué palabras de lo que dice Verzy abren qué pantalla, en orden de prioridad. */
+export const PALABRAS_DE_CADA_DESTINO: ReadonlyArray<{ destino: DestinoDeVerzy; palabras: RegExp }> = [
+    { destino: "citas", palabras: /\b(agenda|citas?|reuni[oó]n(es)?|agendad[oa]s?)\b/i },
+    { destino: "recordatorios", palabras: /\b(recordatorios?|recordar(le|te)?)\b/i },
+    { destino: "embudo", palabras: /\b(embudo|etapas?|pipeline|prospectos?)\b/i },
+    { destino: "ficha", palabras: /\b(ficha|notas?|datos del cliente|tus datos)\b/i },
+    { destino: "chats", palabras: /\b(chats?|whats ?app|conversaci[oó]n(es)?|mensajes?|bandeja)\b/i },
+    { destino: "dashboard", palabras: /\b(panel|estad[ií]sticas?|resumen|reportes?|m[eé]tricas?|ventas del mes)\b/i },
+];
+
+/** Las secciones que nombra un trozo del discurso, en el orden en que aparecen. Puro. */
+export function losDestinosQueNombra(texto: string): DestinoDeVerzy[] {
+    const t = String(texto ?? "");
+    const hallados: { destino: DestinoDeVerzy; en: number }[] = [];
+    for (const { destino, palabras } of PALABRAS_DE_CADA_DESTINO) {
+        const m = t.match(palabras);
+        if (m && m.index !== undefined) hallados.push({ destino, en: m.index });
+    }
+    return hallados.sort((a, b) => a.en - b.en).map((h) => h.destino);
+}
+
+/**
+ * Qué hace la pantalla en este tick mientras Verzy habla. Puro.
+ * - Si su voz nombra una sección distinta de la que se ve: ir ahí.
+ * - Si no, y ya pasó el ritmo desde el último movimiento: recorrer la que se ve.
+ * - Sin pantalla compartida, o callada: nada.
+ */
+export function queHaceLaPantallaAlHablar(e: {
+    hablando: boolean;
+    enPantalla: DestinoDeVerzy | null;
+    nombrados: DestinoDeVerzy[];
+    desdeElUltimoMovimientoMs: number;
+}): { tipo: "ir"; destino: DestinoDeVerzy } | { tipo: "recorrer" } | null {
+    if (!e.hablando || !e.enPantalla) return null;
+    const otro = e.nombrados.find((d) => d !== e.enPantalla);
+    if (otro) return { tipo: "ir", destino: otro };
+    if (e.desdeElUltimoMovimientoMs >= RITMO_AL_HABLAR_MS) return { tipo: "recorrer" };
+    return null;
 }

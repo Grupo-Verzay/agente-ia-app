@@ -145,6 +145,7 @@ export function elBloqueDeLaPantalla(): string {
         ...DESTINOS_DE_VERZY.map((d) => `  - ${d.clave} (${NOMBRES_DE_LOS_DESTINOS[d.clave]}): ${d.cuando}`),
         `- Para dejar de compartir: ${OCULTAR}.`,
         "- Después de cada orden recibirás qué pasó; si algo falló, no digas que se ve o que quedó guardado.",
+        "- La pantalla te sigue mientras hablas: cuando expliques una sección, NÓMBRALA (chats, ficha, recordatorios, agenda, embudo, panel) y se abre en ese momento. Habla de lo que se está viendo.",
     ].join("\n");
 }
 
@@ -311,10 +312,15 @@ export function elBloqueDelGuion(ahora: string): string {
     return [
         "GUION DE LA LLAMADA",
         `Ahora mismo son: ${ahora} (hora del negocio).`,
-        `1. Saludo: empieza TÚ, sin esperar, diciendo exactamente «${SALUDO_INICIAL}». Si el cliente habla antes que tú, respóndele con ese mismo saludo.`,
+        "CÓMO HABLAS (manda sobre todo lo demás):",
+        "- Turnos cortos: una o dos frases cortas por turno, como mucho unas 30 palabras.",
+        "- Cada turno acaba en UNA pregunta concreta y corta. Después te callas y esperas a que el cliente responda.",
+        "- Nada de monólogos, listas largas ni repetir lo que ya dijiste. Si añades algo fuera del guion, que sea una frase corta.",
+        "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
+        `1. Saludo: ya se dijo por ti al entrar («${SALUDO_INICIAL}»). NO saludes otra vez ni empieces a hablar sola: espera a que el cliente conteste.`,
         `2. Cuando confirme que te escucha, haz la segunda pregunta: «${SEGUNDA_PREGUNTA}». No compartas pantalla todavía. Escucha antes de vender.`,
         `3. Solo después de que responda: abre su ficha (ficha) y apunta con ${NOMBRE_DE_TOMAR_NOTA} lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.`,
-        "4. Diagnóstico y plan: dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
+        "4. Diagnóstico y plan, en dos turnos cortos: primero qué le está costando hoy (y pregunta si es así); después qué plan de Verzay lo resuelve y por qué, enseñándolo en pantalla.",
         "5. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
         "6. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o hablar otro día.",
         "7. Objeciones:",

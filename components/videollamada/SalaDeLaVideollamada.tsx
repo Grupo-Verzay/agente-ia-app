@@ -10,7 +10,14 @@ import {
     type OrdenDeAgendar,
     type OrdenDeEnvio,
 } from "@/lib/pantalla-del-avatar";
-import { loQueSeLeCuentaAVerzy, NOMBRES_DE_LOS_DESTINOS, type DestinoDeVerzy, type OrdenDeLaPantalla } from "@/lib/pantalla-de-verzy";
+import {
+    loQueSeLeCuentaAVerzy,
+    losDestinosQueNombra,
+    NOMBRES_DE_LOS_DESTINOS,
+    queHaceLaPantallaAlHablar,
+    type DestinoDeVerzy,
+    type OrdenDeLaPantalla,
+} from "@/lib/pantalla-de-verzy";
 import { NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import {
@@ -23,8 +30,34 @@ import {
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
 export const REABRIR_EL_VIDEO_MS = 1_500;
-/** Si Verzy no ha dicho nada en este rato después de entrar, saluda la sala por él. */
-export const ESPERA_DEL_SALUDO_MS = 4_000;
+/**
+ * Margen entre entrar a la sala y el saludo: el cliente todavía está
+ * acomodando la pantalla y el sonido, y un «hola» dicho en el primer segundo
+ * se pierde. El saludo lo dice SIEMPRE la sala pasado este rato (Tavus ya no
+ * saluda solo al conectar).
+ */
+export const ESPERA_DEL_SALUDO_MS = 2_500;
+/** Cada cuánto se mira si la pantalla tiene que moverse mientras Verzy habla. */
+export const VISTAZO_AL_HABLAR_MS = 500;
+/** Lo que se le cuenta a Verzy en cuanto la sala dijo el saludo por ella. */
+export const YA_SALUDASTE =
+    "Ya saludaste al cliente con «Hola, muy buenas, ¿me escuchas?». No vuelvas a saludar: espera a que responda y sigue el guion con frases cortas.";
+
+/** ¿Este mensaje dice si Verzy empezó (true) o terminó (false) de hablar? null si no dice nada de eso. */
+export function siVerzyEstaHablando(mensaje: unknown): boolean | null {
+    const m = (mensaje ?? {}) as { event_type?: unknown };
+    if (m.event_type === "conversation.replica.started_speaking") return true;
+    if (m.event_type === "conversation.replica.stopped_speaking") return false;
+    return null;
+}
+
+/** Lo que dijo Verzy en este trozo (utterance del avatar), o null. */
+export function loQueDijoVerzy(mensaje: unknown): string | null {
+    const m = (mensaje ?? {}) as { event_type?: unknown; properties?: { role?: unknown; speech?: unknown } };
+    if (m.event_type !== "conversation.utterance" || m.properties?.role !== "replica") return null;
+    const t = typeof m.properties?.speech === "string" ? m.properties.speech.trim() : "";
+    return t || null;
+}
 
 /** ¿Este mensaje de Tavus dice que el avatar está hablando? */
 export function esQueVerzyHabla(mensaje: unknown): boolean {
@@ -109,6 +142,14 @@ export default function SalaDeLaVideollamada({
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
     // servidor. Aquí solo llegan sus fotos.
     const [destino, setDestino] = useState<DestinoDeVerzy | null>(null);
+    // Lo mismo por referencia, para el reloj que mueve la pantalla al hablar.
+    const destinoRef = useRef<DestinoDeVerzy | null>(null);
+    useEffect(() => {
+        destinoRef.current = destino;
+    }, [destino]);
+    const hablandoRef = useRef(false);
+    const ultimoMovimiento = useRef(0);
+    const moviendo = useRef(false);
     const [video, setVideo] = useState(0);
     const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
     const verzyHablo = useRef(false);
@@ -209,8 +250,17 @@ export default function SalaDeLaVideollamada({
     // Una orden de Verzy (ir a un destino o apuntar una nota) va al servidor,
     // y lo que de verdad pasó se le cuenta a Verzy: nunca dice algo que no pasó.
     const pedirALaPantalla = (orden: OrdenDeLaPantalla) => {
-        const cuerpo = orden.tipo === "ir" ? { tipo: "ir", destino: orden.datos.destino } : { tipo: "nota", texto: orden.datos.texto };
-        if (orden.tipo === "ir") setDestino(orden.datos.destino);
+        const cuerpo =
+            orden.tipo === "ir"
+                ? { tipo: "ir", destino: orden.datos.destino }
+                : orden.tipo === "nota"
+                  ? { tipo: "nota", texto: orden.datos.texto }
+                  : { tipo: "recorrer" };
+        if (orden.tipo !== "nota") ultimoMovimiento.current = Date.now();
+        if (orden.tipo === "ir") {
+            destinoRef.current = orden.datos.destino;
+            setDestino(orden.datos.destino);
+        }
         fetch(`/api/videollamada/pantalla?${consulta}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -221,22 +271,25 @@ export default function SalaDeLaVideollamada({
                 const resultado = r && typeof r.ok === "boolean" ? r : { ok: false, motivo: "sin respuesta" };
                 if (!resultado.ok) console.warn("[videollamada] la pantalla no hizo la orden", { orden, motivo: resultado.motivo });
                 if (!resultado.ok && orden.tipo === "ir") setDestino(null);
-                contarleAVerzy(loQueSeLeCuentaAVerzy(orden, resultado));
+                const contexto = loQueSeLeCuentaAVerzy(orden, resultado);
+                if (contexto) contarleAVerzy(contexto);
             })
             .catch((e) => {
                 console.warn("[videollamada] no se pudo pedir a la pantalla", e);
                 if (orden.tipo === "ir") setDestino(null);
-                contarleAVerzy(loQueSeLeCuentaAVerzy(orden, { ok: false, motivo: "sin conexión" }));
+                const contexto = loQueSeLeCuentaAVerzy(orden, { ok: false, motivo: "sin conexión" });
+                if (contexto) contarleAVerzy(contexto);
             });
     };
 
-    // Respaldo del saludo: si Verzy no dice nada al entrar, la sala le hace
-    // decir el saludo. Nunca en una reentrada (ya se saludaron).
-    const saludarSiCalla = (llamada: DailyCall) => {
+    // El saludo: pasado el margen de arranque, la sala le hace decir a Verzy
+    // «Hola, muy buenas, ¿me escuchas?» y le cuenta que ya saludó. Nunca en
+    // una reentrada (ya se saludaron), ni si Verzy ya habló por su cuenta.
+    const saludarTrasElMargen = (llamada: DailyCall) => {
         window.setTimeout(() => {
             const conversacion = conversacionRef.current;
             if (verzyHablo.current || llamadaRef.current !== llamada || !conversacion) return;
-            console.warn("[videollamada] Verzy no habló al entrar; saluda la sala");
+            console.info("[videollamada] saluda la sala tras el margen de arranque");
             try {
                 llamada.sendAppMessage({
                     message_type: "conversation",
@@ -244,11 +297,44 @@ export default function SalaDeLaVideollamada({
                     conversation_id: conversacion,
                     properties: { text: SALUDO_INICIAL },
                 }, "*");
+                contarleAVerzy(YA_SALUDASTE);
             } catch (e) {
-                console.warn("[videollamada] no se pudo mandar el saludo de respaldo", e);
+                console.warn("[videollamada] no se pudo mandar el saludo", e);
             }
         }, ESPERA_DEL_SALUDO_MS);
     };
+
+    // Mientras Verzy habla la pantalla NUNCA se queda quieta: cada
+    // RITMO_AL_HABLAR_MS sin moverse, recorre un poco la sección que se ve.
+    useEffect(() => {
+        if (estado !== "dentro") return;
+        const reloj = window.setInterval(() => {
+            if (moviendo.current) return;
+            const paso = queHaceLaPantallaAlHablar({
+                hablando: hablandoRef.current,
+                enPantalla: destinoRef.current,
+                nombrados: [],
+                desdeElUltimoMovimientoMs: Date.now() - ultimoMovimiento.current,
+            });
+            if (paso?.tipo !== "recorrer") return;
+            moviendo.current = true;
+            ultimoMovimiento.current = Date.now();
+            fetch(`/api/videollamada/pantalla?${consulta}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ tipo: "recorrer" }),
+            })
+                .then((r) => r.json())
+                .then((r) => {
+                    if (!r?.ok) console.warn("[videollamada] la pantalla no se pudo recorrer", r?.motivo);
+                })
+                .catch((e) => console.warn("[videollamada] no se pudo pedir recorrer la pantalla", e))
+                .finally(() => {
+                    moviendo.current = false;
+                });
+        }, VISTAZO_AL_HABLAR_MS);
+        return () => window.clearInterval(reloj);
+    }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const mandarPorWhatsapp = (orden: OrdenDeEnvio) => {
         fetch(`/api/videollamada/whatsapp?${consulta}`, {
@@ -356,7 +442,7 @@ export default function SalaDeLaVideollamada({
             refrescar();
             conversacionRef.current = elIdDeLaConversacion(conexion.url);
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
-            else saludarSiCalla(llamada);
+            else saludarTrasElMargen(llamada);
         });
         llamada.on("left-meeting", () => {
             if (!colgada) reconectar("left-meeting");
@@ -377,7 +463,22 @@ export default function SalaDeLaVideollamada({
             if (fin?.tipo === "verzy_termino_de_hablar" && tope !== null) {
                 colgarTrasLaDespedida("despedida");
             }
-            if (esQueVerzyHabla(ev?.data)) {
+            const hablando = siVerzyEstaHablando(ev?.data);
+            if (hablando !== null) hablandoRef.current = hablando;
+            // Lo que va diciendo Verzy mueve la pantalla al instante: si nombra
+            // otra sección, se abre mientras lo dice.
+            const dicho = loQueDijoVerzy(ev?.data);
+            if (dicho) {
+                hablandoRef.current = true;
+                const paso = queHaceLaPantallaAlHablar({
+                    hablando: true,
+                    enPantalla: destinoRef.current,
+                    nombrados: losDestinosQueNombra(dicho),
+                    desdeElUltimoMovimientoMs: 0,
+                });
+                if (paso?.tipo === "ir") pedirALaPantalla({ tipo: "ir", datos: { destino: paso.destino } });
+            }
+            if (esQueVerzyHabla(ev?.data) || hablando === false) {
                 verzyHablo.current = true;
                 return;
             }
