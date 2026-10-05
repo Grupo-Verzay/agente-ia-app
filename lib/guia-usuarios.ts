@@ -91,8 +91,9 @@ export const MENU_DEL_ASESOR = [
 ] as const;
 
 /**
- * El «⋯» del final de la barra. «Vincular existente» solo sale a una cuenta que
- * ya administra otras, y «Reiniciar vínculos» solo al administrador de la
+ * El «⋯» del final de la barra. «Vincular existente» sale a quien administra
+ * la cuenta (un cliente vincula sus propias cuentas con la contraseña de la
+ * cuenta a vincular), y «Reiniciar vínculos» solo al administrador de la
  * plataforma.
  */
 export const MAS_ACCIONES = ["Vincular existente", "Exportar CSV", "Reiniciar vínculos"] as const;
@@ -492,7 +493,7 @@ export const GUIA_USUARIOS: Contenido = {
             ],
             consejos: [
                 "Asignar sin atender funciona aunque la auto-asignación esté apagada.",
-                "Vincular existente sale en ese menú si tu cuenta ya administra otras cuentas.",
+                "Con Vincular existente juntas tus otras cuentas bajo esta: escribe el correo y la contraseña de la cuenta que quieres vincular.",
             ],
         },
     ],

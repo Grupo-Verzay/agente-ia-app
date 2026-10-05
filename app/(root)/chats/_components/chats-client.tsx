@@ -28,9 +28,13 @@ import {
   deleteChatConversationAction,
   devolverChatAlEscribirAction,
   levantarMarcaDeBorradoAction,
+  reabrirPorElContactoAction,
   setChatArchivedAction,
+  setChatBlockedAction,
+  setChatMutedAction,
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
+import { laMarcaSeLevanta } from "@/lib/reapertura-por-el-contacto";
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import type { ChatBootstrapResponse } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
@@ -100,6 +104,7 @@ import {
   chatPreferenceKeys,
   elegirPreferenciaDelChat,
 } from "@/lib/chat-preference-key";
+import { conLaMarca, elEstadoDelChat, type MapaDeBloqueos } from "@/lib/bloqueo-y-silencio";
 import {
   contarLaLista,
   dedupeAndSortChats,
@@ -958,6 +963,9 @@ export function ChatsClient({
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
   const [chatSessions, setChatSessions] = useState<ChatContactSessionMap>(initialChatSessions);
+  // Bloqueadas y silenciadas (`lib/bloqueo-y-silencio.ts`). Llegan con el
+  // bootstrap y se pintan al momento al pulsar.
+  const [bloqueos, setBloqueos] = useState<MapaDeBloqueos>({});
   // Si ya llegaron las sesiones de la cuenta. Hasta entonces no se sabe que
   // conversacion esta resuelta ni de quien es, asi que el numero de «Todos»
   // se fia del servidor (ver `totalesDeTodos`).
@@ -1611,6 +1619,19 @@ export function ChatsClient({
     filas: new Map(),
   });
 
+  /** Si una conversación está bloqueada o silenciada, con la MISMA regla que la lista. */
+  const estadoDeBloqueo = useCallback(
+    (chat: ChatData) =>
+      elEstadoDelChat(
+        bloqueos,
+        ownerForChat(chat),
+        chat.instanceName,
+        getChatIdentityCandidates(chat),
+        repartidasEntreLineas,
+      ),
+    [bloqueos, ownerForChat, repartidasEntreLineas],
+  );
+
   const channelCounts = useMemo((): Record<string, number> => {
     if (!currentChatsResult.success) return {};
     if (baseDeTodos.current.de !== conteosPorLinea) {
@@ -1623,6 +1644,7 @@ export function ChatsClient({
       duenoDelChat: ownerForChat,
       sesionDelChat: (chat) => getSessionForChat(chat, chatSessions),
       repartidasEntreLineas,
+      bloqueada: (chat) => estadoDeBloqueo(chat).bloqueado,
     });
     const totales = totalesDeTodos(
       contarLaLista(filas),
@@ -1637,7 +1659,7 @@ export function ChatsClient({
       if (inst.instanceName && totales[inst.instanceName] === undefined) totales[inst.instanceName] = 0;
     }
     return totales;
-  }, [instancias, currentChatsResult, contacts, chatPreferences, chatSessions, ownerForChat, conteosPorLinea, repartidasEntreLineas, sesionesListas]);
+  }, [instancias, currentChatsResult, contacts, chatPreferences, chatSessions, ownerForChat, conteosPorLinea, repartidasEntreLineas, sesionesListas, estadoDeBloqueo]);
 
   const filteredSidebarResult = useMemo((): FetchChatsResult => {
     if (!selectedChannel || !sidebarResult.success) return sidebarResult;
@@ -1898,7 +1920,16 @@ export function ChatsClient({
   // contestar la misma pregunta, y la de aqui no podia sostenerla —ventana de
   // cinco minutos, sin los chats que aparecen por primera vez, y en estado de
   // React, asi que una recarga la vaciaba—. Ver `lib/no-leido-de-la-fila.ts`.
-  useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole, currentChatsResult, selectedJid);
+  // Una silenciada o bloqueada no suena ni avisa: sigue en la lista (la
+  // silenciada) pero no interrumpe.
+  const callado = useCallback(
+    (chat: ChatData) => {
+      const estado = estadoDeBloqueo(chat);
+      return estado.silenciado || estado.bloqueado;
+    },
+    [estadoDeBloqueo],
+  );
+  useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole, currentChatsResult, selectedJid, callado);
 
   const toggleSidebarVisibility = useCallback(() => {
     setIsSidebarVisible((previous) => !previous);
@@ -2194,6 +2225,7 @@ export function ChatsClient({
         setQuickReplies(data.quickReplies);
         setAdvisors(data.advisors);
         setChatPreferences(data.chatPreferences);
+        setBloqueos(data.bloqueos ?? {});
         // Las sesiones ya no vienen por aqui: tienen su propia consulta, que
         // sale antes y lleva su reintento. Esta respuesta las traia tambien
         // -573 de sus 1.540 KB- para pintar exactamente lo mismo.
@@ -2869,6 +2901,69 @@ export function ChatsClient({
       return siguiente;
     });
   }, []);
+
+  /**
+   * Archivada o resuelta: si el CONTACTO escribió después, vuelve a la bandeja.
+   *
+   * Es la regla de `lib/reapertura-por-el-contacto.ts`. Se levanta en memoria
+   * al momento —antes de que conteste la IA, que si no la volvería a
+   * esconder— y se le dice a la base una vez por chat y pestaña. Un saliente
+   * (seguimiento, recordatorio, la IA) no devuelve nada: eso es lo que
+   * reabría solas las resueltas a los pocos días.
+   */
+  const reaperturasYaPedidas = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentChatsResult.success) return;
+    const desarchivar: string[] = [];
+    const reabrir: number[] = [];
+    for (const chat of currentChatsResult.data) {
+      const ultimo = chat.lastMessage;
+      if (!ultimo || ultimo.key?.fromMe !== false) continue;
+      const delUltimo = { ts: epochToMs(ultimo.messageTimestamp), fromMe: false };
+      const owner = ownerForChat(chat);
+      const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
+      const sesion = getSessionForChat(chat, chatSessions);
+      const salirDelArchivo = laMarcaSeLevanta(preference?.archivedAt, delUltimo);
+      const salirDeResueltas = Boolean(sesion?.id) && laMarcaSeLevanta(sesion?.resolvedAt, delUltimo);
+      if (!salirDelArchivo && !salirDeResueltas) continue;
+      const identidades = getChatIdentityCandidates(chat);
+      if (salirDelArchivo) {
+        for (const candidate of identidades) {
+          for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
+            if (chatPreferences[k]?.archivedAt) desarchivar.push(k);
+          }
+        }
+      }
+      if (salirDeResueltas && sesion?.id) reabrir.push(sesion.id);
+      if (!owner) continue;
+      const llave = `${owner}::${chat.instanceName ?? ""}::${chat.remoteJid}::${delUltimo.ts}`;
+      if (reaperturasYaPedidas.current.has(llave)) continue;
+      reaperturasYaPedidas.current.add(llave);
+      void reabrirPorElContactoAction({
+        userId: owner,
+        ...(chat.instanceName ? { instanceName: chat.instanceName } : {}),
+        remoteJid: chat.remoteJid,
+        identidades,
+        contactoEscribioEn: delUltimo.ts,
+      })
+        .then((r) => {
+          if (!r.success) console.warn("[chats] no se pudo devolver la conversacion a la bandeja", r.message);
+        })
+        .catch((e) => console.warn("[chats] no se pudo devolver la conversacion a la bandeja", String(e)));
+    }
+    if (reabrir.length) marcarResolucion(Array.from(new Set(reabrir)), false);
+    if (!desarchivar.length) return;
+    console.warn("[chats] conversacion sacada del archivo: el contacto escribio", { llaves: desarchivar.slice(0, 10) });
+    setChatPreferences((prev) => {
+      const next = { ...prev };
+      for (const k of desarchivar) {
+        const pref = next[k];
+        if (!pref) continue;
+        next[k] = { ...pref, archivedAt: null, isArchived: false, updatedAt: new Date().toISOString() };
+      }
+      return next;
+    });
+  }, [currentChatsResult, chatPreferences, chatSessions, ownerForChat, repartidasEntreLineas, marcarResolucion]);
 
   const handleResolucionCambiada = useCallback(
     (sessionId: number, resuelta: boolean) => marcarResolucion([sessionId], resuelta),
@@ -4307,6 +4402,68 @@ export function ChatsClient({
       }
     },
     [applyChatPreference, cuentaDeLaLinea, selectedJid, lineaDelJid, identidadesDeLaFila],
+  );
+
+  /**
+   * Bloquear o silenciar. Se pinta al momento bajo TODAS las identidades de la
+   * fila (la lista la trae por la que Evolution devuelva esa vuelta) y, si el
+   * servidor dice que no, se devuelve tal cual estaba.
+   */
+  const marcarBloqueoOSilencio = useCallback(
+    async (que: "bloqueo" | "silencio", remoteJid: string, activar: boolean, instanceName?: string) => {
+      const linea = instanceName ?? lineaDelJid(remoteJid);
+      const ownerUserId = cuentaDeLaLinea(remoteJid, linea);
+      const identidades = identidadesDeLaFila(remoteJid);
+      const llaves = Array.from(
+        new Set(identidades.flatMap((jid) => chatPreferenceKeys(ownerUserId, linea, jid))),
+      );
+      let antes: MapaDeBloqueos | null = null;
+      setBloqueos((previo) => {
+        if (antes === null) antes = previo;
+        return conLaMarca(previo, llaves, que, activar, { instanceName: linea ?? "", remoteJid });
+      });
+      if (que === "bloqueo" && activar && selectedJid === remoteJid) {
+        setSelectedJid("");
+        setMessages([]);
+        setInfo(undefined);
+      }
+
+      const accion = que === "bloqueo" ? setChatBlockedAction : setChatMutedAction;
+      let result: Awaited<ReturnType<typeof accion>>;
+      try {
+        result = await accion({ userId: ownerUserId, instanceName: linea, remoteJid, activar, identidades });
+      } catch (error) {
+        console.error("[chats] no se pudo guardar el bloqueo o silencio", error);
+        result = { success: false, message: "No se pudo actualizar la conversación." };
+      }
+      if (!result.success) {
+        if (antes) setBloqueos(antes);
+        toast.error(result.message || "No se pudo actualizar la conversación.");
+        return;
+      }
+      if (result.data?.length) {
+        setBloqueos((previo) => {
+          const siguiente = { ...previo };
+          for (const marca of result.data ?? []) {
+            siguiente[chatPreferenceKey(ownerUserId, marca.instanceName, marca.remoteJid)] = marca;
+          }
+          return siguiente;
+        });
+      }
+      toast.success(result.message);
+    },
+    [cuentaDeLaLinea, identidadesDeLaFila, lineaDelJid, selectedJid],
+  );
+
+  const handleBlockChat = useCallback(
+    (contact: { id: string; instanceName?: string }, activar: boolean) =>
+      void marcarBloqueoOSilencio("bloqueo", contact.id, activar, contact.instanceName),
+    [marcarBloqueoOSilencio],
+  );
+  const handleMuteChat = useCallback(
+    (contact: { id: string; instanceName?: string }, activar: boolean) =>
+      void marcarBloqueoOSilencio("silencio", contact.id, activar, contact.instanceName),
+    [marcarBloqueoOSilencio],
   );
 
   const handleDeleteChat = useCallback(
@@ -5869,6 +6026,9 @@ export function ChatsClient({
           sentimientos={sentimientos}
           lineasConSentimiento={lineasConSentimiento}
           chatPreferences={chatPreferences}
+          bloqueos={bloqueos}
+          onBlockChat={handleBlockChat}
+          onMuteChat={handleMuteChat}
           chatSessions={chatSessions}
           onArchiveChat={handleArchiveChat}
           onDeleteChat={handleDeleteChat}

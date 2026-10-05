@@ -56,6 +56,7 @@ import {
 } from "@/lib/no-leido-de-la-fila";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import { elegirPreferenciaDelChat } from "@/lib/chat-preference-key";
+import { elEstadoDelChat, type MapaDeBloqueos } from "@/lib/bloqueo-y-silencio";
 import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
@@ -178,8 +179,9 @@ const MAX_CHATS_VISTOS = 1000;
  * usarlo aqui hacia que contestarle a un cliente marcara el chat como resuelto y
  * lo sacara de la lista sin que nadie le diera a resolver.
  *
- * Sigue volviendo sola cuando el cliente escribe: si el ultimo mensaje es
- * posterior a la marca, deja de contar como resuelta. Se compara aqui en vez de
+ * Sigue volviendo sola cuando el CLIENTE escribe: si el ultimo mensaje es suyo
+ * y posterior a la marca, deja de contar como resuelta. Un saliente posterior
+ * (seguimiento, recordatorio, IA) no la devuelve. Se compara aqui en vez de
  * borrar la marca en la base porque quien recibe los mensajes nuevos es
  * api-webhook, en otro repositorio; asi la vuelta no depende de que alla se
  * cambie nada.
@@ -188,7 +190,7 @@ function esResuelta(c: SidebarContact): boolean {
   // `ts` ya viene en milisegundos (epochToMs), igual que la marca. La regla
   // vive en `lib/total-de-todos` porque el numero de «Todos» usa la MISMA: con
   // dos copias, la fila saldria de la lista y seguiria contando.
-  return estaResuelta(c.ts, c.chatSession?.resolvedAt);
+  return estaResuelta(c.ts, c.chatSession?.resolvedAt, c.ultimoEsDelContacto);
 }
 
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
@@ -267,6 +269,10 @@ type ChatSidebarProps = {
   cuentasDelFiltro?: string[];
   cuentaDeLaLineaDelFiltro?: string | null;
   chatPreferences: ChatConversationPreferenceMap;
+  /** Bloqueadas y silenciadas (`lib/bloqueo-y-silencio.ts`). */
+  bloqueos?: MapaDeBloqueos;
+  onBlockChat?: (contact: SidebarContact, activar: boolean) => void | Promise<void>;
+  onMuteChat?: (contact: SidebarContact, activar: boolean) => void | Promise<void>;
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean, instanceName?: string) => void | Promise<void>;
   onDeleteChat?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
@@ -345,6 +351,9 @@ export function ChatSidebar({
   cuentasDelFiltro,
   cuentaDeLaLineaDelFiltro,
   chatPreferences,
+  bloqueos,
+  onBlockChat,
+  onMuteChat,
   chatSessions,
   onArchiveChat,
   onDeleteChat,
@@ -606,6 +615,15 @@ export function ChatSidebar({
           repartidasEntreLineas,
         );
         const chatSession = getSessionForChat(chat, chatSessions) ?? null;
+        // Bloqueada y silenciada salen de las MISMAS llaves que el resto de las
+        // marcas: la cuenta dueña de la línea, la línea y todas las identidades.
+        const estadoDeBloqueo = elEstadoDelChat(
+          bloqueos ?? {},
+          resolveChatOwnerId?.(chat) ?? "",
+          chat.instanceName,
+          getChatIdentityCandidates(chat),
+          repartidasEntreLineas,
+        );
         const ultimaNota = chatSession ? notasDeLasFilas.get(chatSession.id) ?? null : null;
         // Si lo último que pasó es una nota interna, la vista previa es la nota
         // —el candado y su texto—; en cuanto entra o sale un mensaje posterior,
@@ -641,6 +659,7 @@ export function ChatSidebar({
               : null,
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
+          ultimoEsDelContacto: chat.lastMessage?.key?.fromMe !== true,
           // Inicio de la conversación para el filtro por rango. Si la fila no
           // trae `startedAt` se cae a la última actividad, para poder ubicarla
           // igual en el tiempo en vez de dejarla en 0 (que la sacaría de
@@ -652,6 +671,8 @@ export function ChatSidebar({
           isPinned: Boolean(preference?.isPinned),
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
+          isBlocked: estadoDeBloqueo.bloqueado,
+          isMuted: estadoDeBloqueo.silenciado,
           isDeleted: isChatDeletedByPreference(chat, preference),
           isPurged: Boolean(preference?.purgedAt),
           instanceName: chat.instanceName,
@@ -699,7 +720,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
+  }, [chatPreferences, bloqueos, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
@@ -857,6 +878,8 @@ export function ChatSidebar({
     let groups = 0;
     let archived = 0;
     let resolved = 0;
+    let blocked = 0;
+    let muted = 0;
     let unread = 0;
     let starred = 0;
     let notes = 0;
@@ -869,16 +892,25 @@ export function ChatSidebar({
       // Un chat eliminado no esta en ninguna pestana: no se cuenta en ninguna.
       if (c.isDeleted) continue;
 
+      // Una bloqueada sale de TODO —lista, contadores y sin leer— y solo se ve
+      // en «Bloqueados», lleguen los mensajes que lleguen.
+      if (c.isBlocked) {
+        if (!rangoActivo || dentroDelRango(c, { ...limitesRango, campo: campoDeFecha })) blocked++;
+        continue;
+      }
+
       const resuelta = esResuelta(c);
       // El sin-leer global se cuenta ANTES del recorte por fecha: es la señal de
       // la pestaña del navegador, que refleja todo lo pendiente, no el recorte
       // de una vista local.
-      if (!c.isArchived && !resuelta && c.isUnreadLocal) sinLeerGlobal++;
+      // Una silenciada no avisa: tampoco sube el numero de la pestaña.
+      if (!c.isArchived && !resuelta && !c.isMuted && c.isUnreadLocal) sinLeerGlobal++;
 
       // De aqui para abajo TODO respeta el rango de fechas: la lista y sus
       // contadores dicen el MISMO numero que las filas que se ven.
       if (rangoActivo && !dentroDelRango(c, { ...limitesRango, campo: campoDeFecha })) continue;
 
+      if (c.isMuted) muted++;
       if (c.isArchived) archived++;
       if (resuelta) resolved++;
       if (c.isArchived || resuelta) continue;
@@ -937,7 +969,7 @@ export function ChatSidebar({
         // sabe de fechas, asi que aqui no se sube a el. Sin rango, el de
         // siempre (el total de la linea manda sobre lo cargado).
         all: rangoActivo ? all : Math.max(all, totalDeLaLinea ?? 0),
-        mine, dm, groups, archived, resolved,
+        mine, dm, groups, archived, resolved, blocked, muted,
       } satisfies TabCounts,
       filterCounts: { unread, starred, notes, enEspera },
       sinLeerGlobal,
@@ -1013,12 +1045,16 @@ export function ChatSidebar({
       list = list.filter((c) => dentroDelRango(c, { ...limitesRango, campo: campoDeFecha }));
     }
 
-    if (tab === "archived") {
-      list = list.filter((c) => c.isArchived);
+    if (tab === "blocked") {
+      list = list.filter((c) => c.isBlocked);
+    } else if (tab === "muted") {
+      list = list.filter((c) => c.isMuted && !c.isBlocked);
+    } else if (tab === "archived") {
+      list = list.filter((c) => c.isArchived && !c.isBlocked);
     } else if (tab === "resolved") {
-      list = list.filter((c) => esResuelta(c));
+      list = list.filter((c) => esResuelta(c) && !c.isBlocked);
     } else {
-      list = list.filter((c) => !c.isArchived && !esResuelta(c));
+      list = list.filter((c) => !c.isBlocked && !c.isArchived && !esResuelta(c));
       if (tab === "dm") list = list.filter((c) => !c.isGroup);
       if (tab === "groups") list = list.filter((c) => c.isGroup);
       if (tab === "mine") list = list.filter((c) => c.chatSession?.assignedAdvisorId === currentAdvisorId);
@@ -1747,6 +1783,14 @@ export function ChatSidebar({
       void onArchiveChat?.(id, isArchived, instanceName),
     [onArchiveChat],
   );
+  const handleItemBlock = useCallback(
+    (contact: SidebarContact, activar: boolean) => void onBlockChat?.(contact, activar),
+    [onBlockChat],
+  );
+  const handleItemMute = useCallback(
+    (contact: SidebarContact, activar: boolean) => void onMuteChat?.(contact, activar),
+    [onMuteChat],
+  );
   const handleItemMarkRead = useCallback(
     (id: string) => {
       const c = contactsRef.current.find((x) => x.id === id);
@@ -1773,7 +1817,11 @@ export function ChatSidebar({
   const haySeleccion = selectedJids.size > 0;
 
   const emptyMessage =
-    tab === "archived"
+    tab === "blocked"
+      ? "No hay conversaciones bloqueadas."
+      : tab === "muted"
+        ? "No hay conversaciones silenciadas."
+        : tab === "archived"
       ? "No hay chats archivados que coincidan con el filtro."
       : tab === "resolved"
         ? "No hay conversaciones resueltas."
@@ -2007,6 +2055,8 @@ export function ChatSidebar({
                 onPrefetch={handlePrefetchJid}
                 onTogglePin={handleItemTogglePin}
                 onArchive={handleItemArchive}
+                onBlock={onBlockChat ? handleItemBlock : undefined}
+                onMute={onMuteChat ? handleItemMute : undefined}
                 canDelete={canDeleteChats}
                 onDeleteRequest={setDeleteTarget}
                 onLeadStatusChange={onLeadStatusChange}

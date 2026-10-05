@@ -229,6 +229,7 @@ export async function switchToAccount(targetAccountId: string): Promise<Result> 
 export async function addLinkedAccount(
   linkedEmail: string,
   role: AccountRole = "agente",
+  contrasena?: string | null,
 ): Promise<Result<LinkedAccountInfo>> {
   const context = await getCurrentAccountContext();
   if (!context) return { success: false, message: "No autorizado." };
@@ -241,19 +242,20 @@ export async function addLinkedAccount(
     SELECT id, name, email, company, image, plan FROM "User" WHERE LOWER(email) = ${trimmedEmail} LIMIT 1
   `;
 
-  if (linkedRows.length === 0) {
-    return { success: false, message: "No existe una cuenta con ese email." };
-  }
-
-  const linked = linkedRows[0];
-  if (linked.id === context.accountUserId) {
+  const encontrada = linkedRows[0] ?? null;
+  if (encontrada?.id === context.accountUserId) {
     return { success: false, message: "No puedes vincularte a tu misma cuenta." };
   }
 
-  // La misma puerta que «Vincular existente» de Usuarios: solo lo que ya se
-  // alcanza (`lib/vincular-cuentas.server.ts`).
-  const puerta = await puertaParaVincular(linked.id);
+  // La misma puerta que «Vincular existente» de Usuarios: lo que ya se alcanza,
+  // o una cuenta propia con su contraseña (`lib/vincular-cuentas.server.ts`).
+  // Sin contraseña no se dice nada distinto de antes; con ella, una cuenta que
+  // no existe contesta lo mismo que una contraseña mala (no delata correos).
+  if (!encontrada && !contrasena) return { success: false, message: "No existe una cuenta con ese email." };
+  const puerta = await puertaParaVincular(encontrada?.id ?? null, { cuentaId: context.accountUserId, contrasena });
   if (!puerta.puede) return { success: false, message: puerta.motivo };
+  if (!encontrada) return { success: false, message: "No existe una cuenta con ese email." };
+  const linked = encontrada;
 
   const existing = await db.$queryRaw<{ id: string }[]>`
     SELECT id

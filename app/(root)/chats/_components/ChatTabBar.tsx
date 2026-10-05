@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ChevronDown, Lock, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
+import { Archive, Ban, BellOff, ChevronDown, Lock, Check, CheckCheck, Star, SquarePen, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,7 +65,7 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
   // quinto `align` distinto de la pantalla.
   const masFiltros = usePanelFlotante("columnaAncha", "menu");
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "resolved" || starredOnly || notesOnly;
+  const isOverflowActive = tab === "archived" || tab === "resolved" || tab === "blocked" || tab === "muted" || starredOnly || notesOnly;
   const renderTab = ({ key, label }: (typeof MAIN_TABS)[number]) => (
     <PastillaDeFiltro
       key={key}
@@ -238,6 +238,33 @@ export function ChatTabBar({ onTabChange, tab, hayFiltroDeEstado, tabCounts, sho
             </span>
             {tabCounts.resolved > 0 && (
               <span className="text-[10px] text-muted-foreground">{tabCounts.resolved}</span>
+            )}
+          </DropdownMenuItem>
+          {/* Bloqueados y silenciados van juntos: los dos son decisiones sobre
+              el CONTACTO, no estados de la conversacion. */}
+          <div className="my-1 border-t border-border/50" />
+          <DropdownMenuItem
+            onSelect={() => onTabChange("blocked")}
+            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+          >
+            <span className="flex items-center gap-1.5 text-xs">
+              <Ban className="h-3 w-3 text-muted-foreground shrink-0" />
+              Bloqueados
+            </span>
+            {tabCounts.blocked > 0 && (
+              <span className="text-[10px] text-muted-foreground">{tabCounts.blocked}</span>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onTabChange("muted")}
+            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+          >
+            <span className="flex items-center gap-1.5 text-xs">
+              <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />
+              Silenciados
+            </span>
+            {tabCounts.muted > 0 && (
+              <span className="text-[10px] text-muted-foreground">{tabCounts.muted}</span>
             )}
           </DropdownMenuItem>
           {onDeleteByDate && (

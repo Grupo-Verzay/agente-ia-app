@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChatContactSessionMap } from "@/types/session";
-import type { FetchChatsResult } from "@/actions/chat-actions";
+import type { ChatData, FetchChatsResult } from "@/actions/chat-actions";
 import { epochToMs } from "@/app/(root)/chats/_components/chat-sidebar.utils";
 
 /**
@@ -122,7 +122,15 @@ export function useAdvisorNotifications(
   advisorRole: string | null | undefined,
   chatsResult: FetchChatsResult | null,
   selectedJid: string,
+  /**
+   * Las conversaciones que NO avisan: silenciadas y bloqueadas
+   * (`lib/bloqueo-y-silencio.ts`). Siguen registrando su hora, así que al
+   * quitar el silencio no salta de golpe lo que entró mientras tanto.
+   */
+  callado?: (chat: ChatData) => boolean,
 ): void {
+  const calladoRef = useRef(callado);
+  calladoRef.current = callado;
   const seenIdsRef = useRef<Set<number> | null>(null);
   const prevMyIdsRef = useRef<Set<number> | null>(null);
   const pendingCountRef = useRef(0);
@@ -276,7 +284,8 @@ export function useAdvisorNotifications(
         currentTs > prevTs &&
         currentTs >= recienteDesde &&
         !isFromMe &&
-        chat.remoteJid !== selectedJid
+        chat.remoteJid !== selectedJid &&
+        !calladoRef.current?.(chat)
       ) {
         toNotify.push(chat);
       }
