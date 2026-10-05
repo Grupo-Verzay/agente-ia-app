@@ -13,7 +13,7 @@
  *    (`conversation.tool_call`); lo demás se ignora.
  */
 
-import { SALUDO_INICIAL, SEGUNDA_PREGUNTA } from "@/lib/videollamada-crm";
+import { elBloqueDelGuionDe, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { DESTINOS_DE_VERZY, NOMBRES_DE_LOS_DESTINOS, TOPE_DE_LA_NOTA, comoDestino, type DestinoDeVerzy } from "@/lib/pantalla-de-verzy";
 
 export const NOMBRE_DE_LA_HERRAMIENTA = "mostrar_pantalla";
@@ -308,26 +308,17 @@ export const HERRAMIENTA_DEL_AGENDAR = {
  * El guion de la llamada. `ahora` es la fecha y hora de hoy en la zona del
  * negocio (la necesita para agendar «el jueves a las 3»).
  */
-export function elBloqueDelGuion(ahora: string): string {
+export function elBloqueDelGuion(ahora: string, guion?: GuionDeVideollamada | null): string {
+    // Cómo habla Verzy es fijo; QUÉ dice lo edita la cuenta en Entrenamiento ›
+    // Agente IA › Videollamadas. Aquí solo se arma, con los nombres de las herramientas.
     return [
-        "GUION DE LA LLAMADA",
-        `Ahora mismo son: ${ahora} (hora del negocio).`,
         "CÓMO HABLAS (manda sobre todo lo demás):",
         "- Turnos cortos: una o dos frases cortas por turno, como mucho unas 30 palabras.",
         "- Cada turno acaba en UNA pregunta concreta y corta. Después te callas y esperas a que el cliente responda.",
-        "- Nada de monólogos, listas largas ni repetir lo que ya dijiste. Si añades algo fuera del guion, que sea una frase corta.",
+        "- Nada de monólogos, listas largas ni repetir lo que ya dijiste.",
         "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
-        `1. Saludo: ya se dijo por ti al entrar («${SALUDO_INICIAL}»). NO saludes otra vez ni empieces a hablar sola: espera a que el cliente conteste.`,
-        `2. Cuando confirme que te escucha, haz la segunda pregunta: «${SEGUNDA_PREGUNTA}». No compartas pantalla todavía. Escucha antes de vender.`,
-        `3. Solo después de que responda: abre su ficha (ficha) y apunta con ${NOMBRE_DE_TOMAR_NOTA} lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.`,
-        "4. Diagnóstico y plan, en dos turnos cortos: primero qué le está costando hoy (y pregunta si es así); después qué plan de Verzay lo resuelve y por qué, enseñándolo en pantalla.",
-        "5. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
-        "6. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o hablar otro día.",
-        "7. Objeciones:",
-        "   - «Es caro»: compáralo con lo que pierde hoy en mensajes sin responder y ventas que se enfrían; ofrece el plan más pequeño.",
-        "   - «Tengo que consultarlo con mi socio»: ofrece enviarle la información por WhatsApp y agendar una llamada con los dos.",
-        `8. Siguiente paso: antes de despedirte, confirma una fecha y una hora concretas y déjalo agendado con ${NOMBRE_DEL_AGENDAR} ` +
-            "(cita, recordatorio o llamada). Calcula la fecha a partir de la de hoy y repítesela al cliente.",
+        "- El saludo ya se dijo por ti al entrar: NO saludes otra vez ni empieces a hablar sola; espera a que el cliente conteste.",
+        elBloqueDelGuionDe(guion, ahora, { tomarNota: NOMBRE_DE_TOMAR_NOTA, agendar: NOMBRE_DEL_AGENDAR }),
     ].join("\n");
 }
 

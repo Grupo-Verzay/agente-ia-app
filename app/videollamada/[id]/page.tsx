@@ -53,6 +53,7 @@ export default async function PaginaDeLaVideollamada({ params }: { params: { id:
                 citaId={resultado.citaId}
                 firma={resultado.firma}
                 reentrada={resultado.reentrada}
+                saludo={resultado.saludo}
             />
         );
     const { titulo, texto } = elMensaje(resultado);

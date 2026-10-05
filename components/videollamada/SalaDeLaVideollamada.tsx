@@ -131,12 +131,15 @@ export default function SalaDeLaVideollamada({
     citaId,
     firma,
     reentrada = false,
+    saludo = SALUDO_INICIAL,
 }: {
     url: string;
     nombre?: string | null;
     citaId: string;
     firma: string;
     reentrada?: boolean;
+    /** El saludo del guion de la cuenta (Agente IA › Videollamadas); de fábrica, SALUDO_INICIAL. */
+    saludo?: string;
 }) {
     const [conexion, setConexion] = useState({ url: urlInicial, reentrada, vuelta: 0 });
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
@@ -295,7 +298,7 @@ export default function SalaDeLaVideollamada({
                     message_type: "conversation",
                     event_type: "conversation.echo",
                     conversation_id: conversacion,
-                    properties: { text: SALUDO_INICIAL },
+                    properties: { text: saludo || SALUDO_INICIAL },
                 }, "*");
                 contarleAVerzy(YA_SALUDASTE);
             } catch (e) {

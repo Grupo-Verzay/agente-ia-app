@@ -7,7 +7,10 @@ import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { elBloqueDeLaPantalla, elBloqueDelEnvio, elBloqueDelGuion } from "@/lib/pantalla-del-avatar";
+import { leerElGuionDeVideollamada } from "@/lib/guion-videollamada-db";
+import { elGuionQueSeUsa, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
+import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
 import {
@@ -53,6 +56,8 @@ export type ResultadoAlAbrir =
           firma: string;
           /** La sesión ya estaba en curso y alguien había entrado: el avatar retoma, no vuelve a saludar. */
           reentrada: boolean;
+          /** El saludo del guion de la cuenta: la sala lo dice si Verzy calla al entrar. */
+          saludo: string;
       }
     | { estado: "temprano"; abreEn: Date; zona: string }
     | { estado: "cerrada" }
@@ -188,7 +193,11 @@ export function elBloqueDeLoYaHablado(transcripcion: string | null | undefined):
     ].join("\n");
 }
 
-async function elContexto(cita: CitaParaAbrir, yaHablado?: string | null): Promise<string> {
+async function elContexto(
+    cita: CitaParaAbrir,
+    yaHablado?: string | null,
+    guion?: GuionDeVideollamada | null,
+): Promise<string> {
     const nombre = elNombreDelProspecto(cita);
     let conversacion = "";
     try {
@@ -217,7 +226,7 @@ async function elContexto(cita: CitaParaAbrir, yaHablado?: string | null): Promi
     const anterior = elBloqueDeLoYaHablado(yaHablado);
     // Con la fecha de hoy en la zona del negocio: agendar «el jueves a las 3» la necesita.
     const ahora = laFechaDeHoyParaElGuion(new Date(), zona);
-    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora), anterior]
+    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora, guion), anterior]
         .filter(Boolean)
         .join("\n\n");
 }
@@ -238,19 +247,37 @@ export function laFechaDeHoyParaElGuion(instante: Date, zona: string): string {
 
 /* ── Abrir ─────────────────────────────────────────────────────────────── */
 
+/**
+ * El guion que la cuenta dueña de la cita guardó en Agente IA › Videollamadas.
+ * Si no se puede leer, `null`: va el de fábrica y la llamada nunca sale sin guion.
+ */
+async function elGuionDeLaCita(cita: CitaParaAbrir): Promise<GuionDeVideollamada | null> {
+    try {
+        return await leerElGuionDeVideollamada(cita.userId);
+    } catch (error) {
+        console.warn("[videollamada] no se pudo leer el guion de la cuenta; va el de fábrica", {
+            cita: cita.id,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
 async function crearLaConversacion(
     cita: CitaParaAbrir,
     tavus: { clave: string; personaId: string },
     yaHablado?: string | null,
+    guionLeido?: GuionDeVideollamada | null,
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
     const ahora = new Date();
     // Sin la herramienta en la persona, Verzy no puede compartir pantalla.
     await asegurarLaPantallaEnLaPersona(tavus);
+    const guion = guionLeido === undefined ? await elGuionDeLaCita(cita) : guionLeido;
     const cuerpo: Record<string, unknown> = {
         persona_id: tavus.personaId,
         conversation_name: `Cita ${cita.id}`,
-        conversational_context: await elContexto(cita, yaHablado),
+        conversational_context: await elContexto(cita, yaHablado, guion),
         properties: {
             max_call_duration: laDuracionMaxima(ahora, cita.endTime),
             participant_absent_timeout: 300,
@@ -329,6 +356,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     }
 
     const existente = await laVideollamada(id);
+    const guion = await elGuionDeLaCita(cita);
     const irA = (url: string) => ({
         estado: "ir" as const,
         url,
@@ -336,6 +364,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         citaId: id,
         firma: laFirmaDeLaCita(id),
         reentrada: false,
+        saludo: elGuionQueSeUsa(guion).saludo || SALUDO_INICIAL,
     });
     const decision = queHacerAlAbrir({
         ahora,
@@ -367,7 +396,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     }
 
     try {
-        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion);
+        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         await marcarQueEntro(id);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
