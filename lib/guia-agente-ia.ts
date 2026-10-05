@@ -40,7 +40,7 @@ export const ZONAS_DE_LA_PANTALLA = [
 ] as const;
 
 /** Los canales de entrenamiento, en su orden (`lib/channel-training.ts`). */
-export const CANALES_DOCUMENTADOS = ["WhatsApp", "Llamadas", "WhatsApp API", "Telegram", "Facebook", "Instagram", "Videollamadas"] as const;
+export const CANALES_DOCUMENTADOS = ["WhatsApp", "Llamadas", "Videollamadas", "WhatsApp API", "Telegram", "Facebook", "Instagram"] as const;
 
 /** Las pestañas del editor, en su orden (`ai-section-labels.ts › TYPE_AI_LABELS`). */
 export const PESTANAS_DEL_EDITOR = [

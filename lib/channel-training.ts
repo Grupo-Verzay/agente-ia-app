@@ -13,10 +13,8 @@ export type ChannelEnableFlag =
 export interface TrainingChannel {
   slug: string;
   label: string;
-  agentId: string | null; // null = no usa AgentPrompt (voz, videollamada)
-  // 'video' = el guion de Verzy en las videollamadas con IA (tabla
-  // guion_videollamada, por cuenta; lib/guion-videollamada.ts).
-  kind: 'chat' | 'voice' | 'video';
+  agentId: string | null; // null = no usa AgentPrompt (voz)
+  kind: 'chat' | 'voice';
   // Flag de User que habilita el canal. Ausente = canal base (WhatsApp QR), que
   // siempre está disponible.
   enableFlag?: ChannelEnableFlag;
@@ -27,11 +25,13 @@ export interface TrainingChannel {
 export const TRAINING_CHANNELS: TrainingChannel[] = [
   { slug: 'whatsapp', label: 'WhatsApp', agentId: 'system-prompt-ai', kind: 'chat' },
   { slug: 'llamadas', label: 'Llamadas', agentId: 'system-prompt-ai-llamadas', kind: 'chat', enableFlag: 'onCalls' },
+  // Videollamadas con IA: el MISMO editor que Llamadas (MainAi sobre su
+  // AgentPrompt). El contexto de Tavus lee su promptText (lib/videollamada-ia.server.ts).
+  { slug: 'videollamadas', label: 'Videollamadas', agentId: 'system-prompt-ai-videollamadas', kind: 'chat' },
   { slug: 'whatsapp-api', label: 'WhatsApp API', agentId: 'system-prompt-ai-whatsapp-cloud', kind: 'chat', enableFlag: 'onWhatsappCloud' },
   { slug: 'telegram', label: 'Telegram', agentId: 'system-prompt-ai-telegram', kind: 'chat', enableFlag: 'onTelegram' },
   { slug: 'facebook', label: 'Facebook', agentId: 'system-prompt-ai-facebook', kind: 'chat', enableFlag: 'onFacebook' },
   { slug: 'instagram', label: 'Instagram', agentId: 'system-prompt-ai-instagram', kind: 'chat', enableFlag: 'onInstagram' },
-  { slug: 'videollamadas', label: 'Videollamadas', agentId: null, kind: 'video' },
 ];
 
 export const DEFAULT_TRAINING_CHANNEL = 'whatsapp';

@@ -27397,36 +27397,32 @@ Lo prueban `scripts/banco-creditos-al-editar.sh` aquí y
 `scripts/banco-creditos-sin-pago.sh` en `api-webhook`, contra Postgres y con
 `MODO=roto` pinchado al commit de antes.
 
-## Agente IA › Videollamadas: el guion de Verzy se edita en pantalla, por cuenta
+## Agente IA › Videollamadas: se entrena IGUAL que Llamadas
 
-Lo que DICE Verzy en la videollamada con IA ya no está escrito en el código: se
-edita en Entrenamiento › Agente IA › **Videollamadas** (la pestaña de canal
-`videollamadas`, `kind: 'video'` en `lib/channel-training.ts`), con el saludo
-inicial y siete secciones —Apertura, Diagnóstico, Ubicar situación, Oferta,
-Cierre, Objeciones y Reglas generales—. **En Tavus solo queda lo técnico**: voz,
-cara y réplica.
+La pestaña **Videollamadas** va justo después de Llamadas (WhatsApp, Llamadas,
+Videollamadas, WhatsApp API, Telegram, Facebook, Instagram) y es un canal
+`kind: 'chat'` más (`lib/channel-training.ts`, agente
+`system-prompt-ai-videollamadas`): las mismas ocho pestañas —Perfil, Inicio,
+Preguntas, Productos, Extras, Palabras clave, Gestión y Cotizaciones—, la misma
+vista previa en Markdown y el mismo Guardar que Llamadas, porque es el MISMO
+editor (`MainAi` sobre `AgentPrompt`). El editor de guion de siete secciones se
+fue.
 
-> **El guion es de la CUENTA** (`guion_videollamada`, tabla de la App, sin
-> columnas en `User`): ventas, soporte y pruebas tienen cada una el suyo, y lo
-> lee la cita por la cuenta dueña (`elGuionDeLaCita`). Las reglas son puras en
-> `lib/guion-videollamada.ts`; las usan la pantalla, la acción y el contexto de
-> Tavus (`elBloqueDelGuionDe`).
+Tres cosas que hay que mantener:
 
-Cinco cosas que hay que mantener:
+1. **Lo que se entrena aquí es lo que Verzy lee en la videollamada**:
+   `elEntrenamientoDeLaCita` (`lib/videollamada-ia.server.ts`) lee el
+   `promptText` de ese agente de la cuenta dueña de la cita, y
+   `elBloqueDelGuion` (`lib/pantalla-del-avatar.ts`) lo pone en el contexto de
+   Tavus, topado a `TOPE_DEL_ENTRENAMIENTO`.
+2. **Sin entrenamiento escrito, cae en el guion de antes**
+   (`guion_videollamada` / `elBloqueDelGuionDe`, de fábrica si no hay fila): una
+   cuenta que no ha tocado la pestaña sigue igual. El saludo sigue saliendo de
+   ahí.
+3. **En Tavus solo queda lo técnico**: voz, cara y réplica.
 
-1. **Una sección vacía usa la de fábrica** (`elGuionQueSeUsa`): el guion nunca
-   sale cojo. Guardar todo de fábrica borra la fila.
-2. **El saludo guardado es el `custom_greeting` de Tavus Y el respaldo de la
-   sala** (prop `saludo` de `SalaDeLaVideollamada`): los dos dicen lo mismo.
-3. **Variables**: `{saludo}`, `{segunda_pregunta}`, `{tomar_nota}` y
-   `{agendar}`; se sustituyen al armar el contexto.
-4. **Guardar es de quien administra la cuenta** (`canManageWorkspace`, más
-   `laCuentaDeLaAccion`); los demás lo ven de solo lectura.
-5. **La guía de Agente IA nombra el canal** (`CANALES_DOCUMENTADOS`); sus
-   capturas no se regeneraron.
-
-Lo prueba `scripts/banco-guion-videollamada.sh`; `MODO=roto` lee `304d3bb` y
-afirma que el guion iba fijo y no había pestaña.
+Lo prueba `scripts/banco-guion-videollamada.sh` (el orden de los canales, el
+canal de chat y el entrenamiento en el contexto); `MODO=roto` lee `304d3bb`.
 
 ### Verzy navega LIBRE: no hay lista de pantallas ni tema → pantalla
 

@@ -311,11 +311,21 @@ export const HERRAMIENTA_DEL_AGENDAR = {
     },
 } as const;
 
+/** Tope del entrenamiento que viaja en el contexto de Tavus. */
+export const TOPE_DEL_ENTRENAMIENTO = 16000;
+
 /**
  * El guion de la llamada. `ahora` es la fecha y hora de hoy en la zona del
- * negocio (la necesita para agendar «el jueves a las 3»).
+ * negocio (la necesita para agendar «el jueves a las 3»). Si la cuenta escribió
+ * su entrenamiento en Agente IA › Videollamadas, va ese; si no, el guion.
  */
-export function elBloqueDelGuion(ahora: string, guion?: GuionDeVideollamada | null): string {
+
+export function elBloqueDelGuion(
+    ahora: string,
+    guion?: GuionDeVideollamada | null,
+    entrenamiento?: string | null,
+): string {
+    const texto = (entrenamiento ?? "").trim();
     // Cómo habla Verzy es fijo; QUÉ dice lo edita la cuenta en Entrenamiento ›
     // Agente IA › Videollamadas. Aquí solo se arma, con los nombres de las herramientas.
     return [
@@ -325,7 +335,14 @@ export function elBloqueDelGuion(ahora: string, guion?: GuionDeVideollamada | nu
         "- Nada de monólogos, listas largas ni repetir lo que ya dijiste.",
         "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
         "- El saludo ya se dijo por ti al entrar: NO saludes otra vez ni empieces a hablar sola; espera a que el cliente conteste.",
-        elBloqueDelGuionDe(guion, ahora, { tomarNota: NOMBRE_DE_TOMAR_NOTA, agendar: NOMBRE_DEL_AGENDAR }),
+        texto
+            ? [
+                  "ENTRENAMIENTO DEL AGENTE (Agente IA › Videollamadas)",
+                  `Ahora mismo son: ${ahora} (hora del negocio).`,
+                  `Para apuntar algo usa ${NOMBRE_DE_TOMAR_NOTA}; para agendar usa ${NOMBRE_DEL_AGENDAR}.`,
+                  texto.slice(0, TOPE_DEL_ENTRENAMIENTO),
+              ].join("\n")
+            : elBloqueDelGuionDe(guion, ahora, { tomarNota: NOMBRE_DE_TOMAR_NOTA, agendar: NOMBRE_DEL_AGENDAR }),
     ].join("\n");
 }
 

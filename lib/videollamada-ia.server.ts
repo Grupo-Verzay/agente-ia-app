@@ -197,6 +197,7 @@ async function elContexto(
     cita: CitaParaAbrir,
     yaHablado?: string | null,
     guion?: GuionDeVideollamada | null,
+    entrenamiento?: string | null,
 ): Promise<string> {
     const nombre = elNombreDelProspecto(cita);
     let conversacion = "";
@@ -226,7 +227,7 @@ async function elContexto(
     const anterior = elBloqueDeLoYaHablado(yaHablado);
     // Con la fecha de hoy en la zona del negocio: agendar «el jueves a las 3» la necesita.
     const ahora = laFechaDeHoyParaElGuion(new Date(), zona);
-    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora, guion), anterior]
+    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora, guion, entrenamiento), anterior]
         .filter(Boolean)
         .join("\n\n");
 }
@@ -263,6 +264,32 @@ async function elGuionDeLaCita(cita: CitaParaAbrir): Promise<GuionDeVideollamada
     }
 }
 
+/** El agentId del entrenamiento de Videollamadas (lib/channel-training.ts). */
+export const AGENTE_DE_VIDEOLLAMADAS = "system-prompt-ai-videollamadas";
+
+/**
+ * El entrenamiento que la cuenta dueña de la cita escribió en Agente IA ›
+ * Videollamadas (el MISMO editor que Llamadas). Sin fila o vacío → `null` y
+ * va el guion. Nunca tumba la llamada.
+ */
+async function elEntrenamientoDeLaCita(cita: CitaParaAbrir): Promise<string | null> {
+    try {
+        const fila = await db.agentPrompt.findFirst({
+            where: { userId: cita.userId, agentId: AGENTE_DE_VIDEOLLAMADAS },
+            orderBy: { updatedAt: "desc" },
+            select: { promptText: true },
+        });
+        const texto = fila?.promptText?.trim();
+        return texto ? texto : null;
+    } catch (error) {
+        console.warn("[videollamada] no se pudo leer el entrenamiento de Videollamadas; va el guion", {
+            cita: cita.id,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
 async function crearLaConversacion(
     cita: CitaParaAbrir,
     tavus: { clave: string; personaId: string },
@@ -277,7 +304,7 @@ async function crearLaConversacion(
     const cuerpo: Record<string, unknown> = {
         persona_id: tavus.personaId,
         conversation_name: `Cita ${cita.id}`,
-        conversational_context: await elContexto(cita, yaHablado, guion),
+        conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita)),
         properties: {
             max_call_duration: laDuracionMaxima(ahora, cita.endTime),
             participant_absent_timeout: 300,
