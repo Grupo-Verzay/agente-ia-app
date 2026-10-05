@@ -27053,9 +27053,12 @@ sin tocar) y **Videollamada con IA de Verzay**, que manda al cliente
 
 Cinco cosas que hay que mantener:
 
-1. **La clave de Tavus es de CADA cuenta**, sellada con `sellar` (la llave del
-   correo) y al navegador solo llegan sus últimos 4. Un campo vacío conserva la
-   guardada. No hay ninguna clave fija en el sistema.
+1. **El avatar es UNO para toda la plataforma: Verzy** (`NOMBRE_DEL_AVATAR`).
+   La clave y el persona_id salen del ENTORNO (`TAVUS_API_KEY`,
+   `TAVUS_PERSONA_ID`, en el stack de Portainer; `elAvatarDelEntorno`), nunca
+   del navegador ni de la cuenta: cada cuenta solo elige el modo. Sin las dos
+   variables el modo Tavus no se guarda y el enlace dice «no disponible»; las
+   columnas viejas de persona y clave de `videollamada_ajustes` ya no se leen.
 2. **La sesión de Tavus se crea al ABRIR el enlace**, nunca al agendar
    (`queHacerAlAbrir`): abre 15 min antes, vive hasta el FIN de la franja
    (también tras marcarla «No asistió») y dos pestañas reutilizan la misma

@@ -1,8 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { abrir, sellar } from "@/lib/correo-cifrado.server";
-import { comoModoDeReunion, elFinalDeLaClave, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { comoModoDeReunion, elAvatarDelEntorno, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -11,12 +10,12 @@ import { comoModoDeReunion, elFinalDeLaClave, type AjustesParaGuardar, type Modo
  *
  * | tabla | una fila por |
  * | --- | --- |
- * | `videollamada_ajustes` | CUENTA: modo, `persona_id` y la clave SELLADA |
+ * | `videollamada_ajustes` | CUENTA: el modo de reunión |
  * | `videollamadas_ia` | CITA: la conversación de Tavus, cuándo entró, la transcripción |
  *
- * La clave de Tavus es de CADA cuenta: no hay una fija en el sistema. Se guarda
- * con `sellar` (AES-256-GCM, la misma llave que las credenciales de correo) y
- * lo único que sale de aquí hacia una pantalla es su final (`claveFinal`).
+ * El avatar es UNO para toda la plataforma (el Pal «Verzy»): su persona y su
+ * clave salen del entorno (`elAvatarDeVerzay`). Las columnas `personaId`,
+ * `claveSellada` y `claveFinal` quedan de la primera versión y ya no se leen.
  *
  * El backend LEE estas dos tablas en SQL crudo (el reloj de ausencia) y tolera
  * que no existan: sin fila, la cuenta está en el modo de siempre.
@@ -96,54 +95,34 @@ async function conLasTablas<T>(hacer: () => Promise<T>): Promise<T> {
 
 export type AjustesDeLaVideollamada = {
     modo: ModoDeReunion;
-    personaId: string | null;
-    /** Últimos 4 de la clave guardada, o `null` si no hay. Nunca la clave. */
-    claveFinal: string | null;
+    /** Si la plataforma tiene su avatar configurado (sin él no hay modo Tavus). */
+    disponible: boolean;
 };
 
-const SIN_AJUSTES: AjustesDeLaVideollamada = { modo: "enlace", personaId: null, claveFinal: null };
-
-export async function leerLosAjustes(cuentaId: string): Promise<AjustesDeLaVideollamada> {
-    if (!cuentaId) return SIN_AJUSTES;
-    return conLasTablas(async () => {
-        const filas = await db.$queryRaw<{ modo: string; personaId: string | null; claveFinal: string | null }[]>`
-            SELECT "modo", "personaId", "claveFinal" FROM "videollamada_ajustes"
-            WHERE "cuentaId" = ${cuentaId} LIMIT 1
-        `;
-        const f = filas[0];
-        if (!f) return SIN_AJUSTES;
-        return { modo: comoModoDeReunion(f.modo), personaId: f.personaId, claveFinal: f.claveFinal };
-    });
+/** El avatar fijo de la plataforma. Solo para el servidor que llama a Tavus. */
+export function elAvatarDeVerzay(): { clave: string; personaId: string } | null {
+    return elAvatarDelEntorno({ TAVUS_API_KEY: process.env.TAVUS_API_KEY, TAVUS_PERSONA_ID: process.env.TAVUS_PERSONA_ID });
 }
 
-/** Solo para el servidor que llama a Tavus. Nunca se devuelve a una pantalla. */
-export async function laClaveDeTavus(cuentaId: string): Promise<{ clave: string; personaId: string } | null> {
-    if (!cuentaId) return null;
+export async function leerLosAjustes(cuentaId: string): Promise<AjustesDeLaVideollamada> {
+    const disponible = Boolean(elAvatarDeVerzay());
+    if (!cuentaId) return { modo: "enlace", disponible };
     return conLasTablas(async () => {
-        const filas = await db.$queryRaw<{ modo: string; personaId: string | null; claveSellada: string | null }[]>`
-            SELECT "modo", "personaId", "claveSellada" FROM "videollamada_ajustes"
+        const filas = await db.$queryRaw<{ modo: string }[]>`
+            SELECT "modo" FROM "videollamada_ajustes"
             WHERE "cuentaId" = ${cuentaId} LIMIT 1
         `;
-        const f = filas[0];
-        if (!f || comoModoDeReunion(f.modo) !== "tavus" || !f.personaId) return null;
-        const abierta = abrir<{ clave: string }>(f.claveSellada);
-        return abierta?.clave ? { clave: abierta.clave, personaId: f.personaId } : null;
+        return { modo: comoModoDeReunion(filas[0]?.modo), disponible };
     });
 }
 
 export async function guardarLosAjustes(cuentaId: string, ajustes: AjustesParaGuardar): Promise<AjustesDeLaVideollamada> {
-    const sellada = ajustes.clave ? sellar({ clave: ajustes.clave }) : null;
-    const final = ajustes.clave ? elFinalDeLaClave(ajustes.clave) : null;
     await conLasTablas(async () => {
-        // Una clave vacía CONSERVA la guardada (COALESCE).
         await db.$executeRaw`
-            INSERT INTO "videollamada_ajustes" ("cuentaId", "modo", "personaId", "claveSellada", "claveFinal", "actualizadoEn")
-            VALUES (${cuentaId}, ${ajustes.modo}, ${ajustes.personaId}, ${sellada}, ${final}, CURRENT_TIMESTAMP)
+            INSERT INTO "videollamada_ajustes" ("cuentaId", "modo", "actualizadoEn")
+            VALUES (${cuentaId}, ${ajustes.modo}, CURRENT_TIMESTAMP)
             ON CONFLICT ("cuentaId") DO UPDATE SET
                 "modo" = EXCLUDED."modo",
-                "personaId" = EXCLUDED."personaId",
-                "claveSellada" = COALESCE(EXCLUDED."claveSellada", "videollamada_ajustes"."claveSellada"),
-                "claveFinal" = COALESCE(EXCLUDED."claveFinal", "videollamada_ajustes"."claveFinal"),
                 "actualizadoEn" = CURRENT_TIMESTAMP
         `;
     });

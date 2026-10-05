@@ -14,7 +14,7 @@ import {
 } from "@/lib/videollamada-ia";
 import {
     apuntarLaConversacion,
-    laClaveDeTavus,
+    elAvatarDeVerzay,
     laVideollamada,
     leerLosAjustes,
     marcarQueEntro,
@@ -24,8 +24,8 @@ import {
 
 /**
  * Abrir `/videollamada/<id de la cita>`: aquí, y SOLO aquí, se crea la
- * conversación de Tavus, con la clave y el `persona_id` de la cuenta dueña de
- * la cita. La clave no sale de este fichero: va en la cabecera `x-api-key` de
+ * conversación de Tavus, con el avatar fijo de la plataforma («Verzy»), para
+ * cualquier cuenta. La clave no sale de este fichero: va en la cabecera `x-api-key` de
  * la petición a Tavus y en ningún otro sitio.
  */
 
@@ -221,12 +221,11 @@ async function esperarALaOtraPestana(citaId: string): Promise<string | null> {
 function elMotivoLegible(motivo: string): string {
     const m = motivo.toLowerCase();
     if (m.includes("401") || m.includes("unauthor") || m.includes("api key") || m.includes("invalid key")) {
-        return "La clave de Tavus de este negocio no es válida.";
+        return "El servicio de videollamada no está disponible en este momento.";
     }
     if (m.includes("credit") || m.includes("quota") || m.includes("limit")) {
-        return "El servicio de videollamada de este negocio no tiene saldo disponible.";
+        return "El servicio de videollamada no tiene saldo disponible.";
     }
-    if (m.includes("persona")) return "El avatar configurado por este negocio no existe.";
     return "No se pudo abrir la videollamada en este momento.";
 }
 
@@ -251,8 +250,12 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     })) as CitaParaAbrir | null;
     if (!cita) return { estado: "no_existe" };
 
-    const tavus = await laClaveDeTavus(cita.userId);
-    if (!tavus) return { estado: "sin_configurar" };
+    const ajustes = await leerLosAjustes(cita.userId).catch(() => null);
+    const tavus = elAvatarDeVerzay();
+    if (ajustes?.modo !== "tavus" || !tavus) {
+        if (!tavus) console.error("[videollamada] falta TAVUS_API_KEY o TAVUS_PERSONA_ID en el entorno", { cita: id });
+        return { estado: "sin_configurar" };
+    }
 
     const existente = await laVideollamada(id);
     const decision = queHacerAlAbrir({

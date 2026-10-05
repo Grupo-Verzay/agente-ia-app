@@ -14,7 +14,7 @@
  * # La sesión NO se crea por adelantado
  *
  * El enlace del cliente es nuestro y no caduca; la conversación de Tavus se
- * crea al ABRIRLO, con la clave y el `persona_id` de ESA cuenta. Una sesión
+ * crea al ABRIRLO, con el avatar fijo de la plataforma («Verzy»). Una sesión
  * creada al agendar caducaría o se gastaría antes de la cita. Lo decide
  * {@link queHacerAlAbrir}.
  */
@@ -97,6 +97,14 @@ export function laDuracionMaxima(ahora: Date, fin: Date): number {
 
 /* ── Los ajustes ───────────────────────────────────────────────────────── */
 
+/**
+ * El avatar es UNO para toda la plataforma: el Pal «Verzy» de Verzay, con la
+ * clave de Tavus de la casa. Ninguna cuenta guarda persona ni clave; lo único
+ * que elige una cuenta es su MODO de reunión. La persona y la clave salen del
+ * entorno (`TAVUS_API_KEY`, `TAVUS_PERSONA_ID`) y nunca viajan al navegador.
+ */
+export const NOMBRE_DEL_AVATAR = "Verzy";
+
 /** Un `persona_id` de Tavus: letras, números, guion y guion bajo. */
 export function comoPersonaId(valor: unknown): string | null {
     const limpio = String(valor ?? "").trim();
@@ -109,38 +117,30 @@ export function comoClaveDeTavus(valor: unknown): string | null {
     return /^[A-Za-z0-9_\-.]{16,200}$/.test(limpio) ? limpio : null;
 }
 
-/** Lo único de la clave que viaja al navegador. */
-export function elFinalDeLaClave(clave: string): string {
-    return clave.slice(-4);
+/** El avatar de la casa leído del entorno, o `null` si falta algo o no tiene forma. */
+export function elAvatarDelEntorno(
+    entorno: { TAVUS_API_KEY?: string; TAVUS_PERSONA_ID?: string },
+): { clave: string; personaId: string } | null {
+    const clave = comoClaveDeTavus(entorno.TAVUS_API_KEY);
+    const personaId = comoPersonaId(entorno.TAVUS_PERSONA_ID);
+    return clave && personaId ? { clave, personaId } : null;
 }
 
-export type AjustesParaGuardar = {
-    modo: ModoDeReunion;
-    personaId: string | null;
-    /** `null` = conservar la guardada. */
-    clave: string | null;
-};
+export type AjustesParaGuardar = { modo: ModoDeReunion };
 
 /**
- * Qué se guarda. En modo `tavus` hace falta el `persona_id` y una clave (la
- * nueva, o una ya guardada); un campo de clave VACÍO conserva la guardada.
+ * Qué se guarda: el modo y nada más. El modo `tavus` solo se puede encender si
+ * la plataforma tiene su avatar configurado; apagarlo se puede siempre.
  */
 export function losAjustesQueSeGuardan(
-    pedido: { modo?: unknown; personaId?: unknown; clave?: unknown },
-    hayClaveGuardada: boolean,
+    pedido: { modo?: unknown },
+    hayAvatar: boolean,
 ): { ok: true; ajustes: AjustesParaGuardar } | { ok: false; motivo: string } {
     const modo = comoModoDeReunion(pedido.modo);
-    const claveCruda = String(pedido.clave ?? "").trim();
-    const clave = claveCruda ? comoClaveDeTavus(claveCruda) : null;
-    if (claveCruda && !clave) return { ok: false, motivo: "La clave de API de Tavus no tiene una forma válida." };
-    const personaCruda = String(pedido.personaId ?? "").trim();
-    const personaId = personaCruda ? comoPersonaId(personaCruda) : null;
-    if (personaCruda && !personaId) return { ok: false, motivo: "El persona_id no tiene una forma válida." };
-    if (modo === "tavus") {
-        if (!personaId) return { ok: false, motivo: "Falta el persona_id de Tavus." };
-        if (!clave && !hayClaveGuardada) return { ok: false, motivo: "Falta la clave de API de Tavus." };
+    if (modo === "tavus" && !hayAvatar) {
+        return { ok: false, motivo: "La videollamada con IA no está disponible en este momento." };
     }
-    return { ok: true, ajustes: { modo, personaId, clave } };
+    return { ok: true, ajustes: { modo } };
 }
 
 /* ── El contexto que se le da al avatar ────────────────────────────────── */

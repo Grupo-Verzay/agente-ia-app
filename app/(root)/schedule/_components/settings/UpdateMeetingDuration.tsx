@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { updateUserMeetingDuration } from "@/actions/userClientDataActions";
 import { useRouter } from "next/navigation";
-import { Bot, Clock, KeyRound, Link2, Settings2, Timer } from "lucide-react";
+import { Bot, Clock, Link2, Settings2, Timer } from "lucide-react";
 import { guardarAjustesDeVideollamadaAction, leerAjustesDeVideollamadaAction } from "@/actions/videollamada-ia-actions";
 import { MODOS_DE_REUNION, NOMBRE_DEL_MODO, type ModoDeReunion } from "@/lib/videollamada-ia";
 
@@ -43,12 +43,10 @@ export const UpdateMeetingDuration = ({
     const [loading, setLoading] = useState(false);
 
     // El modo de reunión: el enlace fijo de siempre o la videollamada con IA.
-    // La clave de Tavus no viaja: solo su final, y el campo vacío la conserva.
+    // El avatar es uno, el de la plataforma (Verzy): aquí solo se elige el modo.
     const [modo, setModo] = useState<ModoDeReunion>("enlace");
-    const [personaId, setPersonaId] = useState("");
-    const [clave, setClave] = useState("");
-    const [claveFinal, setClaveFinal] = useState<string | null>(null);
-    const [guardado, setGuardado] = useState<{ modo: ModoDeReunion; personaId: string }>({ modo: "enlace", personaId: "" });
+    const [disponible, setDisponible] = useState(true);
+    const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
 
     useEffect(() => {
         let vivo = true;
@@ -56,9 +54,8 @@ export const UpdateMeetingDuration = ({
             .then((res) => {
                 if (!vivo || !res.success) return;
                 setModo(res.data.modo);
-                setPersonaId(res.data.personaId ?? "");
-                setClaveFinal(res.data.claveFinal);
-                setGuardado({ modo: res.data.modo, personaId: res.data.personaId ?? "" });
+                setDisponible(res.data.disponible);
+                setGuardado(res.data.modo);
             })
             .catch((error) => console.warn("[videollamada] no se pudieron leer los ajustes", error));
         return () => {
@@ -70,11 +67,10 @@ export const UpdateMeetingDuration = ({
         mutationFn: async (payload: { duration: number; url: string; minNotice: number }) => {
             // Primero el modo: con él guardado, el recordatorio de la cita se
             // escribe con el enlace que toca (la variable o el fijo).
-            const video = await guardarAjustesDeVideollamadaAction(userId, { modo, personaId, clave });
+            const video = await guardarAjustesDeVideollamadaAction(userId, { modo });
             if (!video.success) throw new Error(video.message);
-            setClave("");
-            setClaveFinal(video.data.claveFinal);
-            setGuardado({ modo: video.data.modo, personaId: video.data.personaId ?? "" });
+            setDisponible(video.data.disponible);
+            setGuardado(video.data.modo);
             const res = await updateUserMeetingDuration(userId, payload.duration, payload.url, payload.minNotice);
             if (!res.success) throw new Error(res.message);
             router.refresh();
@@ -118,9 +114,7 @@ export const UpdateMeetingDuration = ({
         const { value, unit } = fromMinutes(initialMinNotice);
         setNoticeValue(value);
         setNoticeUnit(unit);
-        setModo(guardado.modo);
-        setPersonaId(guardado.personaId);
-        setClave("");
+        setModo(guardado);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -130,10 +124,7 @@ export const UpdateMeetingDuration = ({
         const durationError = validateDuration(durationMinutes.toString());
         if (durationError) return toast.error(durationError);
 
-        if (modo === "tavus") {
-            if (!personaId.trim()) return toast.error("Falta el persona_id de Tavus.");
-            if (!clave.trim() && !claveFinal) return toast.error("Falta la clave de API de Tavus.");
-        }
+        if (modo === "tavus" && !disponible) return toast.error("La videollamada con IA no está disponible en este momento.");
         const urlError = validateMeetingUrl(url);
         if (urlError) return toast.error(urlError);
 
@@ -227,36 +218,15 @@ export const UpdateMeetingDuration = ({
                         <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
                     </div>
                 ) : (
-                    <div className="space-y-3" data-ajustes-de-tavus>
-                        <div className="space-y-1.5">
-                            <label htmlFor="tavusPersona" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                                <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                                Persona de Tavus (persona_id)
-                            </label>
-                            <Input
-                                id="tavusPersona"
-                                value={personaId}
-                                onChange={(e) => setPersonaId(e.target.value)}
-                                placeholder="p1234abcd"
-                                autoComplete="off"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label htmlFor="tavusClave" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                                <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-                                Clave de API de Tavus
-                            </label>
-                            <Input
-                                id="tavusClave"
-                                type="password"
-                                value={clave}
-                                onChange={(e) => setClave(e.target.value)}
-                                placeholder={claveFinal ? `•••• ${claveFinal} (déjalo vacío para conservarla)` : "Pega tu clave de API"}
-                                autoComplete="new-password"
-                            />
-                        </div>
+                    <div className="space-y-1.5" data-ajustes-de-tavus>
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                            <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+                            Te atiende Verzy, el asistente con video de la plataforma
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                            Cada cita recibe su propio enlace. La sala se crea cuando el cliente lo abre, desde 15 minutos antes.
+                            {disponible
+                                ? "Cada cita recibe su propio enlace. La sala se crea cuando el cliente lo abre, desde 15 minutos antes."
+                                : "La videollamada con IA no está disponible en este momento."}
                         </p>
                     </div>
                 )}
