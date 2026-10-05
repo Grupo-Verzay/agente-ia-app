@@ -5,15 +5,15 @@
 # ninguna lista). Las reglas puras van en `banco-videollamada-ia.sh`.
 #
 #   npm run build && scripts/banco-navegacion-de-verzy.sh
-#   MODO=roto … contra ANTES_REF: Verzy solo tenía una lista cerrada de destinos.
+#   MODO=roto … contra ANTES_REF: el código llevaba tablas de rutas (LUGARES_DE_LA_LANDING…).
 #   FOTOS_EN=<dir> guarda el último fotograma de cada pantalla.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ANTES_REF="${ANTES_REF:-2f46b94}"
+ANTES_REF="${ANTES_REF:-9a1390d}"
 if [ "${MODO:-}" = "roto" ]; then
-  if git show "$ANTES_REF:lib/pantalla-de-verzy.ts" | grep -q "DESTINOS_DE_VERZY"; then
-    echo "ok   en $ANTES_REF Verzy solo podía ir a una lista cerrada (DESTINOS_DE_VERZY)"; exit 0
+  if git show "$ANTES_REF:lib/pantalla-de-verzy.ts" | grep -q "LUGARES_DE_LA_LANDING"; then
+    echo "ok   en $ANTES_REF el código decidía rutas con sus propias tablas (LUGARES_DE_LA_LANDING)"; exit 0
   fi
-  echo "MAL  en $ANTES_REF ya no había lista cerrada"; exit 1
+  echo "MAL  en $ANTES_REF ya no había tablas de rutas"; exit 1
 fi
 SONDA=scripts/probar-navegacion-de-verzy.mjs exec scripts/banco-video-de-verzy.sh

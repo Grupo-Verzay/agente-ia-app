@@ -223,7 +223,7 @@ async function elContexto(
         inicioLegible: deInstanteAReloj(cita.startTime, zona),
         conversacion,
     });
-    // La pantalla que comparte el avatar: sin esto no sabe qué páginas hay.
+    // La pantalla que comparte el avatar: solo cómo se usa la herramienta; a dónde ir lo dice su entrenamiento.
     const anterior = elBloqueDeLoYaHablado(yaHablado);
     // Con la fecha de hoy en la zona del negocio: agendar «el jueves a las 3» la necesita.
     const ahora = laFechaDeHoyParaElGuion(new Date(), zona);

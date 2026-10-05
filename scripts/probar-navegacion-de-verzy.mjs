@@ -72,12 +72,19 @@ for (const l of ["/inicio", "/inicio#how", "/inicio#features", "/inicio#pricing"
     "/planes/nivel-1", "/planes/nivel-2", "/planes/nivel-3", "/planes/nivel-4", "/planes/nivel-5", "/planes/nivel-6",
     "/documentacion"]) await probar(l, "landing");
 
-// 2. La plataforma como Verzay Ventas: las sugeridas Y otras que no están en ninguna lista.
-for (const l of ["chats", "ficha", "/crm/dashboard", "/crm/kanban", "/crm/llamadas", "/embudos", "/sessions",
+// 2. La plataforma como Verzay Ventas: cualquier URL que pida el modelo, sin lista ninguna.
+for (const l of ["/chats", "/crm/dashboard", "/crm/reportes", "/correo", "/documentation", "/crm/kanban", "/crm/llamadas", "/embudos", "/sessions",
     "/schedule", "/reminders", "/workflow", "/ia", "/products", "/equipo", "/tareas", "/profile",
     "/notas", "/mis-formularios", "/auto-replies", "/macros", "/bookings"]) await probar(l, "plataforma");
 
-// 3. Lo que no existe NO es un ok, y lo prohibido no se abre.
+// 3. Una palabra suelta NO es una URL: el código no la traduce a ninguna pantalla.
+for (const palabra of ["chats", "ficha", "precios", "embudo"]) {
+    const r = await fetch(url("x=1"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tipo: "ir", lugar: palabra }) });
+    const j = await r.json().catch(() => ({}));
+    ok(j.ok !== true, `«${palabra}» no se traduce a ninguna pantalla`, `${r.status} ${JSON.stringify(j)}`);
+}
+
+// 4. Lo que no existe NO es un ok, y lo prohibido no se abre.
 const nada = await ir("/esta-pantalla-no-existe");
 ok(nada.j?.ok === false, "una ruta que no existe contesta que no existe", JSON.stringify(nada.j));
 const prohibida = await fetch(url("x=1"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tipo: "ir", lugar: "/api/logout" }) });
