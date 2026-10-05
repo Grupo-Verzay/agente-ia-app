@@ -52,7 +52,12 @@ ENV PORT=3000
 #
 # Nada del codigo de la App lee esta variable; solo la lee `server.js` de Next.
 ENV HOSTNAME=0.0.0.0
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# Chromium: la pantalla de Verzy en la videollamada es la cuenta «Verzay Ventas»
+# navegada EN VIVO por un Chromium sin cabeza en el servidor
+# (lib/pantalla-de-verzy.server.ts, con playwright-core). fonts-liberation para
+# que el texto no salga en cuadritos.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates chromium fonts-liberation && rm -rf /var/lib/apt/lists/*
+ENV CHROMIUM_PATH=/usr/bin/chromium
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { laCita, elTelefono } from "@/lib/videollamada-en-vivo.server";
 import { laCuentaDeVerzy } from "@/lib/videollamada-crm.server";
-import { elTokenDeServicio } from "@/lib/token-de-servicio-de-verzy.server";
+import { DURACION_DE_LA_SESION_S, lasCookiesDeVerzy } from "@/lib/sesion-de-verzy.server";
 import {
     laRutaDelDestino, comoDestino, conLaNotaAgregada, NOMBRES_DE_LOS_DESTINOS,
     type DestinoDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
@@ -14,7 +14,7 @@ import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
 /**
  * La PANTALLA de Verzy: un Chromium sin cabeza, dentro del servidor, con una
- * sesión REAL de «Verzay Ventas» abierta con el token de servicio. Verzy le da
+ * sesión REAL de «Verzay Ventas» abierta en proceso con su cookie de Auth.js. Verzy le da
  * órdenes (ir a Chats, abrir la ficha del prospecto, escribir una nota) y la
  * sala del prospecto recibe FOTOS de lo que se ve. Nada se inventa: lo que sale
  * en la sala es la plataforma de verdad, con sus datos de verdad.
@@ -118,7 +118,7 @@ async function elNavegador(): Promise<Navegador> {
     return navegador;
 }
 
-/** Abre (o reutiliza) la sesión de Verzay Ventas con el token de servicio. */
+/** Abre (o reutiliza) la sesión de Verzay Ventas en proceso. */
 async function laSesion(): Promise<Contexto> {
     if (sesion) {
         sesion.usadaEn = Date.now();
@@ -139,13 +139,22 @@ async function laSesion(): Promise<Contexto> {
     return abriendoLaSesion;
 }
 
-/** Cambia el token de servicio por la cookie de sesión, dentro del contexto. */
+/**
+ * Mete la sesión de Verzay Ventas en el contexto. Las dos cookies van con
+ * `secure` en la de `__Secure-`: Chromium la acepta y la manda a 127.0.0.1
+ * (origen de confianza), y es la que Auth.js lee cuando `NEXTAUTH_URL` es https.
+ */
 async function entrar(contexto: Contexto): Promise<void> {
-    const token = await elTokenDeServicio();
-    const res = await contexto.request.post(`${BASE_LOCAL}/api/videollamada/servicio/entrar`, {
-        headers: { "x-verzy-servicio": token },
-    });
-    if (!res.ok()) throw new Error(`La sesión de Verzay Ventas no se abrió (HTTP ${res.status()})`);
+    const sesionDeVerzy = await lasCookiesDeVerzy();
+    if (!sesionDeVerzy) throw new Error("La sesión de Verzay Ventas no se abrió (sin cuenta o sin AUTH_SECRET)");
+    const expires = Math.floor(Date.now() / 1000) + DURACION_DE_LA_SESION_S;
+    await contexto.addCookies(sesionDeVerzy.cookies.map((c) => ({
+        // Con `domain` y `path`, no con `url`: con `url` http Chromium rechaza
+        // la cookie `__Secure-` («Invalid cookie fields»). 127.0.0.1 cuenta
+        // como origen seguro, así que la manda igual por http.
+        name: c.nombre, value: c.valor, domain: "127.0.0.1", path: "/", httpOnly: true,
+        sameSite: "Lax" as const, secure: c.nombre.startsWith("__Secure-"), expires,
+    })));
 }
 
 /** Mantiene la sesión tibia: se cierra solo si nadie la usó en un buen rato. */
