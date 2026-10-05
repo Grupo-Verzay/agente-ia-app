@@ -41,6 +41,46 @@ export function elEnlaceDeLaVideollamada(origen: string, citaId: string): string
     return `${base}/videollamada/${encodeURIComponent(citaId)}`;
 }
 
+/** Tope de largo del enlace con nombre (sin contar el sufijo «-2»). */
+export const TOPE_DEL_ENLACE = 48;
+
+/**
+ * El trozo amigable del enlace, sacado del nombre del prospecto:
+ * «María Alejandra Rosas» → «maria-alejandra-rosas». La tilde se quita y la
+ * letra se queda. Sin nombre utilizable (vacío, solo un teléfono) → `null`, y
+ * el enlace sigue siendo el id de la cita.
+ */
+export function elEnlaceDelNombre(nombre: unknown): string | null {
+    const limpio = String(nombre ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, TOPE_DEL_ENLACE)
+        .replace(/-+$/g, "");
+    if (limpio.length < 3 || !/[a-z]/.test(limpio)) return null;
+    return limpio;
+}
+
+/** El candidato n-ésimo cuando el nombre ya lo usa otra cita: base, base-2, base-3… */
+export function elEnlaceConSufijo(base: string, intento: number): string {
+    return intento <= 1 ? base : `${base}-${intento}`;
+}
+
+/** Lo que llega en `/videollamada/<x>` puede ser un enlace con nombre. */
+export function pareceUnEnlaceConNombre(valor: string): boolean {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(valor) && valor.length >= 3 && valor.length <= TOPE_DEL_ENLACE + 4;
+}
+
+/** El nombre con el que entra el prospecto: el de la cita, nunca se le pide. */
+export function elNombreDelProspecto(cita: {
+    clientName?: string | null;
+    session?: { customName?: string | null; pushName?: string | null } | null;
+}): string | null {
+    return cita.session?.customName?.trim() || cita.clientName?.trim() || cita.session?.pushName?.trim() || null;
+}
+
 /* ── La ausencia del cliente ───────────────────────────────────────────── */
 
 /** A los 3 minutos sin entrar, el asistente de voz le llama por WhatsApp. */

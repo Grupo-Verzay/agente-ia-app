@@ -46,7 +46,7 @@ function elMensaje(resultado: Exclude<ResultadoAlAbrir, { estado: "ir" }>): { ti
 
 export default async function PaginaDeLaVideollamada({ params }: { params: { id: string } }) {
     const resultado = await abrirLaVideollamada(decodeURIComponent(params.id ?? ""));
-    if (resultado.estado === "ir") return <SalaDeLaVideollamada url={resultado.url} />;
+    if (resultado.estado === "ir") return <SalaDeLaVideollamada url={resultado.url} nombre={resultado.nombre} />;
     const { titulo, texto } = elMensaje(resultado);
     return (
         <main className={`${PANTALLA_PUBLICA_QUE_SE_DESPLAZA} bg-slate-50 dark:bg-slate-950`}>
