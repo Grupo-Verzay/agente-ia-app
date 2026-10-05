@@ -27,8 +27,10 @@ export type PestanaDeMultiagenda = (typeof PESTANAS_DE_MULTIAGENDA)[number]["val
  * página abierta —el de la plataforma o el de un reseller—, nunca uno escrito
  * a mano.
  */
-export function elEnlaceDeReservaDelEquipo(origen: string, cuentaId: string): string {
+export function elEnlaceDeReservaDelEquipo(origen: string, cuentaId: string, slug?: string | null): string {
     const base = String(origen ?? "").replace(/\/+$/, "");
+    // Con su nombre legible: `/bookings/<nombre>/agenda`. Sin él, con el id.
+    if (slug) return `${base}/bookings/${encodeURIComponent(slug)}/agenda`;
     return `${base}/bookings/${encodeURIComponent(cuentaId)}`;
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
+import { comoCapacidad, laCapacidadQueVale } from "@/lib/capacidad-de-multiagenda";
 import { elEnlaceConSufijo, comoModoDeReunion, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
@@ -66,6 +67,13 @@ function asegurarLasTablas(): Promise<void> {
                 "resumen" TEXT,
                 "grabacionUrl" TEXT,
                 "mensajeId" TEXT
+            )
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "multiagenda_capacidad" (
+                "teamId" TEXT PRIMARY KEY,
+                "capacidad" INTEGER NOT NULL DEFAULT 1,
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `);
         await ddl(() => db.$executeRaw`
@@ -197,6 +205,46 @@ export async function guardarLosAjustes(cuentaId: string, ajustes: AjustesParaGu
         `;
     });
     return leerLosAjustes(cuentaId);
+}
+
+/* ── Multiagenda: videollamadas a la vez por turno ─────────────────────── */
+
+/**
+ * Cuántas citas a la vez admite un especialista del equipo (`multiagenda_capacidad`,
+ * una fila por EQUIPO, tabla de la App). La guardada, sin mirar el modo: la que
+ * cuenta de verdad la decide `laCapacidadQueVale` (con el enlace fijo, 1).
+ */
+export async function laCapacidadGuardada(teamId: string): Promise<number> {
+    if (!teamId) return 1;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ capacidad: number }[]>`
+            SELECT "capacidad" FROM "multiagenda_capacidad" WHERE "teamId" = ${teamId} LIMIT 1
+        `;
+        return comoCapacidad(filas[0]?.capacidad);
+    });
+}
+
+export async function guardarLaCapacidad(teamId: string, capacidad: number): Promise<number> {
+    const valor = comoCapacidad(capacidad);
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "multiagenda_capacidad" ("teamId", "capacidad", "actualizadoEn")
+        VALUES (${teamId}, ${valor}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("teamId") DO UPDATE SET
+            "capacidad" = EXCLUDED."capacidad",
+            "actualizadoEn" = CURRENT_TIMESTAMP
+    `);
+    return valor;
+}
+
+/** La que cuenta para reservar: la guardada si la cuenta está en Tavus, si no 1. Un fallo es 1. */
+export async function laCapacidadDelEquipo(teamId: string, cuentaId: string): Promise<number> {
+    try {
+        const [guardada, ajustes] = await Promise.all([laCapacidadGuardada(teamId), leerLosAjustes(cuentaId)]);
+        return laCapacidadQueVale(guardada, ajustes.modo);
+    } catch (error) {
+        console.warn("[multiagenda] no se pudo leer la capacidad; se usa 1", { equipo: teamId, error });
+        return 1;
+    }
 }
 
 /* ── La videollamada de una cita ───────────────────────────────────────── */

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { laCitaDeLaVideollamada } from "@/lib/cita-de-la-videollamada.server";
 import { db } from "@/lib/db";
 import { losNombresDeLosNiveles } from "@/lib/nombre-del-nivel";
 import type { OrdenDeAgendar } from "@/lib/pantalla-del-avatar";
@@ -24,35 +25,7 @@ import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
  */
 
 export async function laCita(citaId: string) {
-    return db.appointment.findUnique({
-        where: { id: citaId },
-        select: {
-            id: true,
-            userId: true,
-            sessionId: true,
-            clientName: true,
-            startTime: true,
-            endTime: true,
-            timezone: true,
-            serviceId: true,
-            createdAt: true,
-            service: { select: { name: true } },
-            session: {
-                select: {
-                    id: true,
-                    remoteJid: true,
-                    remoteJidAlt: true,
-                    instanceId: true,
-                    pushName: true,
-                    customName: true,
-                    leadStatus: true,
-                    leadScore: true,
-                    leadScoreReason: true,
-                },
-            },
-            user: { select: { timezone: true } },
-        },
-    });
+    return laCitaDeLaVideollamada(citaId);
 }
 
 /** El teléfono de la conversación, nunca los dígitos de un `@lid`. */
@@ -86,7 +59,13 @@ export async function agendarDesdeLaVideollamada(
     if (!nuevo) return { ok: true, repetido: true, tipo: orden.tipo, cuando: orden.fechaHora };
 
     try {
+        if (orden.tipo === "cita" && cita.esReserva) {
+            // Una reserva de Multiagenda es de un especialista: la siguiente se
+            // agenda como recordatorio por WhatsApp, no como cita de Agenda.
+            throw new Error("en Multiagenda la siguiente cita se agenda desde la página de reservas");
+        }
         if (orden.tipo === "cita") {
+            if (!cita.sessionId) throw new Error("la cita no tiene conversación");
             const duracion = Math.max(15 * 60_000, cita.endTime.getTime() - cita.startTime.getTime());
             const nueva = await db.appointment.create({
                 data: {

@@ -2,15 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Copy, ExternalLink, Loader2, Timer } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Timer, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { updateTeam } from '@/actions/bookings-actions';
+import { guardarCapacidadDeMultiagendaAction, leerCapacidadDeMultiagendaAction, updateTeam } from '@/actions/bookings-actions';
+import { GoogleCalendarSettings, UpdateMeetingDuration } from '@/app/(root)/schedule/_components/settings';
+import { CAPACIDADES } from '@/lib/capacidad-de-multiagenda';
 import { elEnlaceDeReservaDelEquipo } from '@/lib/pantalla-de-multiagenda';
+import { elSlugDeLaAgendaAction } from '@/actions/enlace-de-agenda-actions';
 
 type NoticeUnit = 'minutes' | 'hours' | 'days';
 const noticeToMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -26,14 +29,92 @@ interface Team {
     minNoticeMinutes: number;
 }
 
-export function BookingTeamSettings({ userId, team }: { userId: string; team: Team }) {
+interface Reunion {
+    meetingDuration?: number | null;
+    meetingUrl?: string | null;
+}
+
+/**
+ * Cuántas videollamadas con IA puede tener cada especialista a la vez en el
+ * mismo turno. Solo cuenta con la Videollamada con IA de Verzay: con un enlace
+ * fijo, una cita por turno.
+ */
+function CapacidadSimultanea({ teamId }: { teamId: string }) {
+    const [capacidad, setCapacidad] = useState<number>(1);
+    const [guardando, setGuardando] = useState(false);
+
+    useEffect(() => {
+        let vivo = true;
+        leerCapacidadDeMultiagendaAction(teamId)
+            .then((res) => { if (vivo && res.success && res.data) setCapacidad(res.data.capacidad); })
+            .catch((error) => console.warn('[multiagenda] no se pudo leer la capacidad', error));
+        return () => { vivo = false; };
+    }, [teamId]);
+
+    const cambiar = async (valor: string) => {
+        const antes = capacidad;
+        const nueva = Number(valor);
+        setCapacidad(nueva);
+        setGuardando(true);
+        try {
+            const res = await guardarCapacidadDeMultiagendaAction(teamId, nueva);
+            if (res.success && res.data) {
+                setCapacidad(res.data.capacidad);
+                toast.success('Capacidad guardada');
+            } else {
+                setCapacidad(antes);
+                toast.error(res.message);
+            }
+        } catch {
+            setCapacidad(antes);
+            toast.error('No se pudo guardar la capacidad.');
+        } finally {
+            setGuardando(false);
+        }
+    };
+
+    return (
+        <div className="space-y-1.5" data-capacidad-simultanea="">
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                Videollamadas a la vez por turno
+            </label>
+            <div className="flex items-center gap-3 w-full">
+                <p className="flex-1 text-xs text-muted-foreground">
+                    Cada cita recibe su propio enlace y su propia sala. Solo aplica con la Videollamada con IA de Verzay.
+                </p>
+                <Select value={String(capacidad)} onValueChange={cambiar} disabled={guardando}>
+                    <SelectTrigger className="w-28 shrink-0">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {CAPACIDADES.map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        </div>
+    );
+}
+
+export function BookingTeamSettings({ userId, team, user }: { userId: string; team: Team; user: Reunion }) {
     const router = useRouter();
 
     // El dominio de la página abierta, leído DESPUÉS de montar: leerlo al
     // pintar daría una dirección en el servidor y otra en el navegador.
     const [origen, setOrigen] = useState('');
     useEffect(() => { setOrigen(window.location.origin); }, []);
-    const publicUrl = elEnlaceDeReservaDelEquipo(origen, userId);
+    // El nombre legible (`/bookings/<nombre>/agenda`); mientras llega, el id.
+    const [slug, setSlug] = useState<string | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        elSlugDeLaAgendaAction(userId, 'bookings')
+            .then((s) => { if (vivo) setSlug(s); })
+            .catch((error) => console.warn('[multiagenda] no se pudo leer el enlace legible', error));
+        return () => { vivo = false; };
+    }, [userId]);
+    const publicUrl = elEnlaceDeReservaDelEquipo(origen, userId, slug);
 
     const { value: initVal, unit: initUnit } = fromMinutes(team.minNoticeMinutes);
     const [noticeValue, setNoticeValue] = useState<number>(initVal);
@@ -77,7 +158,23 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
     };
 
     return (
-        <div className="max-w-lg mx-auto space-y-6 py-4">
+        <div className="space-y-4 pb-4">
+            {/* Las mismas dos tarjetas que Agenda › Ajustes, con las mismas piezas. */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="reunion">
+                    <UpdateMeetingDuration
+                        userId={userId}
+                        meetingDuration={user.meetingDuration ?? 60}
+                        meetingUrl={user.meetingUrl}
+                        conAnticipacion={false}
+                    />
+                </div>
+                <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="google-calendar">
+                    <GoogleCalendarSettings userId={userId} />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Enlace público */}
             <Card data-tarjeta-de-ajustes="enlace">
                 <CardHeader className="pb-2">
@@ -108,6 +205,7 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-5">
+                        <CapacidadSimultanea teamId={team.id} />
                         <div className="space-y-1.5">
                             <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                                 <Timer className="h-3.5 w-3.5 text-muted-foreground" />
@@ -149,6 +247,7 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
                     </form>
                 </CardContent>
             </Card>
+            </div>
         </div>
     );
 }

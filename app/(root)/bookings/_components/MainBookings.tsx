@@ -144,7 +144,7 @@ export const MainBookings = ({ user, team }: Props) => {
 
                 {tab === 'settings' && (
                     <div className="absolute inset-0 overflow-y-auto pb-4">
-                        <BookingTeamSettings userId={userId} team={team} />
+                        <BookingTeamSettings userId={userId} team={team} user={user} />
                     </div>
                 )}
             </div>
