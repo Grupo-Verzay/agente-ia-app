@@ -1,4 +1,5 @@
 import "server-only";
+import { elEnlaceDeReunionDeLaCita } from "@/lib/videollamada-ia.server";
 
 /**
  * Programa los recordatorios de UNA cita. Es el único sitio que lo hace, y lo
@@ -93,6 +94,7 @@ export async function programarLosRecordatoriosDeLaCita(
                 zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
                 duracionMinutos: cita.user?.meetingDuration || 60,
                 servicio: cita.service?.name ?? "",
+                enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id),
             },
             ahora,
         );

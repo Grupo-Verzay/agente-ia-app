@@ -27041,3 +27041,40 @@ audiencia.
 Lo prueba `scripts/banco-plantilla-de-funciones.sh` contra Postgres con los
 planes de producción saneados; `MODO=roto` afirma que antes no había plantilla.
 `banco-configuracion-de-la-casa.sh` sale 128 también en `main`: es previo.
+
+## Agenda: la videollamada con IA (Tavus) es un MODO al lado del enlace fijo
+
+Agenda › Ajustes › Configuración de Reunión ofrece dos modos y cada cuenta
+elige: **Enlace de reunión virtual fijo** (el de siempre, `User.meetingUrl`,
+sin tocar) y **Videollamada con IA de Verzay**, que manda al cliente
+`<plataforma>/videollamada/<id de la cita>`. Las reglas son puras en
+`lib/videollamada-ia.ts`; las tablas (`videollamada_ajustes`,
+`videollamadas_ia`, de la App y sin clave foránea) en `lib/videollamada-ia-db.ts`.
+
+Cinco cosas que hay que mantener:
+
+1. **El avatar es UNO para toda la plataforma: Verzy** (`NOMBRE_DEL_AVATAR`).
+   La clave y el persona_id salen del ENTORNO (`TAVUS_API_KEY`,
+   `TAVUS_PERSONA_ID`, en el stack de Portainer; `elAvatarDelEntorno`), nunca
+   del navegador ni de la cuenta: cada cuenta solo elige el modo. Sin las dos
+   variables el modo Tavus no se guarda y el enlace dice «no disponible»; las
+   columnas viejas de persona y clave de `videollamada_ajustes` ya no se leen.
+2. **La sesión de Tavus se crea al ABRIR el enlace**, nunca al agendar
+   (`queHacerAlAbrir`): abre 15 min antes, vive hasta el FIN de la franja
+   (también tras marcarla «No asistió») y dos pestañas reutilizan la misma
+   (`reclamarLaCreacion`). El contexto es el de la conversación de WhatsApp.
+3. **La ausencia la vigila el BACKEND** (`videollamada-ausencia.scheduler.service.ts`
+   en `api-webhook`): minuto 3 sin entrar → llamada de voz IA con la herramienta
+   `responder_videollamada`; si entra, se espera al 5; si no puede → «No
+   asistió» y reagendar por WhatsApp; minuto 5 → «No asistió» y el enlace por
+   WhatsApp. Los 3 y 5 minutos están en los dos repositorios y tienen que decir
+   lo mismo.
+4. **La transcripción entra al CRM como una llamada de voz**
+   (`lib/videollamada-ia-aviso.server.ts`): `messageType: 'call'` con
+   `raw.call.isVideo`, transcript y resumen cobrado a la cuenta.
+5. **Google Calendar no se toca**, y la variable `@meeting_link` de los
+   recordatorios se cambia por el enlace de ESA cita.
+
+Lo prueban `scripts/banco-videollamada-ia.sh` aquí y
+`scripts/banco-ausencia-de-videollamada.sh` en `api-webhook`, los dos con
+`MODO=roto` pinchado al commit de antes.

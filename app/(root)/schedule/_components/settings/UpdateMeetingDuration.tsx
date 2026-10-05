@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { updateUserMeetingDuration } from "@/actions/userClientDataActions";
 import { useRouter } from "next/navigation";
-import { Clock, Link2, Settings2, Timer } from "lucide-react";
+import { Bot, Clock, Link2, Settings2, Timer } from "lucide-react";
+import { guardarAjustesDeVideollamadaAction, leerAjustesDeVideollamadaAction } from "@/actions/videollamada-ia-actions";
+import { MODOS_DE_REUNION, NOMBRE_DEL_MODO, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 type NoticeUnit = "minutes" | "hours" | "days";
 const toMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -40,8 +42,35 @@ export const UpdateMeetingDuration = ({
     const [noticeUnit, setNoticeUnit] = useState<NoticeUnit>(initUnit);
     const [loading, setLoading] = useState(false);
 
+    // El modo de reunión: el enlace fijo de siempre o la videollamada con IA.
+    // El avatar es uno, el de la plataforma (Verzy): aquí solo se elige el modo.
+    const [modo, setModo] = useState<ModoDeReunion>("enlace");
+    const [disponible, setDisponible] = useState(true);
+    const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
+
+    useEffect(() => {
+        let vivo = true;
+        leerAjustesDeVideollamadaAction(userId)
+            .then((res) => {
+                if (!vivo || !res.success) return;
+                setModo(res.data.modo);
+                setDisponible(res.data.disponible);
+                setGuardado(res.data.modo);
+            })
+            .catch((error) => console.warn("[videollamada] no se pudieron leer los ajustes", error));
+        return () => {
+            vivo = false;
+        };
+    }, [userId]);
+
     const mutation = useMutation({
         mutationFn: async (payload: { duration: number; url: string; minNotice: number }) => {
+            // Primero el modo: con él guardado, el recordatorio de la cita se
+            // escribe con el enlace que toca (la variable o el fijo).
+            const video = await guardarAjustesDeVideollamadaAction(userId, { modo });
+            if (!video.success) throw new Error(video.message);
+            setDisponible(video.data.disponible);
+            setGuardado(video.data.modo);
             const res = await updateUserMeetingDuration(userId, payload.duration, payload.url, payload.minNotice);
             if (!res.success) throw new Error(res.message);
             router.refresh();
@@ -85,6 +114,7 @@ export const UpdateMeetingDuration = ({
         const { value, unit } = fromMinutes(initialMinNotice);
         setNoticeValue(value);
         setNoticeUnit(unit);
+        setModo(guardado);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -94,6 +124,7 @@ export const UpdateMeetingDuration = ({
         const durationError = validateDuration(durationMinutes.toString());
         if (durationError) return toast.error(durationError);
 
+        if (modo === "tavus" && !disponible) return toast.error("La videollamada con IA no está disponible en este momento.");
         const urlError = validateMeetingUrl(url);
         if (urlError) return toast.error(urlError);
 
@@ -146,20 +177,59 @@ export const UpdateMeetingDuration = ({
                     </div>
                 </div>
 
-                <div className="space-y-1.5">
-                    <label htmlFor="meetingUrl" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        Enlace de reunión virtual
+                <div className="space-y-1.5" data-modo-de-reunion>
+                    <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        Cómo te reúnes con tus clientes
                     </label>
-                    <Input
-                        id="meetingUrl"
-                        type="text"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://meet.google.com/xxx-xxxx-xxx"
-                    />
-                    <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup">
+                        {MODOS_DE_REUNION.map((m) => (
+                            <button
+                                key={m}
+                                type="button"
+                                role="radio"
+                                aria-checked={modo === m}
+                                data-modo={m}
+                                onClick={() => setModo(m)}
+                                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                                    modo === m ? "border-primary bg-primary/10 font-semibold" : "hover:bg-muted"
+                                }`}
+                            >
+                                {m === "tavus" ? <Bot className="h-4 w-4 shrink-0" /> : <Link2 className="h-4 w-4 shrink-0" />}
+                                {NOMBRE_DEL_MODO[m]}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {modo === "enlace" ? (
+                <div className="space-y-1.5">
+                        <label htmlFor="meetingUrl" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            Enlace de reunión virtual
+                        </label>
+                        <Input
+                            id="meetingUrl"
+                            type="text"
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                        />
+                        <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
+                    </div>
+                ) : (
+                    <div className="space-y-1.5" data-ajustes-de-tavus>
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                            <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+                            Te atiende Verzy, el asistente con video de la plataforma
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            {disponible
+                                ? "Cada cita recibe su propio enlace. La sala se crea cuando el cliente lo abre, desde 15 minutos antes."
+                                : "La videollamada con IA no está disponible en este momento."}
+                        </p>
+                    </div>
+                )}
 
                 <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">

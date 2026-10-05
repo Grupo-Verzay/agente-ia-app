@@ -51,6 +51,12 @@ export type DatosDelRecordatorio = {
     zona: string;
     duracionMinutos: number;
     servicio?: string | null;
+    /**
+     * El enlace de la reunión de ESTA cita (`@meeting_link`): el fijo de la
+     * cuenta, o el de la videollamada con IA si la cuenta está en ese modo.
+     * Sin enlace la variable queda vacía, nunca a la vista.
+     */
+    enlaceDeReunion?: string | null;
 };
 
 /** El texto de una plantilla con sus variables, con la hora en la zona de la cuenta. */
@@ -60,7 +66,8 @@ export function elTextoDelRecordatorio(plantilla: string, cita: DatosDelRecordat
         .replace(/@client_name\b/gi, cita.nombreDelCliente)
         .replace(/@service_name\b/gi, cita.servicio ?? "")
         .replace(/@appointment_datetime\b/gi, laFechaDeLaCita(cita.inicio, zona))
-        .replace(/@appointment_duration\b/gi, `${cita.duracionMinutos} min`);
+        .replace(/@appointment_duration\b/gi, `${cita.duracionMinutos} min`)
+        .replace(/@meeting_link\b/gi, cita.enlaceDeReunion ?? "");
 }
 
 export type PlantillaDeAgenda = {

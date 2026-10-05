@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
 import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
+import { leerLosAjustes } from '@/lib/videollamada-ia-db';
+import { VARIABLE_DEL_ENLACE } from '@/lib/videollamada-ia';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { clientesDelAsesor } from '@/lib/clientes-del-asesor';
 import { cuentaQueManda } from '@/lib/cuenta-que-manda';
@@ -784,10 +786,22 @@ export async function updateUserMeetingDuration(
       },
     });
 
-    // 5) Si hay URL, concatenarla al final del description del recordatorio minutes-1
-    if (url) {
-      const newDesc = `${DEFAULT_REMINDERS_TEMPLATES[4].description} Este es el link de acceso.\n\n👉 ${url}`;
-
+    // 5) El recordatorio del minuto antes lleva el enlace de entrada. Con la
+    //    videollamada con IA no hay un enlace fijo: va la variable
+    //    @meeting_link, que cada cita cambia por SU enlace al programarse.
+    //    Con el enlace fijo, como siempre; y al volver del modo IA sin enlace
+    //    fijo, la plantilla vuelve a la de fábrica (sin la variable).
+    const ajustes = await leerLosAjustes(userId).catch(() => null);
+    const base = DEFAULT_REMINDERS_TEMPLATES[4].description;
+    const newDesc =
+      ajustes?.modo === "tavus"
+        ? `${base} Este es el link de acceso.\n\n👉 ${VARIABLE_DEL_ENLACE}`
+        : url
+          ? `${base} Este es el link de acceso.\n\n👉 ${url}`
+          : String(reminderMinutes1.description ?? "").includes(VARIABLE_DEL_ENLACE)
+            ? base
+            : null;
+    if (newDesc !== null) {
       await db.reminders.update({
         where: { id: reminderMinutes1.id },
         data: { description: newDesc },

@@ -111,7 +111,10 @@ const nextConfig = {
           {
             key: "Permissions-Policy",
             value:
-              'microphone=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host" "https://copiloto.ia-app.com"), ' +
+              // La sala de la videollamada con IA (Tavus) es un iframe de Daily:
+              // sin su origen aquí, el navegador le niega cámara y micrófono.
+              'microphone=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host" "https://copiloto.ia-app.com" "https://tavus.daily.co"), ' +
+              'camera=(self "https://tavus.daily.co"), ' +
               'screen-wake-lock=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host" "https://copiloto.ia-app.com")',
           },
         ],

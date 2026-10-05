@@ -5,6 +5,7 @@ import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { laCiudadDeLaZona, laZonaDeLaCuenta } from '@/lib/zona-de-la-cuenta';
 import { elTextoDelRecordatorio } from '@/lib/recordatorios-de-la-cita';
+import { elEnlaceDeReunionDeLaCita } from '@/lib/videollamada-ia.server';
 import { createAppointment } from '@/actions/appointments-actions';
 // El envío del SISTEMA, sin puerta: aquí no hay sesión y la línea ya está
 // resuelta desde la base. La acción con puerta es para el navegador.
@@ -84,6 +85,7 @@ function formatReminderMessage(
   accountTimezone: string,
   durationMin: number,
   serviceName: string = '',
+  enlaceDeReunion: string | null = null,
 ): string {
   return elTextoDelRecordatorio(template, {
     nombreDelCliente: pushName,
@@ -91,6 +93,7 @@ function formatReminderMessage(
     zona: accountTimezone,
     duracionMinutos: durationMin,
     servicio: serviceName,
+    enlaceDeReunion,
   });
 }
 
@@ -107,7 +110,9 @@ async function runPostAppointmentTasks({
   endTime,
   timezone,
   serviceId,
+  enlaceDeReunion,
 }: {
+  enlaceDeReunion: string | null;
   userId: string;
   instanceName: string;
   phone: string;
@@ -156,7 +161,7 @@ async function runPostAppointmentTasks({
   // Usa el mensaje del servicio si está configurado; de lo contrario, envía un mensaje genérico.
   const confirmRawText = service?.messageText?.trim()
     || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
-  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '');
+  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, accountTimezone, slotDuration, service?.name ?? '', enlaceDeReunion);
   const clientJid = phone.includes('@s.whatsapp.net')
     ? phone
     : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
@@ -304,8 +309,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.message }, { status: 400 });
   }
 
+  // El enlace de la reunión de ESTA cita: el fijo de la cuenta, o el de la
+  // videollamada con IA. Va en la respuesta para que el agente se lo diga al
+  // cliente, y en la confirmación si su texto lleva @meeting_link.
+  const citaId = (result.data as { id?: string } | undefined)?.id ?? null;
+  const meetingLink = await elEnlaceDeReunionDeLaCita(userId, citaId).catch((error) => {
+    console.warn('[schedule/appointment] no se pudo armar el enlace de la reunión', { userId, citaId, error: String(error) });
+    return null;
+  });
+
   // Tareas post-creación: mensaje de confirmación + seguimientos (fire-and-forget)
   runPostAppointmentTasks({
+    enlaceDeReunion: meetingLink,
     userId,
     instanceName,
     phone,
@@ -317,7 +332,7 @@ export async function POST(request: Request) {
   }).catch(err => console.error('[schedule/appointment] Error en tareas post-cita:', err));
 
   return NextResponse.json(
-    { success: true, message: result.message, appointment: result.data },
+    { success: true, message: result.message, appointment: result.data, meetingLink },
     { status: 201 }
   );
 }

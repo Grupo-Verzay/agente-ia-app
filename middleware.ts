@@ -91,6 +91,10 @@ const apiCotizacionIaPrefix = "/api/cotizacion-ia";
 // «Archivo» no subía nada. Su puerta es el formulario: la ruta exige uno
 // activo con un campo de archivo y guarda en SU carpeta.
 const apiUploadFormFilePrefix = "/api/upload-form-file";
+// El aviso de Tavus al terminar una videollamada con IA (transcripción,
+// grabación, fin). Lo manda Tavus, sin sesión. Su puerta es la firma HMAC de
+// la cita que va en el `callback_url` (`esLaFirmaDeLaCita`).
+const apiVideollamadaPrefix = "/api/videollamada";
 
 
 export default auth((req) => {
@@ -122,6 +126,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiHealthPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiTicketsPublicoPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCallsPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiVideollamadaPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiSendMediaPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiProductsPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();
@@ -191,6 +196,12 @@ export default auth((req) => {
     // es la única puerta y lo que se enseña se elige campo por campo en
     // `laPropuestaPublica`. No se indexa (metadata y `X-Robots-Tag`).
     currentPath.startsWith("/propuesta/") ||
+    // Videollamada con IA (/videollamada/<id de la cita>): el enlace que recibe
+    // el cliente de una cita, que no tiene cuenta. Ser pública no abre nada:
+    // la sala solo se crea en la franja de la cita (desde 15 minutos antes
+    // hasta su fin), con la clave de la cuenta dueña, y lo que se enseña es la
+    // redirección o un aviso — ni datos de la cita ni de la cuenta.
+    currentPath.startsWith("/videollamada/") ||
     // Catálogo público (/catalogo/<cuenta> y su enlace corto /c/<nombre>):
     // lo que cada cuenta comparte con SUS clientes para que vean sus
     // productos y le escriban por WhatsApp. No estaba aquí, así que a
