@@ -20,6 +20,18 @@
  * siempre, `assertCanAccessTargetUser`: vincular no puede abrir nada que no
  * estuviera abierto.
  *
+ * # Y un cliente vincula SUS cuentas con la contraseña de la otra
+ *
+ * Un cliente con varias cuentas propias (madre e hijas) no las alcanza por
+ * ninguna puerta hasta que están vinculadas, así que la regla de arriba lo
+ * dejaba sin forma de hacerlo. Ahora «Vincular existente» se ofrece a quien
+ * manda en su cuenta, y el servidor pide además el CORREO y la CONTRASEÑA de
+ * la cuenta que se vincula: saberla es la prueba de que también es suya.
+ * Con la contraseña correcta solo se vincula una CUENTA de cliente
+ * (`porQueNoSeVinculaConContrasena`): nunca una persona de un equipo, ni una
+ * cuenta de la casa, ni un reseller, ni una cuenta que esté POR ENCIMA de la
+ * propia. Así no abre la de otros clientes ni la plataforma.
+ *
  * Y **reiniciar los vínculos** borra los de TODA la plataforma y descuelga a
  * todos los equipos de sus cuentas. Eso no es de una cuenta: es del dueño de la
  * plataforma, y se teclea (`confirmaLaLimpieza`, la misma palabra que el resto
@@ -32,14 +44,64 @@ import { isAdminOrReseller } from "@/lib/rbac";
 export const SOLO_LO_QUE_YA_ADMINISTRAS =
     "Solo puedes vincular una cuenta que ya administras. Si es de otra empresa, pídeselo a soporte.";
 
+/** El mensaje cuando el correo o la contraseña no casan: el mismo para los dos, no dice si la cuenta existe. */
+export const CORREO_O_CONTRASENA_NO_COINCIDEN = "El correo o la contraseña de esa cuenta no coinciden.";
+
+/** El mensaje después de demasiados intentos fallidos seguidos. */
+export const DEMASIADOS_INTENTOS = "Demasiados intentos fallidos. Espera unos minutos y vuelve a intentarlo.";
+
 /**
  * Si se OFRECE vincular una cuenta existente. `rol` es el de la CUENTA por la
- * que se actúa (`rolQueAbrePuertas`): el administrador del equipo de la casa
- * vincula como su cuenta; un `agente` no. Una cuenta cliente no: lo único que
- * podría vincular ya lo tiene.
+ * que se actúa (`rolQueAbrePuertas`); `administraLaCuenta` si quien mira manda
+ * en ella (`canManageWorkspace`): un `agente` no vincula nada. La casa y el
+ * reseller vinculan lo que ya alcanzan; un cliente, sus propias cuentas con su
+ * contraseña.
  */
-export function ofreceVincularCuentas(rol: string | null | undefined): boolean {
-    return isAdminOrReseller(rol);
+export function ofreceVincularCuentas(input: {
+    rol: string | null | undefined;
+    administraLaCuenta: boolean;
+}): boolean {
+    return isAdminOrReseller(input.rol) || input.administraLaCuenta === true;
+}
+
+/**
+ * Si el diálogo PIDE la contraseña de la cuenta que se vincula. La casa y el
+ * reseller vinculan lo que ya alcanzan sin ella (como siempre); un cliente la
+ * necesita.
+ */
+export function pideContrasenaParaVincular(rol: string | null | undefined): boolean {
+    return !isAdminOrReseller(rol);
+}
+
+/** Lo que se sabe de la cuenta que se quiere vincular. */
+export type CuentaParaVincular = {
+    id: string;
+    ownerId: string | null;
+    role: string | null;
+    deletedAt: Date | string | null;
+};
+
+/**
+ * Con la contraseña correcta, POR QUÉ NO se vincula esa cuenta (o `null` si sí).
+ * `porEncima` son las cuentas por encima de la propia (`lasCuentasPorEncimaDe`).
+ */
+export function porQueNoSeVinculaConContrasena(input: {
+    cuentaId: string;
+    objetivo: CuentaParaVincular;
+    porEncima: readonly string[];
+}): string | null {
+    const { cuentaId, objetivo, porEncima } = input;
+    if (!objetivo?.id || !cuentaId) return SOLO_LO_QUE_YA_ADMINISTRAS;
+    if (objetivo.id === cuentaId) return "No puedes vincular tu misma cuenta.";
+    if (objetivo.deletedAt) return CORREO_O_CONTRASENA_NO_COINCIDEN;
+    if (objetivo.ownerId) {
+        return "Ese correo es de una persona de un equipo, no de una cuenta. Vincula la cuenta a la que pertenece.";
+    }
+    if (objetivo.role !== "user") return SOLO_LO_QUE_YA_ADMINISTRAS;
+    if (porEncima.includes(objetivo.id)) {
+        return "Esa cuenta está por encima de la tuya: vincula desde ella hacia esta.";
+    }
+    return null;
 }
 
 /**

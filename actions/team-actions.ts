@@ -701,6 +701,7 @@ export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
 export async function linkExistingAdvisor(
   email: string,
   role: "agente" | "administrador" = "agente",
+  contrasena?: string | null,
 ): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -709,14 +710,15 @@ export async function linkExistingAdvisor(
     where: { email: email.trim().toLowerCase() },
     select: { id: true },
   });
-  if (!target) return { success: false, message: "No existe un usuario con ese email." };
-  if (target.id === owner.id) return { success: false, message: "No puedes vincularte a ti mismo." };
+  if (target?.id === owner.id) return { success: false, message: "No puedes vincularte a ti mismo." };
 
   // Vincular bajo la cuenta es LLEGAR a la otra (desde #898 el vínculo solo
-  // baja), así que solo se vincula lo que ya se alcanza. Sin esto, cualquier
+  // baja), así que solo se vincula lo que ya se alcanza, o una cuenta propia
+  // con su contraseña (`lib/vincular-cuentas.server.ts`). Sin esto, cualquier
   // cuenta se apropiaba de otra escribiendo su correo.
-  const puerta = await puertaParaVincular(target.id);
+  const puerta = await puertaParaVincular(target?.id ?? null, { cuentaId: owner.id, contrasena });
   if (!puerta.puede) return { success: false, message: puerta.motivo };
+  if (!target) return { success: false, message: "No existe un usuario con ese email." };
 
   const existing = await db.$queryRaw<{ id: string }[]>`
     SELECT id
