@@ -27,6 +27,12 @@ export type SidebarContact = {
   timestamp: string;
   ts: number;
   /**
+   * Si el ultimo mensaje lo escribio el CONTACTO. Decide si una conversacion
+   * resuelta vuelve a la bandeja: solo la devuelve el contacto, nunca un
+   * saliente (seguimiento, recordatorio, IA). Ver `estaResuelta`.
+   */
+  ultimoEsDelContacto?: boolean;
+  /**
    * Cuándo se inició la conversación, en ms. Para el filtro por rango de fechas
    * (campo por defecto). Cae a la última actividad (`ts`) si la fila no trae
    * `startedAt`.

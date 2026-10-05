@@ -178,8 +178,9 @@ const MAX_CHATS_VISTOS = 1000;
  * usarlo aqui hacia que contestarle a un cliente marcara el chat como resuelto y
  * lo sacara de la lista sin que nadie le diera a resolver.
  *
- * Sigue volviendo sola cuando el cliente escribe: si el ultimo mensaje es
- * posterior a la marca, deja de contar como resuelta. Se compara aqui en vez de
+ * Sigue volviendo sola cuando el CLIENTE escribe: si el ultimo mensaje es suyo
+ * y posterior a la marca, deja de contar como resuelta. Un saliente posterior
+ * (seguimiento, recordatorio, IA) no la devuelve. Se compara aqui en vez de
  * borrar la marca en la base porque quien recibe los mensajes nuevos es
  * api-webhook, en otro repositorio; asi la vuelta no depende de que alla se
  * cambie nada.
@@ -188,7 +189,7 @@ function esResuelta(c: SidebarContact): boolean {
   // `ts` ya viene en milisegundos (epochToMs), igual que la marca. La regla
   // vive en `lib/total-de-todos` porque el numero de «Todos» usa la MISMA: con
   // dos copias, la fila saldria de la lista y seguiria contando.
-  return estaResuelta(c.ts, c.chatSession?.resolvedAt);
+  return estaResuelta(c.ts, c.chatSession?.resolvedAt, c.ultimoEsDelContacto);
 }
 
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
@@ -641,6 +642,7 @@ export function ChatSidebar({
               : null,
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
+          ultimoEsDelContacto: chat.lastMessage?.key?.fromMe !== true,
           // Inicio de la conversación para el filtro por rango. Si la fila no
           // trae `startedAt` se cae a la última actividad, para poder ubicarla
           // igual en el tiempo en vez de dejarla en 0 (que la sacaría de
