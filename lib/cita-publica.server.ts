@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { programarLosRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita.server";
 import { laClaveDelServidorDeLaCuenta } from "@/lib/clave-del-servidor.server";
 import { enviarConHistorial } from "@/lib/envio-con-historial.server";
+import { elEnlaceDeReunionDeLaCita } from "@/lib/videollamada-ia.server";
 import {
     comoZonaHoraria,
     elAvisoAlDueno,
@@ -142,6 +143,7 @@ export async function confirmarLaCitaPublica(input: {
         zonaDelCliente: comoZonaHoraria(input?.zonaDelCliente, zonaDelDueno),
         duracionMinutos: cita.user?.meetingDuration || 60,
         servicio: cita.service,
+        enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id).catch(() => null),
     };
 
     const servidor = await laClaveDelServidorDeLaCuenta(cita.userId);

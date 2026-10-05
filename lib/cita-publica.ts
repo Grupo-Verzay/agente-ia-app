@@ -80,6 +80,8 @@ export type DatosDeLaCita = {
     zonaDelCliente: string;
     duracionMinutos: number;
     servicio: { name: string | null; messageText: string | null } | null;
+    /** El enlace de la reunión de ESTA cita (`@meeting_link`). */
+    enlaceDeReunion?: string | null;
 };
 
 // Los recordatorios de la agenda ya no se arman aquí: los arma
@@ -114,5 +116,6 @@ export function laConfirmacionAlCliente(cita: DatosDeLaCita): string {
         timezone: cita.zonaDelCliente,
         slotDuration: cita.duracionMinutos,
         serviceName: cita.servicio?.name ?? "",
+        meetingLink: cita.enlaceDeReunion ?? "",
     });
 }

@@ -19,6 +19,7 @@ export function formatServiceMessage(
         timezone,
         slotDuration,
         serviceName = '',
+        meetingLink = '',
     }: {
         nameClient: string;
         selectedDate?: Date;
@@ -26,6 +27,8 @@ export function formatServiceMessage(
         timezone: string;
         slotDuration: number;
         serviceName?: string;
+        /** El enlace de la reunión de ESTA cita (`@meeting_link`). Sin él, vacío. */
+        meetingLink?: string | null;
     }
 ): string {
     if (!messageText) return "Gracias por agendar con nosotros.";
@@ -53,6 +56,9 @@ export function formatServiceMessage(
 
         // Duración
         formatted = formatted.replace(/@appointment_duration\b/gi, `${slotDuration} min`);
+
+        // Enlace de la reunión: el fijo o el de la videollamada con IA
+        formatted = formatted.replace(/@meeting_link\b/gi, meetingLink ?? '');
         
     } catch (err) {
         console.error("Error formateando messageText:", err);
