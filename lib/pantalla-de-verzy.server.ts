@@ -8,10 +8,10 @@ import { laCuentaDeVerzy } from "@/lib/videollamada-crm.server";
 import { DURACION_DE_LA_SESION_S, lasCookiesDeVerzy } from "@/lib/sesion-de-verzy.server";
 import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 import {
-    laRutaDelDestino, comoDestino, conLaNotaAgregada, NOMBRES_DE_LOS_DESTINOS,
+    laRutaDelLugar, laRutaYElAnclaDeVerzy, comoLugarDeVerzy, esAtajoDelCliente, conLaNotaAgregada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
     elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca,
-    type DestinoDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
+    type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
@@ -263,7 +263,8 @@ type Suscriptor = (jpeg: Buffer) => void;
 type Viva = {
     citaId: string;
     pagina: Pagina;
-    destino: DestinoDeVerzy | null;
+    /** Lo que Verzy tiene puesto: una ruta de la plataforma o un atajo del cliente. */
+    destino: LugarDeVerzy | null;
     prospecto: ElProspecto | null;
     /** El último fotograma del screencast y cuándo llegó. */
     ultimo: Buffer | null;
@@ -315,7 +316,7 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         void elRelevo(viva);
         // Si otra réplica la tenía antes, se vuelve a donde estaba.
         const antes = await db.$queryRaw<{ destino: string | null }[]>`SELECT "destino" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}`;
-        const destino = comoDestino(antes[0]?.destino);
+        const destino = comoLugarDeVerzy(antes[0]?.destino);
         if (destino) void irA(viva, destino).catch(() => {});
         else void pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
         return true;
@@ -511,14 +512,14 @@ async function cargar(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
     return { ok: true };
 }
 
-async function anotarElDestino(viva: Viva, destino: DestinoDeVerzy): Promise<void> {
+async function anotarElDestino(viva: Viva, destino: LugarDeVerzy): Promise<void> {
     viva.destino = destino;
     await db.$executeRaw`UPDATE "verzy_pantallas" SET "destino" = ${destino} WHERE "citaId" = ${viva.citaId} AND "replica" = ${REPLICA}`.catch(() => {});
 }
 
-async function irA(viva: Viva, destino: DestinoDeVerzy): Promise<ResultadoDeLaOrden> {
+async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
-    if (destino === "chats" || destino === "ficha") {
+    if (esAtajoDelCliente(destino)) {
         const r = await abrirElChat(viva);
         if (!r.ok) return r;
         await anotarElDestino(viva, destino);
@@ -526,12 +527,41 @@ async function irA(viva: Viva, destino: DestinoDeVerzy): Promise<ResultadoDeLaOr
         if (destino === "ficha" && !(await abrirLaFicha(viva))) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
         return { ok: true };
     }
-    await irAlMenu(viva);
-    const r = await cargar(viva, laRutaDelDestino(destino, null));
-    if (!r.ok) return r;
+    // Navegación libre: cualquier ruta de la landing o de la plataforma. Una
+    // sección de la misma página (`/inicio#pricing` estando en /inicio) no se
+    // recarga: se baja a ella, como quien se desplaza.
+    const { camino, ancla } = laRutaYElAnclaDeVerzy(destino);
+    const aqui = new URL(viva.pagina.url());
+    const yaEstamos = aqui.origin === new URL(BASE_LOCAL).origin && `${aqui.pathname}${aqui.search}` === camino;
+    if (!yaEstamos) {
+        await irAlMenu(viva);
+        const r = await cargar(viva, camino);
+        if (!r.ok) return r;
+    }
     await anotarElDestino(viva, destino);
-    await recorrerConLaRueda(viva);
+    if (ancla) {
+        if (!(await bajarAlAncla(viva, ancla))) return { ok: true, aviso: "La página se abrió, pero esa sección no está en ella" };
+    } else {
+        await recorrerConLaRueda(viva);
+    }
+    if (await laPaginaDiceQueNoExiste(viva)) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     return { ok: true };
+}
+
+/** Baja, suave y con el cursor, hasta la sección `#ancla` de la página puesta. */
+async function bajarAlAncla(viva: Viva, ancla: string): Promise<boolean> {
+    const destino = viva.pagina.locator(`[id="${ancla.replace(/"/g, "")}"]`).first();
+    if (!(await destino.waitFor({ state: "attached", timeout: 8_000 }).then(() => true, () => false))) return false;
+    await moverA(viva, ANCHO * 0.55, ALTO * 0.5, 450);
+    await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
+    await dormir(1_200);
+    return true;
+}
+
+/** El 404 de Next: la ruta no es una pantalla. */
+async function laPaginaDiceQueNoExiste(viva: Viva): Promise<boolean> {
+    const titulo = await viva.pagina.locator("h1").first().textContent({ timeout: 500 }).catch(() => null);
+    return /^\s*404\s*$/.test(titulo ?? "");
 }
 
 /**
@@ -581,7 +611,7 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
         return { ok: true };
     }
     console.info("[verzy] el chat no salió en la bandeja; se abre por enlace", { cita: viva.citaId, jid: p.jid });
-    const r = await cargar(viva, laRutaDelDestino("chats", { jid: p.jid, linea: p.linea }));
+    const r = await cargar(viva, laRutaDelLugar("chats", { jid: p.jid, linea: p.linea }));
     viva.chatAbierto = r.ok ? p.jid : null;
     return r;
 }
@@ -655,8 +685,9 @@ async function laNotaEstaGuardada(p: ElProspecto, texto: string): Promise<boolea
 
 async function hacerLaOrden(viva: Viva, orden: OrdenDeLaPantalla): Promise<ResultadoDeLaOrden> {
     if (orden.tipo === "ir") {
-        const destino = comoDestino((orden.datos as { destino?: unknown })?.destino);
-        if (!destino) return { ok: false, motivo: "Destino desconocido" };
+        const d = orden.datos as { lugar?: unknown; destino?: unknown } | undefined;
+        const destino = comoLugarDeVerzy(d?.lugar ?? d?.destino);
+        if (!destino) return { ok: false, motivo: "Esa ruta no es una pantalla de la plataforma" };
         return irA(viva, destino);
     }
     if (orden.tipo === "nota") {
@@ -790,4 +821,3 @@ export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => voi
     }
 }
 
-export { NOMBRES_DE_LOS_DESTINOS };
