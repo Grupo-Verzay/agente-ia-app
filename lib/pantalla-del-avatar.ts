@@ -145,6 +145,7 @@ export function elBloqueDeLaPantalla(): string {
         ...DESTINOS_DE_VERZY.map((d) => `  - ${d.clave} (${NOMBRES_DE_LOS_DESTINOS[d.clave]}): ${d.cuando}`),
         `- Para dejar de compartir: ${OCULTAR}.`,
         "- Después de cada orden recibirás qué pasó; si algo falló, no digas que se ve o que quedó guardado.",
+        "- La pantalla te sigue mientras hablas: cuando expliques una sección, NÓMBRALA (chats, ficha, recordatorios, agenda, embudo, panel) y se abre en ese momento. Habla de lo que se está viendo.",
     ].join("\n");
 }
 
@@ -308,9 +309,17 @@ export const HERRAMIENTA_DEL_AGENDAR = {
  * negocio (la necesita para agendar «el jueves a las 3»).
  */
 export function elBloqueDelGuion(ahora: string, guion?: GuionDeVideollamada | null): string {
-    // Lo que dice Verzy lo edita la cuenta en Entrenamiento › Agente IA ›
-    // Videollamadas; aquí solo se arma, con los nombres de las herramientas.
-    return elBloqueDelGuionDe(guion, ahora, { tomarNota: NOMBRE_DE_TOMAR_NOTA, agendar: NOMBRE_DEL_AGENDAR });
+    // Cómo habla Verzy es fijo; QUÉ dice lo edita la cuenta en Entrenamiento ›
+    // Agente IA › Videollamadas. Aquí solo se arma, con los nombres de las herramientas.
+    return [
+        "CÓMO HABLAS (manda sobre todo lo demás):",
+        "- Turnos cortos: una o dos frases cortas por turno, como mucho unas 30 palabras.",
+        "- Cada turno acaba en UNA pregunta concreta y corta. Después te callas y esperas a que el cliente responda.",
+        "- Nada de monólogos, listas largas ni repetir lo que ya dijiste.",
+        "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
+        "- El saludo ya se dijo por ti al entrar: NO saludes otra vez ni empieces a hablar sola; espera a que el cliente conteste.",
+        elBloqueDelGuionDe(guion, ahora, { tomarNota: NOMBRE_DE_TOMAR_NOTA, agendar: NOMBRE_DEL_AGENDAR }),
+    ].join("\n");
 }
 
 /* ── La persona de Tavus ───────────────────────────────────────────────── */

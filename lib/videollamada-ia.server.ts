@@ -288,9 +288,10 @@ async function crearLaConversacion(
             language: "spanish",
         },
     };
-    // Verzy empieza ella, sin esperar, con el saludo del guion de la cuenta
-    // (de fábrica: SALUDO_INICIAL). Si retoma otra llamada, no vuelve a saludar.
-    if (!yaHablado) cuerpo.custom_greeting = elGuionQueSeUsa(guion).saludo || SALUDO_INICIAL;
+    // SIN custom_greeting a propósito: Tavus lo dice en el mismo instante en
+    // que el cliente entra, y ese «hola» se pierde mientras ajusta la
+    // pantalla. El saludo lo hace decir la sala pasado un margen
+    // (ESPERA_DEL_SALUDO_MS de SalaDeLaVideollamada).
     if (origen) {
         cuerpo.callback_url =
             `${origen}/api/videollamada/tavus?c=${encodeURIComponent(cita.id)}&f=${laFirmaDeLaCita(cita.id)}`;

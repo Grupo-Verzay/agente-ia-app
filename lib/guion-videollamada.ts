@@ -40,7 +40,7 @@ export const GUION_DE_FABRICA: GuionDeVideollamada = {
     saludo: SALUDO_DE_FABRICA,
     secciones: {
         apertura:
-            "Empieza TÚ, sin esperar, diciendo exactamente «{saludo}». Si el cliente habla antes que tú, respóndele con ese mismo saludo.",
+            "El saludo «{saludo}» lo dice la sala por ti al entrar: no lo repitas. Si el cliente habla antes que tú, respóndele con ese mismo saludo.",
         diagnostico:
             "Cuando confirme que te escucha, haz la segunda pregunta: «{segunda_pregunta}». No compartas pantalla todavía. Escucha antes de vender.",
         ubicar:

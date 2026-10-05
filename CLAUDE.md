@@ -27345,6 +27345,24 @@ colgado no se reconecta. Lo prueba `scripts/banco-videollamada-ia.sh`.
    esperar `waitForURL` eran 8 s de pantalla congelada. Qué chat está abierto
    lo recuerda `viva.chatAbierto`, y se espera a lo que se VE.
 
+### La pantalla sigue la VOZ, Verzy habla en turnos cortos y saluda tras un margen
+
+1. **Sin `custom_greeting`.** El saludo lo dice la sala con `conversation.echo`
+   pasados `ESPERA_DEL_SALUDO_MS` (2,5 s) —margen para que el cliente oiga el
+   «hola»— si Verzy no habló antes, y le cuenta que ya saludó (`YA_SALUDASTE`,
+   `append_llm_context`) para que no salude dos veces.
+2. **La pantalla se mueve mientras Verzy habla**: cada tramo de su voz
+   (`conversation.utterance` de la réplica) que nombra una sección la abre
+   (`losDestinosQueNombra`), y entre una y otra la sala pide `{tipo:"recorrer"}`
+   cada `RITMO_AL_HABLAR_MS` (2,2 s), que el servidor hace desplazándose por la
+   pantalla (`recorrerUnPoco`). Lo decide `queHaceLaPantallaAlHablar` (pura).
+   Callada, o sin pantalla compartida, no se mueve nada.
+3. **Turnos cortos**: el guion arranca con «CÓMO HABLAS», que manda sobre todo
+   lo demás: una o dos frases, UNA pregunta concreta, y esperar.
+
+Lo prueba `scripts/banco-videollamada-ia.sh`, con la sala montada en Chromium y
+un Daily de mentira que habla.
+
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 
 El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga
