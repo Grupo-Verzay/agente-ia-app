@@ -20,7 +20,21 @@ else
     --outfile=lib/__tests__/.compilado/pantalla-del-avatar.js --log-level=warning
   npx esbuild lib/videollamada-en-vivo.ts --bundle --format=esm --platform=node \
     --outfile=lib/__tests__/.compilado/videollamada-en-vivo.js --log-level=warning
+  npx esbuild lib/pantalla-de-verzy.ts --bundle --format=esm --platform=node \
+    --outfile=lib/__tests__/.compilado/pantalla-de-verzy.js --log-level=warning
   npx esbuild lib/videollamada-crm.ts --bundle --format=esm --platform=node \
     --outfile=lib/__tests__/.compilado/videollamada-crm.js --log-level=warning
 fi
 node --test lib/__tests__/videollamada-ia.test.mjs
+
+# La sala montada en Chromium con un Daily de mentira: el saludo de respaldo.
+# En modo roto se monta la sala de 9c0e76d (con su iframe y sin respaldo).
+ANTES_SALA_REF="${ANTES_SALA_REF:-9c0e76d}"
+if [ "$MODO" = roto ]; then
+  ARBOL="$(mktemp -d)/sala"
+  git worktree add --detach -q "$ARBOL" "$ANTES_SALA_REF"
+  trap 'git worktree remove --force "$ARBOL" 2>/dev/null || true; rm -rf "${TMP:-}"' EXIT
+  ln -s "$PWD/node_modules" "$ARBOL/node_modules"
+  export RAIZ_DE_LA_SALA="$ARBOL"
+fi
+NODE_PATH="${NODE_PATH:-$(npm root -g)}" node --test lib/__tests__/sala-de-videollamada.test.mjs

@@ -6,34 +6,24 @@ import {
     laOrdenDeAgendar,
     laOrdenDeEnvio,
     laOrdenDeLaPantalla,
-    laRutaYElAncla,
-    VISTAS_DE_LA_SALA,
+    laOrdenDeTomarNota,
     type OrdenDeAgendar,
     type OrdenDeEnvio,
-    type PaginaDelAvatar,
 } from "@/lib/pantalla-del-avatar";
-import { conLaNota, loQueDijoElCliente, NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
-import { esLaVistaDelCrm } from "@/lib/videollamada-crm";
+import { loQueSeLeCuentaAVerzy, NOMBRES_DE_LOS_DESTINOS, type DestinoDeVerzy, type OrdenDeLaPantalla } from "@/lib/pantalla-de-verzy";
+import { NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
+import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 
-/** Baja al ancla dentro del marco (es del mismo origen). La landing pinta
- * sus secciones después de cargar, así que se insiste unos segundos. */
-function bajarAlAncla(marco: HTMLIFrameElement | null, ancla: string | null) {
-    if (!marco) return;
-    let vueltas = 0;
-    const intentar = () => {
-        try {
-            const doc = marco.contentDocument;
-            if (!ancla) { marco.contentWindow?.scrollTo({ top: 0, behavior: "smooth" }); return; }
-            const el = doc?.getElementById(ancla);
-            if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
-        } catch (error) {
-            console.warn("[videollamada] no se pudo bajar al ancla de la pantalla", { ancla, error });
-            return;
-        }
-        if (++vueltas < 25) window.setTimeout(intentar, 200);
-        else console.warn("[videollamada] el ancla de la pantalla no apareció", { ancla });
-    };
-    intentar();
+/** Cada cuánto se pide la foto nueva de la pantalla mientras se enseña. */
+export const FOTO_CADA_MS = 1_000;
+/** Si Verzy no ha dicho nada en este rato después de entrar, saluda la sala por él. */
+export const ESPERA_DEL_SALUDO_MS = 4_000;
+
+/** ¿Este mensaje de Tavus dice que el avatar está hablando? */
+export function esQueVerzyHabla(mensaje: unknown): boolean {
+    const m = (mensaje ?? {}) as { event_type?: unknown; properties?: { role?: unknown } };
+    if (m.event_type === "conversation.replica.started_speaking") return true;
+    return m.event_type === "conversation.utterance" && m.properties?.role === "replica";
 }
 
 /** Pinta una pista en su `<video>`/`<audio>` sin volver a montar el elemento. */
@@ -95,13 +85,6 @@ type Estado = "entrando" | "dentro" | "reconectando" | "terminada" | "sin_conexi
  * se reconecta sola a la MISMA conversación y le dice a Verzy que siga donde
  * iban.
  */
-/** Las vistas de la sala solo abren con la firma de la cita. */
-function conLaFirma(destino: { ruta: string; ancla: string | null }, consulta: string) {
-    if (!destino.ruta.startsWith(VISTAS_DE_LA_SALA)) return destino;
-    const [camino, resto] = destino.ruta.split("?");
-    return { ...destino, ruta: `${camino}?${resto ? `${resto}&` : ""}${consulta}` };
-}
-
 export default function SalaDeLaVideollamada({
     url: urlInicial,
     nombre,
@@ -116,15 +99,12 @@ export default function SalaDeLaVideollamada({
     reentrada?: boolean;
 }) {
     const [conexion, setConexion] = useState({ url: urlInicial, reentrada, vuelta: 0 });
-    const [pagina, setPagina] = useState<PaginaDelAvatar | null>(null);
-    const [notas, setNotas] = useState<string[]>([]);
-    const marco = useRef<HTMLIFrameElement>(null);
+    // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
+    // servidor. Aquí solo llegan sus fotos.
+    const [destino, setDestino] = useState<DestinoDeVerzy | null>(null);
+    const [foto, setFoto] = useState(0);
     const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
-    const destino = pagina ? conLaFirma(laRutaYElAncla(pagina.ruta), consulta) : null;
-    // Cambiar de sección en la misma página no recarga el marco: solo baja.
-    useEffect(() => {
-        if (destino) bajarAlAncla(marco.current, destino.ancla);
-    }, [destino?.ruta, destino?.ancla]); // eslint-disable-line react-hooks/exhaustive-deps
+    const verzyHablo = useRef(false);
     const [error, setError] = useState<string | null>(null);
     const [estado, setEstado] = useState<Estado>("entrando");
     const [pistas, setPistas] = useState<Pistas>(SIN_PISTAS);
@@ -197,6 +177,69 @@ export default function SalaDeLaVideollamada({
         return () => window.clearInterval(reloj);
     }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Al montar se deja la sesión de Verzay Ventas lista, para que la primera
+    // pantalla no tarde lo que tarda abrir un navegador.
+    useEffect(() => {
+        fetch(`/api/videollamada/pantalla?preparar=1&${consulta}`)
+            .then((r) => r.json())
+            .then((r) => {
+                if (!r?.ok) console.warn("[videollamada] la pantalla de Verzy no quedó lista", r?.motivo);
+            })
+            .catch((e) => console.warn("[videollamada] no se pudo preparar la pantalla", e));
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Mientras se enseña algo, la foto se renueva sola.
+    useEffect(() => {
+        if (!destino) return;
+        const reloj = window.setInterval(() => setFoto((n) => n + 1), FOTO_CADA_MS);
+        return () => window.clearInterval(reloj);
+    }, [destino]);
+
+    // Una orden de Verzy (ir a un destino o apuntar una nota) va al servidor,
+    // y lo que de verdad pasó se le cuenta a Verzy: nunca dice algo que no pasó.
+    const pedirALaPantalla = (orden: OrdenDeLaPantalla) => {
+        const cuerpo = orden.tipo === "ir" ? { tipo: "ir", destino: orden.datos.destino } : { tipo: "nota", texto: orden.datos.texto };
+        if (orden.tipo === "ir") setDestino(orden.datos.destino);
+        fetch(`/api/videollamada/pantalla?${consulta}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(cuerpo),
+        })
+            .then((r) => r.json())
+            .then((r) => {
+                const resultado = r && typeof r.ok === "boolean" ? r : { ok: false, motivo: "sin respuesta" };
+                if (!resultado.ok) console.warn("[videollamada] la pantalla no hizo la orden", { orden, motivo: resultado.motivo });
+                if (!resultado.ok && orden.tipo === "ir") setDestino(null);
+                contarleAVerzy(loQueSeLeCuentaAVerzy(orden, resultado));
+                setFoto((n) => n + 1);
+            })
+            .catch((e) => {
+                console.warn("[videollamada] no se pudo pedir a la pantalla", e);
+                if (orden.tipo === "ir") setDestino(null);
+                contarleAVerzy(loQueSeLeCuentaAVerzy(orden, { ok: false, motivo: "sin conexión" }));
+            });
+    };
+
+    // Respaldo del saludo: si Verzy no dice nada al entrar, la sala le hace
+    // decir el saludo. Nunca en una reentrada (ya se saludaron).
+    const saludarSiCalla = (llamada: DailyCall) => {
+        window.setTimeout(() => {
+            const conversacion = conversacionRef.current;
+            if (verzyHablo.current || llamadaRef.current !== llamada || !conversacion) return;
+            console.warn("[videollamada] Verzy no habló al entrar; saluda la sala");
+            try {
+                llamada.sendAppMessage({
+                    message_type: "conversation",
+                    event_type: "conversation.echo",
+                    conversation_id: conversacion,
+                    properties: { text: SALUDO_INICIAL },
+                }, "*");
+            } catch (e) {
+                console.warn("[videollamada] no se pudo mandar el saludo de respaldo", e);
+            }
+        }, ESPERA_DEL_SALUDO_MS);
+    };
+
     const mandarPorWhatsapp = (orden: OrdenDeEnvio) => {
         fetch(`/api/videollamada/whatsapp?${consulta}`, {
             method: "POST",
@@ -267,15 +310,20 @@ export default function SalaDeLaVideollamada({
             refrescar();
             conversacionRef.current = elIdDeLaConversacion(conexion.url);
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
+            else saludarSiCalla(llamada);
         });
         llamada.on("left-meeting", () => reconectar("left-meeting"));
         llamada.on("error", (ev) => reconectar(ev));
         llamada.on("local-screen-share-started", () => setPantallaOn(true));
         llamada.on("local-screen-share-stopped", () => setPantallaOn(false));
         llamada.on("app-message", (ev) => {
-            const dicho = loQueDijoElCliente(ev?.data);
-            if (dicho) {
-                setNotas((n) => conLaNota(n, dicho));
+            if (esQueVerzyHabla(ev?.data)) {
+                verzyHablo.current = true;
+                return;
+            }
+            const nota = laOrdenDeTomarNota(ev?.data);
+            if (nota) {
+                pedirALaPantalla({ tipo: "nota", datos: { texto: nota.texto } });
                 return;
             }
             const agenda = laOrdenDeAgendar(ev?.data);
@@ -290,7 +338,8 @@ export default function SalaDeLaVideollamada({
             }
             const orden = laOrdenDeLaPantalla(ev?.data);
             if (!orden) return;
-            setPagina(orden.accion === "mostrar" ? orden.pagina : null);
+            if (orden.accion === "ocultar") setDestino(null);
+            else pedirALaPantalla({ tipo: "ir", datos: { destino: orden.destino } });
         });
         llamada.on("camera-error", (ev) => {
             console.warn("[videollamada] sin cámara o micrófono", ev);
@@ -328,53 +377,28 @@ export default function SalaDeLaVideollamada({
         else llamada.startScreenShare();
     };
     const reentrar = () => window.location.reload();
-    const enMiniatura = !!pagina;
-    // La pizarra es el CRM: ahí, y solo ahí, van las notas al lado.
-    const conNotas = !!pagina && esLaVistaDelCrm(pagina.ruta);
+    const enMiniatura = !!destino;
 
     return (
         <main data-zona="sala" className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100">
-            {pagina && (
+            {destino && (
                 <section
                     data-zona="pantalla-del-avatar"
-                    data-pagina={pagina.clave}
+                    data-destino={destino}
                     className="absolute inset-x-0 top-0 bottom-16 flex flex-col"
                 >
                     <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Verzy te está mostrando: <strong className="text-slate-100">{pagina.titulo}</strong>
+                        Verzy te está mostrando: <strong className="text-slate-100">{NOMBRES_DE_LOS_DESTINOS[destino]}</strong>
                     </header>
-                    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-                        <iframe
-                            ref={marco}
-                            key={destino!.ruta}
-                            src={destino!.ruta}
-                            onLoad={() => bajarAlAncla(marco.current, destino!.ancla)}
-                            title={`Pantalla de Verzy: ${pagina.titulo}`}
-                            className="min-h-0 w-full flex-1 bg-white"
+                    <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            data-zona="foto-de-la-pantalla"
+                            src={`/api/videollamada/pantalla?${consulta}&v=${foto}`}
+                            alt={`Pantalla de Verzay Ventas: ${NOMBRES_DE_LOS_DESTINOS[destino]}`}
+                            className="max-h-full max-w-full object-contain"
                         />
-                        {conNotas && (
-                            <aside
-                                data-zona="notas"
-                                className="flex max-h-[35%] shrink-0 flex-col border-t border-slate-800 bg-slate-950 px-3 md:max-h-none md:w-72 md:border-l md:border-t-0"
-                            >
-                                <header className="flex h-10 shrink-0 items-center gap-2 text-sm text-slate-300">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                                    Notas de la llamada
-                                </header>
-                                {notas.length ? (
-                                    <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
-                                        {notas.map((n, i) => (
-                                            <li key={`${i}-${n}`} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-slate-100">
-                                                {n}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="pb-4 text-sm text-slate-500">Verzy apunta aquí lo que vas contando.</p>
-                                )}
-                            </aside>
-                        )}
                     </div>
                 </section>
             )}

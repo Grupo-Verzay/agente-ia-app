@@ -70,21 +70,3 @@ export function elAvisoDelPago(estado: EstadoDelPago, plan: string | null): stri
     }
     return null;
 }
-
-/** Notas de la llamada: lo que el cliente dijo, sin repetidos y con tope. */
-export const TOPE_DE_NOTAS = 30;
-export function conLaNota(notas: string[], dicho: unknown): string[] {
-    const texto = typeof dicho === "string" ? dicho.trim().replace(/\s+/g, " ") : "";
-    if (texto.length < 3 || notas[notas.length - 1] === texto) return notas;
-    return [...notas, texto.slice(0, 280)].slice(-TOPE_DE_NOTAS);
-}
-
-/** Lo que dijo el cliente, si el evento es su turno de habla. */
-export function loQueDijoElCliente(mensaje: unknown): string | null {
-    if (!mensaje || typeof mensaje !== "object") return null;
-    const m = mensaje as Record<string, unknown>;
-    if (m.event_type !== "conversation.utterance") return null;
-    const p = (m.properties ?? {}) as Record<string, unknown>;
-    if (p.role !== "user") return null;
-    return typeof p.speech === "string" ? p.speech : null;
-}

@@ -1,97 +1,27 @@
 /**
  * La pantalla del avatar: en la videollamada con IA quien COMPARTE pantalla
- * es Verzy, no el cliente. La sala (`SalaDeLaVideollamada`) pinta al lado del
- * video un panel con una página pública de Verzay, y la elige el avatar
- * llamando a su herramienta `mostrar_pantalla` cuando el guion lo pide.
+ * es Verzy. Lo que se ve son las pantallas REALES de la cuenta «Verzay
+ * Ventas», navegadas en vivo por el servidor (`lib/pantalla-de-verzy.server.ts`)
+ * y enviadas a la sala como imagen. Ninguna página de ejemplo ni vista hecha
+ * para la llamada.
  *
- * Puro: lo usan la sala (qué pintar), el servidor (qué se le cuenta al
- * avatar en su contexto) y el banco. Tres reglas:
+ * Puro: lo usan la sala, el servidor (el contexto del avatar) y el banco.
  *
- * 1. **Lista CERRADA de páginas.** El avatar nombra una CLAVE, nunca una
- *    dirección: lo que diga el modelo no puede llevar al cliente a cualquier
- *    sitio. Una clave que no está en la lista no cambia nada.
- * 2. **Solo páginas PÚBLICAS de la plataforma**, del mismo origen (se pintan
- *    en un iframe y `X-Frame-Options` es SAMEORIGIN).
- * 3. **La orden llega por el canal de Daily** (`app-message`) con la forma de
- *    los eventos de Tavus (`conversation.tool_call`). Lo que no tenga esa forma
- *    se ignora: por ese canal también viajan los mensajes de los humanos.
+ * 1. **Lista CERRADA**: `DESTINOS_DE_VERZY` o `ninguna`. El avatar nombra una
+ *    CLAVE, nunca una dirección; lo que no esté en la lista no cambia nada.
+ * 2. **La orden llega por Daily** (`app-message`) con la forma de Tavus
+ *    (`conversation.tool_call`); lo demás se ignora.
  */
 
 import { SALUDO_INICIAL, SEGUNDA_PREGUNTA } from "@/lib/videollamada-crm";
-
-export type PaginaDelAvatar = {
-    clave: string;
-    titulo: string;
-    ruta: string;
-    /** Cuándo enseñarla: va en el contexto del avatar y en la herramienta. */
-    cuando: string;
-    /** El MOMENTO del guion de ventas en el que se enseña (va en el contexto). */
-    momento: string;
-};
-
-/**
- * Las páginas, en el ORDEN del guion de ventas. La base es la landing pública
- * (`/inicio`, la de agente.ia-app.com) y cada momento de la conversación
- * enseña su sección: presentar → inicio, qué hace → funciones, cómo se
- * empieza → cómo funciona, la oferta → planes y precios, verla funcionando →
- * demostración, objeciones → preguntas frecuentes.
- */
-export const PAGINAS_DEL_AVATAR: readonly PaginaDelAvatar[] = [
-    { clave: "inicio", titulo: "Agente IA", ruta: "/inicio", cuando: "al presentar la plataforma", momento: "1. Saludo y presentación de Verzay" },
-    { clave: "funciones", titulo: "Funciones", ruta: "/inicio#features", cuando: "al explicar qué hace la plataforma", momento: "2. Qué hace la plataforma por su negocio" },
-    { clave: "demo", titulo: "Demostración", ruta: "/demo", cuando: "para enseñar el video de la plataforma funcionando", momento: "3. Verla funcionando" },
-    { clave: "como_funciona", titulo: "Cómo funciona", ruta: "/inicio#how", cuando: "al explicar los pasos para empezar", momento: "4. Cómo se empieza" },
-    { clave: "precios", titulo: "Planes y precios", ruta: "/inicio#pricing", cuando: "cuando pregunten por precios o planes", momento: "5. La oferta: planes y precios" },
-    { clave: "preguntas", titulo: "Preguntas frecuentes", ruta: "/inicio#faq", cuando: "ante dudas generales u objeciones", momento: "6. Dudas y objeciones" },
-    { clave: "tutoriales", titulo: "Tutoriales", ruta: "/inicio#tutoriales", cuando: "cuando pregunten cómo se usa un módulo", momento: "Cuando pregunten cómo se usa algo" },
-    // La pizarra: la ficha del prospecto en la cuenta REAL «Verzay Ventas» (lib/videollamada-crm.ts).
-    { clave: "crm", titulo: "Ficha del prospecto", ruta: "/videollamada/vista/crm", cuando: "para tomar notas en el CRM real mientras el cliente cuenta lo que quiere resolver", momento: "3. Tomar notas en el CRM (después de la segunda pregunta)" },
-    { clave: "crm_embudo", titulo: "Embudo de ventas", ruta: "/videollamada/vista/crm#embudo", cuando: "para enseñar en qué etapa del embudo está el cliente", momento: "Moverte por el CRM: el embudo" },
-    { clave: "crm_recordatorios", titulo: "Recordatorios y citas", ruta: "/videollamada/vista/crm#recordatorios", cuando: "para enseñar los recordatorios y citas que tiene programados", momento: "Moverte por el CRM: recordatorios" },
-    { clave: "crm_conversacion", titulo: "Historial de la conversación", ruta: "/videollamada/vista/crm#conversacion", cuando: "para enseñar lo que el cliente ya habló por WhatsApp", momento: "Moverte por el CRM: la conversación" },
-    { clave: "resultados", titulo: "Resultados de Verzay", ruta: "/videollamada/vista/resultados", cuando: "al enseñar resultados reales de clientes de Verzay", momento: "Diagnóstico y plan: pruebas" },
-    { clave: "guia", titulo: "Guía", ruta: "/guia", cuando: "para enseñar la guía de UN módulo (con su parámetro modulo)", momento: "Cuando pregunten cómo funciona un módulo concreto" },
-];
-
-/**
- * Los módulos con guía pública (`app/guia/<modulo>`) que el avatar puede
- * enseñar con `mostrar_pantalla` (pagina: guia, modulo: …). Lista CERRADA: el
- * banco la compara con las carpetas de `app/guia/`.
- */
-export const GUIAS_DEL_AVATAR = [
-    "agenda", "agente-ia", "ai-imagenes", "calificacion", "campanas", "catalogo", "chats", "cobros",
-    "conexion", "copiloto", "correo", "diagramas", "embudos", "etiquetas", "finanzas", "flujos",
-    "follow-ups", "formularios", "google-sheets", "informes", "integraciones", "leads", "llamadas",
-    "macros", "mis-datos", "multiagenda", "notas", "productos", "proyectos", "recordatorios",
-    "reportes", "respuestas-rapidas", "reuniones", "tareas", "usuarios",
-] as const;
-
-/** Las páginas que sirve la propia sala y llevan la firma de la cita en la consulta. */
-export const VISTAS_DE_LA_SALA = "/videollamada/vista/";
-
-/** El módulo pedido, si está en la lista. */
-export function elModuloDeLaGuia(modulo: unknown): string | null {
-    const m = typeof modulo === "string" ? modulo.trim().toLowerCase().replace(/[\s_]+/g, "-") : "";
-    return (GUIAS_DEL_AVATAR as readonly string[]).includes(m) ? m : null;
-}
-
-/** La ruta de la página sin el ancla, y el ancla aparte (o `null`). */
-export function laRutaYElAncla(ruta: string): { ruta: string; ancla: string | null } {
-    const [base, ancla] = ruta.split("#");
-    return { ruta: base || "/", ancla: ancla ? ancla : null };
-}
+import { DESTINOS_DE_VERZY, NOMBRES_DE_LOS_DESTINOS, TOPE_DE_LA_NOTA, comoDestino, type DestinoDeVerzy } from "@/lib/pantalla-de-verzy";
 
 export const NOMBRE_DE_LA_HERRAMIENTA = "mostrar_pantalla";
 
 /** Clave para dejar de compartir. */
 export const OCULTAR = "ninguna";
 
-export function laPaginaDelAvatar(clave: unknown): PaginaDelAvatar | null {
-    const c = typeof clave === "string" ? clave.trim().toLowerCase() : "";
-    return PAGINAS_DEL_AVATAR.find((p) => p.clave === c) ?? null;
-}
-
-export type OrdenDeLaPantalla = { accion: "mostrar"; pagina: PaginaDelAvatar } | { accion: "ocultar" };
+export type OrdenDeLaPantalla = { accion: "mostrar"; destino: DestinoDeVerzy } | { accion: "ocultar" };
 
 function losArgumentos(valor: unknown): Record<string, unknown> | null {
     if (valor && typeof valor === "object") return valor as Record<string, unknown>;
@@ -106,82 +36,95 @@ function losArgumentos(valor: unknown): Record<string, unknown> | null {
     return null;
 }
 
+function laLlamadaA(mensaje: unknown, nombre: string): Record<string, unknown> | null {
+    if (!mensaje || typeof mensaje !== "object") return null;
+    const m = mensaje as Record<string, unknown>;
+    if (m.event_type !== "conversation.tool_call") return null;
+    const p = (m.properties ?? {}) as Record<string, unknown>;
+    if (p.name !== nombre) return null;
+    return losArgumentos(p.arguments) ?? {};
+}
+
 /**
  * Lee un `app-message` de Daily. Tavus lo manda como
  * `{ message_type: "conversation", event_type: "conversation.tool_call",
  *    properties: { name, arguments } }`, con `arguments` en texto JSON.
  */
 export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null {
-    if (!mensaje || typeof mensaje !== "object") return null;
-    const m = mensaje as Record<string, unknown>;
-    if (m.event_type !== "conversation.tool_call") return null;
-    const p = (m.properties ?? {}) as Record<string, unknown>;
-    if (p.name !== NOMBRE_DE_LA_HERRAMIENTA) return null;
-    const args = losArgumentos(p.arguments);
-    const clave = typeof args?.pagina === "string" ? args.pagina.trim().toLowerCase() : "";
+    const args = laLlamadaA(mensaje, NOMBRE_DE_LA_HERRAMIENTA);
+    if (!args) return null;
+    const clave = typeof args.destino === "string" ? args.destino.trim().toLowerCase() : "";
     if (clave === OCULTAR) return { accion: "ocultar" };
-    const pagina = laPaginaDelAvatar(clave);
-    if (!pagina) return null;
-    if (pagina.clave !== "guia") return { accion: "mostrar", pagina };
-    // La guía necesita su módulo, y solo de la lista: sin él no se enseña nada.
-    const modulo = elModuloDeLaGuia(args?.modulo);
-    if (!modulo) return null;
-    return { accion: "mostrar", pagina: { ...pagina, clave: `guia:${modulo}`, titulo: `Guía de ${modulo.replace(/-/g, " ")}`, ruta: `/guia/${modulo}` } };
+    const destino = comoDestino(clave);
+    return destino ? { accion: "mostrar", destino } : null;
 }
 
-/**
- * La herramienta tal como se configura UNA vez en la persona de Tavus
- * (Verzy, `layers.llm.tools`). La persona es fija para toda la plataforma, así
- * que no viaja con cada conversación.
- */
+/** La herramienta tal como se configura en la persona de Tavus (`layers.llm.tools`). */
 export const HERRAMIENTA_DE_LA_PANTALLA = {
     type: "function",
     function: {
         name: NOMBRE_DE_LA_HERRAMIENTA,
         description:
-            "Comparte en la pantalla del cliente una página pública de Verzay. " +
-            "Úsala SOLO cuando el guion de ventas lo pida o el cliente quiera ver algo y el guion lo permita; " +
-            "la llamada empieza sin compartir nada. " +
+            "Comparte en la pantalla del cliente una pantalla REAL de la plataforma Agente IA (la cuenta Verzay Ventas), en vivo. " +
+            "Úsala solo cuando el guion lo pida o el cliente quiera ver algo; la llamada empieza sin compartir nada. " +
             `Usa "${OCULTAR}" para dejar de compartir.`,
         parameters: {
             type: "object",
             properties: {
-                pagina: {
+                destino: {
                     type: "string",
-                    enum: [...PAGINAS_DEL_AVATAR.map((p) => p.clave), OCULTAR],
-                    description: PAGINAS_DEL_AVATAR.map((p) => `${p.clave}: ${p.cuando}`).join("; "),
-                },
-                modulo: {
-                    type: "string",
-                    enum: [...GUIAS_DEL_AVATAR],
-                    description: "Solo con pagina: guia. El módulo cuya guía se enseña.",
+                    enum: [...DESTINOS_DE_VERZY.map((d) => d.clave), OCULTAR],
+                    description: DESTINOS_DE_VERZY.map((d) => `${d.clave}: ${d.cuando}`).join("; "),
                 },
             },
-            required: ["pagina"],
+            required: ["destino"],
+        },
+    },
+} as const;
+
+/* ── Tomar nota en la ficha real del cliente ──────────────────────────── */
+
+export const NOMBRE_DE_TOMAR_NOTA = "tomar_nota";
+
+/** Lee un `app-message` con la llamada a `tomar_nota`. */
+export function laOrdenDeTomarNota(mensaje: unknown): { texto: string } | null {
+    const args = laLlamadaA(mensaje, NOMBRE_DE_TOMAR_NOTA);
+    if (!args) return null;
+    const texto = typeof args.texto === "string" ? args.texto.replace(/\s+/g, " ").trim().slice(0, TOPE_DE_LA_NOTA) : "";
+    return texto ? { texto } : null;
+}
+
+export const HERRAMIENTA_DE_TOMAR_NOTA = {
+    type: "function",
+    function: {
+        name: NOMBRE_DE_TOMAR_NOTA,
+        description:
+            "Escribe una nota en el campo Notas de la ficha REAL del cliente en el CRM de Verzay Ventas. " +
+            "Úsala para apuntar lo que el cliente quiere resolver, su negocio, su presupuesto o lo que acordaron.",
+        parameters: {
+            type: "object",
+            properties: {
+                texto: { type: "string", description: `La nota, en una o dos frases (máximo ${TOPE_DE_LA_NOTA} caracteres)` },
+            },
+            required: ["texto"],
         },
     },
 } as const;
 
 /** Lo que se le cuenta al avatar en su contexto de cada conversación. */
 export function elBloqueDeLaPantalla(): string {
-    const lineas = PAGINAS_DEL_AVATAR.map((p) => `- ${p.momento} → ${p.clave} (${p.titulo})`);
     return [
         "PANTALLA COMPARTIDA",
-        `Tú compartes pantalla con el cliente llamando a la herramienta ${NOMBRE_DE_LA_HERRAMIENTA}. ` +
-            "Lo que el cliente ve en su pantalla lo decide SOLO esa herramienta: decir una dirección web en voz alta no le enseña nada.",
+        `Compartes pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA}. Lo que se ve son las pantallas REALES de la plataforma, ` +
+            "en la cuenta Verzay Ventas, en vivo. Decir una dirección web en voz alta no le enseña nada al cliente.",
         "Reglas:",
-        "- Nunca digas una URL ni una dirección web en voz alta. En su lugar llama a la herramienta y dile qué está viendo (por ejemplo: «te estoy mostrando los planes»).",
-        "- La llamada EMPIEZA SIN COMPARTIR NADA: al saludar el cliente solo te ve a ti. No compartas pantalla hasta que el cliente responda la segunda pregunta.",
-        "- Después de esa respuesta, abre la pizarra: el CRM real de Verzay (crm) y toma notas ahí. Muévete por sus secciones (crm_embudo, crm_recordatorios, crm_conversacion) según lo que hablen.",
-        "- Puedes quedarte en el CRM o pasar a la página pública (inicio, funciones, precios…) según la conversación.",
-        "- Comparte SOLO cuando el guion de ventas lo indique en ese momento, o cuando el cliente pida ver algo y el guion lo permita.",
-        "- Si el cliente pide ver algo (precios, planes, cómo funciona) y corresponde, llama a la herramienta ANTES de explicarlo.",
-        `- Cuando ya no haga falta mostrar nada, deja de compartir con ${OCULTAR}.`,
-        "Qué página enseñar en cada momento del guion:",
-        ...lineas,
-        "- crm: la ficha del cliente en el CRM real de Verzay, buscada por su número de WhatsApp; resultados: resultados reales de clientes de Verzay; " +
-            "guia: la guía de un módulo, diciendo cuál en «modulo».",
-        `Para dejar de compartir: ${OCULTAR}. Nunca inventes otra página.`,
+        "- Nunca digas una URL ni una dirección web. Llama a la herramienta y di qué se está viendo.",
+        "- La llamada EMPIEZA SIN COMPARTIR NADA. No compartas hasta que el cliente responda la segunda pregunta.",
+        `- Después de esa respuesta, abre la ficha del cliente (ficha) y apunta con ${NOMBRE_DE_TOMAR_NOTA} lo que quiere resolver.`,
+        "- Solo existen estas pantallas, no inventes otras:",
+        ...DESTINOS_DE_VERZY.map((d) => `  - ${d.clave} (${NOMBRES_DE_LOS_DESTINOS[d.clave]}): ${d.cuando}`),
+        `- Para dejar de compartir: ${OCULTAR}.`,
+        "- Después de cada orden recibirás qué pasó; si algo falló, no digas que se ve o que quedó guardado.",
     ].join("\n");
 }
 
@@ -197,12 +140,8 @@ export type OrdenDeEnvio = { que: QueSeEnvia; plan: string | null };
 
 /** Lee un `app-message` con la llamada a `enviar_por_whatsapp`. */
 export function laOrdenDeEnvio(mensaje: unknown): OrdenDeEnvio | null {
-    if (!mensaje || typeof mensaje !== "object") return null;
-    const m = mensaje as Record<string, unknown>;
-    if (m.event_type !== "conversation.tool_call") return null;
-    const p = (m.properties ?? {}) as Record<string, unknown>;
-    if (p.name !== NOMBRE_DEL_ENVIO) return null;
-    const args = losArgumentos(p.arguments);
+    const args = laLlamadaA(mensaje, NOMBRE_DEL_ENVIO);
+    if (!args) return null;
     const que = typeof args?.que === "string" ? args.que.trim().toLowerCase() : "";
     if (!(QUE_SE_ENVIA as readonly string[]).includes(que)) return null;
     const plan = typeof args?.plan === "string" && args.plan.trim() ? args.plan.trim().slice(0, 60) : null;
@@ -315,12 +254,8 @@ export function esUnaFechaDeAgenda(texto: string): boolean {
 
 /** Lee un `app-message` con la llamada a `agendar_seguimiento`. */
 export function laOrdenDeAgendar(mensaje: unknown): OrdenDeAgendar | null {
-    if (!mensaje || typeof mensaje !== "object") return null;
-    const m = mensaje as Record<string, unknown>;
-    if (m.event_type !== "conversation.tool_call") return null;
-    const p = (m.properties ?? {}) as Record<string, unknown>;
-    if (p.name !== NOMBRE_DEL_AGENDAR) return null;
-    const args = losArgumentos(p.arguments);
+    const args = laLlamadaA(mensaje, NOMBRE_DEL_AGENDAR);
+    if (!args) return null;
     const tipo = typeof args?.tipo === "string" ? args.tipo.trim().toLowerCase() : "";
     if (!(TIPOS_DE_SEGUIMIENTO as readonly string[]).includes(tipo)) return null;
     const fechaHora = typeof args?.fecha_hora === "string" ? args.fecha_hora.trim() : "";
@@ -358,10 +293,10 @@ export function elBloqueDelGuion(ahora: string): string {
         `Ahora mismo son: ${ahora} (hora del negocio).`,
         `1. Saludo: empieza TÚ, sin esperar, diciendo exactamente «${SALUDO_INICIAL}». Si el cliente habla antes que tú, respóndele con ese mismo saludo.`,
         `2. Cuando confirme que te escucha, haz la segunda pregunta: «${SEGUNDA_PREGUNTA}». No compartas pantalla todavía. Escucha antes de vender.`,
-        "3. Solo después de que responda: abre el CRM (crm) y toma nota de lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.",
+        `3. Solo después de que responda: abre su ficha (ficha) y apunta con ${NOMBRE_DE_TOMAR_NOTA} lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.`,
         "4. Diagnóstico y plan: dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
         "5. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
-        "6. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o ver la demostración y hablar otro día.",
+        "6. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o hablar otro día.",
         "7. Objeciones:",
         "   - «Es caro»: compáralo con lo que pierde hoy en mensajes sin responder y ventas que se enfrían; ofrece el plan más pequeño.",
         "   - «Tengo que consultarlo con mi socio»: ofrece enviarle la información por WhatsApp y agendar una llamada con los dos.",
@@ -376,7 +311,7 @@ type HerramientaDeTavus = { type?: unknown; function?: { name?: unknown } };
 
 /**
  * Lo que hay que cambiarle a la persona de Tavus para que TENGA la herramienta
- * de la pantalla (y la versión de hoy: con las páginas de esta lista). Recibe
+ * de la pantalla y la de tomar nota (y la versión de hoy). Recibe
  * la persona tal como la devuelve `GET /v2/personas/<id>` y devuelve el parche
  * JSON (RFC 6902) para `PATCH`, o `null` si ya está al día.
  *
@@ -388,7 +323,7 @@ export function elParcheDeLaPersona(persona: unknown): unknown[] | null {
     const capas = p.layers && typeof p.layers === "object" ? (p.layers as Record<string, unknown>) : null;
     const llm = capas?.llm && typeof capas.llm === "object" ? (capas.llm as Record<string, unknown>) : null;
     const actuales = Array.isArray(llm?.tools) ? (llm!.tools as HerramientaDeTavus[]) : [];
-    const nuestras = [HERRAMIENTA_DE_LA_PANTALLA, HERRAMIENTA_DEL_ENVIO, HERRAMIENTA_DEL_AGENDAR] as const;
+    const nuestras = [HERRAMIENTA_DE_LA_PANTALLA, HERRAMIENTA_DE_TOMAR_NOTA, HERRAMIENTA_DEL_ENVIO, HERRAMIENTA_DEL_AGENDAR] as const;
     const nombres = nuestras.map((h) => h.function.name as string);
     const alDia = nuestras.every((d) => {
         const la = actuales.find((h) => h?.function?.name === d.function.name);

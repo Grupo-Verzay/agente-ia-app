@@ -46,7 +46,7 @@ const nextConfig = {
     // `imapflow`, `nodemailer` y `mailparser` (Correo) hablan con servidores
     // de correo por socket y llevan `require` dinamicos dentro: igual que
     // `web-push`, en produccion corre el paquete de verdad.
-    serverComponentsExternalPackages: ["sharp", "web-push", "imapflow", "nodemailer", "mailparser"],
+    serverComponentsExternalPackages: ["sharp", "web-push", "imapflow", "nodemailer", "mailparser", "playwright-core"],
   },
   images: {
     remotePatterns: [
