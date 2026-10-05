@@ -27100,3 +27100,16 @@ persona de Tavus**, así que el modelo no podía llamarla.
 3. **La sala baja al ancla dentro del marco** (`laRutaYElAncla`,
    `bajarAlAncla`): el marco se monta por ruta sin el `#` y cambiar de sección
    en la misma página solo desplaza.
+
+### La sala NO usa la interfaz de Daily: se entra directo
+
+Con `createFrame` (Daily Prebuilt) la sala de Tavus enseñaba antes su pantalla
+«Are you ready to join?» en inglés, y un prospecto se quedaba ahí sin pulsar
+«Join». La sala va con `DailyIframe.createCallObject`: `join()` conecta al
+abrir el enlace, y el video del avatar, mi recuadro y los mandos (silenciar,
+cámara, salir) los pinta `SalaDeLaVideollamada`. Si el navegador bloquea el
+sonido, sale «Toca aquí para escuchar a Verzy». El permiso de cámara y
+micrófono del navegador sigue saliendo: ese no se puede saltar. Lo prueba
+`scripts/banco-videollamada-ia.sh`; `MODO=roto` afirma el `createFrame` de
+`0319376`.
+
