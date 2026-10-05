@@ -98,10 +98,10 @@ export function laDuracionMaxima(ahora: Date, fin: Date): number {
 /* ── Los ajustes ───────────────────────────────────────────────────────── */
 
 /**
- * El avatar es UNO para toda la plataforma: el Pal «Verzy» de Verzay, con la
- * clave de Tavus de la casa. Ninguna cuenta guarda persona ni clave; lo único
- * que elige una cuenta es su MODO de reunión. La persona y la clave salen del
- * entorno (`TAVUS_API_KEY`, `TAVUS_PERSONA_ID`) y nunca viajan al navegador.
+ * El avatar de la plataforma es el Pal «Verzy» de Verzay, con la clave de
+ * Tavus de la casa: sale del entorno (`TAVUS_API_KEY`, `TAVUS_PERSONA_ID`) y
+ * nunca viaja al navegador. Una cuenta PUEDE tener además su propio avatar
+ * (clave y persona suyas, `elAvatarQueUsa`); sin él usa el de la casa.
  */
 export const NOMBRE_DEL_AVATAR = "Verzy";
 
@@ -124,6 +124,19 @@ export function elAvatarDelEntorno(
     const clave = comoClaveDeTavus(entorno.TAVUS_API_KEY);
     const personaId = comoPersonaId(entorno.TAVUS_PERSONA_ID);
     return clave && personaId ? { clave, personaId } : null;
+}
+
+export type Avatar = { clave: string; personaId: string };
+
+/**
+ * Qué avatar usa una cuenta: el SUYO si tiene clave y persona válidas, y si
+ * no, el de la casa. Medio avatar propio (clave sin persona) no cuenta: se
+ * cae al de la casa en vez de mezclar la clave de uno con la persona de otro.
+ */
+export function elAvatarQueUsa(propio: { clave?: unknown; personaId?: unknown } | null | undefined, casa: Avatar | null): Avatar | null {
+    const clave = comoClaveDeTavus(propio?.clave);
+    const personaId = comoPersonaId(propio?.personaId);
+    return clave && personaId ? { clave, personaId } : casa;
 }
 
 export type AjustesParaGuardar = { modo: ModoDeReunion };

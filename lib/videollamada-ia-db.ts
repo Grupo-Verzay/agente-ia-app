@@ -1,7 +1,8 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { comoModoDeReunion, elAvatarDelEntorno, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { abrir, sellar } from "@/lib/correo-cifrado.server";
+import { comoModoDeReunion, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -13,9 +14,11 @@ import { comoModoDeReunion, elAvatarDelEntorno, type AjustesParaGuardar, type Mo
  * | `videollamada_ajustes` | CUENTA: el modo de reunión |
  * | `videollamadas_ia` | CITA: la conversación de Tavus, cuándo entró, la transcripción |
  *
- * El avatar es UNO para toda la plataforma (el Pal «Verzy»): su persona y su
- * clave salen del entorno (`elAvatarDeVerzay`). Las columnas `personaId`,
- * `claveSellada` y `claveFinal` quedan de la primera versión y ya no se leen.
+ * El avatar de la casa (el Pal «Verzy») sale del entorno (`elAvatarDeVerzay`).
+ * Una cuenta puede tener el SUYO en `propioPersonaId` + `propioClaveSellada`
+ * (sellada con la llave del correo; `elAvatarDeLaCuenta`). Son columnas
+ * NUEVAS a propósito: `personaId`, `claveSellada` y `claveFinal` quedan de la
+ * primera versión con datos de prueba y no se leen.
  *
  * El backend LEE estas dos tablas en SQL crudo (el reloj de ausencia) y tolera
  * que no existan: sin fila, la cuenta está en el modo de siempre.
@@ -47,6 +50,8 @@ function asegurarLasTablas(): Promise<void> {
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioPersonaId" TEXT`);
+        await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioClaveSellada" TEXT`);
         await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "videollamadas_ia" (
                 "citaId" TEXT PRIMARY KEY,
@@ -104,8 +109,58 @@ export function elAvatarDeVerzay(): { clave: string; personaId: string } | null 
     return elAvatarDelEntorno({ TAVUS_API_KEY: process.env.TAVUS_API_KEY, TAVUS_PERSONA_ID: process.env.TAVUS_PERSONA_ID });
 }
 
+/**
+ * El avatar con el que se crea la videollamada de una cuenta: el suyo si lo
+ * tiene, y si no el de la casa. Si el suyo no se puede leer (tabla o llave),
+ * se usa el de la casa y se dice: una cita no se queda sin videollamada por eso.
+ */
+export async function elAvatarDeLaCuenta(cuentaId: string): Promise<Avatar | null> {
+    const casa = elAvatarDeVerzay();
+    if (!cuentaId) return casa;
+    try {
+        const filas = await conLasTablas(() => db.$queryRaw<{ personaId: string | null; sellada: string | null }[]>`
+            SELECT "propioPersonaId" AS "personaId", "propioClaveSellada" AS "sellada"
+            FROM "videollamada_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
+        `);
+        const f = filas[0];
+        if (!f?.personaId || !f.sellada) return casa;
+        const abierta = abrir<{ clave: string }>(f.sellada);
+        if (!abierta) console.warn("[videollamada] la clave propia de Tavus no se pudo abrir; se usa la de la casa", { cuenta: cuentaId });
+        return elAvatarQueUsa({ clave: abierta?.clave, personaId: f.personaId }, casa);
+    } catch (error) {
+        console.warn("[videollamada] no se pudo leer el avatar propio; se usa el de la casa", { cuenta: cuentaId, error: String(error) });
+        return casa;
+    }
+}
+
+/**
+ * Pone (o quita, con `null`) el avatar PROPIO de una cuenta. Solo servidor:
+ * no hay pantalla todavía, y la clave nunca vuelve al navegador. Lo que no
+ * tiene forma de clave o de persona se rechaza en vez de guardarse a medias.
+ */
+export async function guardarElAvatarPropio(cuentaId: string, avatar: { clave: string; personaId: string } | null): Promise<{ ok: boolean; motivo?: string }> {
+    if (!cuentaId) return { ok: false, motivo: "Falta la cuenta." };
+    let personaId: string | null = null;
+    let sellada: string | null = null;
+    if (avatar) {
+        const valido = elAvatarQueUsa(avatar, null);
+        if (!valido) return { ok: false, motivo: "La clave o el persona_id de Tavus no tienen forma válida." };
+        personaId = valido.personaId;
+        sellada = sellar({ clave: valido.clave });
+    }
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "videollamada_ajustes" ("cuentaId", "propioPersonaId", "propioClaveSellada", "actualizadoEn")
+        VALUES (${cuentaId}, ${personaId}, ${sellada}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("cuentaId") DO UPDATE SET
+            "propioPersonaId" = EXCLUDED."propioPersonaId",
+            "propioClaveSellada" = EXCLUDED."propioClaveSellada",
+            "actualizadoEn" = CURRENT_TIMESTAMP
+    `);
+    return { ok: true };
+}
+
 export async function leerLosAjustes(cuentaId: string): Promise<AjustesDeLaVideollamada> {
-    const disponible = Boolean(elAvatarDeVerzay());
+    const disponible = Boolean(await elAvatarDeLaCuenta(cuentaId));
     if (!cuentaId) return { modo: "enlace", disponible };
     return conLasTablas(async () => {
         const filas = await db.$queryRaw<{ modo: string }[]>`
