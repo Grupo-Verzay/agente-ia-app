@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { lasReaccionesQueTrae } from '@/lib/reacciones-del-chat';
 import { db } from '@/lib/db';
+import { asegurarColumna, asegurarIndice, indiceExiste } from '@/lib/ddl-sin-bloquear';
 import {
   buildWhatsAppJidCandidates,
   normalizeWhatsAppConversationJid,
@@ -155,42 +156,20 @@ function ensureChatMessagesTable() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `;
-    await db.$executeRaw`
-      CREATE UNIQUE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_msg_from_unique"
-      ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageId", "fromMe")
-    `;
+    await asegurarIndice("chat_messages_user_instance_jid_msg_from_unique", `CREATE UNIQUE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_msg_from_unique" ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageId", "fromMe")`);
     // Marca de "eliminado por el cliente" (revoke): conserva el contenido y solo
     // permite mostrar el badge "Eliminado". La escribe el backend (chat-store).
-    await db.$executeRaw`
-      ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "deleted" BOOLEAN NOT NULL DEFAULT FALSE
-    `;
+    await asegurarColumna("chat_messages", "deleted", `ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "deleted" BOOLEAN NOT NULL DEFAULT FALSE`);
     // Un asesor corrigio el texto desde el panel. Sirve para BLINDARLO: el
     // sondeo de Evolution vuelve a guardar el mensaje con su texto original en
     // cada vuelta, y sin esta marca la correccion duraba hasta el refresco
     // siguiente. Es el mismo truco que ya protege a `sentByAi`.
-    await db.$executeRaw`
-      ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "editedAt" TIMESTAMP(3)
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_user_jid_ts_idx"
-      ON "chat_messages" ("userId", "remoteJid", "messageTimestamp" DESC)
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_ts_idx"
-      ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageTimestamp" DESC)
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_alt_ts_idx"
-      ON "chat_messages" ("userId", "instanceName", "remoteJidAlt", "messageTimestamp" DESC)
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_sender_ts_idx"
-      ON "chat_messages" ("userId", "instanceName", "senderPn", "messageTimestamp" DESC)
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_ts_idx"
-      ON "chat_messages" ("userId", "instanceName", "messageTimestamp" DESC)
-    `;
+    await asegurarColumna("chat_messages", "editedAt", `ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "editedAt" TIMESTAMP(3)`);
+    await asegurarIndice("chat_messages_user_jid_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_user_jid_ts_idx" ON "chat_messages" ("userId", "remoteJid", "messageTimestamp" DESC)`);
+    await asegurarIndice("chat_messages_user_instance_jid_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_ts_idx" ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageTimestamp" DESC)`);
+    await asegurarIndice("chat_messages_user_instance_alt_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_alt_ts_idx" ON "chat_messages" ("userId", "instanceName", "remoteJidAlt", "messageTimestamp" DESC)`);
+    await asegurarIndice("chat_messages_user_instance_sender_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_sender_ts_idx" ON "chat_messages" ("userId", "instanceName", "senderPn", "messageTimestamp" DESC)`);
+    await asegurarIndice("chat_messages_user_instance_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_ts_idx" ON "chat_messages" ("userId", "instanceName", "messageTimestamp" DESC)`);
     // Para barrer la tabla POR FECHA y sin cuenta: "qué pasó en los últimos N
     // días en toda la plataforma", que es lo que pregunta Actividad de
     // instancias en Analíticas. Ninguno de los btree de arriba sirve: todos
@@ -206,10 +185,7 @@ function ensureChatMessagesTable() {
     // base entera): barrido 435 ms / 91.460 bloques, con esto 103 ms / 7.214.
     // Y ocupa 40 kB —un btree de los de arriba ocupa 325 MB—, así que no es de
     // los que hay que justificar en espacio. Se construye en ~0,8 s.
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_messages_ts_brin_idx"
-      ON "chat_messages" USING BRIN ("messageTimestamp")
-    `;
+    await asegurarIndice("chat_messages_ts_brin_idx", `CREATE INDEX IF NOT EXISTS "chat_messages_ts_brin_idx" ON "chat_messages" USING BRIN ("messageTimestamp")`);
     await db.$executeRaw`
       CREATE TABLE IF NOT EXISTS "chat_conversations" (
         "id" BIGSERIAL PRIMARY KEY,
@@ -231,24 +207,14 @@ function ensureChatMessagesTable() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `;
-    await db.$executeRaw`
-      CREATE UNIQUE INDEX IF NOT EXISTS "chat_conversations_user_instance_jid_unique"
-      ON "chat_conversations" ("userId", "instanceName", "remoteJid")
-    `;
+    await asegurarIndice("chat_conversations_user_instance_jid_unique", `CREATE UNIQUE INDEX IF NOT EXISTS "chat_conversations_user_instance_jid_unique" ON "chat_conversations" ("userId", "instanceName", "remoteJid")`);
     // El último mensaje de la conversación fue eliminado por el cliente: la lista
     // muestra "🚫 Mensaje eliminado". Se resetea a FALSE al llegar un mensaje nuevo.
-    await db.$executeRaw`
-      ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "lastMessageDeleted" BOOLEAN NOT NULL DEFAULT FALSE
-    `;
+    await asegurarColumna("chat_conversations", "lastMessageDeleted", `ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "lastMessageDeleted" BOOLEAN NOT NULL DEFAULT FALSE`);
     // Foto de perfil guardada en la fila (la escribe el backend para las
     // lineas Waha, que no la traen en su lista de chats). La bandeja la lee.
-    await db.$executeRaw`
-      ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT
-    `;
-    await db.$executeRaw`
-      CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx"
-      ON "chat_conversations" ("userId", "lastMessageTimestamp" DESC)
-    `;
+    await asegurarColumna("chat_conversations", "profilePicUrl", `ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "profilePicUrl" TEXT`);
+    await asegurarIndice("chat_conversations_user_last_ts_idx", `CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx" ON "chat_conversations" ("userId", "lastMessageTimestamp" DESC)`);
     // Índices para la bandeja (getPersistedInboxChats): el emparejamiento
     // conversación↔sesión sondea por remoteJid/remoteJidAlt/senderPn. Sin estos
     // índices el LEFT JOIN / anti-join haría seq-scans. Se crean CONCURRENTLY y
@@ -257,6 +223,10 @@ function ensureChatMessagesTable() {
     // lockearla.
     const bestEffortIndex = async (label: string, sql: Prisma.Sql) => {
       try {
+        // Si ya está, ni se pide: CONCURRENTLY también hace cola detrás de un
+        // VACUUM o de otro DDL (lib/ddl-sin-bloquear.ts).
+        const nombre = /IF NOT EXISTS "([^"]+)"/.exec(sql.sql)?.[1];
+        if (nombre && (await indiceExiste(nombre))) return;
         await db.$executeRaw(sql);
       } catch (e) {
         console.error(`[idx] ${label}:`, e instanceof Error ? e.message : e);
