@@ -42,7 +42,32 @@ export const PAGINAS_DEL_AVATAR: readonly PaginaDelAvatar[] = [
     { clave: "precios", titulo: "Planes y precios", ruta: "/inicio#pricing", cuando: "cuando pregunten por precios o planes", momento: "5. La oferta: planes y precios" },
     { clave: "preguntas", titulo: "Preguntas frecuentes", ruta: "/inicio#faq", cuando: "ante dudas generales u objeciones", momento: "6. Dudas y objeciones" },
     { clave: "tutoriales", titulo: "Tutoriales", ruta: "/inicio#tutoriales", cuando: "cuando pregunten cómo se usa un módulo", momento: "Cuando pregunten cómo se usa algo" },
+    { clave: "ficha", titulo: "Tu ficha", ruta: "/videollamada/vista/ficha", cuando: "al resumir lo que te contó el cliente (su negocio y lo que necesita)", momento: "Resumen antes del diagnóstico" },
+    { clave: "resultados", titulo: "Resultados de Verzay", ruta: "/videollamada/vista/resultados", cuando: "al enseñar resultados reales de clientes de Verzay", momento: "Diagnóstico y plan: pruebas" },
+    { clave: "guia", titulo: "Guía", ruta: "/guia", cuando: "para enseñar la guía de UN módulo (con su parámetro modulo)", momento: "Cuando pregunten cómo funciona un módulo concreto" },
 ];
+
+/**
+ * Los módulos con guía pública (`app/guia/<modulo>`) que el avatar puede
+ * enseñar con `mostrar_pantalla` (pagina: guia, modulo: …). Lista CERRADA: el
+ * banco la compara con las carpetas de `app/guia/`.
+ */
+export const GUIAS_DEL_AVATAR = [
+    "agenda", "agente-ia", "ai-imagenes", "calificacion", "campanas", "catalogo", "chats", "cobros",
+    "conexion", "copiloto", "correo", "diagramas", "embudos", "etiquetas", "finanzas", "flujos",
+    "follow-ups", "formularios", "google-sheets", "informes", "integraciones", "leads", "llamadas",
+    "macros", "mis-datos", "multiagenda", "notas", "productos", "proyectos", "recordatorios",
+    "reportes", "respuestas-rapidas", "reuniones", "tareas", "usuarios",
+] as const;
+
+/** Las páginas que sirve la propia sala y llevan la firma de la cita en la consulta. */
+export const VISTAS_DE_LA_SALA = "/videollamada/vista/";
+
+/** El módulo pedido, si está en la lista. */
+export function elModuloDeLaGuia(modulo: unknown): string | null {
+    const m = typeof modulo === "string" ? modulo.trim().toLowerCase().replace(/[\s_]+/g, "-") : "";
+    return (GUIAS_DEL_AVATAR as readonly string[]).includes(m) ? m : null;
+}
 
 /** La ruta de la página sin el ancla, y el ancla aparte (o `null`). */
 export function laRutaYElAncla(ruta: string): { ruta: string; ancla: string | null } {
@@ -90,7 +115,12 @@ export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null 
     const clave = typeof args?.pagina === "string" ? args.pagina.trim().toLowerCase() : "";
     if (clave === OCULTAR) return { accion: "ocultar" };
     const pagina = laPaginaDelAvatar(clave);
-    return pagina ? { accion: "mostrar", pagina } : null;
+    if (!pagina) return null;
+    if (pagina.clave !== "guia") return { accion: "mostrar", pagina };
+    // La guía necesita su módulo, y solo de la lista: sin él no se enseña nada.
+    const modulo = elModuloDeLaGuia(args?.modulo);
+    if (!modulo) return null;
+    return { accion: "mostrar", pagina: { ...pagina, clave: `guia:${modulo}`, titulo: `Guía de ${modulo.replace(/-/g, " ")}`, ruta: `/guia/${modulo}` } };
 }
 
 /**
@@ -115,6 +145,11 @@ export const HERRAMIENTA_DE_LA_PANTALLA = {
                     enum: [...PAGINAS_DEL_AVATAR.map((p) => p.clave), OCULTAR],
                     description: PAGINAS_DEL_AVATAR.map((p) => `${p.clave}: ${p.cuando}`).join("; "),
                 },
+                modulo: {
+                    type: "string",
+                    enum: [...GUIAS_DEL_AVATAR],
+                    description: "Solo con pagina: guia. El módulo cuya guía se enseña.",
+                },
             },
             required: ["pagina"],
         },
@@ -136,6 +171,8 @@ export function elBloqueDeLaPantalla(): string {
         `- Cuando ya no haga falta mostrar nada, deja de compartir con ${OCULTAR}.`,
         "Qué página enseñar en cada momento del guion:",
         ...lineas,
+        "- ficha: el resumen de lo que el cliente te contó; resultados: resultados reales de clientes de Verzay; " +
+            "guia: la guía de un módulo, diciendo cuál en «modulo».",
         `Para dejar de compartir: ${OCULTAR}. Nunca inventes otra página.`,
     ].join("\n");
 }
@@ -236,7 +273,7 @@ export function elEnvioArmado(
 ): EnvioArmado {
     if (orden.que === "web") {
         const enlace = `${origen}/inicio`;
-        return { llave: "web", enlace, mensaje: `Aquí tienes la página web de Verzay: ${enlace}` };
+        return { llave: "web", enlace, mensaje: `🌐 *Página web de Verzay*\nAquí tienes toda la información de la plataforma.\n\n👉 ${enlace}` };
     }
     if (!nivel) return { motivo: "no se reconoció el plan" };
     const n = NIVELES_DEL_ENVIO.indexOf(nivel as (typeof NIVELES_DEL_ENVIO)[number]) + 1;
@@ -244,10 +281,84 @@ export function elEnvioArmado(
     const nombre = nombreDelPlan || `Nivel ${n}`;
     if (orden.que === "plan") {
         const enlace = `${origen}/planes/nivel-${n}`;
-        return { llave: `plan:${nivel}`, enlace, mensaje: `Aquí tienes toda la información del plan ${nombre}: ${enlace}` };
+        return { llave: `plan:${nivel}`, enlace, mensaje: `📋 *Plan ${nombre}*\nAquí tienes todo lo que incluye.\n\n👉 ${enlace}` };
     }
     const enlace = `${origen}/register?plan=nivel-${n}`;
-    return { llave: `pago:${nivel}`, enlace, mensaje: `Aquí tienes el enlace para empezar con el plan ${nombre}: ${enlace}` };
+    return { llave: `pago:${nivel}`, enlace, mensaje: `💳 *Empieza con el plan ${nombre}*\nAquí tienes el enlace para registrarte y pagar.\n\n👉 ${enlace}` };
+}
+
+/* ── Agendar el siguiente paso durante la llamada ─────────────────────── */
+
+export const NOMBRE_DEL_AGENDAR = "agendar_seguimiento";
+export const TIPOS_DE_SEGUIMIENTO = ["cita", "recordatorio", "llamada"] as const;
+export type TipoDeSeguimiento = (typeof TIPOS_DE_SEGUIMIENTO)[number];
+export type OrdenDeAgendar = { tipo: TipoDeSeguimiento; fechaHora: string; nota: string };
+
+/** «YYYY-MM-DDTHH:mm», en la hora de la cuenta. Nada más vale. */
+export const FORMA_DE_LA_FECHA = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+
+export function esUnaFechaDeAgenda(texto: string): boolean {
+    const m = texto.match(FORMA_DE_LA_FECHA);
+    if (!m) return false;
+    const [, a, mes, d, h, min] = m.map(Number);
+    const f = new Date(Date.UTC(a, mes - 1, d, h, min));
+    return f.getUTCFullYear() === a && f.getUTCMonth() === mes - 1 && f.getUTCDate() === d && h < 24 && min < 60;
+}
+
+/** Lee un `app-message` con la llamada a `agendar_seguimiento`. */
+export function laOrdenDeAgendar(mensaje: unknown): OrdenDeAgendar | null {
+    if (!mensaje || typeof mensaje !== "object") return null;
+    const m = mensaje as Record<string, unknown>;
+    if (m.event_type !== "conversation.tool_call") return null;
+    const p = (m.properties ?? {}) as Record<string, unknown>;
+    if (p.name !== NOMBRE_DEL_AGENDAR) return null;
+    const args = losArgumentos(p.arguments);
+    const tipo = typeof args?.tipo === "string" ? args.tipo.trim().toLowerCase() : "";
+    if (!(TIPOS_DE_SEGUIMIENTO as readonly string[]).includes(tipo)) return null;
+    const fechaHora = typeof args?.fecha_hora === "string" ? args.fecha_hora.trim() : "";
+    if (!esUnaFechaDeAgenda(fechaHora)) return null;
+    const nota = typeof args?.nota === "string" ? args.nota.trim().slice(0, 300) : "";
+    return { tipo: tipo as TipoDeSeguimiento, fechaHora, nota };
+}
+
+export const HERRAMIENTA_DEL_AGENDAR = {
+    type: "function",
+    function: {
+        name: NOMBRE_DEL_AGENDAR,
+        description:
+            "Deja agendado el siguiente paso que el cliente aceptó: una cita, un recordatorio por WhatsApp o una llamada. " +
+            "Úsala SOLO después de confirmar con el cliente la fecha y la hora.",
+        parameters: {
+            type: "object",
+            properties: {
+                tipo: { type: "string", enum: [...TIPOS_DE_SEGUIMIENTO], description: "cita: otra reunión; recordatorio: un WhatsApp a esa hora; llamada: llamarle a esa hora" },
+                fecha_hora: { type: "string", description: "Fecha y hora acordadas, en la hora local del negocio, con la forma YYYY-MM-DDTHH:mm" },
+                nota: { type: "string", description: "Qué se acordó, en una frase" },
+            },
+            required: ["tipo", "fecha_hora"],
+        },
+    },
+} as const;
+
+/**
+ * El guion de la llamada. `ahora` es la fecha y hora de hoy en la zona del
+ * negocio (la necesita para agendar «el jueves a las 3»).
+ */
+export function elBloqueDelGuion(ahora: string): string {
+    return [
+        "GUION DE LA LLAMADA",
+        `Ahora mismo son: ${ahora} (hora del negocio).`,
+        "1. Primera pregunta: después de saludar, pregunta a qué se dedica su negocio y qué quiere resolver. Escucha antes de vender.",
+        "2. Resumen antes del diagnóstico: repite en una o dos frases lo que te contó (puedes enseñar la ficha) y confirma que lo entendiste bien.",
+        "3. Diagnóstico y plan: dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
+        "4. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
+        "5. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o ver la demostración y hablar otro día.",
+        "6. Objeciones:",
+        "   - «Es caro»: compáralo con lo que pierde hoy en mensajes sin responder y ventas que se enfrían; ofrece el plan más pequeño.",
+        "   - «Tengo que consultarlo con mi socio»: ofrece enviarle la información por WhatsApp y agendar una llamada con los dos.",
+        `7. Siguiente paso: antes de despedirte, confirma una fecha y una hora concretas y déjalo agendado con ${NOMBRE_DEL_AGENDAR} ` +
+            "(cita, recordatorio o llamada). Calcula la fecha a partir de la de hoy y repítesela al cliente.",
+    ].join("\n");
 }
 
 /* ── La persona de Tavus ───────────────────────────────────────────────── */
@@ -268,7 +379,7 @@ export function elParcheDeLaPersona(persona: unknown): unknown[] | null {
     const capas = p.layers && typeof p.layers === "object" ? (p.layers as Record<string, unknown>) : null;
     const llm = capas?.llm && typeof capas.llm === "object" ? (capas.llm as Record<string, unknown>) : null;
     const actuales = Array.isArray(llm?.tools) ? (llm!.tools as HerramientaDeTavus[]) : [];
-    const nuestras = [HERRAMIENTA_DE_LA_PANTALLA, HERRAMIENTA_DEL_ENVIO] as const;
+    const nuestras = [HERRAMIENTA_DE_LA_PANTALLA, HERRAMIENTA_DEL_ENVIO, HERRAMIENTA_DEL_AGENDAR] as const;
     const nombres = nuestras.map((h) => h.function.name as string);
     const alDia = nuestras.every((d) => {
         const la = actuales.find((h) => h?.function?.name === d.function.name);

@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import DailyIframe, { type DailyCall } from "@daily-co/daily-js";
-import { laOrdenDeEnvio, laOrdenDeLaPantalla, laRutaYElAncla, type OrdenDeEnvio, type PaginaDelAvatar } from "@/lib/pantalla-del-avatar";
+import {
+    laOrdenDeAgendar,
+    laOrdenDeEnvio,
+    laOrdenDeLaPantalla,
+    laRutaYElAncla,
+    VISTAS_DE_LA_SALA,
+    type OrdenDeAgendar,
+    type OrdenDeEnvio,
+    type PaginaDelAvatar,
+} from "@/lib/pantalla-del-avatar";
+import { conLaNota, loQueDijoElCliente, NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
 
 /** Baja al ancla dentro del marco (es del mismo origen). La landing pinta
  * sus secciones después de cargar, así que se insiste unos segundos. */
@@ -84,6 +94,13 @@ type Estado = "entrando" | "dentro" | "reconectando" | "terminada" | "sin_conexi
  * se reconecta sola a la MISMA conversación y le dice a Verzy que siga donde
  * iban.
  */
+/** Las vistas de la sala solo abren con la firma de la cita. */
+function conLaFirma(destino: { ruta: string; ancla: string | null }, consulta: string) {
+    if (!destino.ruta.startsWith(VISTAS_DE_LA_SALA)) return destino;
+    const [camino, resto] = destino.ruta.split("?");
+    return { ...destino, ruta: `${camino}?${resto ? `${resto}&` : ""}${consulta}` };
+}
+
 export default function SalaDeLaVideollamada({
     url: urlInicial,
     nombre,
@@ -99,8 +116,10 @@ export default function SalaDeLaVideollamada({
 }) {
     const [conexion, setConexion] = useState({ url: urlInicial, reentrada, vuelta: 0 });
     const [pagina, setPagina] = useState<PaginaDelAvatar | null>(null);
+    const [notas, setNotas] = useState<string[]>([]);
     const marco = useRef<HTMLIFrameElement>(null);
-    const destino = pagina ? laRutaYElAncla(pagina.ruta) : null;
+    const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
+    const destino = pagina ? conLaFirma(laRutaYElAncla(pagina.ruta), consulta) : null;
     // Cambiar de sección en la misma página no recarga el marco: solo baja.
     useEffect(() => {
         if (destino) bajarAlAncla(marco.current, destino.ancla);
@@ -120,7 +139,62 @@ export default function SalaDeLaVideollamada({
     const intentos = useRef(0);
     const videoAvatar = usarPista(pistas.avatarVideo);
     const audioAvatar = usarPista(pistas.avatarAudio);
-    const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
+    const conversacionRef = useRef<string | null>(null);
+
+    // Lo que se le cuenta a Verzy en medio de la conversación (la reconexión,
+    // un pago que acaba de entrar): va como contexto, nunca como un mensaje.
+    const contarleAVerzy = (contexto: string) => {
+        const llamada = llamadaRef.current;
+        const conversacion = conversacionRef.current;
+        if (!llamada || !conversacion) return;
+        try {
+            llamada.sendAppMessage({
+                message_type: "conversation",
+                event_type: "conversation.append_llm_context",
+                conversation_id: conversacion,
+                properties: { context: contexto },
+            }, "*");
+        } catch (e) {
+            console.warn("[videollamada] no se pudo darle contexto a Verzy", e);
+        }
+    };
+
+    const agendar = (orden: OrdenDeAgendar) => {
+        fetch(`/api/videollamada/agendar?${consulta}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(orden),
+        })
+            .then((r) => r.json())
+            .then((r) => {
+                if (!r?.ok) {
+                    console.warn("[videollamada] no se agendó el seguimiento", { orden, motivo: r?.motivo });
+                    contarleAVerzy(`No se pudo agendar el ${orden.tipo} (${r?.motivo ?? "sin respuesta"}). Díselo al cliente con naturalidad y propón otra fecha.`);
+                }
+            })
+            .catch((e) => console.warn("[videollamada] no se pudo pedir el agendamiento", e));
+    };
+
+    // Si el prospecto crea su cuenta o paga mientras habla, Verzy se entera.
+    useEffect(() => {
+        if (estado !== "dentro") return;
+        let ultimo: string | null = null;
+        const preguntar = () => {
+            fetch(`/api/videollamada/novedades?${consulta}`)
+                .then((r) => r.json())
+                .then((r) => {
+                    const aviso = r?.ok && typeof r.aviso === "string" ? r.aviso : null;
+                    if (aviso && aviso !== ultimo) {
+                        ultimo = aviso;
+                        contarleAVerzy(aviso);
+                    }
+                })
+                .catch((e) => console.warn("[videollamada] no se pudieron leer las novedades", e));
+        };
+        preguntar();
+        const reloj = window.setInterval(preguntar, NOVEDADES_CADA_MS);
+        return () => window.clearInterval(reloj);
+    }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const mandarPorWhatsapp = (orden: OrdenDeEnvio) => {
         fetch(`/api/videollamada/whatsapp?${consulta}`, {
@@ -190,25 +264,24 @@ export default function SalaDeLaVideollamada({
             setEstado("dentro");
             setError(null);
             refrescar();
-            const conversacion = elIdDeLaConversacion(conexion.url);
-            if (conexion.reentrada && conversacion) {
-                try {
-                    llamada.sendAppMessage({
-                        message_type: "conversation",
-                        event_type: "conversation.append_llm_context",
-                        conversation_id: conversacion,
-                        properties: { context: AL_VOLVER },
-                    }, "*");
-                } catch (e) {
-                    console.warn("[videollamada] no se pudo avisar a Verzy de la reconexión", e);
-                }
-            }
+            conversacionRef.current = elIdDeLaConversacion(conexion.url);
+            if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
         });
         llamada.on("left-meeting", () => reconectar("left-meeting"));
         llamada.on("error", (ev) => reconectar(ev));
         llamada.on("local-screen-share-started", () => setPantallaOn(true));
         llamada.on("local-screen-share-stopped", () => setPantallaOn(false));
         llamada.on("app-message", (ev) => {
+            const dicho = loQueDijoElCliente(ev?.data);
+            if (dicho) {
+                setNotas((n) => conLaNota(n, dicho));
+                return;
+            }
+            const agenda = laOrdenDeAgendar(ev?.data);
+            if (agenda) {
+                agendar(agenda);
+                return;
+            }
             const envio = laOrdenDeEnvio(ev?.data);
             if (envio) {
                 mandarPorWhatsapp(envio);
@@ -254,7 +327,7 @@ export default function SalaDeLaVideollamada({
         else llamada.startScreenShare();
     };
     const reentrar = () => window.location.reload();
-    const enMiniatura = !!pagina;
+    const enMiniatura = !!pagina || notas.length > 0;
 
     return (
         <main data-zona="sala" className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100">
@@ -276,6 +349,24 @@ export default function SalaDeLaVideollamada({
                         title={`Pantalla de Verzy: ${pagina.titulo}`}
                         className="min-h-0 w-full flex-1 bg-white"
                     />
+                </section>
+            )}
+            {!pagina && notas.length > 0 && (
+                <section
+                    data-zona="notas"
+                    className="absolute inset-x-0 top-0 bottom-16 flex flex-col px-4"
+                >
+                    <header className="flex h-10 shrink-0 items-center gap-2 text-sm text-slate-300">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+                        Notas de la llamada
+                    </header>
+                    <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-36 sm:pb-4">
+                        {notas.map((n, i) => (
+                            <li key={`${i}-${n}`} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-slate-100">
+                                {n}
+                            </li>
+                        ))}
+                    </ul>
                 </section>
             )}
             <div
