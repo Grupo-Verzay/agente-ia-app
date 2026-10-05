@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 
 /**
  * Marca de "conversación resuelta", aparte del interruptor `status`.
@@ -27,9 +28,17 @@ import { db } from "@/lib/db";
  */
 let asegurarColumnaResolvedAt: Promise<void> | null = null;
 
-export async function ensureResolvedAtColumn(): Promise<void> {
+export async function ensureResolvedAtColumn(opciones?: { forzar?: boolean }): Promise<void> {
+    // `forzar`: alguien quitó la columna por debajo (42703); el recuerdo de
+    // «ya la puse» es del proceso, no de la base.
+    if (opciones?.forzar) asegurarColumnaResolvedAt = null;
     asegurarColumnaResolvedAt ??= (async () => {
-        await db.$executeRawUnsafe(
+        // Catálogo primero y `lock_timeout` si falta: un ALTER sobre Session en
+        // cola detrás de una consulta larga deja TODA la plataforma esperando
+        // (lib/ddl-sin-bloquear.ts).
+        await asegurarColumna(
+            "Session",
+            "resolved_at",
             'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP(3)',
         );
     })().catch((error) => {

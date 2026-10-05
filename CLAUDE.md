@@ -27305,3 +27305,26 @@ Chromium con un Daily de mentira: el saludo de respaldo y las herramientas) y la
 prueba local con la App servida (los seis destinos fotografiados y la nota
 leída de la base). `MODO=roto` monta la sala de `9c0e76d` y afirma que se
 quedaba muda.
+Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
+saludo, ni CRM, y que las notas salían sueltas.
+
+## El DDL de arranque mira el catálogo primero y nunca espera un candado
+
+El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga
+tenía cogida `ChatConversationPreference`; cada proceso que arrancaba (dos
+réplicas, cada despliegue, cada reinicio) volvía a lanzar
+`ALTER TABLE … ADD COLUMN IF NOT EXISTS`, que pide AccessExclusiveLock **aunque
+la columna ya exista**. Se quedaba en cola detrás de la lectura larga, y detrás
+de él TODAS las lecturas de esa tabla: el pool se agotaba y reiniciar solo
+aliviaba unos minutos.
+
+> **El DDL "por proceso" va por `lib/ddl-sin-bloquear.ts`**:
+> `asegurarColumna` / `asegurarIndice` preguntan primero a
+> `information_schema` / `pg_indexes` (sin candado sobre la tabla) y solo si
+> falta lanzan el DDL, con `SET LOCAL lock_timeout = '3s'`. Si falla, el
+> recuerdo se suelta y la siguiente llamada reintenta. Un `CREATE INDEX` sin
+> `CONCURRENTLY` también bloquea escrituras: va por `asegurarIndice`.
+
+Lo prueba `scripts/banco-ddl-sin-bloquear.sh` contra Postgres con la tabla
+cogida; `MODO=roto` corre el ALTER a pelo y afirma que las lecturas se quedaban
+en cola.

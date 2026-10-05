@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { asegurarColumna, asegurarIndice, ddlSinBloquear } from "@/lib/ddl-sin-bloquear";
 import {
   buildWhatsAppJidCandidates,
   normalizeWhatsAppConversationJid,
@@ -122,10 +123,17 @@ let asegurarColumnaPurgedAt: Promise<void> | null = null;
 
 export async function ensurePurgedAtColumn(): Promise<void> {
   asegurarColumnaPurgedAt ??= (async () => {
-    await db.$executeRawUnsafe(
+    // Todo pasa por `asegurarColumna`/`asegurarIndice`: miran el catálogo
+    // primero y, si falta algo, lo crean con `lock_timeout`. Un ALTER en cola
+    // detrás de una consulta larga dejó la plataforma entera en «mantenimiento»
+    // (2026-10-05): ver lib/ddl-sin-bloquear.ts.
+    await asegurarColumna(
+      "ChatConversationPreference",
+      "purgedAt",
       'ALTER TABLE "ChatConversationPreference" ADD COLUMN IF NOT EXISTS "purgedAt" TIMESTAMP(3)',
     );
-    await db.$executeRawUnsafe(
+    await asegurarIndice(
+      "ChatConversationPreference_userId_purgedAt_idx",
       'CREATE INDEX IF NOT EXISTS "ChatConversationPreference_userId_purgedAt_idx" ON "ChatConversationPreference" ("userId", "purgedAt")',
     );
 
@@ -141,7 +149,9 @@ export async function ensurePurgedAtColumn(): Promise<void> {
     // lineas": los borrados que el usuario ya hizo siguen ocultando lo que
     // ocultaban, y solo los nuevos son por linea. Si fuera NULL, Postgres trata
     // cada NULL como distinto y el indice unico dejaria colar duplicados.
-    await db.$executeRawUnsafe(
+    await asegurarColumna(
+      "ChatConversationPreference",
+      "instanceName",
       `ALTER TABLE "ChatConversationPreference"
          ADD COLUMN IF NOT EXISTS "instanceName" TEXT NOT NULL DEFAULT ''`,
     );
@@ -149,7 +159,8 @@ export async function ensurePurgedAtColumn(): Promise<void> {
     // El candado pasa a incluir la linea. Primero el nuevo, y solo si queda
     // creado se retira el viejo: si se cayera entre medias, la tabla se queda
     // con los dos y sigue siendo correcta -mas estricta, nunca menos-.
-    await db.$executeRawUnsafe(
+    await asegurarIndice(
+      "ChatConversationPreference_user_instance_jid_key",
       `CREATE UNIQUE INDEX IF NOT EXISTS "ChatConversationPreference_user_instance_jid_key"
          ON "ChatConversationPreference" ("userId", "instanceName", "remoteJid")`,
     );
@@ -182,7 +193,7 @@ export async function ensurePurgedAtColumn(): Promise<void> {
     `.catch(() => []);
 
     for (const { conname } of candadosViejos) {
-      await db.$executeRawUnsafe(
+      await ddlSinBloquear(
         `ALTER TABLE "ChatConversationPreference" DROP CONSTRAINT IF EXISTS "${conname}"`,
       );
       console.info(`[chats] retirado el candado viejo de preferencias: ${conname}`);
@@ -206,7 +217,7 @@ export async function ensurePurgedAtColumn(): Promise<void> {
     `.catch(() => []);
 
     for (const { indexname } of indicesViejos) {
-      await db.$executeRawUnsafe(`DROP INDEX IF EXISTS "${indexname}"`);
+      await ddlSinBloquear(`DROP INDEX IF EXISTS "${indexname}"`);
       console.info(`[chats] retirado el indice unico viejo de preferencias: ${indexname}`);
     }
   })().catch((error) => {

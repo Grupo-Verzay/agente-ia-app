@@ -80,7 +80,9 @@ async function conLaTabla<T>(hacer: () => Promise<T>): Promise<T> {
             tablaLista = null;
             await asegurarLaTabla();
         } else if (codigo === "42703") {
-            await db.$executeRawUnsafe('ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP(3)');
+            // Por la puerta de siempre, que mira el catálogo y no se queda en
+            // cola (lib/ddl-sin-bloquear.ts).
+            await ensureResolvedAtColumn({ forzar: true });
         } else {
             throw error;
         }
