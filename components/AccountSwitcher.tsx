@@ -36,7 +36,7 @@ import {
 import type { User } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { canManageLinkedAccounts, getAdvisorRoleLabel } from "@/lib/permissions";
-import { ofreceVincularCuentas } from "@/lib/vincular-cuentas";
+import { ofreceVincularCuentas, pideContrasenaParaVincular } from "@/lib/vincular-cuentas";
 import { rolQueAbrePuertas } from "@/lib/sidebar-modules";
 
 const PALETTE = [
@@ -114,6 +114,8 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   const [payload, setPayload] = useState<LinkedAccountsPayload | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [emailInput, setEmailInput] = useState("");
+  // La contraseña de la cuenta que se vincula: solo viaja a la acción, nunca se guarda.
+  const [passwordInput, setPasswordInput] = useState("");
   const [roleInput, setRoleInput] = useState<"agente" | "administrador">("agente");
   const [isPending, startTransition] = useTransition();
 
@@ -141,16 +143,17 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   };
 
   const handleAdd = () => {
-    if (!emailInput.trim()) return;
+    if (!emailInput.trim() || (pideContrasena && !passwordInput)) return;
     startTransition(async () => {
       try {
-        const res = await addLinkedAccount(emailInput, roleInput);
+        const res = await addLinkedAccount(emailInput, roleInput, pideContrasena ? passwordInput : null);
         if (!res.success) {
           toast.error(res.message ?? "Error al vincular cuenta.");
           return;
         }
         toast.success("Cuenta vinculada correctamente.");
         setEmailInput("");
+        setPasswordInput("");
         setRoleInput("agente");
         setAddDialogOpen(false);
         const updated = await getMyLinkedAccounts();
@@ -184,10 +187,11 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   const currentRole = payload?.currentRole ?? null;
   const canManageAccounts = canManageLinkedAccounts(user);
   // «Agregar cuenta» escribe un vínculo, y un vínculo es LLEGAR a la otra
-  // cuenta: solo se ofrece a quien ya administra cuentas, con la misma regla
-  // que Usuarios › Vincular existente (`lib/vincular-cuentas.ts`). Desvincular
-  // sigue siendo de cualquiera que mande en su cuenta.
-  const puedeVincular = canManageAccounts && ofreceVincularCuentas(rolQueAbrePuertas(user));
+  // cuenta: la misma regla que Usuarios › Vincular existente
+  // (`lib/vincular-cuentas.ts`). Un cliente vincula sus propias cuentas con la
+  // contraseña de cada una; la casa, lo que ya alcanza.
+  const puedeVincular = ofreceVincularCuentas({ rol: rolQueAbrePuertas(user), administraLaCuenta: canManageAccounts });
+  const pideContrasena = pideContrasenaParaVincular(rolQueAbrePuertas(user));
   const accessibleCount = linked.length + 1;
   const activePlan = currentAccount?.plan ?? user.plan;
   const effectiveRoleLabel = getSwitcherRoleLabel(user, currentRole);
@@ -296,7 +300,7 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   );
 
   const dialog = (
-    <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+    <Dialog open={addDialogOpen} onOpenChange={(abierto) => { setAddDialogOpen(abierto); if (!abierto) setPasswordInput(""); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -305,7 +309,9 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
           </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Ingresa el email de la cuenta que quieres vincular. Ambas cuentas deben existir en el sistema.
+          {pideContrasena
+            ? "Ingresa el email y la contraseña de tu otra cuenta: solo puedes vincular tus propias cuentas."
+            : "Ingresa el email de la cuenta que quieres vincular. Ambas cuentas deben existir en el sistema."}
         </p>
         <div className="space-y-2">
           <span className="text-xs font-medium text-muted-foreground">Rol en esta cuenta</span>
@@ -325,9 +331,20 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
           disabled={isPending}
           autoFocus
         />
+        {pideContrasena && (
+          <Input
+            type="password"
+            autoComplete="new-password"
+            placeholder="Contraseña de esa cuenta"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            disabled={isPending}
+          />
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => setAddDialogOpen(false)} disabled={isPending}>Cancelar</Button>
-          <Button onClick={handleAdd} disabled={isPending || !emailInput.trim()}>
+          <Button onClick={handleAdd} disabled={isPending || !emailInput.trim() || (pideContrasena && !passwordInput)}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Vincular
           </Button>

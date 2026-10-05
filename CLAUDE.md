@@ -14592,6 +14592,38 @@ módulo de más. Y **los dos ficheros corren en ese modo**: el caso roto del de
 Postgres se salta solo en la vuelta normal, así que dejándolo fuera del modo
 roto saldría en verde sin haberse ejecutado nunca, que es peor que no tenerlo.
 
+## Usuarios: un cliente vincula SUS cuentas con la contraseña de la cuenta a vincular
+
+«Vincular existente» (Usuarios › «⋯», y «Agregar cuenta» del conmutador) solo
+salía a la casa y a un reseller: pedía rol (`isAdminOrReseller`) y la acción
+solo aceptaba cuentas que ya se alcanzaban. Un cliente con varias cuentas
+propias no tenía cómo juntarlas.
+
+> **Sale a quien administra la cuenta** (`ofreceVincularCuentas`, con
+> `canManageWorkspace`; un `agente` no). **Para el cliente, la prueba de que la
+> cuenta es suya es su CONTRASEÑA** (`pideContrasenaParaVincular`): la puerta es
+> `puertaParaVincular` (`lib/vincular-cuentas.server.ts`), y la usan las DOS
+> acciones que escriben la fila (`linkExistingAdvisor`, `addLinkedAccount`).
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que ya se alcanza pasa como siempre**, sin contraseña: la casa y el
+   reseller no cambian.
+2. **Con contraseña, solo una cuenta de CLIENTE** (`porQueNoSeVinculaConContrasena`,
+   pura): rol `user`, sin `ownerId` (una persona de un equipo no es una
+   cuenta), no eliminada, no la propia y **no por encima de la propia**
+   (`lasCuentasPorEncimaDe`): vincular a la madre la dejaría colgando de su hija.
+3. **El error no dice si la cuenta existe**: correo inexistente y contraseña
+   mala contestan lo mismo, y se compara siempre con bcrypt (contra un hash de
+   relleno si no hay cuenta), para no delatarlo por el tiempo.
+4. **10 intentos fallidos en 15 minutos por cuenta y se para** (en memoria).
+5. **La contraseña no se escribe en ningún sitio**: ni en la consola ni en la
+   base.
+
+Lo prueba `scripts/banco-vincular-propias.sh`, contra Postgres y con
+`currentUser()` de verdad; `MODO=roto` corre las acciones de `9c0e76d` y afirma
+que un cliente no podía vincular sus cuentas ni con su contraseña.
+
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 
 En Panel › Clientes el desplegable de rol listaba **los cinco** roles a
