@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
-import { elBloqueDeLaPantalla, elBloqueDelEnvio } from "@/lib/pantalla-del-avatar";
+import { elBloqueDeLaPantalla, elBloqueDelEnvio, elBloqueDelGuion } from "@/lib/pantalla-del-avatar";
 import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
@@ -216,7 +216,25 @@ async function elContexto(cita: CitaParaAbrir, yaHablado?: string | null): Promi
     });
     // La pantalla que comparte el avatar: sin esto no sabe qué páginas hay.
     const anterior = elBloqueDeLoYaHablado(yaHablado);
-    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), anterior].filter(Boolean).join("\n\n");
+    // Con la fecha de hoy en la zona del negocio: agendar «el jueves a las 3» la necesita.
+    const ahora = laFechaDeHoyParaElGuion(new Date(), zona);
+    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora), anterior]
+        .filter(Boolean)
+        .join("\n\n");
+}
+
+/** «jueves 2026-10-08T15:30», en la zona de la cuenta. */
+export function laFechaDeHoyParaElGuion(instante: Date, zona: string): string {
+    const partes = Object.fromEntries(
+        new Intl.DateTimeFormat("es-CO", {
+            timeZone: laZonaDeLaCuenta(zona),
+            weekday: "long", year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+        })
+            .formatToParts(instante)
+            .map((p) => [p.type, p.value]),
+    );
+    return `${partes.weekday} ${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}`;
 }
 
 /* ── Abrir ─────────────────────────────────────────────────────────────── */

@@ -27151,3 +27151,26 @@ La sala (`SalaDeLaVideollamada`) se ve así, y no de otra forma:
 
 Lo prueba `scripts/banco-videollamada-ia.sh`; `MODO=roto` lee la sala de
 `c4e5b5d5` y afirma el recuadro propio, el «Silenciar» y la falta de envío.
+
+### En vivo: guion de ventas, agendar, notas y lo que pasa mientras se habla
+
+1. **El contexto lleva el guion** (`elBloqueDelGuion`, `lib/pantalla-del-avatar.ts`)
+   con la fecha de hoy en la zona de la cuenta: sin ella el avatar no sabe qué
+   es «mañana».
+2. **`agendar_seguimiento`** (cita, recordatorio o llamada, `fecha_hora`
+   `YYYY-MM-DDTHH:mm`): la sala lo pasa a `/api/videollamada/agendar`
+   (firmado) y el servidor lo escribe como seguimiento `auto-reminder-` en la
+   zona de la cuenta (`lib/videollamada-en-vivo.server.ts`), una vez por
+   tipo y hora; una fecha pasada o a más de un año no se agenda y se le dice
+   a Verzy.
+3. **Notas de la llamada**: lo que dice el CLIENTE (`role: user`) se apunta en
+   un panel de la sala, sin repetir y con tope (`conLaNota`).
+4. **Novedades**: la sala pregunta a `/api/videollamada/novedades` cada
+   `NOVEDADES_CADA_MS`; si el prospecto se registró o pagó, se le cuenta a
+   Verzy (`elAvisoDelPago`) una vez.
+5. **Vistas propias** (`/videollamada/vista/ficha` y `/resultados`): las abre
+   `mostrar_pantalla` con la firma de la cita; noindex.
+6. **El mensaje de WhatsApp** lleva negrilla y acaba en `\n\n👉 <enlace>`.
+
+Lo prueba el mismo banco; `MODO=roto` contra `f0eac70` afirma que nada de esto
+existía.
