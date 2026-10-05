@@ -15,7 +15,7 @@ import {
 } from "@/lib/videollamada-ia";
 import {
     apuntarLaConversacion,
-    elAvatarDeVerzay,
+    elAvatarDeLaCuenta,
     laVideollamada,
     leerLosAjustes,
     marcarQueEntro,
@@ -254,9 +254,9 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     if (!cita) return { estado: "no_existe" };
 
     const ajustes = await leerLosAjustes(cita.userId).catch(() => null);
-    const tavus = elAvatarDeVerzay();
+    const tavus = await elAvatarDeLaCuenta(cita.userId);
     if (ajustes?.modo !== "tavus" || !tavus) {
-        if (!tavus) console.error("[videollamada] falta TAVUS_API_KEY o TAVUS_PERSONA_ID en el entorno", { cita: id });
+        if (!tavus) console.error("[videollamada] la cuenta no tiene avatar propio y falta TAVUS_API_KEY o TAVUS_PERSONA_ID en el entorno", { cita: id });
         return { estado: "sin_configurar" };
     }
 
