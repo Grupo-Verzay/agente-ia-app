@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
-import { elBloqueDeLaPantalla } from "@/lib/pantalla-del-avatar";
+import { elBloqueDeLaPantalla, elBloqueDelEnvio } from "@/lib/pantalla-del-avatar";
 import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
@@ -42,7 +42,16 @@ export const API_DE_TAVUS = "https://tavusapi.com/v2/conversations";
 const ESPERA_POR_OTRA_PESTANA_MS = 10_000;
 
 export type ResultadoAlAbrir =
-    | { estado: "ir"; url: string; nombre: string | null }
+    | {
+          estado: "ir";
+          url: string;
+          nombre: string | null;
+          /** La cita y su firma: la sala las usa para reabrir sola y para pedir envíos por WhatsApp. */
+          citaId: string;
+          firma: string;
+          /** La sesión ya estaba en curso y alguien había entrado: el avatar retoma, no vuelve a saludar. */
+          reentrada: boolean;
+      }
     | { estado: "temprano"; abreEn: Date; zona: string }
     | { estado: "cerrada" }
     | { estado: "cancelada" }
@@ -167,7 +176,20 @@ type CitaParaAbrir = {
     user: { company: string | null; name: string | null; email: string; timezone: string | null };
 };
 
-async function elContexto(cita: CitaParaAbrir): Promise<string> {
+/** Lo que ya se habló en una sesión anterior de la MISMA cita (se cortó y se reabre). */
+export function elBloqueDeLoYaHablado(transcripcion: string | null | undefined): string {
+    const t = String(transcripcion ?? "").trim();
+    if (!t) return "";
+    const recorte = t.length > 3000 ? `…${t.slice(-3000)}` : t;
+    return [
+        "CONVERSACIÓN ANTERIOR DE ESTA MISMA CITA",
+        "La videollamada se cortó y el cliente volvió a entrar. Ya se presentaron: NO saludes como si fuera la primera vez ni reinicies el guion. " +
+            "Retoma donde quedaron, con una frase corta de reconexión.",
+        recorte,
+    ].join("\n");
+}
+
+async function elContexto(cita: CitaParaAbrir, yaHablado?: string | null): Promise<string> {
     const nombre = elNombreDelProspecto(cita);
     let conversacion = "";
     try {
@@ -193,7 +215,8 @@ async function elContexto(cita: CitaParaAbrir): Promise<string> {
         conversacion,
     });
     // La pantalla que comparte el avatar: sin esto no sabe qué páginas hay.
-    return `${contexto}\n\n${elBloqueDeLaPantalla()}`;
+    const anterior = elBloqueDeLoYaHablado(yaHablado);
+    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), anterior].filter(Boolean).join("\n\n");
 }
 
 /* ── Abrir ─────────────────────────────────────────────────────────────── */
@@ -201,6 +224,7 @@ async function elContexto(cita: CitaParaAbrir): Promise<string> {
 async function crearLaConversacion(
     cita: CitaParaAbrir,
     tavus: { clave: string; personaId: string },
+    yaHablado?: string | null,
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
     const ahora = new Date();
@@ -209,10 +233,14 @@ async function crearLaConversacion(
     const cuerpo: Record<string, unknown> = {
         persona_id: tavus.personaId,
         conversation_name: `Cita ${cita.id}`,
-        conversational_context: await elContexto(cita),
+        conversational_context: await elContexto(cita, yaHablado),
         properties: {
             max_call_duration: laDuracionMaxima(ahora, cita.endTime),
             participant_absent_timeout: 300,
+            // Si se le cae la conexión al cliente, la conversación espera
+            // tres minutos a que vuelva por el mismo enlace: así el avatar
+            // sigue donde iba en vez de empezar de nuevo.
+            participant_left_timeout: 180,
             language: "spanish",
         },
     };
@@ -294,6 +322,14 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     }
 
     const existente = await laVideollamada(id);
+    const irA = (url: string) => ({
+        estado: "ir" as const,
+        url,
+        nombre: elNombreDelProspecto(cita),
+        citaId: id,
+        firma: laFirmaDeLaCita(id),
+        reentrada: false,
+    });
     const decision = queHacerAlAbrir({
         ahora,
         inicio: cita.startTime,
@@ -308,8 +344,9 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     if (decision.accion === "cerrada") return { estado: "cerrada" };
     if (decision.accion === "cancelada") return { estado: "cancelada" };
     if (decision.accion === "reutilizar" && existente?.conversacionUrl) {
+        const reentrada = !!existente.entroEn;
         await marcarQueEntro(id);
-        return { estado: "ir", url: existente.conversacionUrl, nombre: elNombreDelProspecto(cita) };
+        return { ...irA(existente.conversacionUrl), reentrada };
     }
 
     const reclamada = await reclamarLaCreacion(id, cita.userId);
@@ -317,17 +354,17 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         const url = await esperarALaOtraPestana(id);
         if (url) {
             await marcarQueEntro(id);
-            return { estado: "ir", url, nombre: elNombreDelProspecto(cita) };
+            return irA(url);
         }
         return { estado: "fallo", motivo: "No se pudo abrir la videollamada en este momento." };
     }
 
     try {
-        const conversacion = await crearLaConversacion(cita, tavus);
+        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         await marcarQueEntro(id);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
-        return { estado: "ir", url: conversacion.url, nombre: elNombreDelProspecto(cita) };
+        return irA(conversacion.url);
     } catch (error) {
         const motivo = error instanceof Error ? error.message : String(error);
         await soltarElReclamo(id).catch(() => undefined);
