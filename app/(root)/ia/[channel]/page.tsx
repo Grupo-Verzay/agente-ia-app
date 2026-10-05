@@ -7,10 +7,6 @@ import { currentUser } from '@/lib/auth';
 import { Workflow } from '@prisma/client';
 import { MainAi } from '../../ai/_components/MainAi';
 import { CallAgentEditor } from '../_components/CallAgentEditor';
-import { GuionVideollamadaEditor } from '../_components/GuionVideollamadaEditor';
-import { elGuionQueSeUsa } from '@/lib/guion-videollamada';
-import { leerElGuionDeVideollamada } from '@/lib/guion-videollamada-db';
-import { canManageWorkspace } from '@/lib/workspace-roles';
 import { getWorkFlowByUser } from '@/actions/workflow-actions';
 import {
     getOrCreateChannelPrompt,
@@ -46,22 +42,6 @@ export default async function ChannelTrainingPage({ params }: { params: { channe
     // Canal de voz → editor del prompt de llamadas.
     if (channel.kind === 'voice') {
         return <CallAgentEditor />;
-    }
-
-    // Videollamadas → el guion de Verzy de esta cuenta. Que no se pueda leer
-    // no deja la pantalla sin abrir: sale el de fábrica, y se dice.
-    if (channel.kind === 'video') {
-        const guardado = await leerElGuionDeVideollamada(user.effectiveId).catch((error) => {
-            console.error('[guion-videollamada] no se pudo leer al abrir la pantalla', String(error));
-            return null;
-        });
-        return (
-            <GuionVideollamadaEditor
-                cuentaId={user.effectiveId}
-                guionInicial={elGuionQueSeUsa(guardado)}
-                puedeEditar={canManageWorkspace(user)}
-            />
-        );
     }
 
     // Canal de chat → editor completo sobre el AgentPrompt del canal.
