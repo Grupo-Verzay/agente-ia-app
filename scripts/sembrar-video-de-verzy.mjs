@@ -17,5 +17,11 @@ const cita = await db.appointment.create({
     },
     select: { id: true },
 });
+// Los seis planes, activos: la landing de planes (/planes/nivel-N) los lee del panel.
+const NIVELES = [["lite", 19, "Lite"], ["basico", 29, "Básico"], ["intermedio", 49, "Estárter"], ["avanzado", 79, "Esencial"], ["enterprise", 149, "Business"], ["personalizado", 299, "A la medida"]];
+for (const [plan, priceUSD, name] of NIVELES) {
+    const ya = await db.subscriptionPlan.findFirst({ where: { plan, assistanceType: "IA" } });
+    if (!ya) await db.subscriptionPlan.create({ data: { plan, assistanceType: "IA", priceUSD, credits: 1000, name, features: ["Chats"], isActive: true } });
+}
 console.log(JSON.stringify({ cuentaId: ses.userId, citaId: cita.id }));
 await db.$disconnect();
