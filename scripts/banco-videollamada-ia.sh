@@ -16,5 +16,7 @@ else
   mkdir -p lib/__tests__/.compilado
   npx esbuild lib/videollamada-ia.ts --bundle --format=esm --platform=node \
     --outfile=lib/__tests__/.compilado/videollamada-ia.js --log-level=warning
+  npx esbuild lib/pantalla-del-avatar.ts --bundle --format=esm --platform=node \
+    --outfile=lib/__tests__/.compilado/pantalla-del-avatar.js --log-level=warning
 fi
 node --test lib/__tests__/videollamada-ia.test.mjs

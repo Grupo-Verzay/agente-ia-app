@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import SalaDeLaVideollamada from "@/components/videollamada/SalaDeLaVideollamada";
 import { CENTRADO_QUE_NO_SE_CORTA, PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 import { abrirLaVideollamada, type ResultadoAlAbrir } from "@/lib/videollamada-ia.server";
 import { deInstanteAReloj } from "@/lib/zona-de-la-cuenta";
@@ -7,8 +7,8 @@ import { deInstanteAReloj } from "@/lib/zona-de-la-cuenta";
 /**
  * El enlace que recibe el cliente para su videollamada con IA. Es PÚBLICO (lo
  * abre sin sesión) y la puerta es el propio id de la cita: aquí se crea la
- * conversación de Tavus con la clave de la cuenta dueña de la cita, y se
- * redirige a ella. Antes de tiempo, pasada la franja o cancelada, se dice.
+ * conversación de Tavus y se monta su sala aquí
+ * (`SalaDeLaVideollamada`), con la pantalla del avatar al lado. Antes de tiempo, pasada la franja o cancelada, se dice.
  */
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ function elMensaje(resultado: Exclude<ResultadoAlAbrir, { estado: "ir" }>): { ti
 
 export default async function PaginaDeLaVideollamada({ params }: { params: { id: string } }) {
     const resultado = await abrirLaVideollamada(decodeURIComponent(params.id ?? ""));
-    if (resultado.estado === "ir") redirect(resultado.url);
+    if (resultado.estado === "ir") return <SalaDeLaVideollamada url={resultado.url} />;
     const { titulo, texto } = elMensaje(resultado);
     return (
         <main className={`${PANTALLA_PUBLICA_QUE_SE_DESPLAZA} bg-slate-50 dark:bg-slate-950`}>

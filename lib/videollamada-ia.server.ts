@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
+import { elBloqueDeLaPantalla } from "@/lib/pantalla-del-avatar";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
 import {
@@ -156,13 +157,15 @@ async function elContexto(cita: CitaParaAbrir): Promise<string> {
         conversacion = elContextoDeLaConversacion({ nombre: nombre ?? undefined, mensajes: [] });
     }
     const zona = laZonaDeLaCuenta(cita.timezone || cita.user.timezone);
-    return elContextoParaTavus({
+    const contexto = elContextoParaTavus({
         negocio: nombreDeLaCuenta(cita.user),
         nombreDelCliente: nombre,
         servicio: cita.service?.name ?? null,
         inicioLegible: deInstanteAReloj(cita.startTime, zona),
         conversacion,
     });
+    // La pantalla que comparte el avatar: sin esto no sabe qué páginas hay.
+    return `${contexto}\n\n${elBloqueDeLaPantalla()}`;
 }
 
 /* ── Abrir ─────────────────────────────────────────────────────────────── */
