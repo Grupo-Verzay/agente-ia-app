@@ -301,6 +301,14 @@ export const TOPE_DEL_ENTRENAMIENTO = 16000;
  * su entrenamiento en Agente IA › Videollamadas, va ese; si no, el guion.
  */
 
+/**
+ * La ÚNICA regla del saludo, y la dice solo este bloque (el guion no la
+ * repite: con dos redacciones se contradecían y Verzy saludaba dos veces).
+ * La sala dice el saludo al entrar; si el cliente habla antes, saluda Verzy.
+ */
+export const REGLA_DEL_SALUDO =
+    "El saludo de entrada lo dice la sala por ti. Si el cliente habla antes de oírlo, salúdalo tú UNA vez; después no vuelvas a saludar ni hables sin que te contesten.";
+
 export function elBloqueDelGuion(
     ahora: string,
     guion?: GuionDeVideollamada | null,
@@ -315,7 +323,7 @@ export function elBloqueDelGuion(
         "- Cada turno acaba en UNA pregunta concreta y corta. Después te callas y esperas a que el cliente responda.",
         "- Nada de monólogos, listas largas ni repetir lo que ya dijiste.",
         "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
-        "- El saludo ya se dijo por ti al entrar: NO saludes otra vez ni empieces a hablar sola; espera a que el cliente conteste.",
+        `- ${REGLA_DEL_SALUDO}`,
         texto
             ? [
                   "ENTRENAMIENTO DEL AGENTE (Agente IA › Videollamadas)",

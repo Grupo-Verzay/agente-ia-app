@@ -9,7 +9,7 @@ import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { elBloqueDeLaPantalla, elBloqueDelEnvio, elBloqueDelGuion } from "@/lib/pantalla-del-avatar";
 import { leerElGuionDeVideollamada } from "@/lib/guion-videollamada-db";
 import { elGuionQueSeUsa, type GuionDeVideollamada } from "@/lib/guion-videollamada";
-import { asegurarLaPantallaEnLaPersona } from "@/lib/persona-de-tavus.server";
+import { laPersonaParaLaConversacion } from "@/lib/persona-de-tavus.server";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
@@ -298,11 +298,13 @@ async function crearLaConversacion(
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
     const ahora = new Date();
-    // Sin la herramienta en la persona, Verzy no puede compartir pantalla.
-    await asegurarLaPantallaEnLaPersona(tavus);
+    // La persona con la que se crea TIENE las herramientas: la original si se
+    // le pudieron poner, o su copia si tiene ediciones del editor de Tavus
+    // (409 maker_changes). Sin ellas no hay pantalla compartida.
+    const personaId = await laPersonaParaLaConversacion(tavus);
     const guion = guionLeido === undefined ? await elGuionDeLaCita(cita) : guionLeido;
     const cuerpo: Record<string, unknown> = {
-        persona_id: tavus.personaId,
+        persona_id: personaId,
         conversation_name: `Cita ${cita.id}`,
         conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita)),
         properties: {
@@ -407,25 +409,23 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     if (decision.accion === "cerrada") return { estado: "cerrada" };
     if (decision.accion === "cancelada") return { estado: "cancelada" };
     if (decision.accion === "reutilizar" && existente?.conversacionUrl) {
-        const reentrada = !!existente.entroEn;
-        await marcarQueEntro(id);
-        return { ...irA(existente.conversacionUrl), reentrada };
+        // Reentrada SOLO si alguien ya estuvo DENTRO de esta conversación (la
+        // sala lo apunta al unirse, `marcarLaEntradaReal`). Abrir o precargar
+        // la página no cuenta: si contara, la primera entrada de verdad
+        // arrancaba «a mitad de conversación».
+        return { ...irA(existente.conversacionUrl), reentrada: !!existente.entroEn };
     }
 
     const reclamada = await reclamarLaCreacion(id, cita.userId);
     if (!reclamada) {
         const url = await esperarALaOtraPestana(id);
-        if (url) {
-            await marcarQueEntro(id);
-            return irA(url);
-        }
+        if (url) return irA(url);
         return { estado: "fallo", motivo: "No se pudo abrir la videollamada en este momento." };
     }
 
     try {
         const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
-        await marcarQueEntro(id);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
         return irA(conversacion.url);
     } catch (error) {
@@ -434,4 +434,13 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         console.error("[videollamada] Tavus no creó la conversación", { cita: id, cuenta: cita.userId, motivo });
         return { estado: "fallo", motivo: elMotivoLegible(motivo) };
     }
+}
+
+/**
+ * La sala ENTRÓ de verdad a la llamada (evento `joined-meeting` de Daily). Es
+ * lo único que apunta `entroEn`: de ahí salen la reentrada, el aviso de
+ * ausencia del backend y el «entró» del CRM.
+ */
+export async function marcarLaEntradaReal(citaId: string): Promise<void> {
+    await marcarQueEntro(citaId);
 }

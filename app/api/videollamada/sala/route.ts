@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { abrirLaVideollamada, esLaFirmaDeLaCita } from "@/lib/videollamada-ia.server";
+import { abrirLaVideollamada, esLaFirmaDeLaCita, marcarLaEntradaReal } from "@/lib/videollamada-ia.server";
 
 export const dynamic = "force-dynamic";
 
@@ -19,4 +19,26 @@ export async function POST(req: Request) {
     const r = await abrirLaVideollamada(citaId);
     if (r.estado !== "ir") return NextResponse.json({ ok: false, estado: r.estado });
     return NextResponse.json({ ok: true, url: r.url, reentrada: r.reentrada });
+}
+
+/**
+ * La sala se unió a la llamada: se apunta que el cliente ENTRÓ. Va aparte del
+ * POST y de la página a propósito: abrir o precargar el enlace no es entrar.
+ */
+export async function PUT(req: Request) {
+    const url = new URL(req.url);
+    const citaId = String(url.searchParams.get("c") ?? "");
+    if (!citaId || !esLaFirmaDeLaCita(citaId, url.searchParams.get("f"))) {
+        return NextResponse.json({ ok: false, estado: "firma" }, { status: 401 });
+    }
+    try {
+        await marcarLaEntradaReal(citaId);
+        return NextResponse.json({ ok: true });
+    } catch (error) {
+        console.error("[videollamada] no se pudo apuntar la entrada", {
+            cita: citaId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NextResponse.json({ ok: false }, { status: 500 });
+    }
 }

@@ -40,11 +40,11 @@ export const GUION_DE_FABRICA: GuionDeVideollamada = {
     saludo: SALUDO_DE_FABRICA,
     secciones: {
         apertura:
-            "El saludo «{saludo}» lo dice la sala por ti al entrar: no lo repitas. Si el cliente habla antes que tú, respóndele con ese mismo saludo.",
+            "Después del saludo, preséntate en una frase como Verzy, de Verzay, y espera a que el cliente confirme que te escucha.",
         diagnostico:
             "Cuando confirme que te escucha, haz la segunda pregunta: «{segunda_pregunta}». No compartas pantalla todavía. Escucha antes de vender.",
         ubicar:
-            "Solo después de que responda: abre su ficha (ficha) y apunta con {tomar_nota} lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.",
+            "Solo después de que responda: apunta con {tomar_nota} lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.",
         oferta:
             "Dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
         cierre:

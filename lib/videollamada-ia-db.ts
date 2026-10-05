@@ -92,6 +92,14 @@ function asegurarLasTablas(): Promise<void> {
             )
         `);
         await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "videollamada_personas_derivadas" (
+                "origenPersonaId" TEXT PRIMARY KEY,
+                "derivadaPersonaId" TEXT NOT NULL,
+                "huella" TEXT NOT NULL,
+                "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "videollamadas_ia_conversacion_idx"
             ON "videollamadas_ia" ("conversacionId")
         `);
@@ -400,4 +408,30 @@ export async function laCitaDelEnlace(enlace: string): Promise<string | null> {
     const filas = await db.$queryRaw<{ citaId: string }[]>`
         SELECT "citaId" FROM "videollamada_enlaces" WHERE "enlace" = ${enlace} LIMIT 1`;
     return filas[0]?.citaId ?? null;
+}
+
+/* ── La persona derivada (copia con las herramientas) ──────────────────── */
+
+/**
+ * La copia de una persona de Tavus que lleva nuestras herramientas, cuando a
+ * la original no se le pueden poner (ver `lib/persona-derivada.ts`). Una fila
+ * por persona ORIGINAL; la huella dice de qué versión de la original salió.
+ */
+export async function laCopiaGuardada(origenPersonaId: string): Promise<{ derivadaPersonaId: string; huella: string } | null> {
+    const filas = await conLasTablas(() => db.$queryRaw<{ derivadaPersonaId: string; huella: string }[]>`
+        SELECT "derivadaPersonaId", "huella" FROM "videollamada_personas_derivadas"
+        WHERE "origenPersonaId" = ${origenPersonaId} LIMIT 1
+    `);
+    return filas[0] ?? null;
+}
+
+export async function guardarLaCopia(origenPersonaId: string, derivadaPersonaId: string, huella: string): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "videollamada_personas_derivadas" ("origenPersonaId", "derivadaPersonaId", "huella", "actualizadoEn")
+        VALUES (${origenPersonaId}, ${derivadaPersonaId}, ${huella}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("origenPersonaId") DO UPDATE SET
+            "derivadaPersonaId" = EXCLUDED."derivadaPersonaId",
+            "huella" = EXCLUDED."huella",
+            "actualizadoEn" = CURRENT_TIMESTAMP
+    `);
 }
