@@ -12,10 +12,9 @@ import {
 } from "@/lib/pantalla-del-avatar";
 import {
     loQueSeLeCuentaAVerzy,
-    losDestinosQueNombra,
-    NOMBRES_DE_LOS_DESTINOS,
+    elNombreDelLugar,
     queHaceLaPantallaAlHablar,
-    type DestinoDeVerzy,
+    type LugarDeVerzy,
     type OrdenDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
 import { NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
@@ -144,9 +143,9 @@ export default function SalaDeLaVideollamada({
     const [conexion, setConexion] = useState({ url: urlInicial, reentrada, vuelta: 0 });
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
     // servidor. Aquí solo llegan sus fotos.
-    const [destino, setDestino] = useState<DestinoDeVerzy | null>(null);
+    const [destino, setDestino] = useState<LugarDeVerzy | null>(null);
     // Lo mismo por referencia, para el reloj que mueve la pantalla al hablar.
-    const destinoRef = useRef<DestinoDeVerzy | null>(null);
+    const destinoRef = useRef<LugarDeVerzy | null>(null);
     useEffect(() => {
         destinoRef.current = destino;
     }, [destino]);
@@ -255,14 +254,14 @@ export default function SalaDeLaVideollamada({
     const pedirALaPantalla = (orden: OrdenDeLaPantalla) => {
         const cuerpo =
             orden.tipo === "ir"
-                ? { tipo: "ir", destino: orden.datos.destino }
+                ? { tipo: "ir", lugar: orden.datos.lugar }
                 : orden.tipo === "nota"
                   ? { tipo: "nota", texto: orden.datos.texto }
                   : { tipo: "recorrer" };
         if (orden.tipo !== "nota") ultimoMovimiento.current = Date.now();
         if (orden.tipo === "ir") {
-            destinoRef.current = orden.datos.destino;
-            setDestino(orden.datos.destino);
+            destinoRef.current = orden.datos.lugar;
+            setDestino(orden.datos.lugar);
         }
         fetch(`/api/videollamada/pantalla?${consulta}`, {
             method: "POST",
@@ -316,7 +315,6 @@ export default function SalaDeLaVideollamada({
             const paso = queHaceLaPantallaAlHablar({
                 hablando: hablandoRef.current,
                 enPantalla: destinoRef.current,
-                nombrados: [],
                 desdeElUltimoMovimientoMs: Date.now() - ultimoMovimiento.current,
             });
             if (paso?.tipo !== "recorrer") return;
@@ -468,19 +466,9 @@ export default function SalaDeLaVideollamada({
             }
             const hablando = siVerzyEstaHablando(ev?.data);
             if (hablando !== null) hablandoRef.current = hablando;
-            // Lo que va diciendo Verzy mueve la pantalla al instante: si nombra
-            // otra sección, se abre mientras lo dice.
-            const dicho = loQueDijoVerzy(ev?.data);
-            if (dicho) {
-                hablandoRef.current = true;
-                const paso = queHaceLaPantallaAlHablar({
-                    hablando: true,
-                    enPantalla: destinoRef.current,
-                    nombrados: losDestinosQueNombra(dicho),
-                    desdeElUltimoMovimientoMs: 0,
-                });
-                if (paso?.tipo === "ir") pedirALaPantalla({ tipo: "ir", datos: { destino: paso.destino } });
-            }
+            // Que Verzy hable solo dice que está hablando: la pantalla se
+            // recorre sola, pero A DÓNDE ir lo decide ella con su herramienta.
+            if (loQueDijoVerzy(ev?.data)) hablandoRef.current = true;
             if (esQueVerzyHabla(ev?.data) || hablando === false) {
                 verzyHablo.current = true;
                 return;
@@ -503,7 +491,7 @@ export default function SalaDeLaVideollamada({
             const orden = laOrdenDeLaPantalla(ev?.data);
             if (!orden) return;
             if (orden.accion === "ocultar") setDestino(null);
-            else pedirALaPantalla({ tipo: "ir", datos: { destino: orden.destino } });
+            else pedirALaPantalla({ tipo: "ir", datos: { lugar: orden.lugar } });
         });
         llamada.on("camera-error", (ev) => {
             console.warn("[videollamada] sin cámara o micrófono", ev);
@@ -557,7 +545,7 @@ export default function SalaDeLaVideollamada({
                 >
                     <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Verzy te está mostrando: <strong className="text-slate-100">{NOMBRES_DE_LOS_DESTINOS[destino]}</strong>
+                        Verzy te está mostrando: <strong className="text-slate-100">{elNombreDelLugar(destino)}</strong>
                     </header>
                     <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -566,7 +554,7 @@ export default function SalaDeLaVideollamada({
                             src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}`}
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
-                            alt={`Pantalla de Verzay Ventas: ${NOMBRES_DE_LOS_DESTINOS[destino]}`}
+                            alt={`Pantalla de Verzay Ventas: ${elNombreDelLugar(destino)}`}
                             className="max-h-full max-w-full object-contain"
                         />
                     </div>

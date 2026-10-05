@@ -52,4 +52,4 @@ NEXT_PID=$!
 trap 'kill -- -$NEXT_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://127.0.0.1:$APP/login" && break; sleep 1; done
 
-BASE="http://127.0.0.1:$APP" CITA="$CITA" FIRMA="$FIRMA" node scripts/probar-video-de-verzy.mjs || { echo "--- log"; tail -40 "$LOG"; exit 1; }
+BASE="http://127.0.0.1:$APP" CITA="$CITA" FIRMA="$FIRMA" node "${SONDA:-scripts/probar-video-de-verzy.mjs}" || { echo "--- log"; tail -40 "$LOG"; exit 1; }

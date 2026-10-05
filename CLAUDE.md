@@ -27427,3 +27427,30 @@ Cinco cosas que hay que mantener:
 
 Lo prueba `scripts/banco-guion-videollamada.sh`; `MODO=roto` lee `304d3bb` y
 afirma que el guion iba fijo y no había pestaña.
+
+### Verzy navega LIBRE: no hay lista de pantallas ni tema → pantalla
+
+> **Esta sección manda sobre las de arriba** en qué puede abrir Verzy:
+> `DESTINOS_DE_VERZY` y el mapeo de una frase a una pantalla ya no existen.
+
+`mostrar_pantalla` recibe una RUTA libre (`ruta`; `destino` y `pagina` viejos se
+traducen con `RUTA_DE_LA_CLAVE_VIEJA`) y el Chromium del servidor, dentro de
+«Verzay Ventas», va ahí (`irA`, `lib/pantalla-de-verzy.server.ts`): **toda la
+landing** (`/inicio` y sus anclas, `/planes/nivel-N`, `/documentacion`, lo que
+exista mañana) y **toda la plataforma**. `chats` y `ficha` son atajos a la
+conversación del prospecto. Las listas `LUGARES_DE_LA_LANDING` y
+`LUGARES_DE_LA_PLATAFORMA` son SUGERENCIAS en el contexto, no un tope.
+
+1. **Lo que decide es Verzy, por el tema**: el contexto le dice que abra solo lo
+   relacionado con lo que se habla, y la voz NUNCA cambia la pantalla (solo
+   `recorrer` mientras habla).
+2. **Solo se cierra lo que no es una pantalla** (`RUTAS_PROHIBIDAS`: `/api`,
+   `/login`, `/logout`, `/videollamada`…) y lo de administración
+   (`lasRutasDeLaPlataforma` quita los paneles de la casa).
+3. **Una ruta que no existe NO es un ok**: un 404 o un 5xx vuelve con su motivo
+   y se le cuenta a Verzy (`loQueSeLeCuentaAVerzy`) para que no diga que la ve.
+
+Lo prueban `scripts/banco-videollamada-ia.sh` (las reglas) y
+`scripts/banco-navegacion-de-verzy.sh` (la App servida: doce pantallas de la
+landing y veinte de la plataforma, la pantalla moviéndose en cada una, y lo que
+no existe o está prohibido). `MODO=roto` afirma la lista cerrada de `2f46b94`.
