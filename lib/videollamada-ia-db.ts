@@ -76,6 +76,14 @@ function asegurarLasTablas(): Promise<void> {
             )
         `);
         await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "videollamada_envios" (
+                "citaId" TEXT NOT NULL,
+                "llave" TEXT NOT NULL,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("citaId", "llave")
+            )
+        `);
+        await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "videollamadas_ia_conversacion_idx"
             ON "videollamadas_ia" ("conversacionId")
         `);
@@ -287,6 +295,28 @@ export async function marcarFinalizada(citaId: string): Promise<void> {
     await conLasTablas(() => db.$executeRaw`
         UPDATE "videollamadas_ia" SET "estado" = 'finalizada', "finalizadaEn" = COALESCE("finalizadaEn", CURRENT_TIMESTAMP)
         WHERE "citaId" = ${citaId}
+    `);
+}
+
+/* ── Los enlaces mandados por WhatsApp durante la llamada ───────────── */
+
+/**
+ * Apunta que en esta cita ya se mandó ESTE enlace. Devuelve `true` solo la
+ * primera vez: quien decide es el `ON CONFLICT`, así que dos pestañas que
+ * reciben la misma orden del avatar no lo mandan dos veces.
+ */
+export async function anotarElEnvio(citaId: string, llave: string): Promise<boolean> {
+    const n = await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "videollamada_envios" ("citaId", "llave") VALUES (${citaId}, ${llave})
+        ON CONFLICT DO NOTHING
+    `);
+    return n > 0;
+}
+
+/** Suelta la marca de un envío que no salió, para poder reintentarlo. */
+export async function soltarElEnvio(citaId: string, llave: string): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        DELETE FROM "videollamada_envios" WHERE "citaId" = ${citaId} AND "llave" = ${llave}
     `);
 }
 

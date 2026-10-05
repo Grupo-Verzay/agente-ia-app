@@ -27124,3 +27124,30 @@ ese nombre (`join({ userName })`): no se le pregunta. La sala enseña solo
 micrófono, cámara y compartir pantalla (este último solo donde existe
 `getDisplayMedia`); sin «Salir» ni chat: el seguimiento va por WhatsApp.
 
+
+### La sala arranca con el AVATAR solo, envía enlaces y se reconecta sola
+
+La sala (`SalaDeLaVideollamada`) se ve así, y no de otra forma:
+
+1. **Al entrar solo está el avatar en grande.** Nada de pantalla compartida:
+   la comparte Verzy con `mostrar_pantalla` cuando su guion lo pide, o si el
+   cliente lo pide y el guion lo permite. Entonces la página ocupa la sala y el
+   avatar pasa a una MINIATURA abajo a la derecha. El `<video>` del avatar es
+   UNO y siempre montado: un recuadro que se monta tarde se queda en negro
+   (`usarPista` ya corrió para esa pista). Por eso se quitó el recuadro de la
+   cámara propia, que era el que salía negro.
+2. **Dos mandos, centrados: «Apagar cámara» y «Compartir pantalla».** Sin
+   «Silenciar»: el micrófono va abierto y los turnos y el ruido los maneja Tavus.
+3. **`enviar_por_whatsapp`**: cuando el cliente pide la web, un plan o el pago,
+   Verzy llama a la herramienta, la sala la pasa a `/api/videollamada/whatsapp`
+   (firmado) y el SERVIDOR arma el enlace (`elEnvioArmado`) y lo manda al número
+   de la cita por su línea; una vez por llamada y tipo (`videollamada_envios`).
+4. **Reconexión**: si la llamada se cae, la sala pide `/api/videollamada/sala`
+   (firmado), entra a la MISMA conversación (Tavus la espera 3 min,
+   `participant_left_timeout`) y le dice a Verzy que siga sin saludar
+   (`conversation.append_llm_context`). Hasta 5 intentos; después, un botón.
+5. **Tavus solo cobra lo que se abre**: la conversación se crea al abrir el
+   enlace; un enlace que no se abre no cuesta nada.
+
+Lo prueba `scripts/banco-videollamada-ia.sh`; `MODO=roto` lee la sala de
+`c4e5b5d5` y afirma el recuadro propio, el «Silenciar» y la falta de envío.

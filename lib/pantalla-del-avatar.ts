@@ -104,7 +104,8 @@ export const HERRAMIENTA_DE_LA_PANTALLA = {
         name: NOMBRE_DE_LA_HERRAMIENTA,
         description:
             "Comparte en la pantalla del cliente una página pública de Verzay. " +
-            "Úsala cuando el guion lo pida o el cliente quiera ver algo. " +
+            "Úsala SOLO cuando el guion de ventas lo pida o el cliente quiera ver algo y el guion lo permita; " +
+            "la llamada empieza sin compartir nada. " +
             `Usa "${OCULTAR}" para dejar de compartir.`,
         parameters: {
             type: "object",
@@ -129,12 +130,124 @@ export function elBloqueDeLaPantalla(): string {
             "Lo que el cliente ve en su pantalla lo decide SOLO esa herramienta: decir una dirección web en voz alta no le enseña nada.",
         "Reglas:",
         "- Nunca digas una URL ni una dirección web en voz alta. En su lugar llama a la herramienta y dile qué está viendo (por ejemplo: «te estoy mostrando los planes»).",
-        "- Cambia de página en cuanto cambie el momento de la conversación, sin esperar a que el cliente lo pida.",
-        "- Si el cliente pide ver algo (precios, planes, cómo funciona), llama a la herramienta ANTES de explicarlo.",
+        "- La llamada EMPIEZA SIN COMPARTIR NADA: al saludar el cliente solo te ve a ti. No compartas pantalla por defecto.",
+        "- Comparte SOLO cuando el guion de ventas lo indique en ese momento, o cuando el cliente pida ver algo y el guion lo permita.",
+        "- Si el cliente pide ver algo (precios, planes, cómo funciona) y corresponde, llama a la herramienta ANTES de explicarlo.",
+        `- Cuando ya no haga falta mostrar nada, deja de compartir con ${OCULTAR}.`,
         "Qué página enseñar en cada momento del guion:",
         ...lineas,
         `Para dejar de compartir: ${OCULTAR}. Nunca inventes otra página.`,
     ].join("\n");
+}
+
+/* ── Enviar un enlace por WhatsApp durante la llamada ────────────────── */
+
+export const NOMBRE_DEL_ENVIO = "enviar_por_whatsapp";
+
+/** Qué se puede enviar: lista CERRADA. El modelo nunca escribe la dirección. */
+export const QUE_SE_ENVIA = ["web", "plan", "pago"] as const;
+export type QueSeEnvia = (typeof QUE_SE_ENVIA)[number];
+
+export type OrdenDeEnvio = { que: QueSeEnvia; plan: string | null };
+
+/** Lee un `app-message` con la llamada a `enviar_por_whatsapp`. */
+export function laOrdenDeEnvio(mensaje: unknown): OrdenDeEnvio | null {
+    if (!mensaje || typeof mensaje !== "object") return null;
+    const m = mensaje as Record<string, unknown>;
+    if (m.event_type !== "conversation.tool_call") return null;
+    const p = (m.properties ?? {}) as Record<string, unknown>;
+    if (p.name !== NOMBRE_DEL_ENVIO) return null;
+    const args = losArgumentos(p.arguments);
+    const que = typeof args?.que === "string" ? args.que.trim().toLowerCase() : "";
+    if (!(QUE_SE_ENVIA as readonly string[]).includes(que)) return null;
+    const plan = typeof args?.plan === "string" && args.plan.trim() ? args.plan.trim().slice(0, 60) : null;
+    return { que: que as QueSeEnvia, plan };
+}
+
+export const HERRAMIENTA_DEL_ENVIO = {
+    type: "function",
+    function: {
+        name: NOMBRE_DEL_ENVIO,
+        description:
+            "Envía al cliente por WhatsApp, al número de su cita, un enlace: la página web de Verzay, " +
+            "la página de un plan o el enlace de pago de un plan. Úsala cuando el cliente pida que le mandes un enlace.",
+        parameters: {
+            type: "object",
+            properties: {
+                que: {
+                    type: "string",
+                    enum: [...QUE_SE_ENVIA],
+                    description: "web: la página web de Verzay; plan: la página de un plan; pago: el enlace para pagar/registrarse en un plan",
+                },
+                plan: {
+                    type: "string",
+                    description: "El plan del que habla el cliente (su nombre o 'nivel 1'..'nivel 6'). Obligatorio para plan y pago.",
+                },
+            },
+            required: ["que"],
+        },
+    },
+} as const;
+
+/** Lo que se le cuenta al avatar sobre el envío por WhatsApp. */
+export function elBloqueDelEnvio(): string {
+    return [
+        "ENVIAR ENLACES POR WHATSAPP",
+        `Si el cliente pide el enlace de la página web, de un plan o el enlace de pago, llama a ${NOMBRE_DEL_ENVIO} ` +
+            "(que: web, plan o pago; y el plan cuando aplique) y dile que ya se lo enviaste a su WhatsApp. " +
+            "Nunca dictes la dirección en voz alta.",
+    ].join("\n");
+}
+
+/**
+ * El nivel del plan que nombró el cliente: «nivel 3», «3», el nombre interno o
+ * el NOMBRE COMERCIAL vigente (`nombres`, de `losNombresDeLosNiveles`), sin
+ * mirar mayúsculas ni tildes. `null` si no casa con ninguno: no se adivina.
+ */
+export function elNivelNombrado(plan: string | null, nombres: Readonly<Record<string, string>>): string | null {
+    const limpio = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const pedido = plan ? limpio(plan).replace(/^plan\s+/, "") : "";
+    if (!pedido) return null;
+    const porNivel = pedido.match(/^(?:nivel[\s_-]*)?(\d+)$/);
+    if (porNivel) {
+        const n = Number(porNivel[1]);
+        return n >= 1 && n <= NIVELES_DEL_ENVIO.length ? NIVELES_DEL_ENVIO[n - 1] : null;
+    }
+    if ((NIVELES_DEL_ENVIO as readonly string[]).includes(pedido)) return pedido;
+    for (const [nivel, nombre] of Object.entries(nombres)) {
+        if (limpio(nombre) === pedido || limpio(nombre).replace(/^plan\s+/, "") === pedido) return nivel;
+    }
+    return null;
+}
+
+/** Los niveles, en orden (los mismos de `NIVELES_DE_PLAN`; el banco los compara). */
+export const NIVELES_DEL_ENVIO = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"] as const;
+
+export type EnvioArmado = { llave: string; enlace: string; mensaje: string } | { motivo: string };
+
+/**
+ * El enlace y el mensaje que salen por WhatsApp. La dirección la arma ESTE
+ * servidor (`origen` + la ruta de la casa): el modelo solo dice qué y de qué
+ * plan. Sin plan reconocible, plan y pago no se mandan: se dice por qué.
+ */
+export function elEnvioArmado(
+    orden: OrdenDeEnvio,
+    { origen, nivel, nombreDelPlan }: { origen: string; nivel: string | null; nombreDelPlan: string | null },
+): EnvioArmado {
+    if (orden.que === "web") {
+        const enlace = `${origen}/inicio`;
+        return { llave: "web", enlace, mensaje: `Aquí tienes la página web de Verzay: ${enlace}` };
+    }
+    if (!nivel) return { motivo: "no se reconoció el plan" };
+    const n = NIVELES_DEL_ENVIO.indexOf(nivel as (typeof NIVELES_DEL_ENVIO)[number]) + 1;
+    if (n < 1) return { motivo: "no se reconoció el plan" };
+    const nombre = nombreDelPlan || `Nivel ${n}`;
+    if (orden.que === "plan") {
+        const enlace = `${origen}/planes/nivel-${n}`;
+        return { llave: `plan:${nivel}`, enlace, mensaje: `Aquí tienes toda la información del plan ${nombre}: ${enlace}` };
+    }
+    const enlace = `${origen}/register?plan=nivel-${n}`;
+    return { llave: `pago:${nivel}`, enlace, mensaje: `Aquí tienes el enlace para empezar con el plan ${nombre}: ${enlace}` };
 }
 
 /* ── La persona de Tavus ───────────────────────────────────────────────── */
@@ -155,12 +268,16 @@ export function elParcheDeLaPersona(persona: unknown): unknown[] | null {
     const capas = p.layers && typeof p.layers === "object" ? (p.layers as Record<string, unknown>) : null;
     const llm = capas?.llm && typeof capas.llm === "object" ? (capas.llm as Record<string, unknown>) : null;
     const actuales = Array.isArray(llm?.tools) ? (llm!.tools as HerramientaDeTavus[]) : [];
-    const deseada = JSON.stringify(HERRAMIENTA_DE_LA_PANTALLA);
-    const la = actuales.find((h) => h?.function?.name === NOMBRE_DE_LA_HERRAMIENTA);
-    if (la && JSON.stringify(la) === deseada) return null;
+    const nuestras = [HERRAMIENTA_DE_LA_PANTALLA, HERRAMIENTA_DEL_ENVIO] as const;
+    const nombres = nuestras.map((h) => h.function.name as string);
+    const alDia = nuestras.every((d) => {
+        const la = actuales.find((h) => h?.function?.name === d.function.name);
+        return la && JSON.stringify(la) === JSON.stringify(d);
+    });
+    if (alDia) return null;
     const tools = [
-        ...actuales.filter((h) => h?.function?.name !== NOMBRE_DE_LA_HERRAMIENTA),
-        HERRAMIENTA_DE_LA_PANTALLA,
+        ...actuales.filter((h) => !nombres.includes(h?.function?.name as string)),
+        ...nuestras,
     ];
     if (!capas) return [{ op: "add", path: "/layers", value: { llm: { tools } } }];
     if (!llm) return [{ op: "add", path: "/layers/llm", value: { tools } }];
