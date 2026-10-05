@@ -27174,3 +27174,27 @@ Lo prueba `scripts/banco-videollamada-ia.sh`; `MODO=roto` lee la sala de
 
 Lo prueba el mismo banco; `MODO=roto` contra `f0eac70` afirma que nada de esto
 existía.
+
+### El inicio de la llamada, y la pizarra es el CRM REAL de «Verzay Ventas»
+
+1. **Verzy saluda primero**: `custom_greeting = SALUDO_INICIAL` («Hola, muy
+   buenas, ¿me escuchas?») en la conversación nueva (no al reconectar), y el
+   guion le dice que conteste lo mismo si el cliente habla antes. Después,
+   `SEGUNDA_PREGUNTA`; **solo con esa respuesta** abre la pizarra (`crm`) y
+   toma notas. Viven en `lib/videollamada-crm.ts` (puro).
+2. **La pizarra es la ficha del prospecto en la cuenta «Verzay Ventas»**
+   (`/videollamada/vista/crm`, firmada como las demás vistas, noindex), con
+   anclas `#embudo`, `#recordatorios` y `#conversacion`. La arma
+   `elCrmDelProspecto` (`lib/videollamada-crm.server.ts`, `server-only`):
+   busca la sesión por TODAS las formas del número de la cita, la etapa con
+   `lasEtapasDeLaBandeja`, citas y seguimientos pendientes de esa cuenta, y el
+   historial de `chat_messages` en tres ramas con su `LIMIT`. No hay login: el
+   acceso es interno y la vista solo abre con la firma de la cita.
+3. **La cuenta sale de `VERZY_CUENTA_ID`** (stack de Portainer, opcional) y, sin
+   ella, de su nombre (`esLaCuentaDeVerzy`, sin tildes ni barras). Si no se
+   encuentra se dice en la consola y la ficha sale vacía.
+4. **Las notas van AL LADO del CRM** (`esLaVistaDelCrm`), no sueltas; en las
+   páginas públicas no salen. Verzy puede quedarse en el CRM o ir a la landing.
+
+Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
+saludo, ni CRM, y que las notas salían sueltas.

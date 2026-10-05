@@ -20,5 +20,7 @@ else
     --outfile=lib/__tests__/.compilado/pantalla-del-avatar.js --log-level=warning
   npx esbuild lib/videollamada-en-vivo.ts --bundle --format=esm --platform=node \
     --outfile=lib/__tests__/.compilado/videollamada-en-vivo.js --log-level=warning
+  npx esbuild lib/videollamada-crm.ts --bundle --format=esm --platform=node \
+    --outfile=lib/__tests__/.compilado/videollamada-crm.js --log-level=warning
 fi
 node --test lib/__tests__/videollamada-ia.test.mjs

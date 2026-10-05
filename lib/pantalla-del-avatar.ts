@@ -17,6 +17,8 @@
  *    se ignora: por ese canal también viajan los mensajes de los humanos.
  */
 
+import { SALUDO_INICIAL, SEGUNDA_PREGUNTA } from "@/lib/videollamada-crm";
+
 export type PaginaDelAvatar = {
     clave: string;
     titulo: string;
@@ -42,7 +44,11 @@ export const PAGINAS_DEL_AVATAR: readonly PaginaDelAvatar[] = [
     { clave: "precios", titulo: "Planes y precios", ruta: "/inicio#pricing", cuando: "cuando pregunten por precios o planes", momento: "5. La oferta: planes y precios" },
     { clave: "preguntas", titulo: "Preguntas frecuentes", ruta: "/inicio#faq", cuando: "ante dudas generales u objeciones", momento: "6. Dudas y objeciones" },
     { clave: "tutoriales", titulo: "Tutoriales", ruta: "/inicio#tutoriales", cuando: "cuando pregunten cómo se usa un módulo", momento: "Cuando pregunten cómo se usa algo" },
-    { clave: "ficha", titulo: "Tu ficha", ruta: "/videollamada/vista/ficha", cuando: "al resumir lo que te contó el cliente (su negocio y lo que necesita)", momento: "Resumen antes del diagnóstico" },
+    // La pizarra: la ficha del prospecto en la cuenta REAL «Verzay Ventas» (lib/videollamada-crm.ts).
+    { clave: "crm", titulo: "Ficha del prospecto", ruta: "/videollamada/vista/crm", cuando: "para tomar notas en el CRM real mientras el cliente cuenta lo que quiere resolver", momento: "3. Tomar notas en el CRM (después de la segunda pregunta)" },
+    { clave: "crm_embudo", titulo: "Embudo de ventas", ruta: "/videollamada/vista/crm#embudo", cuando: "para enseñar en qué etapa del embudo está el cliente", momento: "Moverte por el CRM: el embudo" },
+    { clave: "crm_recordatorios", titulo: "Recordatorios y citas", ruta: "/videollamada/vista/crm#recordatorios", cuando: "para enseñar los recordatorios y citas que tiene programados", momento: "Moverte por el CRM: recordatorios" },
+    { clave: "crm_conversacion", titulo: "Historial de la conversación", ruta: "/videollamada/vista/crm#conversacion", cuando: "para enseñar lo que el cliente ya habló por WhatsApp", momento: "Moverte por el CRM: la conversación" },
     { clave: "resultados", titulo: "Resultados de Verzay", ruta: "/videollamada/vista/resultados", cuando: "al enseñar resultados reales de clientes de Verzay", momento: "Diagnóstico y plan: pruebas" },
     { clave: "guia", titulo: "Guía", ruta: "/guia", cuando: "para enseñar la guía de UN módulo (con su parámetro modulo)", momento: "Cuando pregunten cómo funciona un módulo concreto" },
 ];
@@ -165,13 +171,15 @@ export function elBloqueDeLaPantalla(): string {
             "Lo que el cliente ve en su pantalla lo decide SOLO esa herramienta: decir una dirección web en voz alta no le enseña nada.",
         "Reglas:",
         "- Nunca digas una URL ni una dirección web en voz alta. En su lugar llama a la herramienta y dile qué está viendo (por ejemplo: «te estoy mostrando los planes»).",
-        "- La llamada EMPIEZA SIN COMPARTIR NADA: al saludar el cliente solo te ve a ti. No compartas pantalla por defecto.",
+        "- La llamada EMPIEZA SIN COMPARTIR NADA: al saludar el cliente solo te ve a ti. No compartas pantalla hasta que el cliente responda la segunda pregunta.",
+        "- Después de esa respuesta, abre la pizarra: el CRM real de Verzay (crm) y toma notas ahí. Muévete por sus secciones (crm_embudo, crm_recordatorios, crm_conversacion) según lo que hablen.",
+        "- Puedes quedarte en el CRM o pasar a la página pública (inicio, funciones, precios…) según la conversación.",
         "- Comparte SOLO cuando el guion de ventas lo indique en ese momento, o cuando el cliente pida ver algo y el guion lo permita.",
         "- Si el cliente pide ver algo (precios, planes, cómo funciona) y corresponde, llama a la herramienta ANTES de explicarlo.",
         `- Cuando ya no haga falta mostrar nada, deja de compartir con ${OCULTAR}.`,
         "Qué página enseñar en cada momento del guion:",
         ...lineas,
-        "- ficha: el resumen de lo que el cliente te contó; resultados: resultados reales de clientes de Verzay; " +
+        "- crm: la ficha del cliente en el CRM real de Verzay, buscada por su número de WhatsApp; resultados: resultados reales de clientes de Verzay; " +
             "guia: la guía de un módulo, diciendo cuál en «modulo».",
         `Para dejar de compartir: ${OCULTAR}. Nunca inventes otra página.`,
     ].join("\n");
@@ -348,15 +356,16 @@ export function elBloqueDelGuion(ahora: string): string {
     return [
         "GUION DE LA LLAMADA",
         `Ahora mismo son: ${ahora} (hora del negocio).`,
-        "1. Primera pregunta: después de saludar, pregunta a qué se dedica su negocio y qué quiere resolver. Escucha antes de vender.",
-        "2. Resumen antes del diagnóstico: repite en una o dos frases lo que te contó (puedes enseñar la ficha) y confirma que lo entendiste bien.",
-        "3. Diagnóstico y plan: dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
-        "4. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
-        "5. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o ver la demostración y hablar otro día.",
-        "6. Objeciones:",
+        `1. Saludo: empieza TÚ, sin esperar, diciendo exactamente «${SALUDO_INICIAL}». Si el cliente habla antes que tú, respóndele con ese mismo saludo.`,
+        `2. Cuando confirme que te escucha, haz la segunda pregunta: «${SEGUNDA_PREGUNTA}». No compartas pantalla todavía. Escucha antes de vender.`,
+        "3. Solo después de que responda: abre el CRM (crm) y toma nota de lo que quiere resolver. Repite en una o dos frases lo que te contó y confirma que lo entendiste bien.",
+        "4. Diagnóstico y plan: dile qué le está costando hoy y qué plan de Verzay lo resuelve, y por qué ese y no otro.",
+        "5. Cierre suave, UNA sola vez: pregunta si quiere empezar con ese plan. No insistas más de una vez.",
+        "6. Si no está listo, ofrece una alternativa de bajo riesgo: empezar con el plan más pequeño, o ver la demostración y hablar otro día.",
+        "7. Objeciones:",
         "   - «Es caro»: compáralo con lo que pierde hoy en mensajes sin responder y ventas que se enfrían; ofrece el plan más pequeño.",
         "   - «Tengo que consultarlo con mi socio»: ofrece enviarle la información por WhatsApp y agendar una llamada con los dos.",
-        `7. Siguiente paso: antes de despedirte, confirma una fecha y una hora concretas y déjalo agendado con ${NOMBRE_DEL_AGENDAR} ` +
+        `8. Siguiente paso: antes de despedirte, confirma una fecha y una hora concretas y déjalo agendado con ${NOMBRE_DEL_AGENDAR} ` +
             "(cita, recordatorio o llamada). Calcula la fecha a partir de la de hoy y repítesela al cliente.",
     ].join("\n");
 }
