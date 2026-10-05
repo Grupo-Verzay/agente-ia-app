@@ -360,10 +360,12 @@ export const ReminderForm = ({
                     })()}
                 </div>
 
-                {isCampaignPage && (
+                {(isCampaignPage || isSchedule) && (
                     <div className="flex flex-wrap items-center gap-2" data-campo="variables">
                         <span className="text-sm font-medium text-muted-foreground">Variables:</span>
-                        {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
+                        {(isSchedule
+                            ? ['@client_name', '@service_name', '@appointment_datetime', '@appointment_duration', '@meeting_link']
+                            : ['{{nombre}}', '{{telefono}}', '{{fecha}}']).map(v => (
                             <button
                                 key={v}
                                 type="button"
