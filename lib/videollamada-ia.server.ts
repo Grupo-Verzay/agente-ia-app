@@ -11,12 +11,17 @@ import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } fro
 import {
     elContextoParaTavus,
     elEnlaceDeLaVideollamada,
+    elEnlaceDelNombre,
+    elNombreDelProspecto,
     laDuracionMaxima,
+    pareceUnEnlaceConNombre,
     queHacerAlAbrir,
 } from "@/lib/videollamada-ia";
 import {
     apuntarLaConversacion,
     elAvatarDeLaCuenta,
+    elEnlaceDeLaCita,
+    laCitaDelEnlace,
     laVideollamada,
     leerLosAjustes,
     marcarQueEntro,
@@ -37,7 +42,7 @@ export const API_DE_TAVUS = "https://tavusapi.com/v2/conversations";
 const ESPERA_POR_OTRA_PESTANA_MS = 10_000;
 
 export type ResultadoAlAbrir =
-    | { estado: "ir"; url: string }
+    | { estado: "ir"; url: string; nombre: string | null }
     | { estado: "temprano"; abreEn: Date; zona: string }
     | { estado: "cerrada" }
     | { estado: "cancelada" }
@@ -83,10 +88,32 @@ export async function elEnlaceDeReunionDeLaCita(cuentaId: string, citaId: string
     const ajustes = await leerLosAjustes(cuentaId).catch(() => null);
     if (ajustes?.modo === "tavus" && citaId) {
         const origen = elOrigenPublico();
-        if (origen) return elEnlaceDeLaVideollamada(origen, citaId);
+        if (origen) return elEnlaceDeLaVideollamada(origen, await laLlaveDelEnlace(citaId));
     }
     const fila = await db.user.findUnique({ where: { id: cuentaId }, select: { meetingUrl: true } });
     return fila?.meetingUrl?.trim() || null;
+}
+
+/**
+ * Lo que va en `/videollamada/<x>`: el nombre del prospecto si lo hay
+ * («maria-alejandra-rosas»), y si no —o si falla— el id de la cita.
+ */
+async function laLlaveDelEnlace(citaId: string): Promise<string> {
+    try {
+        const cita = await db.appointment.findUnique({
+            where: { id: citaId },
+            select: { clientName: true, session: { select: { customName: true, pushName: true } } },
+        });
+        const base = cita ? elEnlaceDelNombre(elNombreDelProspecto(cita)) : null;
+        if (!base) return citaId;
+        return await elEnlaceDeLaCita(citaId, base);
+    } catch (error) {
+        console.warn("[videollamada] no se pudo armar el enlace con nombre; va el id de la cita", {
+            cita: citaId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return citaId;
+    }
 }
 
 /* ── El contexto del prospecto ─────────────────────────────────────────── */
@@ -141,7 +168,7 @@ type CitaParaAbrir = {
 };
 
 async function elContexto(cita: CitaParaAbrir): Promise<string> {
-    const nombre = cita.session?.customName?.trim() || cita.clientName?.trim() || cita.session?.pushName?.trim() || null;
+    const nombre = elNombreDelProspecto(cita);
     let conversacion = "";
     try {
         const identidades = cita.session
@@ -236,7 +263,10 @@ function elMotivoLegible(motivo: string): string {
 }
 
 export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date()): Promise<ResultadoAlAbrir> {
-    const id = String(citaId ?? "").trim();
+    const pedido = String(citaId ?? "").trim();
+    // Primero el enlace con nombre; si no lo es, el id de la cita (los enlaces viejos siguen abriendo).
+    const porNombre = pareceUnEnlaceConNombre(pedido) ? await laCitaDelEnlace(pedido).catch(() => null) : null;
+    const id = porNombre ?? pedido;
     if (!/^[0-9a-f-]{8,64}$/i.test(id)) return { estado: "no_existe" };
 
     const cita = (await db.appointment.findUnique({
@@ -279,7 +309,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     if (decision.accion === "cancelada") return { estado: "cancelada" };
     if (decision.accion === "reutilizar" && existente?.conversacionUrl) {
         await marcarQueEntro(id);
-        return { estado: "ir", url: existente.conversacionUrl };
+        return { estado: "ir", url: existente.conversacionUrl, nombre: elNombreDelProspecto(cita) };
     }
 
     const reclamada = await reclamarLaCreacion(id, cita.userId);
@@ -287,7 +317,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         const url = await esperarALaOtraPestana(id);
         if (url) {
             await marcarQueEntro(id);
-            return { estado: "ir", url };
+            return { estado: "ir", url, nombre: elNombreDelProspecto(cita) };
         }
         return { estado: "fallo", motivo: "No se pudo abrir la videollamada en este momento." };
     }
@@ -297,7 +327,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         await marcarQueEntro(id);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
-        return { estado: "ir", url: conversacion.url };
+        return { estado: "ir", url: conversacion.url, nombre: elNombreDelProspecto(cita) };
     } catch (error) {
         const motivo = error instanceof Error ? error.message : String(error);
         await soltarElReclamo(id).catch(() => undefined);

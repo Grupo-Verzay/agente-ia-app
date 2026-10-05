@@ -27113,3 +27113,14 @@ micrófono del navegador sigue saliendo: ese no se puede saltar. Lo prueba
 `scripts/banco-videollamada-ia.sh`; `MODO=roto` afirma el `createFrame` de
 `0319376`.
 
+### El enlace lleva el NOMBRE del prospecto, y la sala no pide nada
+
+El enlace es `/videollamada/maria-alejandra-rosas` (`elEnlaceDelNombre`, con
+el nombre de la cita: `customName`, `clientName` o `pushName`). Se guarda UNA
+vez por cita en `videollamada_enlaces` (tabla de la App); si el nombre ya lo usa
+otra cita, «-2», «-3»… lo decide el `ON CONFLICT`. Sin nombre utilizable va el
+id de la cita, y **un enlace con el id sigue abriendo**. El prospecto entra con
+ese nombre (`join({ userName })`): no se le pregunta. La sala enseña solo
+micrófono, cámara y compartir pantalla (este último solo donde existe
+`getDisplayMedia`); sin «Salir» ni chat: el seguimiento va por WhatsApp.
+

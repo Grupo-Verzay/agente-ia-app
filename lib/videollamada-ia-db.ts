@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
-import { comoModoDeReunion, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { elEnlaceConSufijo, comoModoDeReunion, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -66,6 +66,13 @@ function asegurarLasTablas(): Promise<void> {
                 "resumen" TEXT,
                 "grabacionUrl" TEXT,
                 "mensajeId" TEXT
+            )
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "videollamada_enlaces" (
+                "enlace" TEXT PRIMARY KEY,
+                "citaId" TEXT NOT NULL UNIQUE,
+                "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `);
         await ddl(() => db.$executeRaw`
@@ -281,4 +288,38 @@ export async function marcarFinalizada(citaId: string): Promise<void> {
         UPDATE "videollamadas_ia" SET "estado" = 'finalizada', "finalizadaEn" = COALESCE("finalizadaEn", CURRENT_TIMESTAMP)
         WHERE "citaId" = ${citaId}
     `);
+}
+
+/* ── El enlace con nombre ──────────────────────────────────────────────── */
+
+/**
+ * El enlace con nombre de una cita (`videollamada_enlaces`): se crea UNA vez y
+ * no cambia aunque cambie el nombre, para que lo ya enviado siga abriendo.
+ * Si el nombre ya lo usa otra cita, se prueba «-2», «-3»… — quien decide es
+ * el `ON CONFLICT` de Postgres, no una lectura previa.
+ */
+export async function elEnlaceDeLaCita(citaId: string, base: string): Promise<string> {
+    await asegurarLasTablas();
+    const ya = await db.$queryRaw<{ enlace: string }[]>`
+        SELECT "enlace" FROM "videollamada_enlaces" WHERE "citaId" = ${citaId} LIMIT 1`;
+    if (ya[0]) return ya[0].enlace;
+    for (let intento = 1; intento <= 50; intento++) {
+        const candidato = elEnlaceConSufijo(base, intento);
+        const puestas = await db.$executeRaw`
+            INSERT INTO "videollamada_enlaces" ("enlace", "citaId") VALUES (${candidato}, ${citaId})
+            ON CONFLICT DO NOTHING`;
+        if (puestas > 0) return candidato;
+        const otra = await db.$queryRaw<{ enlace: string }[]>`
+            SELECT "enlace" FROM "videollamada_enlaces" WHERE "citaId" = ${citaId} LIMIT 1`;
+        if (otra[0]) return otra[0].enlace; // otra pestaña la creó a la vez
+    }
+    throw new Error("no quedó ningún enlace con nombre libre");
+}
+
+/** La cita de un enlace con nombre, o `null`. */
+export async function laCitaDelEnlace(enlace: string): Promise<string | null> {
+    await asegurarLasTablas();
+    const filas = await db.$queryRaw<{ citaId: string }[]>`
+        SELECT "citaId" FROM "videollamada_enlaces" WHERE "enlace" = ${enlace} LIMIT 1`;
+    return filas[0]?.citaId ?? null;
 }

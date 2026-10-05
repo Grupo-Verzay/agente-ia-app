@@ -62,7 +62,7 @@ function lasPistas(llamada: DailyCall): Pistas {
  * conversación (el servidor la reutiliza) y cada uno ve la pantalla que
  * comparte el avatar, porque la orden les llega a todos.
  */
-export default function SalaDeLaVideollamada({ url }: { url: string }) {
+export default function SalaDeLaVideollamada({ url, nombre }: { url: string; nombre?: string | null }) {
     const [pagina, setPagina] = useState<PaginaDelAvatar | null>(null);
     const marco = useRef<HTMLIFrameElement>(null);
     const destino = pagina ? laRutaYElAncla(pagina.ruta) : null;
@@ -75,7 +75,13 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
     const [pistas, setPistas] = useState<Pistas>(SIN_PISTAS);
     const [micOn, setMicOn] = useState(true);
     const [camOn, setCamOn] = useState(true);
+    const [pantallaOn, setPantallaOn] = useState(false);
     const [sinSonido, setSinSonido] = useState(false);
+    // Compartir pantalla solo se ofrece donde el navegador lo deja (un iPhone no).
+    const [hayCompartir, setHayCompartir] = useState(false);
+    useEffect(() => {
+        setHayCompartir(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia);
+    }, []);
     const llamadaRef = useRef<DailyCall | null>(null);
     const videoAvatar = usarPista(pistas.avatarVideo);
     const audioAvatar = usarPista(pistas.avatarAudio);
@@ -102,6 +108,8 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
         }
         llamada.on("joined-meeting", () => { setEstado("dentro"); refrescar(); });
         llamada.on("left-meeting", () => setEstado("fuera"));
+        llamada.on("local-screen-share-started", () => setPantallaOn(true));
+        llamada.on("local-screen-share-stopped", () => setPantallaOn(false));
         llamada.on("app-message", (ev) => {
             const orden = laOrdenDeLaPantalla(ev?.data);
             if (!orden) return;
@@ -115,7 +123,9 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
             console.error("[videollamada] error de la sala", ev);
             setError("Se cortó la videollamada. Recarga la página para volver a entrar.");
         });
-        llamada.join({ url }).catch((e) => {
+        // El nombre sale de la cita: nunca se le pide al prospecto.
+        const conNombre = nombre?.trim();
+        llamada.join(conNombre ? { url, userName: conNombre } : { url }).catch((e) => {
             console.error("[videollamada] no se pudo entrar", e);
             setError("No pudimos entrar a la videollamada. Recarga la página.");
         });
@@ -123,7 +133,7 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
             llamadaRef.current = null;
             void llamada.destroy();
         };
-    }, [url]);
+    }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Con la cámara o el micrófono abiertos el navegador deja sonar solo; si
     // aun así lo bloquea, se ofrece un botón en vez de dejar al avatar mudo.
@@ -136,7 +146,12 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
     const activarSonido = () => {
         void audioAvatar.current?.play().then(() => setSinSonido(false)).catch(() => setSinSonido(true));
     };
-    const salir = () => void llamadaRef.current?.leave();
+    const alternarPantalla = () => {
+        const llamada = llamadaRef.current;
+        if (!llamada) return;
+        if (pantallaOn) llamada.stopScreenShare();
+        else llamada.startScreenShare();
+    };
     const reentrar = () => window.location.reload();
 
     return (
@@ -203,9 +218,16 @@ export default function SalaDeLaVideollamada({ url }: { url: string }) {
                         >
                             {camOn ? "Apagar cámara" : "Encender cámara"}
                         </button>
-                        <button type="button" onClick={salir} className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white">
-                            Salir
-                        </button>
+                        {hayCompartir && (
+                            <button
+                                type="button"
+                                data-mando="pantalla"
+                                onClick={alternarPantalla}
+                                className={`rounded-full px-4 py-2 text-sm font-medium ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
+                            >
+                                {pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
+                            </button>
+                        )}
                     </div>
                 )}
                 {error && (
