@@ -75,17 +75,48 @@ function usarPista(track: MediaStreamTrack | null) {
     return ref;
 }
 
-type Pistas = { avatarVideo: MediaStreamTrack | null; avatarAudio: MediaStreamTrack | null };
-const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null };
+type VozDeHumano = { id: string; audio: MediaStreamTrack };
+type Pistas = { avatarVideo: MediaStreamTrack | null; avatarAudio: MediaStreamTrack | null; humanos: VozDeHumano[] };
+const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [] };
 
-/** Lee las pistas del avatar (el otro participante). La cámara propia no se
- * pinta: el cliente no necesita verse, y un recuadro propio era el que se
- * quedaba en negro. */
+/** Cada persona entra marcada (`userData.humano`): así se distingue del avatar
+ * de Tavus, que es el único remoto SIN la marca. */
+export const MARCA_DE_HUMANO = { humano: true } as const;
+type Remoto = ReturnType<DailyCall["participants"]>[string];
+export function esHumano(p: { userData?: unknown }): boolean {
+    return !!(p.userData && typeof p.userData === "object" && (p.userData as { humano?: unknown }).humano === true);
+}
+/** El avatar: el remoto sin la marca de persona (prefiere el que se llama
+ * como la réplica de Tavus si hubiera más de uno). */
+export function elAvatarEntre<T extends { user_name?: string; userData?: unknown }>(remotos: T[]): T | undefined {
+    const sinMarca = remotos.filter((p) => !esHumano(p));
+    return sinMarca.find((p) => /tavus|replica/i.test(p.user_name ?? "")) ?? sinMarca[0];
+}
+
+/** Lee las pistas: video y voz del avatar, y la VOZ de cada otra persona de la
+ * sala. Sin pintar la voz de los demás, dos personas en la misma reunión no se
+ * oían entre sí (el avatar sí las oía). La cámara propia no se pinta. */
 function lasPistas(llamada: DailyCall): Pistas {
-    const avatar = Object.values(llamada.participants()).find((p) => !p.local);
-    const pista = (tipo: "video" | "audio") =>
-        avatar?.tracks?.[tipo]?.state === "playable" ? avatar.tracks[tipo].persistentTrack ?? null : null;
-    return { avatarVideo: pista("video"), avatarAudio: pista("audio") };
+    const remotos = Object.values(llamada.participants()).filter((p) => !p.local) as Remoto[];
+    const avatar = elAvatarEntre(remotos);
+    const pista = (p: Remoto | undefined, tipo: "video" | "audio") =>
+        p?.tracks?.[tipo]?.state === "playable" ? p.tracks[tipo].persistentTrack ?? null : null;
+    const humanos: VozDeHumano[] = [];
+    for (const p of remotos) {
+        if (p === avatar) continue;
+        const audio = pista(p, "audio");
+        if (audio) humanos.push({ id: p.session_id, audio });
+    }
+    return { avatarVideo: pista(avatar, "video"), avatarAudio: pista(avatar, "audio"), humanos };
+}
+
+/** La voz de otra persona de la sala: un `<audio>` por persona. */
+function VozDeOtraPersona({ id, pista, bloqueado }: { id: string; pista: MediaStreamTrack; bloqueado: () => void }) {
+    const ref = usarPista(pista);
+    useEffect(() => {
+        ref.current?.play().catch(() => bloqueado());
+    }, [pista]); // eslint-disable-line react-hooks/exhaustive-deps
+    return <audio ref={ref} autoPlay data-zona="voz-de-persona" data-persona={id} />;
 }
 
 /** Cuántas veces se reintenta reconectar sola antes de pedir un clic. */
@@ -143,6 +174,10 @@ export default function SalaDeLaVideollamada({
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
     // servidor. Aquí solo llegan sus fotos.
     const [destino, setDestino] = useState<LugarDeVerzy | null>(null);
+    // La última pantalla que de verdad se abrió. Una vez Verzy comparte
+    // pantalla, el avatar se queda en miniatura el resto de la reunión: aunque
+    // la oculte o una orden falle, se sigue viendo la última.
+    const [pantallaFija, setPantallaFija] = useState<LugarDeVerzy | null>(null);
     // Lo mismo por referencia, para el reloj que mueve la pantalla al hablar.
     const destinoRef = useRef<LugarDeVerzy | null>(null);
     useEffect(() => {
@@ -271,7 +306,10 @@ export default function SalaDeLaVideollamada({
             .then((r) => {
                 const resultado = r && typeof r.ok === "boolean" ? r : { ok: false, motivo: "sin respuesta" };
                 if (!resultado.ok) console.warn("[videollamada] la pantalla no hizo la orden", { orden, motivo: resultado.motivo });
-                if (!resultado.ok && orden.tipo === "ir") setDestino(null);
+                if (orden.tipo === "ir") {
+                    if (resultado.ok) setPantallaFija(orden.datos.lugar);
+                    else setDestino(null);
+                }
                 const contexto = loQueSeLeCuentaAVerzy(orden, resultado);
                 if (contexto) contarleAVerzy(contexto);
             })
@@ -406,6 +444,7 @@ export default function SalaDeLaVideollamada({
             setEstado("terminada");
             setPistas(SIN_PISTAS);
             setDestino(null);
+            setPantallaFija(null);
             void llamada.leave().catch(() => {});
         };
         colgarRef.current = () => colgar("salir");
@@ -421,17 +460,17 @@ export default function SalaDeLaVideollamada({
             llamada.on(ev, refrescar);
         }
         llamada.on("participant-joined", (ev) => {
-            if (!ev?.participant?.local && verzySalio !== null) {
+            if (!ev?.participant?.local && !esHumano(ev.participant) && verzySalio !== null) {
                 window.clearTimeout(verzySalio);
                 verzySalio = null;
             }
         });
         // Verzy (el único remoto) se fue: si no vuelve en la gracia, se cuelga.
         llamada.on("participant-left", (ev) => {
-            if (ev?.participant?.local) return;
+            if (ev?.participant?.local || (ev?.participant && esHumano(ev.participant))) return;
             if (verzySalio !== null) window.clearTimeout(verzySalio);
             verzySalio = window.setTimeout(() => {
-                const quedan = Object.values(llamada.participants()).some((p) => !p.local);
+                const quedan = Object.values(llamada.participants()).some((p) => !p.local && !esHumano(p));
                 if (!quedan) colgar("verzy-salio");
             }, GRACIA_SI_VERZY_SALE_MS);
         });
@@ -498,7 +537,7 @@ export default function SalaDeLaVideollamada({
         });
         // El nombre sale de la cita: nunca se le pide al prospecto.
         const conNombre = nombre?.trim();
-        llamada.join(conNombre ? { url: conexion.url, userName: conNombre } : { url: conexion.url }).catch((e) => {
+        llamada.join(conNombre ? { url: conexion.url, userName: conNombre, userData: MARCA_DE_HUMANO } : { url: conexion.url, userData: MARCA_DE_HUMANO }).catch((e) => {
             console.error("[videollamada] no se pudo entrar", e);
             aProposito = false;
             reconectar(e);
@@ -523,7 +562,10 @@ export default function SalaDeLaVideollamada({
     }, [pistas.avatarAudio]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const activarSonido = () => {
-        void audioAvatar.current?.play().then(() => setSinSonido(false)).catch(() => setSinSonido(true));
+        const voces = [audioAvatar.current, ...Array.from(document.querySelectorAll<HTMLAudioElement>('[data-zona="voz-de-persona"]'))];
+        void Promise.all(voces.filter(Boolean).map((el) => el!.play()))
+            .then(() => setSinSonido(false))
+            .catch(() => setSinSonido(true));
     };
     const alternarPantalla = () => {
         const llamada = llamadaRef.current;
@@ -532,19 +574,20 @@ export default function SalaDeLaVideollamada({
         else llamada.startScreenShare();
     };
     const reentrar = () => window.location.reload();
-    const enMiniatura = !!destino;
+    const pantallaQueSeVe = destino ?? pantallaFija;
+    const enMiniatura = !!pantallaQueSeVe;
 
     return (
         <main data-zona="sala" className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100">
-            {destino && (
+            {pantallaQueSeVe && (
                 <section
                     data-zona="pantalla-del-avatar"
-                    data-destino={destino}
+                    data-destino={pantallaQueSeVe}
                     className="absolute inset-x-0 top-0 bottom-16 flex flex-col"
                 >
                     <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Verzy te está mostrando: <strong className="text-slate-100">{destino}</strong>
+                        Verzy te está mostrando: <strong className="text-slate-100">{pantallaQueSeVe}</strong>
                     </header>
                     <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -553,7 +596,7 @@ export default function SalaDeLaVideollamada({
                             src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}`}
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
-                            alt={`Pantalla de Verzay Ventas: ${destino}`}
+                            alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
                             className="max-h-full max-w-full object-contain"
                         />
                     </div>
@@ -584,6 +627,9 @@ export default function SalaDeLaVideollamada({
                 )}
             </div>
             <audio ref={audioAvatar} autoPlay />
+            {pistas.humanos.map((h) => (
+                <VozDeOtraPersona key={h.id} id={h.id} pista={h.audio} bloqueado={() => setSinSonido(true)} />
+            ))}
             {estado === "reconectando" && (
                 <p data-zona="reconectando" className="absolute inset-0 z-30 flex items-center justify-center gap-2 bg-slate-950/80 text-sm text-slate-200">
                     <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" aria-hidden />

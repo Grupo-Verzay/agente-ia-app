@@ -27251,6 +27251,22 @@ La sala (`SalaDeLaVideollamada`) se ve así, y no de otra forma:
 Lo prueba `scripts/banco-videollamada-ia.sh`; `MODO=roto` lee la sala de
 `c4e5b5d5` y afirma el recuadro propio, el «Silenciar» y la falta de envío.
 
+### Con varias personas cada una oye a las demás, y el avatar se queda pequeño
+
+1. **Daily (`createCallObject`) no reproduce el audio remoto solo**: además del
+   del avatar, la sala pinta un `<audio>` por cada PERSONA remota
+   (`VozDeOtraPersona`, `data-zona="voz-de-persona"`). Las personas entran con
+   `userData: MARCA_DE_HUMANO` (`esHumano`), y el avatar es el remoto sin esa
+   marca (`elAvatarEntre`): una persona no se confunde con Verzy ni cuenta para
+   colgar cuando el avatar sale.
+2. **El avatar empieza en grande y, desde la PRIMERA pantalla que se comparte
+   bien, queda en miniatura el resto de la reunión** (`pantallaFija`: guarda la
+   última pantalla; «ninguna» u ocultar no la quitan). Una primera pantalla que
+   falla no cuenta.
+
+Lo prueba `scripts/banco-videollamada-ia.sh` (la sala montada con dos personas y
+el avatar).
+
 ### En vivo: guion de ventas, agendar, notas y lo que pasa mientras se habla
 
 1. **El contexto lleva el guion** (`elBloqueDelGuion`, `lib/pantalla-del-avatar.ts`)
