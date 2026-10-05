@@ -6,8 +6,11 @@ import { db } from "@/lib/db";
 import { laCita, elTelefono } from "@/lib/videollamada-en-vivo.server";
 import { laCuentaDeVerzy } from "@/lib/videollamada-crm.server";
 import { DURACION_DE_LA_SESION_S, lasCookiesDeVerzy } from "@/lib/sesion-de-verzy.server";
+import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 import {
     laRutaDelDestino, comoDestino, conLaNotaAgregada, NOMBRES_DE_LOS_DESTINOS,
+    FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
+    elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca,
     type DestinoDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
@@ -16,29 +19,36 @@ import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
  * La PANTALLA de Verzy: un Chromium sin cabeza, dentro del servidor, con una
  * sesión REAL de «Verzay Ventas» abierta en proceso con su cookie de Auth.js. Verzy le da
  * órdenes (ir a Chats, abrir la ficha del prospecto, escribir una nota) y la
- * sala del prospecto recibe FOTOS de lo que se ve. Nada se inventa: lo que sale
- * en la sala es la plataforma de verdad, con sus datos de verdad.
+ * sala del prospecto recibe un FLUJO DE VIDEO de lo que se ve, en vivo y en
+ * movimiento: el screencast de Chromium (CDP `Page.startScreencast`) servido
+ * como MJPEG. Verzy navega como una persona: el cursor se desliza, el buscador
+ * se escribe letra a letra, la nota también. Nada se inventa.
  *
- * Por qué fotos y no un marco: el prospecto no puede tener una sesión de
- * Verzay Ventas en su navegador, y no la va a tener nunca. La sesión vive aquí.
+ * Por qué no un marco: el prospecto no puede tener una sesión de Verzay Ventas
+ * en su navegador, y no la va a tener nunca. La sesión vive aquí.
  *
  * Dos réplicas: la pantalla de una cita la mueve UNA (la que tiene el turno en
- * `verzy_pantallas`). Las órdenes y las fotos pasan por la base, así que la
- * sala puede pedirlas a cualquiera de las dos.
+ * `verzy_pantallas`). Las órdenes pasan por la base. El flujo sale directo de
+ * la memoria de esa réplica; si la sala cae en la otra, el dueño le pasa los
+ * fotogramas por la base (`foto`, solo mientras alguien lo pide en `pideRelevoEn`).
  */
 
 const RUTA_DEL_NAVEGADOR = process.env.CHROMIUM_PATH || undefined;
 const BASE_LOCAL = `http://127.0.0.1:${process.env.PORT || 3000}`;
 const ANCHO = 1280;
 const ALTO = 800;
-const VUELTA_MS = 700;
+const VUELTA_MS = 300;
+const LATIDO_MS = 2_000;
+const RELEVO_MS = 200;
+/** Un relevo pedido hace más de esto ya no lo está mirando nadie. */
+const RELEVO_VIVO_MS = 3_000;
 /** Sin latido en este rato, el turno de una pantalla queda libre para otra réplica. */
 const TURNO_LIBRE_MS = 8_000;
 /** Sin que la sala pregunte en este rato, la pantalla se cierra. */
 const SIN_MIRAR_MS = 60_000;
 /** La sesión lista se conserva este rato después de usarla. */
 const SESION_TIBIA_MS = 10 * 60_000;
-const ESPERA_DE_LA_ORDEN_MS = 15_000;
+const ESPERA_DE_LA_ORDEN_MS = 30_000;
 
 const REPLICA = randomBytes(6).toString("hex");
 
@@ -82,6 +92,7 @@ function asegurarLasTablas(): Promise<void> {
             )
         `);
         await ddl(() => db.$executeRaw`CREATE INDEX IF NOT EXISTS "verzy_ordenes_cita_idx" ON "verzy_ordenes" ("citaId", "id")`);
+        await asegurarColumna("verzy_pantallas", "pideRelevoEn", 'ALTER TABLE "verzy_pantallas" ADD COLUMN IF NOT EXISTS "pideRelevoEn" TIMESTAMP(3)');
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -130,6 +141,7 @@ async function laSesion(): Promise<Contexto> {
         await contexto.addInitScript(() => {
             try { localStorage.setItem("chat-onboarding-shown", "true"); } catch { /* sin almacenamiento */ }
         });
+        await contexto.addInitScript(CURSOR_EN_LA_PAGINA);
         await entrar(contexto);
         sesion = { contexto, usadaEn: Date.now() };
         return contexto;
@@ -204,9 +216,64 @@ async function elProspecto(citaId: string): Promise<ElProspecto | null> {
     return { cuentaId: cuenta.id, jid: ses.remoteJid, linea: linea?.instanceName ?? ses.instanceId ?? null, identidades, nombre };
 }
 
+// ---------------------------------------------------------------- el cursor que se VE
+
+/**
+ * Chromium sin cabeza no pinta el puntero en el screencast: se dibuja uno en
+ * la propia página. Sigue al ratón de verdad (los `mouse.move` de Playwright
+ * disparan `mousemove`), hace una onda al pulsar y recuerda su sitio entre
+ * páginas. No recibe clics (`pointer-events: none`).
+ */
+const CURSOR_EN_LA_PAGINA = () => {
+    const pintar = () => {
+        if (document.getElementById("__cursor_de_verzy")) return;
+        const c = document.createElement("div");
+        c.id = "__cursor_de_verzy";
+        c.setAttribute("aria-hidden", "true");
+        c.style.cssText = "position:fixed;left:0;top:0;width:24px;height:24px;z-index:2147483647;pointer-events:none;will-change:transform;";
+        c.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M3 2 L3 19 L7.5 14.8 L10.6 21.5 L13.4 20.3 L10.4 13.7 L16.5 13.7 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+        let x = 640, y = 400;
+        try {
+            const g = JSON.parse(sessionStorage.getItem("__cursor_de_verzy") || "null");
+            if (g && typeof g.x === "number" && typeof g.y === "number") { x = g.x; y = g.y; }
+        } catch { /* sin almacenamiento */ }
+        const colocar = () => { c.style.transform = `translate(${x - 3}px, ${y - 2}px)`; };
+        colocar();
+        document.documentElement.appendChild(c);
+        addEventListener("mousemove", (e) => {
+            x = e.clientX; y = e.clientY; colocar();
+            try { sessionStorage.setItem("__cursor_de_verzy", JSON.stringify({ x, y })); } catch { /* sin almacenamiento */ }
+        }, true);
+        addEventListener("mousedown", (e) => {
+            const o = document.createElement("div");
+            o.style.cssText = `position:fixed;left:${e.clientX - 18}px;top:${e.clientY - 18}px;width:36px;height:36px;border-radius:50%;border:3px solid rgba(37,99,235,.85);z-index:2147483646;pointer-events:none;transition:transform .45s ease-out,opacity .45s ease-out;transform:scale(.3);opacity:1;`;
+            document.documentElement.appendChild(o);
+            requestAnimationFrame(() => { o.style.transform = "scale(1.4)"; o.style.opacity = "0"; });
+            setTimeout(() => o.remove(), 600);
+        }, true);
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", pintar);
+    else pintar();
+};
+
 // ---------------------------------------------------------------- una pantalla viva
 
-type Viva = { citaId: string; pagina: Pagina; destino: DestinoDeVerzy | null; prospecto: ElProspecto | null };
+type Suscriptor = (jpeg: Buffer) => void;
+
+type Viva = {
+    citaId: string;
+    pagina: Pagina;
+    destino: DestinoDeVerzy | null;
+    prospecto: ElProspecto | null;
+    /** El último fotograma del screencast y cuándo llegó. */
+    ultimo: Buffer | null;
+    ultimoEn: number;
+    suscriptores: Set<Suscriptor>;
+    raton: { x: number; y: number };
+    /** El chat que Verzy dejó abierto. La URL no lo dice: abrirlo pulsando la fila no pone `?jid=`. */
+    chatAbierto?: string | null;
+    parada: boolean;
+};
 const pantallasVivas = new Map<string, Viva>();
 
 async function tomarElTurno(citaId: string): Promise<boolean> {
@@ -233,11 +300,22 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         await db.$executeRaw`UPDATE "verzy_pantallas" SET "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
         if (pantallasVivas.has(citaId)) return true;
         if (!(await tomarElTurno(citaId))) return false;
+        if (pantallasVivas.has(citaId)) return true;
         const contexto = await laSesion();
         const pagina = await contexto.newPage();
-        const viva: Viva = { citaId, pagina, destino: null, prospecto: await elProspecto(citaId) };
+        const viva: Viva = {
+            citaId, pagina, destino: null, prospecto: await elProspecto(citaId),
+            ultimo: null, ultimoEn: 0, suscriptores: new Set(), raton: { x: ANCHO / 2, y: ALTO / 2 }, parada: false,
+        };
         pantallasVivas.set(citaId, viva);
+        await empezarElScreencast(viva);
         void elCiclo(viva);
+        void elRelevo(viva);
+        // Si otra réplica la tenía antes, se vuelve a donde estaba.
+        const antes = await db.$queryRaw<{ destino: string | null }[]>`SELECT "destino" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}`;
+        const destino = comoDestino(antes[0]?.destino);
+        if (destino) void irA(viva, destino).catch(() => {});
+        else void pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
         return true;
     } catch (error) {
         console.error("[verzy] no se pudo levantar la pantalla", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
@@ -246,23 +324,49 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
     }
 }
 
+const PANTALLA_DE_ESPERA = `<!doctype html><html><body style="margin:0;height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:system-ui,sans-serif;color:#334155"><div style="font-size:22px">Verzay Ventas</div></body></html>`;
+
+/** El screencast de Chromium: cada fotograma que pinta la página, en vivo. */
+async function empezarElScreencast(viva: Viva): Promise<void> {
+    const cdp = await viva.pagina.context().newCDPSession(viva.pagina);
+    cdp.on("Page.screencastFrame", (f: { data: string; sessionId: number }) => {
+        cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {});
+        const jpeg = Buffer.from(f.data, "base64");
+        viva.ultimo = jpeg;
+        viva.ultimoEn = Date.now();
+        for (const s of viva.suscriptores) {
+            try { s(jpeg); } catch (error) {
+                console.warn("[verzy] un suscriptor del flujo falló", { cita: viva.citaId, motivo: error instanceof Error ? error.message : String(error) });
+            }
+        }
+    });
+    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: ANCHO, maxHeight: ALTO, everyNthFrame: 1 });
+}
+
 async function anotarElError(citaId: string, error: unknown): Promise<void> {
     const motivo = (error instanceof Error ? error.message : String(error)).slice(0, 500);
     await db.$executeRaw`UPDATE "verzy_pantallas" SET "error" = ${motivo} WHERE "citaId" = ${citaId}`;
 }
 
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Latido + órdenes. El video NO pasa por aquí: sale del screencast. */
 async function elCiclo(viva: Viva): Promise<void> {
     const { citaId } = viva;
+    let latidoEn = 0;
     try {
         for (;;) {
-            const filas = await db.$queryRaw<{ replica: string | null; pedidaEn: Date }[]>`
-                UPDATE "verzy_pantallas" SET "vistoEn" = NOW()
-                WHERE "citaId" = ${citaId} AND "replica" = ${REPLICA}
-                RETURNING "replica", "pedidaEn"
-            `;
-            if (!filas.length) break; // otra réplica tomó el turno
-            if (Date.now() - new Date(filas[0].pedidaEn).getTime() > SIN_MIRAR_MS) break;
-            if (sesion) sesion.usadaEn = Date.now();
+            if (Date.now() - latidoEn >= LATIDO_MS) {
+                latidoEn = Date.now();
+                const filas = await db.$queryRaw<{ pedidaEn: Date }[]>`
+                    UPDATE "verzy_pantallas" SET "vistoEn" = NOW(), "url" = ${viva.pagina.url()}
+                    WHERE "citaId" = ${citaId} AND "replica" = ${REPLICA}
+                    RETURNING "pedidaEn"
+                `;
+                if (!filas.length) break; // otra réplica tomó el turno
+                if (Date.now() - new Date(filas[0].pedidaEn).getTime() > SIN_MIRAR_MS) break;
+                if (sesion) sesion.usadaEn = Date.now();
+            }
 
             const ordenes = await db.$queryRaw<{ id: bigint; tipo: string; datos: unknown }[]>`
                 SELECT "id", "tipo", "datos" FROM "verzy_ordenes"
@@ -275,34 +379,87 @@ async function elCiclo(viva: Viva): Promise<void> {
                 await db.$executeRaw`
                     UPDATE "verzy_ordenes" SET "hechoEn" = NOW(), "resultado" = ${JSON.stringify(resultado)}::jsonb WHERE "id" = ${o.id}
                 `;
+                latidoEn = 0;
             }
-
-            if (viva.destino) {
-                const foto = await viva.pagina.screenshot({ type: "jpeg", quality: 60 }).catch(() => null);
-                if (foto) {
-                    await db.$executeRaw`
-                        UPDATE "verzy_pantallas" SET "foto" = ${foto}, "fotoEn" = NOW(), "url" = ${viva.pagina.url()}, "error" = NULL
-                        WHERE "citaId" = ${citaId} AND "replica" = ${REPLICA}
-                    `;
-                }
-            }
-            await new Promise((r) => setTimeout(r, VUELTA_MS));
+            await dormir(VUELTA_MS);
         }
     } catch (error) {
         console.error("[verzy] la pantalla se detuvo", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
         await anotarElError(citaId, error).catch(() => {});
     } finally {
+        viva.parada = true;
         pantallasVivas.delete(citaId);
+        viva.suscriptores.clear();
         await viva.pagina.close().catch(() => {});
         await db.$executeRaw`UPDATE "verzy_pantallas" SET "replica" = NULL WHERE "citaId" = ${citaId} AND "replica" = ${REPLICA}`.catch(() => {});
     }
 }
 
+/**
+ * Si una sala está conectada a la OTRA réplica, esa pide relevo
+ * (`pideRelevoEn`) y el dueño deja ahí el último fotograma cada poco.
+ * Sin nadie pidiéndolo no se escribe nada en la base.
+ */
+async function elRelevo(viva: Viva): Promise<void> {
+    let escritoEn = 0;
+    while (!viva.parada) {
+        await dormir(RELEVO_MS);
+        if (viva.parada || !viva.ultimo || viva.ultimoEn === escritoEn) continue;
+        try {
+            const n = await db.$executeRaw`
+                UPDATE "verzy_pantallas" SET "foto" = ${viva.ultimo}, "fotoEn" = NOW(), "error" = NULL
+                WHERE "citaId" = ${viva.citaId} AND "replica" = ${REPLICA}
+                  AND "pideRelevoEn" > NOW() - make_interval(secs => ${RELEVO_VIVO_MS / 1000}::double precision)
+            `;
+            if (n > 0) escritoEn = viva.ultimoEn;
+        } catch (error) {
+            console.warn("[verzy] no se pudo pasar el fotograma a la otra réplica", { cita: viva.citaId, motivo: error instanceof Error ? error.message : String(error) });
+            await dormir(2_000);
+        }
+    }
+}
+
+// ---------------------------------------------------------------- moverse como una persona
+
+async function moverA(viva: Viva, x: number, y: number, ms?: number): Promise<void> {
+    for (const p of elRecorridoDelRaton(viva.raton, { x, y }, ms)) {
+        await viva.pagina.mouse.move(p.x, p.y);
+        await dormir(16);
+    }
+    viva.raton = { x, y };
+}
+
+type Localizador = ReturnType<Pagina["locator"]>;
+
+/** Lleva el cursor al centro de lo que se pulsa y pulsa, con su pausa. */
+async function clicEn(viva: Viva, l: Localizador): Promise<boolean> {
+    await l.scrollIntoViewIfNeeded({ timeout: 3_000 }).catch(() => {});
+    const caja = await l.boundingBox().catch(() => null);
+    if (!caja) return false;
+    await moverA(viva, caja.x + caja.width / 2, caja.y + Math.min(caja.height / 2, 18));
+    await dormir(120);
+    await viva.pagina.mouse.down();
+    await dormir(80);
+    await viva.pagina.mouse.up();
+    return true;
+}
+
+/** Un gesto hacia el menú de la izquierda, como quien va a cambiar de sección. */
+async function irAlMenu(viva: Viva): Promise<void> {
+    await moverA(viva, 26, 120 + Math.round(Math.random() * 160));
+    await dormir(180);
+}
+
+async function recorrerConLaRueda(viva: Viva): Promise<void> {
+    await moverA(viva, ANCHO * 0.6, ALTO * 0.55);
+    for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, 90); await dormir(70); }
+    await dormir(450);
+    for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, -90); await dormir(70); }
+}
+
 // ---------------------------------------------------------------- las órdenes
 
-async function irA(viva: Viva, destino: DestinoDeVerzy): Promise<ResultadoDeLaOrden> {
-    const p = viva.prospecto;
-    const ruta = laRutaDelDestino(destino, p?.jid ? { jid: p.jid, linea: p.linea } : null);
+async function cargar(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
     let res = await viva.pagina.goto(`${BASE_LOCAL}${ruta}`, { waitUntil: "domcontentloaded", timeout: 30_000 });
     if (new URL(viva.pagina.url()).pathname.startsWith("/login")) {
         // La sesión caducó o cambió la versión del token: se vuelve a entrar.
@@ -313,47 +470,139 @@ async function irA(viva: Viva, destino: DestinoDeVerzy): Promise<ResultadoDeLaOr
         }
     }
     if (res && res.status() >= 500) return { ok: false, motivo: `La plataforma contestó ${res.status()}` };
-    await viva.pagina.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+    // Corto: Chats y otras pantallas preguntan siempre y nunca quedan «sin red»,
+    // y mientras se espera aquí la pantalla está quieta.
+    await viva.pagina.waitForLoadState("networkidle", { timeout: 2_500 }).catch(() => {});
     await viva.pagina.keyboard.press("Escape").catch(() => {});
-    viva.destino = destino;
-
-    if (destino === "ficha") {
-        if (!p?.jid) return { ok: false, motivo: "El prospecto todavía no tiene conversación en Verzay Ventas" };
-        const abierta = await abrirLaFicha(viva.pagina);
-        if (!abierta) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
-    }
-    if ((destino === "chats" || destino === "ficha") && !p?.jid) {
-        return { ok: true, aviso: "El prospecto todavía no tiene conversación en Verzay Ventas: se ve la bandeja" };
-    }
     return { ok: true };
 }
 
-async function abrirLaFicha(pagina: Pagina): Promise<boolean> {
+async function anotarElDestino(viva: Viva, destino: DestinoDeVerzy): Promise<void> {
+    viva.destino = destino;
+    await db.$executeRaw`UPDATE "verzy_pantallas" SET "destino" = ${destino} WHERE "citaId" = ${viva.citaId} AND "replica" = ${REPLICA}`.catch(() => {});
+}
+
+async function irA(viva: Viva, destino: DestinoDeVerzy): Promise<ResultadoDeLaOrden> {
+    const p = viva.prospecto;
+    if (destino === "chats" || destino === "ficha") {
+        const r = await abrirElChat(viva);
+        if (!r.ok) return r;
+        await anotarElDestino(viva, destino);
+        if (!p?.jid) return { ok: true, aviso: "El prospecto todavía no tiene conversación en Verzay Ventas: se ve la bandeja" };
+        if (destino === "ficha" && !(await abrirLaFicha(viva))) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
+        return { ok: true };
+    }
+    await irAlMenu(viva);
+    const r = await cargar(viva, laRutaDelDestino(destino, null));
+    if (!r.ok) return r;
+    await anotarElDestino(viva, destino);
+    await recorrerConLaRueda(viva);
+    return { ok: true };
+}
+
+/**
+ * Chats, como una persona: entra a la bandeja, escribe el nombre en el
+ * buscador letra a letra y abre la conversación. Si no aparece, se abre por
+ * enlace (nunca se queda a medias).
+ */
+async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
+    const p = viva.prospecto;
+    const pagina = viva.pagina;
+    if (!new URL(pagina.url()).pathname.startsWith("/chats")) {
+        await irAlMenu(viva);
+        const r = await cargar(viva, "/chats");
+        if (!r.ok) return r;
+    }
+    if (!p?.jid) return { ok: true };
+
+    // Ya está abierta: no se vuelve a buscar (sería un rato de pantalla quieta).
+    // Se sabe por lo que Verzy hizo o por la URL: abrir pulsando la fila NO pone
+    // `?jid=`, y esperar a que la URL lo diga eran 8 s de pantalla congelada.
+    const fichaDelChat = pagina.locator('button[title="Ver ficha del contacto"]:visible').first();
+    const abierta = viva.chatAbierto === p.jid || new URL(pagina.url()).searchParams.get("jid") === p.jid;
+    if (abierta && await fichaDelChat.isVisible().catch(() => false)) {
+        return { ok: true };
+    }
+
+    const fila = pagina.locator(`[data-chat-id="${p.jid}"]${p.linea ? `[data-chat-instance="${p.linea}"]` : ""}`).first();
+    const buscador = pagina.locator("[data-buscador-de-la-columna] input").first();
+    const tel = p.jid.split("@")[0]?.replace(/\D/g, "") || null;
+    const busqueda = loQueSeBusca(p.nombre, tel);
+    if (busqueda && await buscador.waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false)) {
+        await clicEn(viva, buscador);
+        await pagina.keyboard.press("Control+A").catch(() => {});
+        await pagina.keyboard.press("Backspace").catch(() => {});
+        await buscador.pressSequentially(busqueda, { delay: PAUSA_ENTRE_LETRAS_MS });
+        await dormir(400);
+    }
+    if (await fila.waitFor({ state: "visible", timeout: 6_000 }).then(() => true, () => false)) {
+        const botones = fila.locator("button");
+        const abrir = (await botones.count()) > 1 ? botones.nth(1) : botones.first();
+        await clicEn(viva, abrir);
+        // Chats no se queda nunca «sin red» (sus relojes preguntan siempre):
+        // se espera a lo que se ve, la cabecera de la conversación, no a la red
+        // ni a la URL (abrir pulsando la fila no la cambia).
+        const vista = await fichaDelChat.waitFor({ state: "visible", timeout: 8_000 }).then(() => true, () => false);
+        viva.chatAbierto = vista ? p.jid : null;
+        return { ok: true };
+    }
+    console.info("[verzy] el chat no salió en la bandeja; se abre por enlace", { cita: viva.citaId, jid: p.jid });
+    const r = await cargar(viva, laRutaDelDestino("chats", { jid: p.jid, linea: p.linea }));
+    viva.chatAbierto = r.ok ? p.jid : null;
+    return r;
+}
+
+async function abrirLaFicha(viva: Viva): Promise<boolean> {
+    const pagina = viva.pagina;
     if (await pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false)) return true;
     const boton = pagina.locator('button[title="Ver ficha del contacto"]:visible').first();
     await boton.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
     if (!(await boton.isVisible().catch(() => false))) return false;
-    await boton.click();
-    return pagina.locator("textarea[data-notas]").first().waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
+    await clicEn(viva, boton);
+    return esperarMoviendose(viva, pagina.locator("textarea[data-notas]").first(), 15_000);
+}
+
+/**
+ * Espera a que algo aparezca SIN dejar la pantalla quieta: la ficha tarda en
+ * traer sus datos, y mientras tanto el cursor recorre el panel como quien lo
+ * lee. Una pantalla quieta varios segundos se lee como un video congelado.
+ */
+async function esperarMoviendose(viva: Viva, l: Localizador, plazoMs: number): Promise<boolean> {
+    let listo = false;
+    const espera = l.waitFor({ state: "visible", timeout: plazoMs }).then(() => { listo = true; return true; }, () => false);
+    const fin = Date.now() + plazoMs;
+    let i = 0;
+    while (!listo && Date.now() < fin) {
+        const x = ANCHO * (0.78 + 0.08 * Math.sin(i * 1.3));
+        const y = ALTO * (0.35 + 0.25 * Math.abs(Math.sin(i * 0.7)));
+        await moverA(viva, x, y, 450);
+        i++;
+    }
+    return espera;
 }
 
 async function tomarLaNota(viva: Viva, texto: string): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
     if (!p?.jid) return { ok: false, motivo: "El prospecto todavía no tiene conversación en Verzay Ventas" };
-    if (viva.destino !== "ficha") {
+    if (viva.destino !== "ficha" || !(await viva.pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false))) {
         const fuimos = await irA(viva, "ficha");
         if (!fuimos.ok) return fuimos;
     }
     const caja = viva.pagina.locator("textarea[data-notas]").first();
-    await caja.scrollIntoViewIfNeeded().catch(() => {});
     const antes = await caja.inputValue();
     const despues = conLaNotaAgregada(antes, texto);
-    await caja.click();
-    await caja.fill(despues);
-    await caja.blur(); // la ficha guarda al salir del campo
+    await clicEn(viva, caja);
+    await viva.pagina.keyboard.press("Control+End").catch(() => {});
+    const falta = loQueFaltaEscribir(antes, despues);
+    if (falta === null) await caja.fill(despues);
+    else if (falta) await caja.pressSequentially(falta, { delay: PAUSA_ENTRE_LETRAS_MS });
+    await dormir(300);
+    // La ficha guarda al salir del campo: el cursor se va y el campo se suelta.
+    await moverA(viva, ANCHO * 0.45, ALTO * 0.3);
+    await caja.blur();
     // Se comprueba en la BASE, no en la pantalla: guardada de verdad o no.
     for (let i = 0; i < 20; i++) {
-        await new Promise((r) => setTimeout(r, 500));
+        await dormir(500);
         if (await laNotaEstaGuardada(p, texto)) return { ok: true };
     }
     return { ok: false, motivo: "La nota se escribió en la ficha pero no se confirmó guardada" };
@@ -398,7 +647,7 @@ export async function pedirALaPantalla(citaId: string, orden: OrdenDeLaPantalla)
         const id = filas[0].id;
         const hasta = Date.now() + ESPERA_DE_LA_ORDEN_MS;
         while (Date.now() < hasta) {
-            await new Promise((r) => setTimeout(r, 400));
+            await dormir(400);
             const r = await db.$queryRaw<{ resultado: ResultadoDeLaOrden | null; hechoEn: Date | null }[]>`
                 SELECT "resultado", "hechoEn" FROM "verzy_ordenes" WHERE "id" = ${id}
             `;
@@ -413,16 +662,93 @@ export async function pedirALaPantalla(citaId: string, orden: OrdenDeLaPantalla)
     }
 }
 
-/** La última foto de la pantalla, o null si todavía no hay. */
-export async function laFotoDeLaPantalla(citaId: string): Promise<{ foto: Buffer; en: Date; destino: string | null } | null> {
-    await asegurarLasTablas();
-    void asegurarLaPantalla(citaId);
-    const filas = await db.$queryRaw<{ foto: Buffer | null; fotoEn: Date | null; url: string | null }[]>`
-        SELECT "foto", "fotoEn", "url" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}
+/** Marca que alguien mira desde ESTA réplica y lee el último fotograma relevado. */
+async function elFotogramaRelevado(citaId: string): Promise<{ foto: Buffer; en: Date } | null> {
+    await db.$executeRaw`UPDATE "verzy_pantallas" SET "pideRelevoEn" = NOW(), "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
+    const filas = await db.$queryRaw<{ foto: Buffer | null; fotoEn: Date | null }[]>`
+        SELECT "foto", "fotoEn" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}
     `;
     const f = filas[0];
-    if (!f?.foto || !f.fotoEn) return null;
-    return { foto: Buffer.from(f.foto), en: f.fotoEn, destino: f.url };
+    return f?.foto && f.fotoEn ? { foto: Buffer.from(f.foto), en: f.fotoEn } : null;
+}
+
+/** El último fotograma, o null si todavía no hay. */
+export async function laFotoDeLaPantalla(citaId: string): Promise<{ foto: Buffer; en: Date; destino: string | null } | null> {
+    await asegurarLasTablas();
+    await asegurarLaPantalla(citaId);
+    const viva = pantallasVivas.get(citaId);
+    if (viva?.ultimo) return { foto: viva.ultimo, en: new Date(viva.ultimoEn), destino: viva.destino };
+    const f = await elFotogramaRelevado(citaId);
+    return f ? { ...f, destino: null } : null;
+}
+
+/**
+ * El FLUJO de la pantalla: llama a `enviar` con cada fotograma nuevo (como
+ * mucho `FPS_DEL_FLUJO` por segundo, y el último otra vez cada
+ * `REPETIR_QUIETA_MS` con la pantalla quieta) hasta que `señal` se aborte.
+ * Si la pantalla vive en esta réplica, directo de la memoria; si vive en la
+ * otra, por relevo. Nunca lanza.
+ */
+export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => void, senal: AbortSignal): Promise<void> {
+    const minimo = Math.floor(1000 / FPS_DEL_FLUJO);
+    let enviadoEn = 0;
+    let ultimoEnviado: Buffer | null = null;
+    let pendiente: Buffer | null = null;
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const mandar = (jpeg: Buffer) => {
+        if (senal.aborted) return;
+        enviadoEn = Date.now();
+        ultimoEnviado = jpeg;
+        try { enviar(jpeg); } catch (error) {
+            console.warn("[verzy] no se pudo mandar un fotograma", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
+        }
+    };
+    const recibir: Suscriptor = (jpeg) => {
+        const falta = minimo - (Date.now() - enviadoEn);
+        if (falta <= 0) { mandar(jpeg); return; }
+        pendiente = jpeg;
+        espera ??= setTimeout(() => { espera = null; if (pendiente) { const j = pendiente; pendiente = null; mandar(j); } }, falta);
+    };
+
+    try {
+        await asegurarLasTablas();
+        let viva: Viva | undefined;
+        let preguntadoEn = 0;
+        let fotoEn = 0;
+        while (!senal.aborted) {
+            // Cada tanto: que la pantalla siga viva y que se sepa que alguien mira.
+            if (Date.now() - preguntadoEn > 5_000) {
+                preguntadoEn = Date.now();
+                if (!viva || viva.parada) {
+                    await asegurarLaPantalla(citaId);
+                    const v = pantallasVivas.get(citaId);
+                    if (v && v !== viva) {
+                        viva?.suscriptores.delete(recibir);
+                        viva = v;
+                        viva.suscriptores.add(recibir);
+                        if (viva.ultimo) mandar(viva.ultimo);
+                    }
+                } else {
+                    await db.$executeRaw`UPDATE "verzy_pantallas" SET "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
+                }
+            }
+            if (!viva || viva.parada) {
+                // La pantalla vive en la otra réplica: relevo por la base.
+                const f = await elFotogramaRelevado(citaId);
+                if (f && f.en.getTime() !== fotoEn) { fotoEn = f.en.getTime(); mandar(f.foto); }
+                await dormir(RELEVO_MS);
+                continue;
+            }
+            if (ultimoEnviado && Date.now() - enviadoEn >= REPETIR_QUIETA_MS) mandar(ultimoEnviado);
+            await dormir(250);
+        }
+        viva?.suscriptores.delete(recibir);
+    } catch (error) {
+        console.error("[verzy] el flujo de la pantalla se cortó", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
+    } finally {
+        if (espera) clearTimeout(espera);
+        for (const v of pantallasVivas.values()) v.suscriptores.delete(recibir);
+    }
 }
 
 export { NOMBRES_DE_LOS_DESTINOS };
