@@ -27320,6 +27320,31 @@ despedida de Verzy al terminar de hablar; una del cliente (se le avisa a Verzy y
 a lo sumo 12 s); o Verzy sale y no vuelve en 8 s. Un saludo no cuelga, y lo
 colgado no se reconecta. Lo prueba `scripts/banco-videollamada-ia.sh`.
 
+### La pantalla de Verzy es VIDEO en vivo, no fotos que se renuevan
+
+> **Manda sobre la sección de la App REAL** en cómo llega a la sala. Las fotos
+> sueltas que se pedían cada tanto se fueron: la sala abre UN flujo
+> (`/api/videollamada/pantalla?stream=1`, `multipart/x-mixed-replace`, MJPEG)
+> y el `<img>` lo pinta tal cual llega, así se ve abrir el chat, la ficha y la
+> nota escribiéndose letra a letra, como un video tutorial.
+
+1. **Los fotogramas los manda Chromium** con CDP `Page.startScreencast`
+   (`abrirElFlujo`, `lib/pantalla-de-verzy.server.ts`), topados a
+   `FPS_DEL_FLUJO`; la ruta solo los envuelve (`laCabeceraDeLaParte`). Con la
+   pantalla quieta Chromium no manda nada: no cuesta.
+2. **Si el flujo se corta, la sala lo reabre sola** (`onError` →
+   `REABRIR_EL_VIDEO_MS`); cortarlo al irse la sala (`req.signal`) para el
+   screencast.
+3. **Se prueba con el flujo de VERDAD** (`scripts/banco-video-de-verzy.sh`):
+   la App servida, la cuenta de Verzay Ventas con Chromium del servidor, y se
+   cuentan los fotogramas DISTINTOS mientras Verzy va a Chats y escribe una
+   nota (≥3 por segundo, ningún congelón de más de 1,5 s), y la nota en la
+   base. `MODO=roto` afirma que en `8483adb` no había flujo.
+4. **Mientras espera, el cursor se mueve** (`esperarMoviendose`), y **nunca se
+   espera a la URL**: abrir el chat pulsando su fila NO pone `?jid=`, así que
+   esperar `waitForURL` eran 8 s de pantalla congelada. Qué chat está abierto
+   lo recuerda `viva.chatAbierto`, y se espera a lo que se VE.
+
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 
 El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga

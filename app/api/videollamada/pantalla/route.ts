@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { laOrdenPedida } from "@/lib/pantalla-de-verzy";
-import { asegurarLaPantalla, laFotoDeLaPantalla, pedirALaPantalla, prepararLaSesionDeVerzy } from "@/lib/pantalla-de-verzy.server";
+import { laOrdenPedida, laCabeceraDeLaParte, TIPO_DEL_FLUJO } from "@/lib/pantalla-de-verzy";
+import { abrirElFlujo, asegurarLaPantalla, laFotoDeLaPantalla, pedirALaPantalla, prepararLaSesionDeVerzy } from "@/lib/pantalla-de-verzy.server";
 import { esLaFirmaDeLaCita } from "@/lib/videollamada-ia.server";
 
 export const dynamic = "force-dynamic";
@@ -9,11 +9,12 @@ export const dynamic = "force-dynamic";
 /**
  * La pantalla REAL de Verzay Ventas que Verzy enseña en la videollamada.
  * PÚBLICA y su puerta es la firma de la cita, como las demás rutas de la sala.
- * Al navegador solo llegan FOTOS de la pantalla y el resultado de cada orden:
- * la sesión de Verzay Ventas y su token se quedan en el servidor.
+ * Al navegador llega el VIDEO de la pantalla (MJPEG, en vivo y en movimiento)
+ * y el resultado de cada orden: la sesión de Verzay Ventas se queda aquí.
  *
- * GET  → la última foto (image/jpeg), 204 si todavía no hay. `?preparar=1`
- *        deja la sesión y la pantalla listas antes de que haga falta.
+ * GET  `?stream=1` → el flujo en vivo (multipart/x-mixed-replace), mientras
+ *        la sala lo mire. Sin él, la última foto (204 si no hay).
+ *        `?preparar=1` deja la sesión y la pantalla listas.
  * POST → una orden: { tipo: "ir", destino } o { tipo: "nota", texto }.
  */
 function laCitaFirmada(req: Request): string | null {
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
             if (lista) await asegurarLaPantalla(citaId);
             return NextResponse.json({ ok: lista });
         }
+        if (new URL(req.url).searchParams.get("stream") === "1") return elFlujo(req, citaId);
         const f = await laFotoDeLaPantalla(citaId);
         if (!f) return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
         return new NextResponse(new Uint8Array(f.foto), {
@@ -45,6 +47,33 @@ export async function GET(req: Request) {
         console.error("[videollamada] falló la pantalla", { cita: citaId, motivo });
         return NextResponse.json({ ok: false, motivo }, { status: 500 });
     }
+}
+
+function elFlujo(req: Request, citaId: string): Response {
+    const corte = new AbortController();
+    req.signal.addEventListener("abort", () => corte.abort(), { once: true });
+    const cod = new TextEncoder();
+    const fin = cod.encode("\r\n");
+    const cuerpo = new ReadableStream<Uint8Array>({
+        start(control) {
+            abrirElFlujo(citaId, (jpeg) => {
+                control.enqueue(cod.encode(laCabeceraDeLaParte(jpeg.length)));
+                control.enqueue(new Uint8Array(jpeg));
+                control.enqueue(fin);
+            }, corte.signal)
+                .catch((error) => console.error("[videollamada] se cortó el flujo de la pantalla", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) }))
+                .finally(() => { try { control.close(); } catch { /* ya cerrado por quien miraba */ } });
+        },
+        cancel() { corte.abort(); },
+    });
+    return new Response(cuerpo, {
+        headers: {
+            "Content-Type": TIPO_DEL_FLUJO,
+            "Cache-Control": "no-store, no-transform",
+            "X-Accel-Buffering": "no",
+            Connection: "keep-alive",
+        },
+    });
 }
 
 export async function POST(req: Request) {

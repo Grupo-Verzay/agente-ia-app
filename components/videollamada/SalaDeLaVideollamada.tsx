@@ -21,8 +21,8 @@ import {
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
 
-/** Cada cuánto se pide la foto nueva de la pantalla mientras se enseña. */
-export const FOTO_CADA_MS = 1_000;
+/** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
+export const REABRIR_EL_VIDEO_MS = 1_500;
 /** Si Verzy no ha dicho nada en este rato después de entrar, saluda la sala por él. */
 export const ESPERA_DEL_SALUDO_MS = 4_000;
 
@@ -109,7 +109,7 @@ export default function SalaDeLaVideollamada({
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
     // servidor. Aquí solo llegan sus fotos.
     const [destino, setDestino] = useState<DestinoDeVerzy | null>(null);
-    const [foto, setFoto] = useState(0);
+    const [video, setVideo] = useState(0);
     const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
     const verzyHablo = useRef(false);
     const [error, setError] = useState<string | null>(null);
@@ -197,12 +197,14 @@ export default function SalaDeLaVideollamada({
             .catch((e) => console.warn("[videollamada] no se pudo preparar la pantalla", e));
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Mientras se enseña algo, la foto se renueva sola.
-    useEffect(() => {
-        if (!destino) return;
-        const reloj = window.setInterval(() => setFoto((n) => n + 1), FOTO_CADA_MS);
-        return () => window.clearInterval(reloj);
-    }, [destino]);
+    // La pantalla es un VIDEO en vivo (MJPEG): el navegador lo pinta solo,
+    // fotograma a fotograma. Si se corta, se reabre con una espera creciente.
+    const intentosDelVideo = useRef(0);
+    const reabrirElVideo = () => {
+        const n = ++intentosDelVideo.current;
+        console.warn("[videollamada] se cortó el video de la pantalla; se reabre", { intento: n });
+        window.setTimeout(() => setVideo((v) => v + 1), Math.min(REABRIR_EL_VIDEO_MS * n, 10_000));
+    };
 
     // Una orden de Verzy (ir a un destino o apuntar una nota) va al servidor,
     // y lo que de verdad pasó se le cuenta a Verzy: nunca dice algo que no pasó.
@@ -220,7 +222,6 @@ export default function SalaDeLaVideollamada({
                 if (!resultado.ok) console.warn("[videollamada] la pantalla no hizo la orden", { orden, motivo: resultado.motivo });
                 if (!resultado.ok && orden.tipo === "ir") setDestino(null);
                 contarleAVerzy(loQueSeLeCuentaAVerzy(orden, resultado));
-                setFoto((n) => n + 1);
             })
             .catch((e) => {
                 console.warn("[videollamada] no se pudo pedir a la pantalla", e);
@@ -457,8 +458,10 @@ export default function SalaDeLaVideollamada({
                     <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                            data-zona="foto-de-la-pantalla"
-                            src={`/api/videollamada/pantalla?${consulta}&v=${foto}`}
+                            data-zona="video-de-la-pantalla"
+                            src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}`}
+                            onLoad={() => { intentosDelVideo.current = 0; }}
+                            onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${NOMBRES_DE_LOS_DESTINOS[destino]}`}
                             className="max-h-full max-w-full object-contain"
                         />
