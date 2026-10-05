@@ -147,11 +147,13 @@ type Props = {
   /** Si la cuenta tiene clientes que repartir: sin ninguno, «Clientes asignados» no se ofrece. */
   conClientesQueAsignar: boolean;
   /**
-   * Si se ofrece «Vincular existente»: solo a quien ya administra cuentas
-   * (`ofreceVincularCuentas`). A una cuenta cliente no: lo único que podría
-   * vincular ya lo tiene, y el servidor lo rechazaría.
+   * Si se ofrece «Vincular existente»: a quien administra esta cuenta
+   * (`ofreceVincularCuentas`). Un cliente vincula sus PROPIAS cuentas con la
+   * contraseña de la que vincula (`pideContrasena`); el servidor lo comprueba.
    */
   puedeVincular: boolean;
+  /** Si «Vincular existente» pide la contraseña de la cuenta (`pideContrasenaParaVincular`). */
+  pideContrasena: boolean;
   /** Si se ofrece «Reiniciar vínculos»: borra los de TODA la plataforma. */
   puedeReiniciarVinculos: boolean;
   /** Si hay otra cuenta de la familia a la que mover a alguien del equipo. */
@@ -192,7 +194,7 @@ async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | n
   }
 }
 
-export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics, conClientesQueAsignar, puedeVincular, puedeReiniciarVinculos, hayCuentasParaMudar }: Props) {
+export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics, conClientesQueAsignar, puedeVincular, pideContrasena, puedeReiniciarVinculos, hayCuentasParaMudar }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [availableModules, setAvailableModules] = useState<ModuleOption[]>(ownerModules);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(teamMetrics);
@@ -352,6 +354,8 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "", role: "agente" });
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
+  // La contraseña de la cuenta que se vincula: solo viaja a la acción, nunca se guarda.
+  const [linkPassword, setLinkPassword] = useState("");
   const [linkRole, setLinkRole] = useState<"agente" | "administrador">("agente");
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
@@ -407,7 +411,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
 
   function handleLink() {
     startTransition(async () => {
-      const res = await linkExistingAdvisor(linkEmail, linkRole);
+      const res = await linkExistingAdvisor(linkEmail, linkRole, pideContrasena ? linkPassword : null);
       if (!res.success) {
         if (res.message.toLowerCase().includes("ya está vinculado") || res.message.toLowerCase().includes("ya esta vinculado")) {
           toast.info("Ese asesor ya estaba vinculado. Actualizando la lista...");
@@ -420,6 +424,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       toast.success(res.message ?? "Asesor vinculado.");
       setLinkOpen(false);
       setLinkEmail("");
+      setLinkPassword("");
       setLinkRole("agente");
       await refreshAdvisors();
     });
@@ -1106,7 +1111,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         </AlertDialog>
 
       {/* Link existing dialog */}
-      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+      <Dialog open={linkOpen} onOpenChange={(abierto) => { setLinkOpen(abierto); if (!abierto) setLinkPassword(""); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Vincular usuario existente</DialogTitle>
@@ -1128,10 +1133,17 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             <Label htmlFor="link-email">Email del usuario</Label>
             <Input id="link-email" type="email" placeholder="asesor@empresa.com" value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} />
           </div>
+          {pideContrasena && (
+            <div className="space-y-1">
+              <Label htmlFor="link-password">Contraseña de esa cuenta</Label>
+              <Input id="link-password" type="password" autoComplete="new-password" placeholder="La contraseña con la que entra esa cuenta" value={linkPassword} onChange={(e) => setLinkPassword(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Solo puedes vincular tus propias cuentas: confirma que es tuya con su contraseña.</p>
+            </div>
+          )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkOpen(false)}>Cancelar</Button>
-            <Button onClick={handleLink} disabled={isPending || !linkEmail.trim()}>
+            <Button variant="outline" onClick={() => { setLinkOpen(false); setLinkPassword(""); }}>Cancelar</Button>
+            <Button onClick={handleLink} disabled={isPending || !linkEmail.trim() || (pideContrasena && !linkPassword)}>
               {isPending ? "Vinculando..." : "Vincular"}
             </Button>
           </DialogFooter>
