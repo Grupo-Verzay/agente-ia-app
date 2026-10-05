@@ -6,24 +6,16 @@
  *
  * Puro: lo usan la sala, el servidor (el contexto del avatar) y el banco.
  *
- * 1. **Navegación LIBRE**: el avatar pide una RUTA (`/inicio#pricing`,
- *    `/crm/dashboard`, `/planes/nivel-3`…) o un atajo del cliente (`chats`,
- *    `ficha`). Qué abrir lo decide según el tema; el servidor solo descarta lo
- *    que no es una pantalla (`comoLugarDeVerzy`).
+ * 1. **La navegación la decide el PROMPT, no el código.** El avatar pide la URL
+ *    que su entrenamiento de Videollamadas le indique para el tema del momento;
+ *    aquí no hay lista de páginas, ni atajos, ni momentos del guion atados a
+ *    una ruta. El código solo SANEA la URL (`comoRutaDeVerzy`) y la carga.
  * 2. **La orden llega por Daily** (`app-message`) con la forma de Tavus
  *    (`conversation.tool_call`); lo demás se ignora.
  */
 
 import { elBloqueDelGuionDe, type GuionDeVideollamada } from "@/lib/guion-videollamada";
-import {
-    ATAJOS_DEL_CLIENTE,
-    LUGARES_DE_LA_LANDING,
-    LUGARES_DE_LA_PLATAFORMA,
-    TOPE_DE_LA_NOTA,
-    comoLugarDeVerzy,
-    lasRutasDeLaPlataforma,
-    type LugarDeVerzy,
-} from "@/lib/pantalla-de-verzy";
+import { TOPE_DE_LA_NOTA, comoRutaDeVerzy, type LugarDeVerzy } from "@/lib/pantalla-de-verzy";
 
 export const NOMBRE_DE_LA_HERRAMIENTA = "mostrar_pantalla";
 
@@ -59,19 +51,18 @@ function laLlamadaA(mensaje: unknown, nombre: string): Record<string, unknown> |
  * `{ message_type: "conversation", event_type: "conversation.tool_call",
  *    properties: { name, arguments } }`, con `arguments` en texto JSON.
  *
- * Entiende los tres formatos que puede tener la persona de Tavus —`ruta`
- * (el de ahora), `destino` y `pagina` (los de antes: Tavus no acepta el PATCH
- * de una persona con ediciones propias)—. Lo que no sea un lugar válido NO
- * cambia nada: nunca se cae a una pantalla por defecto.
+ * El campo puede llamarse `ruta`, `url`, `destino` o `pagina` (personas de
+ * Tavus de antes): su VALOR es la URL que eligió el modelo y se carga tal
+ * cual, saneada. Lo que no sea una URL de la plataforma NO cambia nada.
  */
 export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null {
     const args = laLlamadaA(mensaje, NOMBRE_DE_LA_HERRAMIENTA);
     if (!args) return null;
-    for (const campo of ["ruta", "destino", "pagina"] as const) {
+    for (const campo of ["ruta", "url", "destino", "pagina"] as const) {
         const valor = typeof args[campo] === "string" ? (args[campo] as string).trim() : "";
         if (!valor) continue;
         if (valor.toLowerCase() === OCULTAR) return { accion: "ocultar" };
-        const lugar = comoLugarDeVerzy(valor);
+        const lugar = comoRutaDeVerzy(valor);
         return lugar ? { accion: "mostrar", lugar } : null;
     }
     return null;
@@ -83,17 +74,15 @@ export const HERRAMIENTA_DE_LA_PANTALLA = {
     function: {
         name: NOMBRE_DE_LA_HERRAMIENTA,
         description:
-            "Comparte en la pantalla del cliente la plataforma REAL de Agente IA, en vivo: la landing pública (/inicio y sus secciones y subpáginas) " +
-            "o cualquier pantalla de la plataforma con la sesión de Verzay Ventas. Elige la página que tenga que ver con lo que se está hablando AHORA; " +
-            `si nada tiene que ver, no la llames. "chats" y "ficha" abren la conversación y la ficha del cliente. Usa "${OCULTAR}" para dejar de compartir.`,
+            "Comparte en la pantalla del cliente, en vivo, la página de Agente IA que le pases (la landing o la plataforma con la sesión de Verzay Ventas). " +
+            "La URL la decides tú siguiendo tu entrenamiento de Videollamadas y el tema de la conversación en ese momento. " +
+            `Usa "${OCULTAR}" para dejar de compartir.`,
         parameters: {
             type: "object",
             properties: {
                 ruta: {
                     type: "string",
-                    description:
-                        'Ruta de la plataforma que empieza por "/" (ej. "/inicio#pricing", "/planes/nivel-3", "/crm/dashboard", "/embudos"), ' +
-                        `o "chats", "ficha" o "${OCULTAR}".`,
+                    description: `La URL a abrir: una ruta que empieza por "/" o una dirección completa de la plataforma; o "${OCULTAR}".`,
                 },
             },
             required: ["ruta"],
@@ -130,29 +119,21 @@ export const HERRAMIENTA_DE_TOMAR_NOTA = {
     },
 } as const;
 
-/** Lo que se le cuenta al avatar en su contexto de cada conversación. */
+/**
+ * Lo que se le cuenta al avatar sobre CÓMO se comparte pantalla. No dice QUÉ
+ * abrir ni cuándo: eso lo dice solo el entrenamiento de Videollamadas.
+ */
 export function elBloqueDeLaPantalla(): string {
-    const conocidas = new Set(LUGARES_DE_LA_PLATAFORMA.map((l) => l.ruta as string));
-    const otras = lasRutasDeLaPlataforma().filter((r) => !conocidas.has(r));
     return [
         "PANTALLA COMPARTIDA",
-        `Compartes pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA} con una ruta. Lo que se ve es la plataforma REAL, en vivo, ` +
-            "y tienes acceso LIBRE a dos entornos: la landing pública y la plataforma completa con la sesión de Verzay Ventas.",
-        "Reglas:",
-        "- Tú decides qué abrir según lo que se está hablando en ESE momento. Muestra solo lo que tenga relación directa con el tema; si nada encaja, no cambies la pantalla.",
-        "- Nunca digas una URL ni una dirección web. Llama a la herramienta y NÓMBRALA en palabras: di qué se está viendo.",
-        "- La llamada EMPIEZA SIN COMPARTIR NADA. No compartas hasta que el cliente responda la segunda pregunta.",
-        `- Después de esa respuesta, abre la ficha del cliente (ficha) y apunta con ${NOMBRE_DE_TOMAR_NOTA} lo que quiere resolver.`,
-        "- Atajos del cliente de esta llamada:",
-        ...Object.entries(ATAJOS_DEL_CLIENTE).map(([k, v]) => `  - ${k}: ${v}`),
-        "- Landing pública (para precios, planes, funciones, cómo funciona):",
-        ...LUGARES_DE_LA_LANDING.map((l) => `  - ${l.ruta}: ${l.cuando}`),
-        "- Plataforma con la sesión de Verzay Ventas (para enseñar cómo se trabaja):",
-        ...LUGARES_DE_LA_PLATAFORMA.map((l) => `  - ${l.ruta}: ${l.cuando}`),
-        `- Más pantallas de la plataforma a las que también puedes ir: ${otras.join(", ")}.`,
+        `Puedes compartir pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA} con una URL de Agente IA (la landing o la plataforma con la sesión de Verzay Ventas). ` +
+            "Se carga tal cual, en vivo.",
+        "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas y el tema que se está hablando.",
+        "- Nunca digas una URL en voz alta: llama a la herramienta y NÓMBRALA en palabras, di qué se está viendo.",
         `- Para dejar de compartir: ${OCULTAR}.`,
+        `- ${NOMBRE_DE_TOMAR_NOTA} escribe en la ficha del cliente en Verzay Ventas; ella misma la abre.`,
         "- Después de cada orden recibirás qué pasó; si algo falló, no digas que se ve o que quedó guardado.",
-        "- Mientras hablas, la pantalla que está puesta se recorre sola. Cambiar de pantalla solo lo haces tú, con la herramienta.",
+        "- Mientras hablas, la pantalla que está puesta se recorre sola.",
     ].join("\n");
 }
 

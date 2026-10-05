@@ -8,7 +8,7 @@ import { laCuentaDeVerzy } from "@/lib/videollamada-crm.server";
 import { DURACION_DE_LA_SESION_S, lasCookiesDeVerzy } from "@/lib/sesion-de-verzy.server";
 import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 import {
-    laRutaDelLugar, laRutaYElAnclaDeVerzy, comoLugarDeVerzy, esAtajoDelCliente, conLaNotaAgregada,
+    laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, conLaNotaAgregada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
     elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca,
     type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
@@ -316,7 +316,7 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         void elRelevo(viva);
         // Si otra réplica la tenía antes, se vuelve a donde estaba.
         const antes = await db.$queryRaw<{ destino: string | null }[]>`SELECT "destino" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}`;
-        const destino = comoLugarDeVerzy(antes[0]?.destino);
+        const destino = comoRutaDeVerzy(antes[0]?.destino);
         if (destino) void irA(viva, destino).catch(() => {});
         else void pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
         return true;
@@ -481,7 +481,7 @@ async function recorrerUnPoco(viva: Viva): Promise<void> {
     viva.pasoDelRecorrido = paso + 1;
     const punto = PUNTOS_DEL_RECORRIDO[paso % PUNTOS_DEL_RECORRIDO.length];
     // En Chats y en la ficha lo que se mueve es la conversación del medio.
-    const enChats = viva.destino === "chats" || viva.destino === "ficha";
+    const enChats = new URL(viva.pagina.url()).pathname.startsWith("/chats");
     const x = enChats ? ANCHO * (0.5 + (paso % 2) * 0.08) : ANCHO * punto.x;
     await moverA(viva, x, ALTO * punto.y, 520);
     const hacia = paso % 2 === 0 ? 1 : -1;
@@ -518,21 +518,11 @@ async function anotarElDestino(viva: Viva, destino: LugarDeVerzy): Promise<void>
 }
 
 async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrden> {
-    const p = viva.prospecto;
-    if (esAtajoDelCliente(destino)) {
-        const r = await abrirElChat(viva);
-        if (!r.ok) return r;
-        await anotarElDestino(viva, destino);
-        if (!p?.jid) return { ok: true, aviso: "El prospecto todavía no tiene conversación en Verzay Ventas: se ve la bandeja" };
-        if (destino === "ficha" && !(await abrirLaFicha(viva))) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
-        return { ok: true };
-    }
-    // Navegación libre: cualquier ruta de la landing o de la plataforma. Una
-    // sección de la misma página (`/inicio#pricing` estando en /inicio) no se
-    // recarga: se baja a ella, como quien se desplaza.
+    // El código NO decide a dónde ir: carga la URL que eligió el modelo, tal
+    // cual. Solo si es la misma página (o solo un ancla) no se recarga: se baja.
     const { camino, ancla } = laRutaYElAnclaDeVerzy(destino);
     const aqui = new URL(viva.pagina.url());
-    const yaEstamos = aqui.origin === new URL(BASE_LOCAL).origin && `${aqui.pathname}${aqui.search}` === camino;
+    const yaEstamos = !camino || (aqui.origin === new URL(BASE_LOCAL).origin && `${aqui.pathname}${aqui.search}` === camino);
     if (!yaEstamos) {
         await irAlMenu(viva);
         const r = await cargar(viva, camino);
@@ -611,7 +601,7 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
         return { ok: true };
     }
     console.info("[verzy] el chat no salió en la bandeja; se abre por enlace", { cita: viva.citaId, jid: p.jid });
-    const r = await cargar(viva, laRutaDelLugar("chats", { jid: p.jid, linea: p.linea }));
+    const r = await cargar(viva, laUrlDeLaConversacion({ jid: p.jid, linea: p.linea }) ?? "/chats");
     viva.chatAbierto = r.ok ? p.jid : null;
     return r;
 }
@@ -648,9 +638,12 @@ async function esperarMoviendose(viva: Viva, l: Localizador, plazoMs: number): P
 async function tomarLaNota(viva: Viva, texto: string): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
     if (!p?.jid) return { ok: false, motivo: "El prospecto todavía no tiene conversación en Verzay Ventas" };
-    if (viva.destino !== "ficha" || !(await viva.pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false))) {
-        const fuimos = await irA(viva, "ficha");
-        if (!fuimos.ok) return fuimos;
+    // Tomar una nota es una ACCIÓN de la herramienta, no una navegación: se
+    // escribe en el campo Notas de la ficha del prospecto, esté donde esté.
+    if (!(await viva.pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false))) {
+        const r = await abrirElChat(viva);
+        if (!r.ok) return r;
+        if (!(await abrirLaFicha(viva))) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
     }
     const caja = viva.pagina.locator("textarea[data-notas]").first();
     const antes = await caja.inputValue();
@@ -685,8 +678,8 @@ async function laNotaEstaGuardada(p: ElProspecto, texto: string): Promise<boolea
 
 async function hacerLaOrden(viva: Viva, orden: OrdenDeLaPantalla): Promise<ResultadoDeLaOrden> {
     if (orden.tipo === "ir") {
-        const d = orden.datos as { lugar?: unknown; destino?: unknown } | undefined;
-        const destino = comoLugarDeVerzy(d?.lugar ?? d?.destino);
+        const d = orden.datos as { lugar?: unknown } | undefined;
+        const destino = comoRutaDeVerzy(d?.lugar);
         if (!destino) return { ok: false, motivo: "Esa ruta no es una pantalla de la plataforma" };
         return irA(viva, destino);
     }

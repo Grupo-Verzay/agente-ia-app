@@ -12,7 +12,6 @@ import {
 } from "@/lib/pantalla-del-avatar";
 import {
     loQueSeLeCuentaAVerzy,
-    elNombreDelLugar,
     queHaceLaPantallaAlHablar,
     type LugarDeVerzy,
     type OrdenDeLaPantalla,
@@ -588,7 +587,7 @@ export default function SalaDeLaVideollamada({
                 >
                     <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Verzy te está mostrando: <strong className="text-slate-100">{elNombreDelLugar(pantallaQueSeVe)}</strong>
+                        Verzy te está mostrando: <strong className="text-slate-100">{pantallaQueSeVe}</strong>
                     </header>
                     <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -597,7 +596,7 @@ export default function SalaDeLaVideollamada({
                             src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}`}
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
-                            alt={`Pantalla de Verzay Ventas: ${elNombreDelLugar(pantallaQueSeVe)}`}
+                            alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
                             className="max-h-full max-w-full object-contain"
                         />
                     </div>

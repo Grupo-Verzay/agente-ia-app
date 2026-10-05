@@ -27440,29 +27440,31 @@ Tres cosas que hay que mantener:
 Lo prueba `scripts/banco-guion-videollamada.sh` (el orden de los canales, el
 canal de chat y el entrenamiento en el contexto); `MODO=roto` lee `304d3bb`.
 
-### Verzy navega LIBRE: no hay lista de pantallas ni tema → pantalla
+### La navegación de Verzy la decide SOLO el prompt de Videollamadas
 
-> **Esta sección manda sobre las de arriba** en qué puede abrir Verzy:
-> `DESTINOS_DE_VERZY` y el mapeo de una frase a una pantalla ya no existen.
+> **Esta sección manda sobre todas las de arriba** en qué abre Verzy: no hay
+> ninguna tabla de rutas, ningún atajo («chats», «ficha», «precios»), ninguna
+> traducción de claves viejas, ni ninguna página atada a un momento del guion.
 
-`mostrar_pantalla` recibe una RUTA libre (`ruta`; `destino` y `pagina` viejos se
-traducen con `RUTA_DE_LA_CLAVE_VIEJA`) y el Chromium del servidor, dentro de
-«Verzay Ventas», va ahí (`irA`, `lib/pantalla-de-verzy.server.ts`): **toda la
-landing** (`/inicio` y sus anclas, `/planes/nivel-N`, `/documentacion`, lo que
-exista mañana) y **toda la plataforma**. `chats` y `ficha` son atajos a la
-conversación del prospecto. Las listas `LUGARES_DE_LA_LANDING` y
-`LUGARES_DE_LA_PLATAFORMA` son SUGERENCIAS en el contexto, no un tope.
+El modelo lee el entrenamiento de Agente IA › Videollamadas y, según el tema,
+llama a `mostrar_pantalla` con la URL que quiere. El código **solo ejecuta**:
+`comoRutaDeVerzy` (`lib/pantalla-de-verzy.ts`) la sanea y el Chromium del
+servidor la carga. Nada más.
 
-1. **Lo que decide es Verzy, por el tema**: el contexto le dice que abra solo lo
-   relacionado con lo que se habla, y la voz NUNCA cambia la pantalla (solo
-   `recorrer` mientras habla).
-2. **Solo se cierra lo que no es una pantalla** (`RUTAS_PROHIBIDAS`: `/api`,
-   `/login`, `/logout`, `/videollamada`…) y lo de administración
-   (`lasRutasDeLaPlataforma` quita los paneles de la casa).
-3. **Una ruta que no existe NO es un ok**: un 404 o un 5xx vuelve con su motivo
-   y se le cuenta a Verzy (`loQueSeLeCuentaAVerzy`) para que no diga que la ve.
+1. **Sanear es seguridad, no navegación**: solo rutas de la plataforma (de una
+   dirección completa se queda con camino, consulta y ancla); fuera esquemas,
+   `//`, `..`, espacios y `RUTAS_PROHIBIDAS` (`/api`, `/login`, `/videollamada`…).
+   Una palabra suelta no es una ruta: no se carga.
+2. **El contexto no nombra páginas**: dice cómo se usa la herramienta, que no
+   lea URLs en voz alta y que a dónde ir lo dice su entrenamiento.
+3. **Una ruta que no existe NO es un ok**: un 404 o un 5xx se le cuenta a Verzy
+   (`loQueSeLeCuentaAVerzy`) para que no diga que la ve. Mientras habla, la
+   pantalla puesta solo se recorre; nunca cambia por su voz.
+4. **Si el código vuelve a decidir una ruta, está mal**: el banco falla si
+   reaparece una tabla (`LUGARES_DE_LA_LANDING`, `DESTINOS_DE_VERZY`,
+   `PAGINAS_DEL_AVATAR`…) o una ruta escrita en esos ficheros.
 
 Lo prueban `scripts/banco-videollamada-ia.sh` (las reglas) y
-`scripts/banco-navegacion-de-verzy.sh` (la App servida: doce pantallas de la
-landing y veinte de la plataforma, la pantalla moviéndose en cada una, y lo que
-no existe o está prohibido). `MODO=roto` afirma la lista cerrada de `2f46b94`.
+`scripts/banco-navegacion-de-verzy.sh` (la App servida: cada URL de la landing y
+de la plataforma se carga tal cual, las palabras sueltas no, y lo que no existe
+o está prohibido tampoco). `MODO=roto` afirma las listas de `9a1390d`.

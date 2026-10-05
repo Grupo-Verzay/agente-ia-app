@@ -1,76 +1,33 @@
 /**
- * Lo que Verzy puede ENSEÑAR en la videollamada, y nada más: pantallas reales
- * de la cuenta «Verzay Ventas», navegadas en vivo por el servidor (ver
- * `lib/pantalla-de-verzy.server.ts`). Ninguna página de ejemplo, ningún video
- * promocional, ninguna vista hecha a propósito para la llamada.
+ * Lo que Verzy puede ENSEÑAR en la videollamada: pantallas reales de la cuenta
+ * «Verzay Ventas», navegadas en vivo por el servidor (ver
+ * `lib/pantalla-de-verzy.server.ts`).
  *
- * Puro: lo usan el servidor, la sala, el guion del avatar y el banco.
+ * Puro: lo usan el servidor, la sala, el contexto del avatar y el banco.
+ *
+ * LA NAVEGACIÓN LA DECIDE EL PROMPT, NO EL CÓDIGO. Aquí no hay ninguna tabla
+ * de páginas, ningún atajo, ningún «tema → pantalla» ni ningún momento del
+ * guion atado a una ruta. El modelo elige la URL leyendo el entrenamiento de
+ * Videollamadas que escribe el dueño, y el código solo la SANEA (que sea una
+ * dirección de la plataforma y no algo que la saque de su sesión) y la carga.
  */
 
-import { navigationRoutes } from "@/lib/navigation-routes";
-
-/**
- * NAVEGACIÓN LIBRE. Verzy no elige de una lista cerrada de pantallas: elige
- * una RUTA de los dos entornos que tiene abiertos —la landing pública
- * (`/inicio`, sus secciones y sus subpáginas) y la plataforma entera con la
- * sesión de Verzay Ventas— según lo que se esté hablando. Lo único que no
- * puede es salir de la plataforma ni abrir lo que no es una pantalla (`/api`,
- * el login, la propia videollamada).
- *
- * Dos atajos siguen existiendo porque dependen del PROSPECTO de la cita, no de
- * una ruta fija: `chats` (su conversación de WhatsApp) y `ficha` (su ficha).
- */
-
-/** Atajos que se resuelven con la conversación del prospecto de la cita. */
-export const ATAJOS_DEL_CLIENTE = {
-    chats: "la conversación de WhatsApp del cliente en Chats",
-    ficha: "la ficha de contacto del cliente, con sus datos y sus notas",
-} as const;
-export type AtajoDelCliente = keyof typeof ATAJOS_DEL_CLIENTE;
-
-/** Un lugar al que va la pantalla: un atajo del cliente o una ruta que empieza por «/». */
-export type LugarDeVerzy = AtajoDelCliente | `/${string}`;
-
-/** Prefijos que NO son una pantalla, o que sacarían a Verzy de su sesión. */
+/** Prefijos que NO son una pantalla, o que sacarían a Verzy de su sesión. Es seguridad, no navegación. */
 export const RUTAS_PROHIBIDAS = ["/api", "/_next", "/login", "/register", "/logout", "/auth", "/videollamada", "/reunion", "/abrir"] as const;
 
 /** Tope del largo de una ruta, para que no se cuele cualquier cosa. */
 export const TOPE_DE_LA_RUTA = 300;
 
-/** Las claves de antes (lista cerrada) y su ruta, para leer órdenes viejas. */
-export const RUTA_DE_LA_CLAVE_VIEJA: Record<string, LugarDeVerzy> = {
-    dashboard: "/crm/dashboard",
-    panel: "/crm/dashboard",
-    recordatorios: "/reminders",
-    citas: "/schedule",
-    agenda: "/schedule",
-    embudo: "/embudos",
-    crm_embudo: "/embudos",
-    crm_recordatorios: "/reminders",
-    precios: "/inicio#pricing",
-    planes: "/inicio#pricing",
-    inicio: "/inicio",
-    landing: "/inicio",
-};
-
-const ATAJO_DE_LA_CLAVE: Record<string, AtajoDelCliente> = {
-    chats: "chats",
-    chat: "chats",
-    "chat-del-cliente": "chats",
-    conversacion: "chats",
-    crm_conversacion: "chats",
-    ficha: "ficha",
-    "ficha-del-cliente": "ficha",
-    crm: "ficha",
-};
+/** Una dirección de la plataforma: camino, consulta y ancla, siempre empezando por «/». */
+export type LugarDeVerzy = `/${string}`;
 
 /**
- * Una ruta de la plataforma, saneada, o `null` si no es una pantalla a la que
- * Verzy pueda ir. Acepta «/inicio#pricing», «https://agente.ia-app.com/planes/nivel-3»,
- * «agente-ia-app.com/inicio» o «crm/dashboard»; de una dirección completa se
- * queda con la ruta, la consulta y el ancla (el dominio lo pone el servidor).
+ * La URL que pidió el modelo, saneada a una ruta de la plataforma, o `null`
+ * si no se puede cargar. De una dirección completa («https://dominio/planes»)
+ * se queda con la ruta, la consulta y el ancla: el dominio lo pone el servidor.
+ * No traduce nada ni completa nada: lo que se carga es lo que se pidió.
  */
-export function comoRutaDeVerzy(valor: unknown): `/${string}` | null {
+export function comoRutaDeVerzy(valor: unknown): LugarDeVerzy | null {
     let v = String(valor ?? "").trim();
     if (!v || v.length > TOPE_DE_LA_RUTA) return null;
     if (/^[a-z][a-z0-9+.-]*:/i.test(v) && !/^https?:\/\//i.test(v)) return null; // javascript:, mailto:…
@@ -83,46 +40,12 @@ export function comoRutaDeVerzy(valor: unknown): `/${string}` | null {
             return null;
         }
     } else if (!v.startsWith("/")) {
-        const primero = v.split(/[/?#]/)[0];
-        if (primero.includes(".")) {
-            try {
-                const u = new URL(`https://${v}`);
-                v = `${u.pathname}${u.search}${u.hash}`;
-            } catch {
-                return null;
-            }
-        } else if (v.startsWith("#")) {
-            v = `/inicio${v}`;
-        } else {
-            v = `/${v}`;
-        }
+        return null;
     }
     if (/\s/.test(v) || v.includes("\\") || v.includes("..")) return null;
     const camino = v.split(/[?#]/)[0].toLowerCase();
     if (RUTAS_PROHIBIDAS.some((p) => camino === p || camino.startsWith(`${p}/`))) return null;
-    return v as `/${string}`;
-}
-
-/** Lo que pide el avatar (ruta, atajo o clave vieja) como un lugar, o `null`. */
-export function comoLugarDeVerzy(valor: unknown): LugarDeVerzy | null {
-    const clave = String(valor ?? "").trim().toLowerCase();
-    if (!clave) return null;
-    if (ATAJO_DE_LA_CLAVE[clave]) return ATAJO_DE_LA_CLAVE[clave];
-    if (RUTA_DE_LA_CLAVE_VIEJA[clave]) return RUTA_DE_LA_CLAVE_VIEJA[clave];
-    return comoRutaDeVerzy(valor);
-}
-
-export function esAtajoDelCliente(lugar: string): lugar is AtajoDelCliente {
-    return lugar === "chats" || lugar === "ficha";
-}
-
-/** La ruta REAL de un lugar. Los atajos abren la conversación del prospecto. */
-export function laRutaDelLugar(lugar: LugarDeVerzy, conversacion: { jid: string; linea: string | null } | null): string {
-    if (!esAtajoDelCliente(lugar)) return lugar;
-    if (!conversacion?.jid) return "/chats";
-    const q = new URLSearchParams({ jid: conversacion.jid });
-    if (conversacion.linea) q.set("instance", conversacion.linea);
-    return `/chats?${q.toString()}`;
+    return v as LugarDeVerzy;
 }
 
 /** Separa una ruta en su camino (lo que se carga) y su ancla (a dónde se baja). */
@@ -130,72 +53,19 @@ export function laRutaYElAnclaDeVerzy(ruta: string): { camino: string; ancla: st
     const i = ruta.indexOf("#");
     if (i < 0) return { camino: ruta, ancla: null };
     const ancla = ruta.slice(i + 1).trim();
-    return { camino: ruta.slice(0, i) || "/inicio", ancla: ancla || null };
+    return { camino: ruta.slice(0, i), ancla: ancla || null };
 }
 
-/** Las secciones y subpáginas de la landing pública, con lo que enseña cada una. */
-export const LUGARES_DE_LA_LANDING: ReadonlyArray<{ ruta: `/${string}`; nombre: string; cuando: string }> = [
-    { ruta: "/inicio", nombre: "la página de inicio", cuando: "qué es Agente IA, de un vistazo" },
-    { ruta: "/inicio#how", nombre: "cómo funciona", cuando: "los pasos para empezar" },
-    { ruta: "/inicio#features", nombre: "las funciones", cuando: "todo lo que hace la plataforma" },
-    { ruta: "/inicio#tutoriales", nombre: "los tutoriales", cuando: "las guías de cada módulo" },
-    { ruta: "/inicio#pricing", nombre: "los planes y precios", cuando: "precios, planes y qué incluye cada uno" },
-    { ruta: "/inicio#faq", nombre: "las preguntas frecuentes", cuando: "dudas típicas antes de comprar" },
-    ...[1, 2, 3, 4, 5, 6].map((n) => ({
-        ruta: `/planes/nivel-${n}` as const,
-        nombre: `el detalle del plan de nivel ${n}`,
-        cuando: `todo lo que incluye el plan de nivel ${n}, su video y su precio`,
-    })),
-    { ruta: "/documentacion", nombre: "la documentación", cuando: "cómo conectar el API oficial de Meta" },
-];
-
-/** Las pantallas de la plataforma que más se enseñan, con lo que muestran. No es un límite. */
-export const LUGARES_DE_LA_PLATAFORMA: ReadonlyArray<{ ruta: `/${string}`; nombre: string; cuando: string }> = [
-    { ruta: "/chats", nombre: "la bandeja de Chats", cuando: "todas las conversaciones de WhatsApp atendidas por la IA y el equipo" },
-    { ruta: "/crm/dashboard", nombre: "el panel de estadísticas", cuando: "las métricas del negocio: chats, leads, citas y ventas" },
-    { ruta: "/crm/kanban", nombre: "la calificación de leads", cuando: "los contactos por temperatura (frío, tibio, caliente)" },
-    { ruta: "/crm/llamadas", nombre: "las llamadas", cuando: "llamadas con IA y su resumen" },
-    { ruta: "/crm/reportes", nombre: "los reportes", cuando: "el resumen semanal y lo que la IA no supo" },
-    { ruta: "/crm/rules", nombre: "los follow-ups con IA", cuando: "los seguimientos automáticos por estado" },
-    { ruta: "/embudos", nombre: "el embudo de ventas", cuando: "cada conversación en su etapa de venta" },
-    { ruta: "/sessions", nombre: "los leads", cuando: "la base de contactos y su exportación" },
-    { ruta: "/tags", nombre: "las etiquetas", cuando: "contactos organizados por etiqueta" },
-    { ruta: "/schedule", nombre: "la agenda de citas", cuando: "las citas agendadas y la página pública de reserva" },
-    { ruta: "/reminders", nombre: "los recordatorios", cuando: "mensajes programados por WhatsApp" },
-    { ruta: "/campaigns", nombre: "las campañas", cuando: "envíos masivos por WhatsApp" },
-    { ruta: "/workflow", nombre: "los flujos", cuando: "automatizaciones y chatbots" },
-    { ruta: "/ia", nombre: "el entrenamiento del agente IA", cuando: "cómo se entrena la IA con los datos del negocio" },
-    { ruta: "/products", nombre: "los productos", cuando: "el catálogo que la IA usa para vender" },
-    { ruta: "/equipo", nombre: "los usuarios del equipo", cuando: "asesores y cómo se reparten los chats" },
-    { ruta: "/tareas", nombre: "las tareas", cuando: "las tareas del equipo" },
-    { ruta: "/correo", nombre: "el correo", cuando: "la bandeja de correo unificada" },
-    { ruta: "/profile", nombre: "conexión y ajustes", cuando: "conectar WhatsApp y los canales" },
-];
-
-/** Todas las rutas de la plataforma que existen hoy (las del menú). Se le ofrecen sin límite. */
-export function lasRutasDeLaPlataforma(): string[] {
-    return Array.from(new Set(navigationRoutes.map((r) => r.route))).filter(
-        (r) => r.startsWith("/") && !r.includes("?") && !esDeAdministracion(r) && comoRutaDeVerzy(r),
-    );
-}
-
-/** Pantallas de administración de la plataforma (no de una cuenta cliente): no se ofrecen. */
-const PREFIJOS_DE_ADMINISTRACION = ["/panel", "/panel-admin", "/reseller-panel", "/client-panel", "/evo", "/tools/tool-"];
-function esDeAdministracion(r: string): boolean {
-    return PREFIJOS_DE_ADMINISTRACION.some((p) => r === p || r.startsWith(p.endsWith("-") ? p : `${p}/`));
-}
-
-/** Cómo se nombra un lugar en lo que se le cuenta a Verzy y en la sala. */
-export function elNombreDelLugar(lugar: string): string {
-    if (lugar === "chats") return "la conversación del cliente en Chats";
-    if (lugar === "ficha") return "la ficha del cliente";
-    const conocido = [...LUGARES_DE_LA_LANDING, ...LUGARES_DE_LA_PLATAFORMA].find((l) => l.ruta === lugar);
-    if (conocido) return conocido.nombre;
-    const { camino, ancla } = laRutaYElAnclaDeVerzy(lugar);
-    const base = [...LUGARES_DE_LA_LANDING, ...LUGARES_DE_LA_PLATAFORMA].find((l) => l.ruta === camino.split("?")[0]);
-    if (base && ancla) return `${base.nombre} (sección ${ancla})`;
-    if (base) return base.nombre;
-    return `la página ${lugar}`;
+/**
+ * La dirección de la conversación de WhatsApp del prospecto en Chats. No es
+ * una regla de navegación: es un DATO que se le da al modelo en el contexto
+ * para que, si su prompt lo pide, sepa qué URL abrir.
+ */
+export function laUrlDeLaConversacion(conversacion: { jid: string; linea: string | null } | null): string | null {
+    if (!conversacion?.jid) return null;
+    const q = new URLSearchParams({ jid: conversacion.jid });
+    if (conversacion.linea) q.set("instance", conversacion.linea);
+    return `/chats?${q.toString()}`;
 }
 
 /** Tope de una nota que se dicta en la llamada, para que no se cuele un párrafo entero. */
@@ -219,9 +89,10 @@ export type ResultadoDeLaOrden = { ok: true; aviso?: string } | { ok: false; mot
 
 /** Lo que llega del navegador a la ruta de la pantalla, saneado. */
 export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
-    const c = (cuerpo ?? {}) as { tipo?: unknown; lugar?: unknown; ruta?: unknown; destino?: unknown; texto?: unknown };
+    const c = (cuerpo ?? {}) as { tipo?: unknown; lugar?: unknown; ruta?: unknown; url?: unknown; destino?: unknown; texto?: unknown };
     if (c.tipo === "ir") {
-        const lugar = comoLugarDeVerzy(c.lugar ?? c.ruta ?? c.destino);
+        // El nombre del campo no se interpreta: es la URL que eligió el modelo.
+        const lugar = comoRutaDeVerzy(c.lugar ?? c.ruta ?? c.url ?? c.destino);
         return lugar ? { tipo: "ir", datos: { lugar } } : null;
     }
     if (c.tipo === "recorrer") return { tipo: "recorrer", datos: {} };
@@ -240,9 +111,9 @@ export function loQueSeLeCuentaAVerzy(orden: OrdenDeLaPantalla, r: ResultadoDeLa
             : `La nota NO se pudo guardar (${r.motivo}). No digas que quedó guardada.`;
     }
     if (orden.tipo === "recorrer") return "";
-    const nombre = elNombreDelLugar(orden.datos.lugar);
-    if (!r.ok) return `No se pudo abrir ${nombre} (${r.motivo}). No digas que lo estás mostrando.`;
-    return r.aviso ? `En pantalla: ${nombre}. Aviso: ${r.aviso}.` : `En pantalla: ${nombre}, en vivo.`;
+    const ruta = orden.datos.lugar;
+    if (!r.ok) return `No se pudo abrir ${ruta} (${r.motivo}). No digas que lo estás mostrando.`;
+    return r.aviso ? `En pantalla: ${ruta}. Aviso: ${r.aviso}.` : `En pantalla: ${ruta}, en vivo.`;
 }
 
 // ---------------------------------------------------------------- en vivo y en movimiento
