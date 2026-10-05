@@ -866,6 +866,42 @@ encima una condición propia, porque borrar no es anclar: **un `agente` no
 borra**. Si se añade otra acción destructiva en Chats, va igual: la misma puerta
 que las demás, más lo suyo.
 
+## Chats: «Bloqueados» y «Silenciados» son marcas del CONTACTO, y bloquear no se levanta solo
+
+En el menú de la flecha de las pastillas, entre «Resueltos» y «Eliminar por
+fecha…» (que sigue siendo la última), va un grupo propio separado por rayas:
+**Bloqueados** y **Silenciados**. Se ponen y se quitan desde el «⋯» de la fila.
+
+| | bloqueada | silenciada |
+| --- | --- | --- |
+| en «Todos», sus contadores y «Sin leer» | **no sale**, aunque escriba el cliente | sale como siempre |
+| avisos (sonido, sistema, pestaña) | — | **ninguno** (`callado` en `useAdvisorNotifications`) |
+| se ve en | solo «Bloqueados» | también «Silenciados» |
+| vuelve | **solo si alguien la desbloquea** | al quitarle el silencio |
+
+> **Un mensaje del cliente NO levanta el bloqueo**, al revés que la marca de
+> borrado. Nada fuera de `setChatBlockedAction` escribe `bloqueadoEn = NULL`.
+
+Cinco cosas que hay que mantener:
+
+1. **La marca vive en `chat_bloqueo_silencio`, tabla de la App**
+   (`lib/bloqueo-y-silencio-db.ts`, `ddl()`, sin clave foránea), una fila por
+   cuenta, línea e identidad. Ni una columna en `chat_conversation_preferences`
+   ni en `Session`.
+2. **Se escribe bajo TODAS las identidades** del contacto, y se lee con
+   `elEstadoDelChat` (`lib/bloqueo-y-silencio.ts`, pura) por la misma regla que
+   la marca de borrado (`elegirPreferenciaDelChat`: manda la de SU línea).
+3. **Bloquear y silenciar son dos columnas y no se pisan**: `escribirLaMarca`
+   toca solo la que se le nombra (`elCambio`).
+4. **El número de «Todos» también la descuenta**: `lasFilasDeLaLista` recibe
+   `bloqueada`, en el navegador y en `lib/conteo-de-todos.server.ts`.
+5. **Se pinta al momento** y vuelve tal cual si el servidor dice que no; la
+   puerta es `assertAuthorized` (hacia abajo, nunca hacia arriba).
+
+Lo prueba `scripts/banco-bloqueo-y-silencio.sh`: las reglas, un barrido (orden
+y grupos del menú, Todos, avisos) y la tabla contra Postgres. `MODO=roto` lee
+`9c0e76d` y afirma que no existía nada de esto.
+
 ## Chats: borrar en bloque es MARCAR ya y purgar de fondo
 
 «Al intentar eliminar en bloque sale un error de API, y además hay un tope que no

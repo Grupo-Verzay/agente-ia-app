@@ -4,7 +4,7 @@ import { elAnilloDelAvatar, type Sentimiento } from "@/lib/sentimiento";
 import { TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
 import type { PresenciaContacto } from "@/hooks/chats/useChatsRealtime";
 import React from "react";
-import { Archive, Bell, Hand, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, Ban, Bell, BellOff, Hand, CalendarClock, Check, CheckCheck, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +123,10 @@ type ChatContactItemProps = {
   isStarred?: boolean;
   onToggleStar?: (id: string, instanceName?: string | null) => void;
   hasNotes?: boolean;
+  /** Bloquear o desbloquear (`lib/bloqueo-y-silencio.ts`). */
+  onBlock?: (contact: SidebarContact, activar: boolean) => void;
+  /** Silenciar o quitar el silencio. */
+  onMute?: (contact: SidebarContact, activar: boolean) => void;
 };
 
 function ChatContactItemBase({
@@ -153,6 +157,8 @@ function ChatContactItemBase({
   isStarred,
   onToggleStar,
   hasNotes,
+  onBlock,
+  onMute,
 }: ChatContactItemProps) {
   // El «⋯» de ESTA fila. Los paneles de una fila nacen pegados al filo derecho
   // de la columna y voltean arriba si la fila está abajo del todo; lo decide
@@ -561,6 +567,12 @@ function ChatContactItemBase({
                 {contact.isArchived && (
                   <Archive className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 )}
+                {contact.isBlocked && (
+                  <Ban className="h-3.5 w-3.5 shrink-0 text-red-500" aria-label="Bloqueada" />
+                )}
+                {contact.isMuted && !contact.isBlocked && (
+                  <BellOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Silenciada" />
+                )}
                 <span
                   className={cn(
                     TIPOGRAFIA_DEL_NOMBRE,
@@ -790,6 +802,19 @@ function ChatContactItemBase({
                 <Archive className="h-4 w-4" />
                 {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
               </DropdownMenuItem>
+              {(onBlock || onMute) && <DropdownMenuSeparator />}
+              {onBlock && (
+                <DropdownMenuItem onSelect={() => onBlock(contact, !contact.isBlocked)}>
+                  <Ban className="h-4 w-4" />
+                  {contact.isBlocked ? "Desbloquear chat" : "Bloquear chat"}
+                </DropdownMenuItem>
+              )}
+              {onMute && (
+                <DropdownMenuItem onSelect={() => onMute(contact, !contact.isMuted)}>
+                  <BellOff className="h-4 w-4" />
+                  {contact.isMuted ? "Quitar silencio" : "Silenciar chat"}
+                </DropdownMenuItem>
+              )}
               {canDelete && (
                 <>
                   <DropdownMenuSeparator />
