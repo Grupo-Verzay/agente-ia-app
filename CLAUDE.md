@@ -27328,3 +27328,16 @@ aliviaba unos minutos.
 Lo prueba `scripts/banco-ddl-sin-bloquear.sh` contra Postgres con la tabla
 cogida; `MODO=roto` corre el ALTER a pelo y afirma que las lecturas se quedaban
 en cola.
+
+## Créditos: una cuenta sin pagar NO recibe créditos, y editar a mano no adelanta la renovación
+
+Dos fallos que se veían como «la plataforma regala créditos»:
+
+| lo que pasaba | la causa | ahora |
+| --- | --- | --- |
+| cuentas con la facturación vencida amanecían con el cupo entero del plan (35.000) | el reloj del motor (`renewDueCredits`, cada hora, en `api-webhook`) reponía toda fila con `renewalDate` pasada sin mirar si la cuenta había pagado | con la facturación vencida (suspendida, o `dueDate` + días de gracia pasado) los créditos se AGOTAN y la fecha no se mueve; vuelven al confirmar el pago (`renovarLosCreditos`). Regla pura: `renovacion-con-pago.ts` del motor |
+| dejar una cuenta en cero a mano no duraba | las pantallas de Clientes y Créditos mandan `new Date()` como renovación; guardada tal cual, el motor la renovaba en la hora siguiente | `laFechaAlEditar` (`lib/renovacion-al-editar.ts`): una fecha futura pedida se respeta; si no, se conserva la guardada si es futura; si no, dentro de un mes. La usan `rechargeIaCredit` y `createIaCreditForUser` |
+
+Lo prueban `scripts/banco-creditos-al-editar.sh` aquí y
+`scripts/banco-creditos-sin-pago.sh` en `api-webhook`, contra Postgres y con
+`MODO=roto` pinchado al commit de antes.

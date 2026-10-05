@@ -4,6 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { puedeGestionarAlCliente } from '@/lib/gestion-de-clientes';
 import { laFechaQueRenueva } from '@/lib/fecha-de-renovacion';
+import { laFechaAlEditar } from '@/lib/renovacion-al-editar';
 import { pagaElClienteSuIa } from '@/lib/llaves-de-verzay';
 import { elSaldoDeLaFila, loQueQueda, TOKENS_POR_CREDITO } from '@/lib/saldo-de-la-cuenta';
 import { comoEnteroNoNegativo } from '@/lib/numeros-de-la-configuracion';
@@ -262,8 +263,10 @@ export async function createIaCreditForUser(
       return { success: false, message: 'El usuario ya tiene créditos asignados' };
     }
 
+    // Nunca una renovación en el pasado: el reloj del motor la repondría en
+    // la hora siguiente (ver `lib/renovacion-al-editar.ts`).
     const created = await db.iaCredit.create({
-      data: { userId, total, used, renewalDate },
+      data: { userId, total, used, renewalDate: laFechaAlEditar(renewalDate, null) },
     });
 
     return { success: true, message: 'Créditos creados correctamente', data: [created] };
@@ -288,13 +291,18 @@ export async function rechargeIaCredit(
       return { success: false, message: 'Usuario desconocido.' };
     }
 
+    // Editar no adelanta la renovación: con la fecha en «ahora» el reloj del
+    // motor reponía el cupo en la hora siguiente y un cero puesto a mano no
+    // duraba (ver `lib/renovacion-al-editar.ts`).
+    const actual = await db.iaCredit.findUnique({
+      where: { userId },
+      select: { renewalDate: true },
+    });
+    const renewalDate = laFechaAlEditar(newRenewalDate, actual?.renewalDate);
+
     const updated = await db.iaCredit.update({
       where: { userId },
-      data: {
-        total: newTotal,
-        used,
-        ...(newRenewalDate && { renewalDate: newRenewalDate }),
-      },
+      data: { total: newTotal, used, renewalDate },
     });
 
     return { success: true, message: 'Créditos recargados correctamente', data: [updated] };
