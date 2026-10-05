@@ -28,11 +28,13 @@ import {
   deleteChatConversationAction,
   devolverChatAlEscribirAction,
   levantarMarcaDeBorradoAction,
+  reabrirPorElContactoAction,
   setChatArchivedAction,
   setChatBlockedAction,
   setChatMutedAction,
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
+import { laMarcaSeLevanta } from "@/lib/reapertura-por-el-contacto";
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import type { ChatBootstrapResponse } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
@@ -2899,6 +2901,69 @@ export function ChatsClient({
       return siguiente;
     });
   }, []);
+
+  /**
+   * Archivada o resuelta: si el CONTACTO escribió después, vuelve a la bandeja.
+   *
+   * Es la regla de `lib/reapertura-por-el-contacto.ts`. Se levanta en memoria
+   * al momento —antes de que conteste la IA, que si no la volvería a
+   * esconder— y se le dice a la base una vez por chat y pestaña. Un saliente
+   * (seguimiento, recordatorio, la IA) no devuelve nada: eso es lo que
+   * reabría solas las resueltas a los pocos días.
+   */
+  const reaperturasYaPedidas = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentChatsResult.success) return;
+    const desarchivar: string[] = [];
+    const reabrir: number[] = [];
+    for (const chat of currentChatsResult.data) {
+      const ultimo = chat.lastMessage;
+      if (!ultimo || ultimo.key?.fromMe !== false) continue;
+      const delUltimo = { ts: epochToMs(ultimo.messageTimestamp), fromMe: false };
+      const owner = ownerForChat(chat);
+      const preference = getPreferenceForChat(chat, chatPreferences, owner, repartidasEntreLineas);
+      const sesion = getSessionForChat(chat, chatSessions);
+      const salirDelArchivo = laMarcaSeLevanta(preference?.archivedAt, delUltimo);
+      const salirDeResueltas = Boolean(sesion?.id) && laMarcaSeLevanta(sesion?.resolvedAt, delUltimo);
+      if (!salirDelArchivo && !salirDeResueltas) continue;
+      const identidades = getChatIdentityCandidates(chat);
+      if (salirDelArchivo) {
+        for (const candidate of identidades) {
+          for (const k of chatPreferenceKeys(owner, chat.instanceName, candidate)) {
+            if (chatPreferences[k]?.archivedAt) desarchivar.push(k);
+          }
+        }
+      }
+      if (salirDeResueltas && sesion?.id) reabrir.push(sesion.id);
+      if (!owner) continue;
+      const llave = `${owner}::${chat.instanceName ?? ""}::${chat.remoteJid}::${delUltimo.ts}`;
+      if (reaperturasYaPedidas.current.has(llave)) continue;
+      reaperturasYaPedidas.current.add(llave);
+      void reabrirPorElContactoAction({
+        userId: owner,
+        ...(chat.instanceName ? { instanceName: chat.instanceName } : {}),
+        remoteJid: chat.remoteJid,
+        identidades,
+        contactoEscribioEn: delUltimo.ts,
+      })
+        .then((r) => {
+          if (!r.success) console.warn("[chats] no se pudo devolver la conversacion a la bandeja", r.message);
+        })
+        .catch((e) => console.warn("[chats] no se pudo devolver la conversacion a la bandeja", String(e)));
+    }
+    if (reabrir.length) marcarResolucion(Array.from(new Set(reabrir)), false);
+    if (!desarchivar.length) return;
+    console.warn("[chats] conversacion sacada del archivo: el contacto escribio", { llaves: desarchivar.slice(0, 10) });
+    setChatPreferences((prev) => {
+      const next = { ...prev };
+      for (const k of desarchivar) {
+        const pref = next[k];
+        if (!pref) continue;
+        next[k] = { ...pref, archivedAt: null, isArchived: false, updatedAt: new Date().toISOString() };
+      }
+      return next;
+    });
+  }, [currentChatsResult, chatPreferences, chatSessions, ownerForChat, repartidasEntreLineas, marcarResolucion]);
 
   const handleResolucionCambiada = useCallback(
     (sessionId: number, resuelta: boolean) => marcarResolucion([sessionId], resuelta),

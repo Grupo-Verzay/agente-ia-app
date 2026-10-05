@@ -866,6 +866,37 @@ encima una condición propia, porque borrar no es anclar: **un `agente` no
 borra**. Si se añade otra acción destructiva en Chats, va igual: la misma puerta
 que las demás, más lo suyo.
 
+## Chats: archivada y resuelta vuelven solo cuando escribe el CONTACTO
+
+Dos fallos que eran el mismo al revés: una conversación **resuelta se reabría
+sola** a los tres o cuatro días —la regla la devolvía con cualquier mensaje
+posterior a `resolved_at`, también un SALIENTE: un seguimiento, un
+recordatorio, la IA—, y una **archivada no salía nunca** aunque el cliente
+escribiera —nada quitaba `archivedAt` salvo el botón—.
+
+> **Solo un mensaje DEL CONTACTO (`fromMe === false`) posterior a la marca la
+> levanta**, y se LEVANTA (se borra la marca), no se evalúa al pintar: si no,
+> la respuesta de la IA segundos después la volvería a esconder. Es la regla de
+> la marca de borrado. La decide `laMarcaSeLevanta`
+> (`lib/reapertura-por-el-contacto.ts`, pura).
+
+Cuatro cosas que hay que mantener:
+
+1. **`estaResuelta` recibe de quién es el último mensaje**: uno propio deja la
+   conversación resuelta; si no se sabe, cuenta como del contacto (enseñar de
+   más es el lado seguro al pintar).
+2. **El servidor barre** al cargar las preferencias
+   (`levantarArchivosYResueltas`, `lib/reapertura-por-el-contacto.server.ts`,
+   cada 5 min por juego de cuentas): quita `archivedAt` (su línea o la marca
+   antigua `''`) y `resolved_at`, con tres `EXISTS`, uno por identidad.
+3. **La pantalla levanta en memoria al momento** y avisa una vez por llave
+   (`reabrirPorElContactoAction`), que vuelve a comprobar en la base que hay un
+   mensaje del contacto posterior.
+4. **Para LEVANTAR hace falta la prueba**: `fromMe` desconocido no levanta.
+
+Lo prueba `scripts/banco-reapertura.sh`, contra Postgres con el barrido de
+producción; `MODO=roto` lleva la regla de `9c0e76d` y afirma los dos fallos.
+
 ## Chats: «Bloqueados» y «Silenciados» son marcas del CONTACTO, y bloquear no se levanta solo
 
 En el menú de la flecha de las pastillas, entre «Resueltos» y «Eliminar por

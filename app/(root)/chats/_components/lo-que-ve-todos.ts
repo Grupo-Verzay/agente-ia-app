@@ -181,7 +181,7 @@ export function lasFilasDeLaLista(chats: ChatData[], ctx: ContextoDeTodos): Fila
     const ts = epochToMs(chat.lastMessage?.messageTimestamp);
     const borrada = isChatDeletedByPreference(chat, preferencia);
     const archivada = Boolean(preferencia?.isArchived);
-    const resuelta = estaResuelta(ts, sesion?.resolvedAt);
+    const resuelta = estaResuelta(ts, sesion?.resolvedAt, chat.lastMessage?.key?.fromMe !== true);
     const bloqueada = Boolean(ctx.bloqueada?.(chat));
     const isGroup = isGroupJid(chat.remoteJid);
     const fila = {

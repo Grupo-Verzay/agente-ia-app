@@ -22,15 +22,28 @@
  * Una conversacion resuelta.
  *
  * Resuelta es tener la marca de «Resolver conversacion» (`resolved_at`) y que
- * no haya llegado nada despues: si el ultimo mensaje es posterior a la marca,
- * vuelve sola a la bandeja. El servidor la usa tal cual: pasa la bandeja
- * entera por `lasFilasDeLaLista`, que llama a esta.
+ * el CONTACTO no haya escrito despues. Solo un mensaje del contacto posterior a
+ * la marca la devuelve a la bandeja.
  *
- * Las dos horas van en milisegundos.
+ * Antes la devolvia cualquier mensaje posterior, tambien los SALIENTES: un
+ * seguimiento automatico, un recordatorio o la IA, tres o cuatro dias despues,
+ * reabrian conversaciones en las que nadie habia dicho nada. Es la misma regla
+ * que la marca de borrado y el archivo (`lib/reapertura-por-el-contacto.ts`).
+ *
+ * `ultimoEsDelContacto` dice de quien es ese ultimo mensaje. Sin el dato
+ * (`undefined`) se trata como del contacto: es el lado seguro, se ve de mas.
+ *
+ * El servidor la usa tal cual: pasa la bandeja entera por `lasFilasDeLaLista`,
+ * que llama a esta. Las dos horas van en milisegundos.
  */
-export function estaResuelta(ultimoMensajeMs: number, resueltaEnMs: number | null | undefined): boolean {
+export function estaResuelta(
+  ultimoMensajeMs: number,
+  resueltaEnMs: number | null | undefined,
+  ultimoEsDelContacto?: boolean,
+): boolean {
   if (!resueltaEnMs) return false;
-  return ultimoMensajeMs <= resueltaEnMs;
+  if (ultimoMensajeMs <= resueltaEnMs) return true;
+  return ultimoEsDelContacto === false;
 }
 
 /** Cuantas filas tiene cada linea y cuantas salen bajo «Todos». */

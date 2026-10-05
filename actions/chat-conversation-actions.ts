@@ -10,6 +10,8 @@ import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
 import { chatPreferenceKey } from "@/lib/chat-preference-key";
 import { getAssociatedAccountIds } from "@/lib/cuentas-asociadas";
 import { unificarPorSufijoDeDispositivo } from "@/lib/sufijo-de-dispositivo-db";
+import { ensureResolvedAtColumn } from "@/lib/session-resolved";
+import { levantarArchivosYResueltas } from "@/lib/reapertura-por-el-contacto.server";
 // El nucleo de las marcas y el borrado del historial. Se saco a un
 // `lib/*.server.ts` para que el obrero de fondo y el barrido diario puedan
 // llamarlo: en un fichero `'use server'` todo lo exportado es un endpoint, y
@@ -377,6 +379,7 @@ async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<vo
   }
 }
 
+
 /**
  * Cada cuánto se revisa que no falte ninguna ficha, por cuenta y por proceso.
  * Es una consulta acotada, pero la bandeja se abre muchas veces al día.
@@ -554,6 +557,7 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
     await medir("columna", () => ensurePurgedAtColumn());
     const userIds = await getAssociatedAccountIds(user);
     await medir("levantarMarcas", () => levantarMarcasSiElContactoEscribio(userIds));
+    await medir("reaperturas", () => levantarArchivosYResueltas(userIds));
     await medir("fichasQueFaltan", () => crearFichasQueFaltan(userIds));
     const preferences = await medir("leerLasMarcas", () => chatConversationPreferenceTable.findMany({
       where: { userId: { in: userIds } },
@@ -938,6 +942,129 @@ export async function levantarMarcaDeBorradoAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo levantar la marca de borrado.",
+    };
+  }
+}
+
+/**
+ * Archivada o resuelta: el contacto escribió, así que vuelve a la bandeja.
+ *
+ * Es el camino vivo de `lib/reapertura-por-el-contacto.ts`: la pantalla ya la
+ * levantó en memoria al ver un mensaje DEL CONTACTO posterior a la marca, y
+ * aquí se quita de la base para que no vuelva a esconderse al recargar ni al
+ * llegar la respuesta de la IA. Igual que el borrado, la prueba es un mensaje
+ * del contacto posterior a la marca: el de la pantalla o uno de
+ * `chat_messages`. Un saliente no prueba nada.
+ */
+export async function reabrirPorElContactoAction(
+  input: z.infer<typeof baseSchema>,
+): Promise<ChatPreferenceResponse<{ desarchivadas: number; reabiertas: number }>> {
+  try {
+    const parsed = baseSchema.parse(input);
+    await assertAuthorized(parsed.userId);
+
+    const linea = normalizarLinea(parsed.instanceName);
+    const normalizedRemoteJid = normalizePreferenceRemoteJid(parsed.remoteJid);
+    const identidades = Array.from(
+      new Set(
+        (
+          await identidadesDelContacto(parsed.userId, linea, normalizedRemoteJid, parsed.identidades ?? [])
+        ).map(normalizePreferenceRemoteJid),
+      ),
+    ).filter(Boolean);
+    if (!identidades.length) {
+      return { success: true, message: "Sin identidades.", data: { desarchivadas: 0, reabiertas: 0 } };
+    }
+
+    const contactoEscribioDespuesDe = async (marca: Date): Promise<boolean> => {
+      if (
+        typeof input.contactoEscribioEn === "number" &&
+        Number.isFinite(input.contactoEscribioEn) &&
+        input.contactoEscribioEn > marca.getTime()
+      ) {
+        return true;
+      }
+      const fila = await db.chatMessage.findFirst({
+        where: {
+          userId: parsed.userId,
+          ...(linea ? { instanceName: linea } : {}),
+          fromMe: false,
+          messageTimestamp: { gt: marca },
+          OR: [
+            { remoteJid: { in: identidades } },
+            { remoteJidAlt: { in: identidades } },
+            { senderPn: { in: identidades } },
+          ],
+        },
+        select: { id: true },
+      });
+      return Boolean(fila);
+    };
+
+    let desarchivadas = 0;
+    const archivadas = await chatConversationPreferenceTable.findMany({
+      where: {
+        userId: parsed.userId,
+        remoteJid: { in: identidades },
+        ...(linea ? { instanceName: { in: [linea, ""] } } : {}),
+        archivedAt: { not: null },
+      },
+      select: { archivedAt: true },
+      orderBy: { archivedAt: "desc" },
+      take: 1,
+    });
+    const archivadaEl = archivadas[0]?.archivedAt;
+    if (archivadaEl && (await contactoEscribioDespuesDe(archivadaEl))) {
+      const { count } = await chatConversationPreferenceTable.updateMany({
+        where: {
+          userId: parsed.userId,
+          remoteJid: { in: identidades },
+          ...(linea ? { instanceName: { in: [linea, ""] } } : {}),
+          archivedAt: { not: null },
+        },
+        data: { archivedAt: null },
+      });
+      desarchivadas = count;
+    }
+
+    let reabiertas = 0;
+    if (linea) {
+      await ensureResolvedAtColumn();
+      const resueltas = await db.$queryRaw<Array<{ id: number; resolved_at: Date }>>`
+        SELECT id, resolved_at FROM "Session"
+        WHERE "userId" = ${parsed.userId} AND "instanceId" = ${linea}
+          AND "remoteJid" IN (${Prisma.join(identidades)})
+          AND resolved_at IS NOT NULL
+      `;
+      for (const sesion of resueltas) {
+        if (!(await contactoEscribioDespuesDe(sesion.resolved_at))) continue;
+        reabiertas += await db.$executeRaw`
+          UPDATE "Session" SET resolved_at = NULL
+          WHERE id = ${sesion.id} AND resolved_at IS NOT NULL
+        `;
+      }
+    }
+
+    if (desarchivadas || reabiertas) {
+      console.warn("[chats] conversacion devuelta a la bandeja: el contacto escribio", {
+        linea: linea || "*",
+        pedidoComo: parsed.remoteJid,
+        desarchivadas,
+        reabiertas,
+      });
+      invalidatePersistedInboxCache();
+      revalidatePath("/chats");
+    }
+    return {
+      success: true,
+      message: "Listo.",
+      data: { desarchivadas, reabiertas },
+    };
+  } catch (error) {
+    console.error("[reabrirPorElContactoAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo devolver la conversacion a la bandeja.",
     };
   }
 }
