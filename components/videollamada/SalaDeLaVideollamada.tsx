@@ -13,6 +13,13 @@ import {
 import { loQueSeLeCuentaAVerzy, NOMBRES_DE_LOS_DESTINOS, type DestinoDeVerzy, type OrdenDeLaPantalla } from "@/lib/pantalla-de-verzy";
 import { NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
+import {
+    AL_DESPEDIRSE_EL_CLIENTE,
+    ESPERA_TRAS_LA_DESPEDIDA_MS,
+    GRACIA_SI_VERZY_SALE_MS,
+    loQueTerminaLaLlamada,
+    TOPE_DE_LA_DESPEDIDA_MS,
+} from "@/lib/fin-de-la-videollamada";
 
 /** Cada cuánto se pide la foto nueva de la pantalla mientras se enseña. */
 export const FOTO_CADA_MS = 1_000;
@@ -121,6 +128,8 @@ export default function SalaDeLaVideollamada({
     const videoAvatar = usarPista(pistas.avatarVideo);
     const audioAvatar = usarPista(pistas.avatarAudio);
     const conversacionRef = useRef<string | null>(null);
+    // Colgar a propósito (Salir, una despedida, Verzy que se va): nunca reconecta.
+    const colgarRef = useRef<() => void>(() => {});
 
     // Lo que se le cuenta a Verzy en medio de la conversación (la reconexión,
     // un pago que acaba de entrar): va como contexto, nunca como un mensaje.
@@ -300,9 +309,45 @@ export default function SalaDeLaVideollamada({
                     });
             }, laEsperaDelIntento(intento));
         };
+        // Colgar de verdad: sin reconectar, y la sala dice que terminó.
+        let colgada = false;
+        const colgar = (porque: string) => {
+            if (colgada) return;
+            colgada = true;
+            aProposito = true;
+            console.info("[videollamada] se cuelga", { porque });
+            setEstado("terminada");
+            setPistas(SIN_PISTAS);
+            setDestino(null);
+            void llamada.leave().catch(() => {});
+        };
+        colgarRef.current = () => colgar("salir");
+        // Despedida: se cuelga cuando Verzy termina su frase (con un tope).
+        let despidiendo: number | null = null;
+        let tope: number | null = null;
+        const colgarTrasLaDespedida = (porque: string) => {
+            if (despidiendo !== null) window.clearTimeout(despidiendo);
+            despidiendo = window.setTimeout(() => colgar(porque), ESPERA_TRAS_LA_DESPEDIDA_MS);
+        };
+        let verzySalio: number | null = null;
         for (const ev of ["participant-joined", "participant-updated", "participant-left", "track-started", "track-stopped"] as const) {
             llamada.on(ev, refrescar);
         }
+        llamada.on("participant-joined", (ev) => {
+            if (!ev?.participant?.local && verzySalio !== null) {
+                window.clearTimeout(verzySalio);
+                verzySalio = null;
+            }
+        });
+        // Verzy (el único remoto) se fue: si no vuelve en la gracia, se cuelga.
+        llamada.on("participant-left", (ev) => {
+            if (ev?.participant?.local) return;
+            if (verzySalio !== null) window.clearTimeout(verzySalio);
+            verzySalio = window.setTimeout(() => {
+                const quedan = Object.values(llamada.participants()).some((p) => !p.local);
+                if (!quedan) colgar("verzy-salio");
+            }, GRACIA_SI_VERZY_SALE_MS);
+        });
         llamada.on("joined-meeting", () => {
             intentos.current = 0;
             setEstado("dentro");
@@ -312,11 +357,25 @@ export default function SalaDeLaVideollamada({
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
             else saludarSiCalla(llamada);
         });
-        llamada.on("left-meeting", () => reconectar("left-meeting"));
+        llamada.on("left-meeting", () => {
+            if (!colgada) reconectar("left-meeting");
+        });
         llamada.on("error", (ev) => reconectar(ev));
         llamada.on("local-screen-share-started", () => setPantallaOn(true));
         llamada.on("local-screen-share-stopped", () => setPantallaOn(false));
         llamada.on("app-message", (ev) => {
+            const fin = loQueTerminaLaLlamada(ev?.data);
+            if (fin?.tipo === "fin") {
+                colgar("fin-de-tavus");
+                return;
+            }
+            if (fin?.tipo === "despedida" && tope === null) {
+                if (fin.quien === "cliente") contarleAVerzy(AL_DESPEDIRSE_EL_CLIENTE);
+                tope = window.setTimeout(() => colgar(`despedida-${fin.quien}-tope`), TOPE_DE_LA_DESPEDIDA_MS);
+            }
+            if (fin?.tipo === "verzy_termino_de_hablar" && tope !== null) {
+                colgarTrasLaDespedida("despedida");
+            }
             if (esQueVerzyHabla(ev?.data)) {
                 verzyHablo.current = true;
                 return;
@@ -354,6 +413,10 @@ export default function SalaDeLaVideollamada({
         });
         return () => {
             aProposito = true;
+            colgada = true;
+            if (despidiendo !== null) window.clearTimeout(despidiendo);
+            if (tope !== null) window.clearTimeout(tope);
+            if (verzySalio !== null) window.clearTimeout(verzySalio);
             llamadaRef.current = null;
             void llamada.destroy();
         };
@@ -475,6 +538,14 @@ export default function SalaDeLaVideollamada({
                                 {pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
                             </button>
                         )}
+                        <button
+                            type="button"
+                            data-mando="salir"
+                            onClick={() => colgarRef.current()}
+                            className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white"
+                        >
+                            Salir
+                        </button>
                     </>
                 )}
             </div>

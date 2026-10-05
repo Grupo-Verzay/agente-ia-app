@@ -27308,6 +27308,18 @@ quedaba muda.
 Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
 saludo, ni CRM, y que las notas salían sueltas.
 
+### La sala entiende los DOS formatos de `mostrar_pantalla`, y se cuelga sola
+
+Tavus no acepta el PATCH de una persona con cambios propios en su editor, así
+que Verzy puede seguir mandando el formato VIEJO (`pagina`). **No se fuerza el
+cambio en Tavus** (borraría esas ediciones): `laOrdenDeLaPantalla` lee
+`destino` y, si no, traduce `pagina` (`DESTINO_DE_LA_PAGINA_VIEJA`; lo
+desconocido va al panel, nunca a nada). La sala tiene **«Salir»** y se cuelga
+sola (`lib/fin-de-la-videollamada.ts`, pura): Tavus cierra la conversación; una
+despedida de Verzy al terminar de hablar; una del cliente (se le avisa a Verzy y
+a lo sumo 12 s); o Verzy sale y no vuelve en 8 s. Un saludo no cuelga, y lo
+colgado no se reconecta. Lo prueba `scripts/banco-videollamada-ia.sh`.
+
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 
 El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga

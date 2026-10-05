@@ -54,10 +54,30 @@ export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null 
     const args = laLlamadaA(mensaje, NOMBRE_DE_LA_HERRAMIENTA);
     if (!args) return null;
     const clave = typeof args.destino === "string" ? args.destino.trim().toLowerCase() : "";
-    if (clave === OCULTAR) return { accion: "ocultar" };
-    const destino = comoDestino(clave);
-    return destino ? { accion: "mostrar", destino } : null;
+    if (clave) {
+        if (clave === OCULTAR) return { accion: "ocultar" };
+        const destino = comoDestino(clave);
+        if (destino) return { accion: "mostrar", destino };
+    }
+    // Formato VIEJO (`pagina`): la persona de Tavus puede seguir con la
+    // herramienta de antes —no acepta el PATCH si tiene ediciones propias—,
+    // así que se traduce en vez de ignorarla. Si no, la pantalla no sale.
+    const pagina = typeof args.pagina === "string" ? args.pagina.trim().toLowerCase() : "";
+    if (!pagina) return null;
+    if (pagina === OCULTAR) return { accion: "ocultar" };
+    const directo = comoDestino(pagina);
+    if (directo) return { accion: "mostrar", destino: directo };
+    return { accion: "mostrar", destino: DESTINO_DE_LA_PAGINA_VIEJA[pagina] ?? "dashboard" };
 }
+
+/** Las páginas del formato viejo y su pantalla real. Lo demás va al panel. */
+export const DESTINO_DE_LA_PAGINA_VIEJA: Record<string, DestinoDeVerzy> = {
+    ficha: "ficha",
+    crm: "ficha",
+    crm_embudo: "embudo",
+    crm_recordatorios: "recordatorios",
+    crm_conversacion: "chats",
+};
 
 /** La herramienta tal como se configura en la persona de Tavus (`layers.llm.tools`). */
 export const HERRAMIENTA_DE_LA_PANTALLA = {
