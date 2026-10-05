@@ -18,6 +18,9 @@ import type { LidPhoneMap } from "@/app/(root)/chats/_components/lid-mapping";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import type { ChatContactSessionSummary } from "@/types/session";
 import type { ChatData } from "@/actions/chat-actions";
+import { leerLosBloqueos } from "@/lib/bloqueo-y-silencio-db";
+import { elEstadoDelChat, type MapaDeBloqueos } from "@/lib/bloqueo-y-silencio";
+import { getChatIdentityCandidates } from "@/app/(root)/chats/_components/chat-sidebar.utils";
 
 /**
  * El numero de «Todos» de cada linea, contado sobre la bandeja ENTERA.
@@ -40,6 +43,8 @@ import type { ChatData } from "@/actions/chat-actions";
 export type LoLeidoParaElConteo = {
   crudas: ChatData[];
   sesiones: ChatContactSessionSummary[];
+  /** Las bloqueadas no salen bajo «Todos» (`lib/bloqueo-y-silencio.ts`). */
+  bloqueos?: MapaDeBloqueos;
   ms: number;
 };
 
@@ -61,11 +66,16 @@ export async function leerParaElConteo(params: {
   if (!userIds.length || !instanceNames.length) return { crudas: [], sesiones: [], ms: 0 };
   const t0 = performance.now();
   try {
-    const [crudas, sesiones] = await Promise.all([
+    const [crudas, sesiones, bloqueos] = await Promise.all([
       leerLaBandejaEntera({ userIds, instanceNames }),
       sesionesParaElConteo(userIds),
+      // Best-effort: sin bloqueos se cuenta como antes, pero se dice.
+      leerLosBloqueos(userIds).catch((error) => {
+        console.warn("[chats] no se pudieron leer los bloqueos para «Todos»", error);
+        return {} as MapaDeBloqueos;
+      }),
     ]);
-    return { crudas, sesiones, ms: performance.now() - t0 };
+    return { crudas, sesiones, bloqueos, ms: performance.now() - t0 };
   } catch (error) {
     console.error("[chats] no se pudo leer la bandeja entera para «Todos»; se cuenta lo cargado", error);
     return null;
@@ -88,14 +98,24 @@ export function contarTodosDeLaBandeja(
   try {
     const chats = dedupeAndSortChats(leido.crudas, ctx.lidMap);
     const mapa = emparejarSesiones(chats, leido.sesiones);
+    const duenoDelChat = (chat: ChatData) =>
+      (chat.instanceName ? ctx.duenoDeLaLinea[chat.instanceName] : undefined) ??
+      ctx.cuentaPorDefecto;
+    const repartidasEntreLineas = identidadesEnVariasLineas(chats);
     const filas = lasFilasDeLaLista(chats, {
       preferencias: ctx.preferencias,
-      duenoDelChat: (chat) =>
-        (chat.instanceName ? ctx.duenoDeLaLinea[chat.instanceName] : undefined) ??
-        ctx.cuentaPorDefecto,
+      duenoDelChat,
       sesionDelChat: (chat) => laSesionDelChat(chat, mapa),
-      repartidasEntreLineas: identidadesEnVariasLineas(chats),
+      repartidasEntreLineas,
       agente: ctx.agente,
+      bloqueada: (chat) =>
+        elEstadoDelChat(
+          leido.bloqueos,
+          duenoDelChat(chat),
+          chat.instanceName,
+          getChatIdentityCandidates(chat),
+          repartidasEntreLineas,
+        ).bloqueado,
     });
     const conteo = contarLaLista(filas);
     const ms = leido.ms + (performance.now() - t0);

@@ -134,6 +134,11 @@ export type ContextoDeTodos = {
   repartidasEntreLineas?: ReadonlySet<string>;
   /** Solo para un agente: ve lo suyo y, si puede tomar, lo sin asignar. */
   agente?: { advisorId: string; puedeTomarSinAsignar: boolean } | null;
+  /**
+   * Bloqueada (`lib/bloqueo-y-silencio.ts`): no sale bajo «Todos» ni aunque
+   * escriba el cliente, hasta que alguien la desbloquee a mano.
+   */
+  bloqueada?: (chat: ChatData) => boolean;
 };
 
 /** Una fila de la lista, ya con su decision tomada. */
@@ -143,7 +148,8 @@ export type FilaDeTodos = FilaOrdenable & {
   borrada: boolean;
   archivada: boolean;
   resuelta: boolean;
-  /** Sale bajo «Todos»: ni borrada, ni archivada, ni resuelta. */
+  bloqueada: boolean;
+  /** Sale bajo «Todos»: ni borrada, ni archivada, ni resuelta, ni bloqueada. */
   activa: boolean;
 };
 
@@ -176,6 +182,7 @@ export function lasFilasDeLaLista(chats: ChatData[], ctx: ContextoDeTodos): Fila
     const borrada = isChatDeletedByPreference(chat, preferencia);
     const archivada = Boolean(preferencia?.isArchived);
     const resuelta = estaResuelta(ts, sesion?.resolvedAt);
+    const bloqueada = Boolean(ctx.bloqueada?.(chat));
     const isGroup = isGroupJid(chat.remoteJid);
     const fila = {
       id: chat.remoteJid,
@@ -192,7 +199,8 @@ export function lasFilasDeLaLista(chats: ChatData[], ctx: ContextoDeTodos): Fila
       borrada,
       archivada,
       resuelta,
-      activa: !borrada && !archivada && !resuelta,
+      bloqueada,
+      activa: !borrada && !archivada && !resuelta && !bloqueada,
     });
   }
 

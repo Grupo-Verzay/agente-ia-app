@@ -3,7 +3,11 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
-import { getChatConversationPreferencesForAssociatedAccounts } from "@/actions/chat-conversation-actions";
+import {
+  getChatBlocksForAssociatedAccounts,
+  getChatConversationPreferencesForAssociatedAccounts,
+} from "@/actions/chat-conversation-actions";
+import type { MapaDeBloqueos } from "@/lib/bloqueo-y-silencio";
 import { listTagsDeLasCuentasAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
@@ -26,6 +30,8 @@ type ChatBootstrapInput = {
 type ChatBootstrapData = {
   allTags: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
+  /** Bloqueadas y silenciadas (`lib/bloqueo-y-silencio.ts`). */
+  bloqueos: MapaDeBloqueos;
   /**
    * Las sesiones NO viajan aqui, y ya ni siquiera se piden.
    *
@@ -181,6 +187,7 @@ export async function loadChatBootstrapData(
     workflowsRes,
     quickRepliesRes,
     advisorsRes,
+    bloqueosRes,
   ] = await Promise.all([
     medir("etiquetas", () => settle(listTagsDeLasCuentasAction(sessionUserIds))),
     medir("asesoresAsignados", () => idsDeAsesoresConChatsAsignados(sessionUserIds)),
@@ -188,6 +195,7 @@ export async function loadChatBootstrapData(
     medir("flujos", () => settle(getWorkFlowByUserIds(sessionUserIds))),
     medir("respuestasRapidas", () => settle(getAllRRsByUserIds(sessionUserIds))),
     medir("asesores", () => settle(getTeamAdvisorInfos())),
+    medir("bloqueos", () => settle(getChatBlocksForAssociatedAccounts())),
   ]);
   tiempos.lasSeisALaVez = Date.now() - arrancoTodo;
 
@@ -266,6 +274,7 @@ export async function loadChatBootstrapData(
     data: {
       allTags,
       chatPreferences: preferencesRes?.success ? preferencesRes.data ?? {} : {},
+      bloqueos: bloqueosRes?.success ? bloqueosRes.data ?? {} : {},
       workflows: workflowOptions,
       quickReplies: quickReplyOptions,
       advisors,
