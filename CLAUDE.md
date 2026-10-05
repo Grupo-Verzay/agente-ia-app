@@ -27378,3 +27378,34 @@ Dos fallos que se veían como «la plataforma regala créditos»:
 Lo prueban `scripts/banco-creditos-al-editar.sh` aquí y
 `scripts/banco-creditos-sin-pago.sh` en `api-webhook`, contra Postgres y con
 `MODO=roto` pinchado al commit de antes.
+
+## Agente IA › Videollamadas: el guion de Verzy se edita en pantalla, por cuenta
+
+Lo que DICE Verzy en la videollamada con IA ya no está escrito en el código: se
+edita en Entrenamiento › Agente IA › **Videollamadas** (la pestaña de canal
+`videollamadas`, `kind: 'video'` en `lib/channel-training.ts`), con el saludo
+inicial y siete secciones —Apertura, Diagnóstico, Ubicar situación, Oferta,
+Cierre, Objeciones y Reglas generales—. **En Tavus solo queda lo técnico**: voz,
+cara y réplica.
+
+> **El guion es de la CUENTA** (`guion_videollamada`, tabla de la App, sin
+> columnas en `User`): ventas, soporte y pruebas tienen cada una el suyo, y lo
+> lee la cita por la cuenta dueña (`elGuionDeLaCita`). Las reglas son puras en
+> `lib/guion-videollamada.ts`; las usan la pantalla, la acción y el contexto de
+> Tavus (`elBloqueDelGuionDe`).
+
+Cinco cosas que hay que mantener:
+
+1. **Una sección vacía usa la de fábrica** (`elGuionQueSeUsa`): el guion nunca
+   sale cojo. Guardar todo de fábrica borra la fila.
+2. **El saludo guardado es el `custom_greeting` de Tavus Y el respaldo de la
+   sala** (prop `saludo` de `SalaDeLaVideollamada`): los dos dicen lo mismo.
+3. **Variables**: `{saludo}`, `{segunda_pregunta}`, `{tomar_nota}` y
+   `{agendar}`; se sustituyen al armar el contexto.
+4. **Guardar es de quien administra la cuenta** (`canManageWorkspace`, más
+   `laCuentaDeLaAccion`); los demás lo ven de solo lectura.
+5. **La guía de Agente IA nombra el canal** (`CANALES_DOCUMENTADOS`); sus
+   capturas no se regeneraron.
+
+Lo prueba `scripts/banco-guion-videollamada.sh`; `MODO=roto` lee `304d3bb` y
+afirma que el guion iba fijo y no había pestaña.

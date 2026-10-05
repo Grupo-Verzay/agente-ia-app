@@ -40,7 +40,7 @@ export const ZONAS_DE_LA_PANTALLA = [
 ] as const;
 
 /** Los canales de entrenamiento, en su orden (`lib/channel-training.ts`). */
-export const CANALES_DOCUMENTADOS = ["WhatsApp", "Llamadas", "WhatsApp API", "Telegram", "Facebook", "Instagram"] as const;
+export const CANALES_DOCUMENTADOS = ["WhatsApp", "Llamadas", "WhatsApp API", "Telegram", "Facebook", "Instagram", "Videollamadas"] as const;
 
 /** Las pestañas del editor, en su orden (`ai-section-labels.ts › TYPE_AI_LABELS`). */
 export const PESTANAS_DEL_EDITOR = [
@@ -126,7 +126,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Los canales",
-                    texto: "Un entrenamiento por canal: WhatsApp, Llamadas, WhatsApp API, Telegram, Facebook e Instagram. El que va resaltado es el que editas.",
+                    texto: "Un entrenamiento por canal: WhatsApp, Llamadas, WhatsApp API, Telegram, Facebook, Instagram y Videollamadas. El que va resaltado es el que editas.",
                     imagen: "canales.webp",
                     alt: "La fila de canales arriba del editor, con WhatsApp elegido",
                 },

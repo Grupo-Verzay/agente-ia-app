@@ -13,8 +13,10 @@ export type ChannelEnableFlag =
 export interface TrainingChannel {
   slug: string;
   label: string;
-  agentId: string | null; // null = canal de voz (no usa AgentPrompt)
-  kind: 'chat' | 'voice';
+  agentId: string | null; // null = no usa AgentPrompt (voz, videollamada)
+  // 'video' = el guion de Verzy en las videollamadas con IA (tabla
+  // guion_videollamada, por cuenta; lib/guion-videollamada.ts).
+  kind: 'chat' | 'voice' | 'video';
   // Flag de User que habilita el canal. Ausente = canal base (WhatsApp QR), que
   // siempre está disponible.
   enableFlag?: ChannelEnableFlag;
@@ -29,6 +31,7 @@ export const TRAINING_CHANNELS: TrainingChannel[] = [
   { slug: 'telegram', label: 'Telegram', agentId: 'system-prompt-ai-telegram', kind: 'chat', enableFlag: 'onTelegram' },
   { slug: 'facebook', label: 'Facebook', agentId: 'system-prompt-ai-facebook', kind: 'chat', enableFlag: 'onFacebook' },
   { slug: 'instagram', label: 'Instagram', agentId: 'system-prompt-ai-instagram', kind: 'chat', enableFlag: 'onInstagram' },
+  { slug: 'videollamadas', label: 'Videollamadas', agentId: null, kind: 'video' },
 ];
 
 export const DEFAULT_TRAINING_CHANNEL = 'whatsapp';

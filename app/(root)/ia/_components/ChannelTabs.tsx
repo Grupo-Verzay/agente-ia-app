@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Phone, Lock } from 'lucide-react';
+import { Phone, Lock, Video } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaFacebook, FaInstagram } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { TRAINING_CHANNELS } from '@/lib/channel-training';
@@ -15,6 +15,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   telegram: FaTelegramPlane,
   facebook: FaFacebook,
   instagram: FaInstagram,
+  videollamadas: Video,
 };
 
 // Color de marca por canal (el icono lo conserva activo o no, para distinguir).
@@ -25,6 +26,7 @@ const ICON_COLORS: Record<string, string> = {
   telegram: 'text-sky-500',
   facebook: 'text-blue-600',
   instagram: 'text-pink-600',
+  videollamadas: 'text-violet-600',
 };
 
 // Tabs superiores para cambiar de canal de entrenamiento. Estilo segmentado con
@@ -36,7 +38,7 @@ export function ChannelTabs({ lockedSlugs = [] }: { lockedSlugs?: string[] }) {
 
   return (
     <div className="shrink-0 border-b border-border/40 px-2 py-2 sm:px-3">
-      <div className="flex w-full gap-1 rounded-lg border border-border/60 bg-muted/30 p-1" data-canales-del-agente>
+      <div className="flex w-full gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1" data-canales-del-agente>
         {TRAINING_CHANNELS.map((c) => {
           const Icon = ICONS[c.slug] ?? FaWhatsapp;
           const isActive = active === c.slug;
