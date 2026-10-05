@@ -42,6 +42,8 @@ import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
 } from "@/types/chat";
+import { escribirLaMarca, leerLosBloqueos } from "@/lib/bloqueo-y-silencio-db";
+import type { MapaDeBloqueos, MarcaDeBloqueo } from "@/lib/bloqueo-y-silencio";
 
 
 type ChatPreferenceResponse<T> = {
@@ -79,6 +81,10 @@ const pinSchema = baseSchema.extend({
 
 const archiveSchema = baseSchema.extend({
   archived: z.boolean(),
+});
+
+const bloqueoSchema = baseSchema.extend({
+  activar: z.boolean(),
 });
 
 
@@ -661,6 +667,81 @@ export async function setChatArchivedAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "No se pudo actualizar el estado archivado del chat.",
+    };
+  }
+}
+
+/**
+ * Bloquear y silenciar (ver `lib/bloqueo-y-silencio.ts`). La misma puerta que
+ * anclar y archivar, y bajo TODAS las identidades del contacto: la lista lo trae
+ * por la identidad que devuelva el proveedor esa vuelta.
+ */
+async function marcarBloqueoOSilencio(
+  que: "bloqueadoEn" | "silenciadoEn",
+  input: z.infer<typeof bloqueoSchema>,
+): Promise<MarcaDeBloqueo[]> {
+  const parsed = bloqueoSchema.parse(input);
+  await assertAuthorized(parsed.userId);
+  const linea = normalizarLinea(parsed.instanceName);
+  const jid = normalizePreferenceRemoteJid(parsed.remoteJid);
+  const identidades = await identidadesDelContacto(parsed.userId, linea, jid, parsed.identidades ?? []);
+  const todas = [jid, ...identidades.map((i) => normalizePreferenceRemoteJid(i))];
+  const filas = await escribirLaMarca(parsed.userId, linea, todas, que, parsed.activar ? new Date() : null);
+  invalidatePersistedInboxCache();
+  revalidatePath("/chats");
+  return filas;
+}
+
+export async function setChatBlockedAction(
+  input: z.infer<typeof bloqueoSchema>,
+): Promise<ChatPreferenceResponse<MarcaDeBloqueo[]>> {
+  try {
+    const data = await marcarBloqueoOSilencio("bloqueadoEn", input);
+    return {
+      success: true,
+      message: input.activar ? "Conversación bloqueada." : "Conversación desbloqueada.",
+      data,
+    };
+  } catch (error) {
+    console.error("[setChatBlockedAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo bloquear la conversación.",
+    };
+  }
+}
+
+export async function setChatMutedAction(
+  input: z.infer<typeof bloqueoSchema>,
+): Promise<ChatPreferenceResponse<MarcaDeBloqueo[]>> {
+  try {
+    const data = await marcarBloqueoOSilencio("silenciadoEn", input);
+    return {
+      success: true,
+      message: input.activar ? "Conversación silenciada." : "Se quitó el silencio.",
+      data,
+    };
+  } catch (error) {
+    console.error("[setChatMutedAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo silenciar la conversación.",
+    };
+  }
+}
+
+/** Las marcas de bloqueo y silencio de las cuentas que alcanza la bandeja. */
+export async function getChatBlocksForAssociatedAccounts(): Promise<ChatPreferenceResponse<MapaDeBloqueos>> {
+  try {
+    const user = await currentUser();
+    if (!user?.id) throw new Error("No autorizado.");
+    const cuentas = await getAssociatedAccountIds(user);
+    return { success: true, message: "ok", data: await leerLosBloqueos(cuentas) };
+  } catch (error) {
+    console.error("[getChatBlocksForAssociatedAccounts]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron leer los bloqueos.",
     };
   }
 }

@@ -897,6 +897,42 @@ Cuatro cosas que hay que mantener:
 Lo prueba `scripts/banco-reapertura.sh`, contra Postgres con el barrido de
 producción; `MODO=roto` lleva la regla de `9c0e76d` y afirma los dos fallos.
 
+## Chats: «Bloqueados» y «Silenciados» son marcas del CONTACTO, y bloquear no se levanta solo
+
+En el menú de la flecha de las pastillas, entre «Resueltos» y «Eliminar por
+fecha…» (que sigue siendo la última), va un grupo propio separado por rayas:
+**Bloqueados** y **Silenciados**. Se ponen y se quitan desde el «⋯» de la fila.
+
+| | bloqueada | silenciada |
+| --- | --- | --- |
+| en «Todos», sus contadores y «Sin leer» | **no sale**, aunque escriba el cliente | sale como siempre |
+| avisos (sonido, sistema, pestaña) | — | **ninguno** (`callado` en `useAdvisorNotifications`) |
+| se ve en | solo «Bloqueados» | también «Silenciados» |
+| vuelve | **solo si alguien la desbloquea** | al quitarle el silencio |
+
+> **Un mensaje del cliente NO levanta el bloqueo**, al revés que la marca de
+> borrado. Nada fuera de `setChatBlockedAction` escribe `bloqueadoEn = NULL`.
+
+Cinco cosas que hay que mantener:
+
+1. **La marca vive en `chat_bloqueo_silencio`, tabla de la App**
+   (`lib/bloqueo-y-silencio-db.ts`, `ddl()`, sin clave foránea), una fila por
+   cuenta, línea e identidad. Ni una columna en `chat_conversation_preferences`
+   ni en `Session`.
+2. **Se escribe bajo TODAS las identidades** del contacto, y se lee con
+   `elEstadoDelChat` (`lib/bloqueo-y-silencio.ts`, pura) por la misma regla que
+   la marca de borrado (`elegirPreferenciaDelChat`: manda la de SU línea).
+3. **Bloquear y silenciar son dos columnas y no se pisan**: `escribirLaMarca`
+   toca solo la que se le nombra (`elCambio`).
+4. **El número de «Todos» también la descuenta**: `lasFilasDeLaLista` recibe
+   `bloqueada`, en el navegador y en `lib/conteo-de-todos.server.ts`.
+5. **Se pinta al momento** y vuelve tal cual si el servidor dice que no; la
+   puerta es `assertAuthorized` (hacia abajo, nunca hacia arriba).
+
+Lo prueba `scripts/banco-bloqueo-y-silencio.sh`: las reglas, un barrido (orden
+y grupos del menú, Todos, avisos) y la tabla contra Postgres. `MODO=roto` lee
+`9c0e76d` y afirma que no existía nada de esto.
+
 ## Chats: borrar en bloque es MARCAR ya y purgar de fondo
 
 «Al intentar eliminar en bloque sale un error de API, y además hay un tope que no
@@ -14586,6 +14622,38 @@ sola— y afirma los dos restos: la cartera atascada bajo la cuenta de antes y e
 módulo de más. Y **los dos ficheros corren en ese modo**: el caso roto del de
 Postgres se salta solo en la vuelta normal, así que dejándolo fuera del modo
 roto saldría en verde sin haberse ejecutado nunca, que es peor que no tenerlo.
+
+## Usuarios: un cliente vincula SUS cuentas con la contraseña de la cuenta a vincular
+
+«Vincular existente» (Usuarios › «⋯», y «Agregar cuenta» del conmutador) solo
+salía a la casa y a un reseller: pedía rol (`isAdminOrReseller`) y la acción
+solo aceptaba cuentas que ya se alcanzaban. Un cliente con varias cuentas
+propias no tenía cómo juntarlas.
+
+> **Sale a quien administra la cuenta** (`ofreceVincularCuentas`, con
+> `canManageWorkspace`; un `agente` no). **Para el cliente, la prueba de que la
+> cuenta es suya es su CONTRASEÑA** (`pideContrasenaParaVincular`): la puerta es
+> `puertaParaVincular` (`lib/vincular-cuentas.server.ts`), y la usan las DOS
+> acciones que escriben la fila (`linkExistingAdvisor`, `addLinkedAccount`).
+
+Cinco cosas que hay que mantener:
+
+1. **Lo que ya se alcanza pasa como siempre**, sin contraseña: la casa y el
+   reseller no cambian.
+2. **Con contraseña, solo una cuenta de CLIENTE** (`porQueNoSeVinculaConContrasena`,
+   pura): rol `user`, sin `ownerId` (una persona de un equipo no es una
+   cuenta), no eliminada, no la propia y **no por encima de la propia**
+   (`lasCuentasPorEncimaDe`): vincular a la madre la dejaría colgando de su hija.
+3. **El error no dice si la cuenta existe**: correo inexistente y contraseña
+   mala contestan lo mismo, y se compara siempre con bcrypt (contra un hash de
+   relleno si no hay cuenta), para no delatarlo por el tiempo.
+4. **10 intentos fallidos en 15 minutos por cuenta y se para** (en memoria).
+5. **La contraseña no se escribe en ningún sitio**: ni en la consola ni en la
+   base.
+
+Lo prueba `scripts/banco-vincular-propias.sh`, contra Postgres y con
+`currentUser()` de verdad; `MODO=roto` corre las acciones de `9c0e76d` y afirma
+que un cliente no podía vincular sus cuentas ni con su contraseña.
 
 ## Clientes: «¿gestionas a este?» y «¿qué rol le pones?» son dos preguntas
 

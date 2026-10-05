@@ -29,7 +29,7 @@ import {
 } from "./chats-sidebar-cache";
 
 /** Sin datos todavía: todos a cero, y en cero la insignia no se pinta. */
-const SIN_CONTEOS: TabCounts = { all: 0, mine: 0, groups: 0, archived: 0, resolved: 0, dm: 0 };
+const SIN_CONTEOS: TabCounts = { all: 0, mine: 0, groups: 0, archived: 0, resolved: 0, dm: 0, blocked: 0, muted: 0 };
 const nada = () => { };
 
 function initials(name: string) {

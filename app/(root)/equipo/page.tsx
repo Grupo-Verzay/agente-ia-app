@@ -4,7 +4,8 @@ import { isAdvisorAccount, isAdvisorAdmin } from "@/lib/permissions";
 import { TeamClient } from "./_components/team-client";
 import { rolQueAbrePuertas } from "@/lib/sidebar-modules";
 import { esSuperAdminDeVerdad } from "@/lib/super-admin-de-verdad";
-import { ofreceReiniciarVinculos, ofreceVincularCuentas } from "@/lib/vincular-cuentas";
+import { canManageWorkspace } from "@/lib/workspace-roles";
+import { ofreceReiniciarVinculos, ofreceVincularCuentas, pideContrasenaParaVincular } from "@/lib/vincular-cuentas";
 import {
   getAutoAssignSettings,
   getOwnerModules,
@@ -57,7 +58,10 @@ export default async function EquipoPage() {
       // trae también la propia, así que hace falta más de una. La misma lista
       // con la que el diálogo ofrece el destino; sin respuesta, se ve de más.
       hayCuentasParaMudar={cuentasParaMudar ? cuentasParaMudar.success && (cuentasParaMudar.data?.length ?? 0) > 1 : true}
-      puedeVincular={ofreceVincularCuentas(rolQueAbrePuertas(user))}
+      // Quien administra esta cuenta vincula: la casa lo que ya alcanza, un
+      // cliente sus propias cuentas con la contraseña de cada una.
+      puedeVincular={ofreceVincularCuentas({ rol: rolQueAbrePuertas(user), administraLaCuenta: canManageWorkspace(user) })}
+      pideContrasena={pideContrasenaParaVincular(rolQueAbrePuertas(user))}
       puedeReiniciarVinculos={ofreceReiniciarVinculos(esSuperAdminDeVerdad(user))}
     />
   );

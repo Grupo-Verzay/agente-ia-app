@@ -5,6 +5,10 @@ export type SidebarContact = {
   id: string;
   chatSession: ChatContactSessionMap[string] | null;
   isArchived: boolean;
+  /** Bloqueada: fuera de toda pestaña menos «Bloqueados», hasta que alguien la desbloquee. */
+  isBlocked?: boolean;
+  /** Silenciada: se ve igual, pero no suena ni avisa. */
+  isMuted?: boolean;
   isDeleted: boolean;
   // Eliminado y ya sin rastro: sigue oculto, pero no se lista en Eliminados.
   isPurged: boolean;
@@ -51,7 +55,7 @@ export type SidebarContact = {
 };
 
 // Sin "deleted": un chat eliminado no se ve en ninguna parte (ver `isDeleted`).
-export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "resolved";
+export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "resolved" | "blocked" | "muted";
 
 export type TabCounts = Record<TabKey, number>;
 
