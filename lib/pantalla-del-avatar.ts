@@ -130,6 +130,17 @@ export const HERRAMIENTA_DE_TOMAR_NOTA = {
 } as const;
 
 /**
+ * Si el cliente pide VER algo, se le enseña YA. El guion de ventas guardado en
+ * Tavus (y la descripción vieja de la herramienta) dicen «solo cuando el guion
+ * lo pida» y piden diagnóstico antes: con eso el modelo se negaba a enseñar
+ * los precios o el CRM aunque el cliente lo pidiera, y la pantalla no salía
+ * nunca. Esta regla manda sobre ese orden.
+ */
+export const REGLA_DE_LO_QUE_PIDE_VER =
+    `Si el cliente pide VER algo (los precios, los planes, el CRM, el embudo, una función), llama a ${NOMBRE_DE_LA_HERRAMIENTA} en ESE MISMO turno, antes de seguir con el guion y sin pedirle antes el diagnóstico. ` +
+    "Esta regla manda sobre el orden del guion y sobre cualquier instrucción que diga usar la pantalla solo cuando el guion lo pida. Después de mostrarlo, puedes retomar el guion.";
+
+/**
  * Lo que se le cuenta al avatar sobre CÓMO se comparte pantalla. No dice QUÉ
  * abrir ni cuándo: eso lo dice solo el entrenamiento de Videollamadas.
  */
@@ -139,6 +150,7 @@ export function elBloqueDeLaPantalla(): string {
         `Puedes compartir pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA}: pásale la ruta de Agente IA, o la página de su lista si la herramienta te da una lista. ` +
             "Se carga tal cual, en vivo, y la ve el cliente.",
         "- Cuando el tema lo pide (los precios, una función, la plataforma), LLAMA a la herramienta: decir que muestras algo sin llamarla deja la pantalla vacía.",
+        `- ${REGLA_DE_LO_QUE_PIDE_VER}`,
         "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas y el tema que se está hablando.",
         "- Nunca digas una URL en voz alta: llama a la herramienta y NÓMBRALA en palabras, di qué se está viendo.",
         `- Para dejar de compartir: ${OCULTAR}.`,
@@ -334,6 +346,7 @@ export function elBloqueDelGuion(
         "- Cada turno acaba en UNA pregunta concreta y corta. Después te callas y esperas a que el cliente responda.",
         "- Nada de monólogos, listas largas ni repetir lo que ya dijiste.",
         "- Sigue el guion en orden; no inventes pasos, ofertas ni datos que no estén aquí.",
+        `- La única excepción al orden: ${REGLA_DE_LO_QUE_PIDE_VER}`,
         `- ${REGLA_DEL_SALUDO}`,
         texto
             ? [
