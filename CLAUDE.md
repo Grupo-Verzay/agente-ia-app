@@ -27540,3 +27540,22 @@ Waha) lo enviaba y no dejaba la marca.
 
 Lo prueba `scripts/banco-flujo-manual-en-la-fila.sh`, contra Postgres y con la
 acción de verdad; `MODO=roto` contra `f0ad78b` afirma que la marca no aparecía.
+
+## Transcribir con la clave PROPIA del cliente: siempre la de OpenAI, y su error se dice
+
+Un cliente con su propia clave en Ajustes no podía transcribir: salía «el
+servicio de transcripción no respondió». Eran tres cosas:
+
+| lo que pasaba | ahora |
+| --- | --- |
+| la clave se elegía como la del agente (el proveedor por defecto): con Google por defecto, a Whisper le llegaba la clave de Gemini y OpenAI contestaba 401 | `laClaveDeOpenAi` (`lib/creditos-de-transcripcion.ts`) toma SOLO la configuración de OpenAI, la activa primero |
+| el rechazo de OpenAI se tragaba y salía «no respondió», que manda a reintentar algo que no se arregla reintentando | `transcribirConOpenAi` clasifica (`elFalloDeOpenAi`): con clave PROPIA dice `clave_invalida` o `clave_sin_saldo` y manda a Ajustes › Conexión › API key; con la de la casa sigue `no_transcribio` (el cliente no la puede arreglar). Un rechazo de la clave no prueba el otro modelo |
+| se guardaban claves enmascaradas, direcciones o números | `validateProviderApiKey` rechaza lo que no tiene forma de clave, y `noTieneFormaDeClave` no la manda a OpenAI |
+
+Y **el cobro se juzga sobre la clave que DE VERDAD se usa** (`laClaveYElSaldo`):
+si la de OpenAI es del cliente, no se descuenta; si es de la casa, sí. Las tres
+pantallas que transcriben (Chats, chat de equipo y reuniones) pasan por ahí.
+
+Lo prueba `scripts/banco-clave-propia-transcripcion.sh` con OpenAI fingido;
+`MODO=roto` empaqueta `7c1db1f` y afirma que se elegía la clave de Google y se
+tragaba el error.

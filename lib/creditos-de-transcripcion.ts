@@ -3,7 +3,11 @@ import "server-only";
 import { Readable } from "stream";
 
 import { db } from "@/lib/db";
-import { pagaElClienteSuIa } from "@/lib/llaves-de-verzay";
+import {
+    esLlaveDeVerzay,
+    hayRegistroDeLlaves,
+    pagaElClienteSuIa,
+} from "@/lib/llaves-de-verzay";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import {
     elSaldoDeLaFila,
@@ -100,31 +104,73 @@ export async function descontarLaTranscripcion(
 /**
  * La clave de OpenAI de la cuenta.
  *
- * Se elige **igual que la elige el motor** —su proveedor por defecto activo,
- * luego cualquiera activo, luego la primera—, que es el mismo criterio con el
- * que `pagaElClienteSuIa` decide quién paga. Decidir sobre una clave y
- * transcribir con otra sería cobrarle a quien no gasta.
+ * **Solo de su configuración de OpenAI.** Antes se elegía «la del proveedor
+ * por defecto, luego cualquiera activa», que es como el motor elige la clave
+ * del AGENTE, y eso no vale aquí: la transcripción va SIEMPRE a OpenAI. Una
+ * cuenta con Google por defecto le mandaba a Whisper la clave de Gemini, y
+ * OpenAI contestaba 401; la pantalla decía «el servicio de transcripción no
+ * respondió» y quien lo leía volvía a pulsar sin entender nada.
+ *
+ * Dentro de las de OpenAI: la activa primero, y si no hay activa, la que haya.
  */
 export async function laClaveDeOpenAi(userId: string): Promise<string | null> {
     const cuenta = await db.user.findUnique({
         where: { id: userId },
         select: {
-            defaultProviderId: true,
-            aiConfigs: { select: { providerId: true, apiKey: true, isActive: true } },
+            aiConfigs: {
+                select: {
+                    apiKey: true,
+                    isActive: true,
+                    provider: { select: { name: true } },
+                },
+            },
         },
     });
     if (!cuenta) return null;
+    return laClaveDeOpenAiEntre(cuenta.aiConfigs);
+}
 
-    const elegida =
-        (cuenta.defaultProviderId
-            ? cuenta.aiConfigs.find(
-                  (c) => c.providerId === cuenta.defaultProviderId && c.isActive,
-              ) ?? cuenta.aiConfigs.find((c) => c.providerId === cuenta.defaultProviderId)
-            : undefined) ??
-        cuenta.aiConfigs.find((c) => c.isActive) ??
-        cuenta.aiConfigs[0];
-
+/** Puro: la regla de arriba sobre las filas ya leídas. */
+export function laClaveDeOpenAiEntre(
+    configs: Array<{ apiKey: string | null; isActive: boolean; provider: { name: string } | null }>,
+): string | null {
+    const deOpenAi = configs.filter(
+        (c) => (c.provider?.name ?? "").trim().toLowerCase() === "openai" && c.apiKey?.trim(),
+    );
+    const elegida = deOpenAi.find((c) => c.isActive) ?? deOpenAi[0];
     return elegida?.apiKey?.trim() || null;
+}
+
+/**
+ * La clave con la que se transcribe y el saldo que se mira, juntos.
+ *
+ * **El saldo se juzga sobre la clave que DE VERDAD se usa.** `pagaElClienteSuIa`
+ * mira la clave del agente (la del proveedor por defecto), que puede no ser la
+ * de OpenAI: una cuenta con su clave de OpenAI y Google por defecto con la de
+ * la casa se cobraba como si transcribiera con la de la casa. Si la clave de
+ * OpenAI es del cliente (no está en el registro de Verzay), no se cobra.
+ *
+ * `propia` dice si la clave es del cliente: solo entonces un «clave inválida» o
+ * «sin saldo en OpenAI» es asunto suyo y se le dice. Si es de la casa, el
+ * cliente no puede hacer nada y se queda en «no respondió».
+ */
+export async function laClaveYElSaldo(userId: string): Promise<{
+    clave: string | null;
+    saldo: SaldoDeLaCuenta;
+    propia: boolean;
+}> {
+    const [clave, fila, hayRegistro] = await Promise.all([
+        laClaveDeOpenAi(userId),
+        db.iaCredit.findUnique({ where: { userId }, select: { total: true, used: true } }),
+        hayRegistroDeLlaves().catch(() => false),
+    ]);
+    if (!clave) {
+        const pagaSuIa = await pagaElClienteSuIa(userId);
+        return { clave: null, saldo: elSaldoDeLaFila({ fila, pagaSuIa }), propia: false };
+    }
+    const deLaCasa = await esLlaveDeVerzay(clave).catch(() => true);
+    const propia = hayRegistro && !deLaCasa;
+    return { clave, saldo: elSaldoDeLaFila({ fila, pagaSuIa: propia }), propia };
 }
 
 /**
@@ -149,8 +195,54 @@ export async function pedirleElTextoAOpenAi(input: {
     /** Cómo se llama el archivo que se sube. Su extensión ES el formato. */
     nombre: string;
 }): Promise<string> {
+    const r = await transcribirConOpenAi({ ...input, propia: false });
+    return "texto" in r ? r.texto : "";
+}
+
+/**
+ * Por qué una clave PROPIA no transcribe. Con la de la plataforma esto nunca se
+ * le enseña al cliente (no es suya, no la puede arreglar): sale `no_transcribio`.
+ */
+export type FalloDeLaClave = "clave_invalida" | "clave_sin_saldo";
+
+/**
+ * **Lo que OpenAI dijo, clasificado.** Antes cualquier rechazo —una clave mal
+ * pegada, una cuenta de OpenAI sin saldo— se tragaba en el `catch` y salía
+ * «el servicio no respondió, inténtalo otra vez», que manda a reintentar algo
+ * que no se arregla reintentando. Pura para poder probarla sin red.
+ */
+export function elFalloDeOpenAi(error: unknown): FalloDeLaClave | null {
+    const e = error as { status?: number; code?: string; error?: { code?: string; type?: string } } | null;
+    const status = e?.status;
+    const code = e?.code ?? e?.error?.code ?? e?.error?.type;
+    if (status === 401 || status === 403 || code === "invalid_api_key") return "clave_invalida";
+    if (code === "insufficient_quota" || code === "billing_hard_limit_reached") return "clave_sin_saldo";
+    return null;
+}
+
+/**
+ * Una clave que ni tiene forma de clave: enmascarada (`••••`, `…`), una
+ * dirección, con espacios dentro. Se descarta sin llamar a nadie.
+ */
+export function noTieneFormaDeClave(clave: string): boolean {
+    const c = clave.trim();
+    return !/^[A-Za-z0-9_\-.]{20,}$/.test(c) || !/[A-Za-z]/.test(c);
+}
+
+export async function transcribirConOpenAi(input: {
+    audio: Buffer;
+    clave: string;
+    nombre: string;
+    /** La clave es del cliente: los fallos de la clave se le dicen. */
+    propia: boolean;
+}): Promise<{ texto: string } | { motivo: FalloDeLaClave | "no_transcribio" }> {
+    const conMotivo = (m: FalloDeLaClave) => ({ motivo: input.propia ? m : ("no_transcribio" as const) });
+    if (noTieneFormaDeClave(input.clave)) {
+        console.warn("[transcripcion] la clave de OpenAI no tiene forma de clave", { propia: input.propia });
+        return conMotivo("clave_invalida");
+    }
     const OpenAI = (await import("openai")).default;
-    const openai = new OpenAI({ apiKey: input.clave });
+    const openai = new OpenAI({ apiKey: input.clave.trim() });
 
     for (const modelo of ["gpt-4o-transcribe", "whisper-1"]) {
         try {
@@ -161,13 +253,18 @@ export async function pedirleElTextoAOpenAi(input: {
                 model: modelo,
             });
             const texto = (tr.text ?? "").trim();
-            if (texto) return texto;
+            if (texto) return { texto };
         } catch (error) {
+            const fallo = elFalloDeOpenAi(error);
             console.warn("[transcripcion] un modelo no pudo transcribir", {
                 modelo,
+                fallo,
+                propia: input.propia,
                 error: error instanceof Error ? error.message : String(error),
             });
+            // Un rechazo de la CLAVE no cambia con otro modelo: se para.
+            if (fallo) return conMotivo(fallo);
         }
     }
-    return "";
+    return { motivo: "no_transcribio" };
 }

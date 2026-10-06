@@ -101,15 +101,14 @@ import {
     bajarLaGrabacion,
     elResumenDeLaReunion,
 } from "@/lib/grabacion-de-reunion.server";
-import { costoDeLaNota } from "@/lib/transcripcion-de-voz";
+import { costoDeLaNota, porQueNoSeTranscribio } from "@/lib/transcripcion-de-voz";
 import { laCuentaQuePagaLaTranscripcion } from "@/lib/nota-de-voz-del-equipo";
 import { comoSeLeeElSaldo, seCobra } from "@/lib/saldo-de-la-cuenta";
 import {
-    elSaldoDeLaCuenta,
+    laClaveYElSaldo,
     elNombreDeLaCuentaQuePaga,
     descontarLaTranscripcion,
-    laClaveDeOpenAi,
-    pedirleElTextoAOpenAi,
+    transcribirConOpenAi,
 } from "@/lib/creditos-de-transcripcion";
 
 /**
@@ -1953,7 +1952,7 @@ export async function transcribirLaReunionAction(input: {
             raizDeLaFamilia: familia.raiz,
         });
 
-        const saldo = await elSaldoDeLaCuenta(paga);
+        const { clave, saldo, propia } = await laClaveYElSaldo(paga);
         const que = queHacerConLaGrabacion({
             yaTranscrita: false,
             audioBytes: fila.audioBytes,
@@ -1977,17 +1976,23 @@ export async function transcribirLaReunionAction(input: {
             };
         }
 
-        const clave = await laClaveDeOpenAi(paga);
         if (!clave) return { success: false, message: "Esta cuenta no tiene configurada su IA." };
 
         const audio = await bajarLaGrabacion(fila.audioUrl);
         if (!audio) return { success: false, message: "No se pudo leer el audio de la reunión." };
 
-        const texto = await pedirleElTextoAOpenAi({
+        const r = await transcribirConOpenAi({
             audio: audio.bytes,
             clave,
             nombre: audio.nombre,
+            propia,
         });
+        if (!("texto" in r) && r.motivo !== "no_transcribio") {
+            // La clave PROPIA de la cuenta no sirve: reintentar no lo arregla.
+            const cuenta = await elNombreDeLaCuentaQuePaga(paga);
+            return { success: false, message: porQueNoSeTranscribio(r.motivo, cuenta ? { cuenta } : undefined) };
+        }
+        const texto = "texto" in r ? r.texto : "";
         if (!texto) {
             // **No se cobra y no se deja marca.** Un fallo de OpenAI es de hoy:
             // marcarlo dejaría esta reunión sin transcribir para siempre y sin

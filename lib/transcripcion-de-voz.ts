@@ -302,7 +302,11 @@ export type NoSeTranscribio =
     /** El audio no se pudo descargar. */
     | "no_bajo"
     /** OpenAI no devolvió texto. */
-    | "no_transcribio";
+    | "no_transcribio"
+    /** La clave de OpenAI PROPIA de la cuenta (Ajustes) no es válida. */
+    | "clave_invalida"
+    /** La cuenta de OpenAI de esa clave propia no tiene saldo. */
+    | "clave_sin_saldo";
 
 /**
  * **Si se puede volver a pulsar.** Es la otra mitad de decir el motivo: un
@@ -315,6 +319,9 @@ export function sePuedeReintentar(motivo: NoSeTranscribio): boolean {
         motivo === "no_bajo" ||
         motivo === "no_transcribio" ||
         motivo === "sin_creditos" ||
+        // Corregir la clave en Ajustes lo arregla.
+        motivo === "clave_invalida" ||
+        motivo === "clave_sin_saldo" ||
         // Asignarle un cupo a la cuenta lo arregla, así que el botón sigue.
         motivo === "sin_bolsa"
     );
@@ -368,5 +375,9 @@ export function porQueNoSeTranscribio(
             return "No se pudo descargar el audio. Inténtalo otra vez.";
         case "no_transcribio":
             return "El servicio de transcripción no respondió. Inténtalo otra vez.";
+        case "clave_invalida":
+            return `La clave de OpenAI de ${cuenta || "esta cuenta"} no es válida. Revísala en Ajustes › Conexión › API key.`;
+        case "clave_sin_saldo":
+            return `La cuenta de OpenAI de la clave de ${cuenta || "esta cuenta"} no tiene saldo. Recárgala en OpenAI o cambia la clave en Ajustes › Conexión › API key.`;
     }
 }
