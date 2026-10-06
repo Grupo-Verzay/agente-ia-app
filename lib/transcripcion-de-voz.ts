@@ -190,24 +190,24 @@ export function costoDeLaNota(segundos: number): CostoDeLaNota {
 }
 
 /**
- * Si este mensaje es una **nota de voz de un cliente**.
+ * Si este mensaje es una **nota de voz** que se puede transcribir.
  *
- * Tres condiciones, y las tres hacen falta:
+ * **Vale para los DOS lados de la conversación**: la del cliente y la del
+ * asesor. Antes solo la del cliente, con el argumento de que lo propio «ya está
+ * en texto en algún sitio» — y una nota de voz del asesor no lo está: es justo
+ * lo que hay que poder revisar para saber qué le dice el equipo a los clientes.
+ * Sigue siendo bajo demanda, así que no se paga nada que nadie pida.
  *
- * - **Entrante.** Lo que escribe el asesor —o la IA— no se transcribe: ya está
- *   en texto en algún sitio, y transcribir lo propio es pagar dos veces.
- * - **`audioMessage`**, claro.
- * - **`ptt`**, que es lo que WhatsApp marca en una nota de voz y no en un
- *   archivo de audio adjunto. Sin esa condición, alguien que manda una canción
- *   de cuatro minutos paga cuatro minutos de transcripción de una canción.
- *   Cuando el proveedor no manda `ptt` se acepta igual: es lo que hace la
- *   inmensa mayoría de los audios que llegan a un chat de atención.
+ * Lo que sí se mantiene es **`ptt`**, que es lo que WhatsApp marca en una nota
+ * de voz y no en un archivo de audio adjunto. Sin esa condición, alguien que
+ * manda una canción de cuatro minutos paga cuatro minutos de transcripción de
+ * una canción. Cuando el proveedor no manda `ptt` se acepta igual: es lo que
+ * hace la inmensa mayoría de los audios que llegan a un chat de atención.
  */
-export function esNotaDeVozDeCliente(msg: {
+export function esNotaDeVozTranscribible(msg: {
     fromMe?: boolean;
     audio?: { ptt?: boolean; seconds?: number } | null;
 }): boolean {
-    if (msg.fromMe) return false;
     if (!msg.audio) return false;
     return msg.audio.ptt !== false;
 }

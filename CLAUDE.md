@@ -9321,9 +9321,15 @@ Cuatro cosas que hay que mantener:
 «Transcribir 3 créditos», con el número en tono más claro, porque la duración
 **es** el precio. Una nota por
 encima del tope no ofrece botón y dice por qué — un botón que al pulsarlo da
-error es peor que no tenerlo. Y **solo se ofrece en lo que entra**: lo que
-escribe el asesor o la IA ya está en texto, así que transcribirlo es pagar dos
-veces por algo que ya se tiene.
+error es peor que no tenerlo.
+
+**Se ofrece en las notas de voz de LOS DOS lados**: la del cliente y la que
+manda el asesor o la IA (`fromMe = true`), para revisar qué le dice el equipo a
+los clientes. Lo decide `esNotaDeVozTranscribible` y `laNotaDeVoz` no filtra
+por `fromMe`; en la burbuja propia la pastilla va en tonos claros
+(`enMensajePropio`). Un audio ADJUNTO (`ptt: false`) no es una nota y no se
+ofrece. Lo prueba `scripts/banco-transcribir-nota-del-asesor.sh`; `MODO=roto`
+contra `7c1db1f` afirma que solo se ofrecía la del cliente.
 
 ### Compartir la TARIFA no basta: hay que compartir la DURACIÓN
 
