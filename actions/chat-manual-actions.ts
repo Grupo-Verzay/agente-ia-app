@@ -59,10 +59,9 @@ import {
 import { comoSeLeeElSaldo, loQueQueda, seCobra } from "@/lib/saldo-de-la-cuenta";
 import {
   descontarLaTranscripcion,
-  laClaveDeOpenAi,
-  elSaldoDeLaCuenta,
+  laClaveYElSaldo,
   elNombreDeLaCuentaQuePaga,
-  pedirleElTextoAOpenAi,
+  transcribirConOpenAi,
 } from "@/lib/creditos-de-transcripcion";
 import { subirAdjuntoSaliente } from "@/lib/adjuntos-salientes";
 import { apuntarLoQueHizo, apuntarUnaVezAlDia } from "@/lib/apuntar-actividad";
@@ -936,7 +935,9 @@ export async function transcribirNotaDeChatAction(
     // La comprobación va en CRÉDITOS y nunca toca `used` y `total` en la misma
     // expresión — es la regla explícita del CLAUDE.md, y el fallo que ya costó
     // caro en el voicebot.
-    const saldo = await elSaldoDeLaCuenta(duenoDeLaLinea);
+    // La clave y el saldo salen JUNTOS: la clave es la de OpenAI de la cuenta
+    // (nunca la de otro proveedor), y si es propia la cuenta no consume créditos.
+    const { clave, saldo, propia } = await laClaveYElSaldo(duenoDeLaLinea);
     const que = queHacerConLaNota({ segundos: nota.segundos, saldo });
     if (que.hacer === "saltar") return no("muy_larga");
     if (que.hacer === "esperar") {
@@ -952,7 +953,6 @@ export async function transcribirNotaDeChatAction(
       });
     }
 
-    const clave = await laClaveDeOpenAi(duenoDeLaLinea);
     if (!clave) return no("sin_ia");
 
     const audio = await bajarElAudioDeLaNota({
@@ -965,12 +965,17 @@ export async function transcribirNotaDeChatAction(
     });
     if (!audio) return no("no_bajo");
 
-    const texto = await pedirleElTextoAOpenAi({
+    const r = await transcribirConOpenAi({
       audio: audio.bytes,
       clave,
       nombre: audio.nombre,
+      propia,
     });
-    if (!texto) return no("no_transcribio");
+    if (!("texto" in r)) {
+      const cuenta = r.motivo === "no_transcribio" ? null : await elNombreDeLaCuentaQuePaga(duenoDeLaLinea);
+      return no(r.motivo, cuenta ? { cuenta } : undefined);
+    }
+    const texto = r.texto;
 
     // El `WHERE` del guardado es lo que impide pagarla dos veces: con dos
     // asesores pulsando a la vez, solo una llamada escribe y solo esa descuenta.

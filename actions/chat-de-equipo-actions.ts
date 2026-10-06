@@ -20,10 +20,9 @@ import { comoSeLeeElSaldo, loQueQueda, seCobra } from "@/lib/saldo-de-la-cuenta"
 import { llaveDelArchivoSubido } from "@/lib/llave-del-bucket";
 import {
     descontarLaTranscripcion,
-    laClaveDeOpenAi,
-    elSaldoDeLaCuenta,
+    laClaveYElSaldo,
     elNombreDeLaCuentaQuePaga,
-    pedirleElTextoAOpenAi,
+    transcribirConOpenAi,
 } from "@/lib/creditos-de-transcripcion";
 import { empujarAviso } from "@/lib/empujar-aviso";
 import { tituloDelAviso } from "@/lib/avisos-de-tarea-tipos";
@@ -1891,7 +1890,7 @@ export async function transcribirNotaDelEquipoAction(
         // La MISMA tarifa de Chats —seis créditos por minuto prorrateado— y la
         // misma comprobación, que va en CRÉDITOS y nunca toca `used` y `total`
         // en la misma expresión.
-        const saldo = await elSaldoDeLaCuenta(paga);
+        const { clave, saldo, propia } = await laClaveYElSaldo(paga);
         const que = queHacerConLaNota({ segundos: fila.audioSegundos ?? 0, saldo });
 
         if (que.hacer === "saltar") {
@@ -1916,7 +1915,6 @@ export async function transcribirNotaDelEquipoAction(
             };
         }
 
-        const clave = await laClaveDeOpenAi(paga);
         if (!clave) {
             return { success: false, message: "Esta cuenta no tiene configurada su IA." };
         }
@@ -1924,11 +1922,18 @@ export async function transcribirNotaDelEquipoAction(
         const audio = await bajarLaNota(fila.audioUrl);
         if (!audio) return { success: false, message: "No se pudo leer la nota de voz." };
 
-        const texto = await pedirleElTextoAOpenAi({
+        const r = await transcribirConOpenAi({
             audio: audio.bytes,
             clave,
             nombre: audio.nombre,
+            propia,
         });
+        if (!("texto" in r) && r.motivo !== "no_transcribio") {
+            // La clave PROPIA de la cuenta no sirve: reintentar no lo arregla.
+            const cuenta = await elNombreDeLaCuentaQuePaga(paga);
+            return { success: false, message: porQueNoSeTranscribio(r.motivo, cuenta ? { cuenta } : undefined) };
+        }
+        const texto = "texto" in r ? r.texto : "";
         if (!texto) {
             // **No se cobra y no se deja marca.** Un fallo de OpenAI es de hoy,
             // no de la nota: marcarlo dejaría esa nota sin transcribir para
