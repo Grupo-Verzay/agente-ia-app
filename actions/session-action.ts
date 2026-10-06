@@ -1,5 +1,6 @@
 ﻿'use server'
 
+import { olvidarLaMarca } from '@/lib/ia-del-asesor-db';
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
@@ -701,6 +702,8 @@ export async function updateSessionStatus(sessionId: number, status: boolean): P
       where: { id: sessionId },
       data: { status }
     });
+    // Una persona decidió a mano: la marca del interruptor del asesor se olvida.
+    await olvidarLaMarca(sessionId, 'sesion');
 
     return {
       success: true,
@@ -1199,6 +1202,8 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
         }),
       },
     });
+    // Una persona decidió a mano: la marca del interruptor del asesor se olvida.
+    await olvidarLaMarca(sessionId, 'agente');
 
     return { success: true, message: 'Estado actualizado correctamente' };
   } catch (error) {

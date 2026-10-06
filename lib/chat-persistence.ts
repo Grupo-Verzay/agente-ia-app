@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { lasReaccionesQueTrae } from '@/lib/reacciones-del-chat';
 import { db } from '@/lib/db';
+import { laSesionLaPausoSuAsesor } from '@/lib/ia-del-asesor-db';
 import { asegurarColumna, asegurarIndice, indiceExiste } from '@/lib/ddl-sin-bloquear';
 import {
   buildWhatsAppJidCandidates,
@@ -873,7 +874,13 @@ export async function upsertSessionFromChatMessage(
     // La reapertura sigue existiendo -si el cliente escribe de verdad, la
     // conversacion vuelve a abrirse-, pero solo por los caminos que traen
     // novedad, no por el que resincroniza historial.
-    const reabrir = input.fromMe || input.puedeReabrir === false ? undefined : true;
+    let reabrir = input.fromMe || input.puedeReabrir === false ? undefined : true;
+    // Y una sesion que pauso el interruptor "Sesion" de su asesor (Equipo) no
+    // se reabre sola con el mensaje del cliente: mientras el interruptor siga
+    // apagado, esa conversacion entra con la IA pausada. Ver lib/ia-del-asesor.ts.
+    if (reabrir && (await laSesionLaPausoSuAsesor([existing.id])).has(existing.id)) {
+      reabrir = undefined;
+    }
     try {
       await db.session.update({
         where: { id: existing.id },

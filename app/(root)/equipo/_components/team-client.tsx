@@ -59,6 +59,7 @@ import {
   updateAdvisor,
   updateAdvisorRole,
   toggleAdvisorAvailability,
+  toggleAdvisorIa,
   deleteAdvisor,
   linkExistingAdvisor,
   getTeamAdvisors,
@@ -329,12 +330,14 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     const metricsMap = new Map((metrics?.advisors ?? []).map((a) => [a.id, a]));
     const date = new Date().toISOString().split("T")[0];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const headers = ["Asesor", "Email", "Rol", "Disponible", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
+    const headers = ["Asesor", "Email", "Rol", "Disponible", "Sesión IA", "Agente IA", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
     const rows = advisors.map((a) => {
       const m = metricsMap.get(a.id);
       return [
         a.name ?? "", a.email, a.advisorRole ?? "",
         a.advisorAvailable ? "Sí" : "No",
+        a.sesionApagada ? "Apagada" : "Encendida",
+        a.agenteApagado ? "Apagado" : "Encendido",
         String(a.activeCount),
         String(m?.closedCount ?? 0),
         String(m?.hotCount ?? 0),
@@ -736,12 +739,26 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         return (
           <div data-tabla-del-equipo className="rounded-xl border overflow-hidden shrink-0">
             <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1060px]">
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
                   <TableHead className="pl-4 whitespace-nowrap">Asesor</TableHead>
                   <TableHead className="whitespace-nowrap">Rol</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Disponible</TableHead>
+                  <TableHead
+                    className="text-center whitespace-nowrap"
+                    data-columna="sesion-ia"
+                    title="Pausa la sesión de IA en los chats que lleva este asesor y en los que reciba mientras esté apagado"
+                  >
+                    Sesión
+                  </TableHead>
+                  <TableHead
+                    className="text-center whitespace-nowrap"
+                    data-columna="agente-ia"
+                    title="Apaga el agente IA en los chats que lleva este asesor y en los que reciba mientras esté apagado"
+                  >
+                    Agente
+                  </TableHead>
                   {autoAssignEnabled && modo === "porcentaje" && (
                     <TableHead className="text-center whitespace-nowrap" data-columna="porcentaje">Porcentaje</TableHead>
                   )}
@@ -831,6 +848,41 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                           }}
                         />
                       </TableCell>
+                      {(["sesion", "agente"] as const).map((parte) => {
+                        const campo = parte === "sesion" ? "sesionApagada" : "agenteApagado";
+                        const encendido = !advisor[campo];
+                        const nombre = parte === "sesion" ? "Sesión IA" : "Agente IA";
+                        return (
+                          <TableCell key={parte} className="text-center" data-celda-ia={parte}>
+                            <Switch
+                              aria-label={`${nombre}: ${advisor.name ?? advisor.email}`}
+                              title={encendido
+                                ? `${nombre} encendida en sus chats`
+                                : `${nombre} apagada en sus chats y en los que reciba`}
+                              checked={encendido}
+                              onCheckedChange={(val) => {
+                                setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, [campo]: !val } : a));
+                                toggleAdvisorIa(advisor.id, parte, val)
+                                  .then((res) => {
+                                    if (!res.success) {
+                                      toast.error(res.message);
+                                      setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, [campo]: val } : a));
+                                      return;
+                                    }
+                                    const n = (val ? res.data?.devueltas : res.data?.apagadas) ?? 0;
+                                    toast.success(val
+                                      ? `${nombre} encendida: ${n} chat${n === 1 ? "" : "s"} vuelve${n === 1 ? "" : "n"} a tener IA.`
+                                      : `${nombre} apagada en ${n} chat${n === 1 ? "" : "s"}.`);
+                                  })
+                                  .catch(() => {
+                                    toast.error("No se pudo guardar. Revisa la conexión.");
+                                    setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, [campo]: val } : a));
+                                  });
+                              }}
+                            />
+                          </TableCell>
+                        );
+                      })}
                       {autoAssignEnabled && modo === "porcentaje" && (
                         <TableCell className="text-center" data-celda-porcentaje={advisor.id}>
                           {advisor.entraEnElReparto ? (() => {
