@@ -27385,6 +27385,22 @@ Cuatro cosas que hay que mantener:
    (`persona-derivada.test.mjs`: 409 → copia sin `force`, reutilizada por
    huella, la vieja borrada al cambiar, y un fallo que no tumba la llamada).
 
+### Y la persona de Tavus sigue con su herramienta VIEJA: su vocabulario se traduce
+
+La persona de Verzy en Tavus no acepta el PATCH (409 `maker_changes`) y la
+copia derivada no se puede crear (la clave del TTS vuelve enmascarada), así que
+su `mostrar_pantalla` sigue pidiendo `pagina` con una lista FIJA
+(`inicio`, `precios`, `crm_embudo`, `guia` + `modulo`…). Después del #1161 la
+sala solo aceptaba rutas y **descartaba todo lo que mandaba Verzy**: decía que
+mostraba y la pantalla se quedaba vacía.
+
+`lib/herramienta-vieja-de-tavus.ts` traduce ESE vocabulario (y solo ese) a una
+ruta, y la ruta pasa por `comoRutaDeVerzy` como cualquier otra. No es una tabla
+de navegación del código: qué página pide sigue decidiéndolo el entrenamiento;
+es el diccionario de la herramienta tal como está registrada en Tavus. **Se
+borra el día que la persona acepte la herramienta nueva con `ruta`.** Lo prueba
+`scripts/banco-videollamada-ia.sh`.
+
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 
 El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga
