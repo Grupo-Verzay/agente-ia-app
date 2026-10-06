@@ -6,6 +6,7 @@ import {
     laOrdenDeAgendar,
     laOrdenDeEnvio,
     laOrdenDeLaPantalla,
+    elAvisoDeRutaInvalida,
     laOrdenDeTomarNota,
     type OrdenDeAgendar,
     type OrdenDeEnvio,
@@ -481,7 +482,11 @@ export default function SalaDeLaVideollamada({
             const orden = laOrdenDeLaPantalla(ev?.data);
             if (!orden) return;
             if (orden.accion === "ocultar") setDestino(null);
-            else pedirALaPantalla({ tipo: "ir", datos: { lugar: orden.lugar } });
+            else if (orden.accion === "invalida") {
+                // Nada se carga: una ruta vacía era el 404 de la primera pantalla.
+                console.warn("[videollamada] Verzy pidió una pantalla que no es una ruta", { pedido: orden.pedido });
+                contarleAVerzy(elAvisoDeRutaInvalida(orden.pedido));
+            } else pedirALaPantalla({ tipo: "ir", datos: { lugar: orden.lugar } });
         });
         llamada.on("camera-error", (ev) => {
             console.warn("[videollamada] sin cámara o micrófono", ev);

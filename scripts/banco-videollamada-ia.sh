@@ -47,3 +47,20 @@ if [ "$MODO" = roto ]; then
   export RAIZ_DE_LA_SALA="$ARBOL"
 fi
 NODE_PATH="${NODE_PATH:-$(npm root -g)}" node --test lib/__tests__/sala-de-videollamada.test.mjs
+
+# La raíz vacía y la pantalla vieja al reabrir. En modo roto se compilan las
+# reglas de 665af12 y se afirma el fallo: «/» pasaba y lo inválido se callaba.
+ANTES_RUTA_REF="${ANTES_RUTA_REF:-665af12}"
+RAIZ_RUTA="$PWD"
+if [ "$MODO" = roto ]; then
+  ARBOL_RUTA="$(mktemp -d)/ruta"
+  git worktree add --detach -q "$ARBOL_RUTA" "$ANTES_RUTA_REF"
+  trap 'git worktree remove --force "$ARBOL_RUTA" 2>/dev/null || true; git worktree remove --force "${ARBOL:-/nada}" 2>/dev/null || true; rm -rf "${TMP:-}"' EXIT
+  RAIZ_RUTA="$ARBOL_RUTA"
+fi
+mkdir -p lib/__tests__/.compilado/ruta
+npx esbuild "$RAIZ_RUTA/lib/pantalla-del-avatar.ts" --bundle --format=esm --platform=node \
+  --outfile=lib/__tests__/.compilado/ruta/pantalla-del-avatar.js --log-level=warning
+npx esbuild "$RAIZ_RUTA/lib/pantalla-de-verzy.ts" --bundle --format=esm --platform=node \
+  --outfile=lib/__tests__/.compilado/ruta/pantalla-de-verzy.js --log-level=warning
+RAIZ_RUTA="$RAIZ_RUTA" node --test lib/__tests__/ruta-de-verzy.test.mjs
