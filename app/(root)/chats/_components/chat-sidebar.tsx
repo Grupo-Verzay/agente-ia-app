@@ -152,6 +152,9 @@ import { confirmaLaLimpieza, PALABRA_PARA_LIMPIAR } from "@/lib/historial-del-eq
 import { normalizeDeliveryState } from "./chat-message-utils";
 import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
+import { misIconosDeLaFilaAction } from "@/actions/iconos-de-la-fila-actions";
+import { ICONOS_POR_DEFECTO, laNotaQueSeEnsena, type IconosDeLaFila } from "@/lib/iconos-de-la-fila";
+import { EVENTO_ICONOS_DE_LA_FILA } from "@/lib/iconos-de-la-fila-evento";
 
 // --- Virtualización de la lista lateral ---
 // A partir de este número de contactos visibles, solo se renderizan los items
@@ -399,6 +402,21 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [internalTab, setInternalTab] = useState<TabKey>("all");
+  // Qué iconitos de la fila quiere ver esta persona (Perfil › Apariencia).
+  // Hasta que llegan, todos: es lo de siempre y no esconde nada por error.
+  const [iconos, setIconos] = useState<IconosDeLaFila>(ICONOS_POR_DEFECTO);
+  useEffect(() => {
+    let vivo = true;
+    misIconosDeLaFilaAction()
+      .then((res) => { if (vivo) setIconos(res.iconos); })
+      .catch((error) => console.warn("[chats] no se pudieron leer los iconos de la fila", String(error)));
+    const alCambiar = (ev: Event) => {
+      const detalle = (ev as CustomEvent<IconosDeLaFila>).detail;
+      if (detalle) setIconos(detalle);
+    };
+    window.addEventListener(EVENTO_ICONOS_DE_LA_FILA, alCambiar);
+    return () => { vivo = false; window.removeEventListener(EVENTO_ICONOS_DE_LA_FILA, alCambiar); };
+  }, []);
   const tab = tabProp ?? internalTab;
   const applyTab = useCallback(
     (newTab: TabKey) => {
@@ -632,7 +650,7 @@ export function ChatSidebar({
         const vistaPrevia = laVistaPreviaDeLaFila({
           textoDelMensaje: lastMsgData.text,
           ultimoMensajeMs: ts,
-          nota: ultimaNota,
+          nota: laNotaQueSeEnsena(ultimaNota, iconos),
         });
 
         return {
@@ -720,7 +738,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, bloqueos, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
+  }, [chatPreferences, bloqueos, chatSessions, iconos, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
@@ -2080,6 +2098,10 @@ export function ChatSidebar({
                 isStarred={estaDestacado(contact)}
                 onToggleStar={toggleStarred}
                 hasNotes={contact.hasNotes}
+                verCalificacion={iconos.calificacion}
+                verAsesor={iconos.asesor}
+                verSinLeer={iconos.sinLeer}
+                verNotas={iconos.notaInterna}
               />
               ))}
               {listVirtual.afterHeight > 0 && (

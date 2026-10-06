@@ -1,6 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
+import {
+    comoIconosDeLaFila,
+    type IconosDeLaFila,
+} from "@/lib/iconos-de-la-fila";
 
 /**
  * Lo que cada PERSONA elige para sí misma, no para su cuenta.
@@ -29,6 +34,14 @@ function asegurarLaTabla(): Promise<void> {
                 "tocadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         `;
+        // La tabla ya está en producción: una columna nueva entra con su
+        // ALTER, preguntando antes al catálogo (`lib/ddl-sin-bloquear`). Un
+        // `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya existe.
+        await asegurarColumna(
+            "preferencias_de_persona",
+            "iconosDeLaFila",
+            `ALTER TABLE "preferencias_de_persona" ADD COLUMN IF NOT EXISTS "iconosDeLaFila" JSONB`,
+        );
     })().catch((error) => {
         // Que el siguiente lo vuelva a intentar en vez de quedarse con una
         // promesa rota para siempre.
@@ -93,4 +106,40 @@ export async function ponerElSonido(personaId: string, quiere: boolean): Promise
                    "tocadoEn" = CURRENT_TIMESTAMP
         `;
     });
+}
+
+/**
+ * Qué iconitos quiere ver esta persona en la fila de la lista de Chats
+ * (Perfil › Apariencia). Sin fila, o con la columna en nulo, todos encendidos:
+ * lo decide `comoIconosDeLaFila`, que solo apaga un `false` explícito.
+ */
+export async function losIconosDeLaFila(personaId: string): Promise<IconosDeLaFila> {
+    if (!personaId) return comoIconosDeLaFila(null);
+    return conLaTabla(async () => {
+        const filas = await db.$queryRaw<{ iconosDeLaFila: unknown }[]>`
+            SELECT "iconosDeLaFila" FROM "preferencias_de_persona"
+            WHERE "personaId" = ${personaId}
+            LIMIT 1
+        `;
+        return comoIconosDeLaFila(filas[0]?.iconosDeLaFila ?? null);
+    });
+}
+
+export async function ponerLosIconosDeLaFila(
+    personaId: string,
+    iconos: IconosDeLaFila,
+): Promise<IconosDeLaFila> {
+    const limpios = comoIconosDeLaFila(iconos);
+    if (!personaId) return limpios;
+    const json = JSON.stringify(limpios);
+    await conLaTabla(async () => {
+        await db.$executeRaw`
+            INSERT INTO "preferencias_de_persona" ("personaId", "iconosDeLaFila", "tocadoEn")
+            VALUES (${personaId}, ${json}::jsonb, CURRENT_TIMESTAMP)
+            ON CONFLICT ("personaId") DO UPDATE
+               SET "iconosDeLaFila" = EXCLUDED."iconosDeLaFila",
+                   "tocadoEn" = CURRENT_TIMESTAMP
+        `;
+    });
+    return limpios;
 }
