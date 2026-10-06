@@ -11,6 +11,11 @@ import { deleteAllNodes, deleteFileNode } from "./workflow-node-action";
 import { currentUser } from "@/lib/auth";
 import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
 import { laCuentaDelFlujo } from "@/lib/dueno-del-dato.server";
+import {
+    losCambiosDelTipo,
+    porQueNoSePuedeCambiar,
+    type ActivacionPedida,
+} from "@/lib/tipo-de-activacion";
 
 /*
  * # Un flujo se toca por su DUEÑO, y el dueño sale de la fila
@@ -382,6 +387,83 @@ export const unsetWelcomeWorkflow = async (workflowId: string): Promise<RROperat
     } catch (error) {
         console.error("Error unsetWelcomeWorkflow:", error);
         return { success: false, message: "Error al desactivar el flujo de bienvenida." };
+    }
+};
+
+/**
+ * Cambia el tipo de activación (Inicio, IA, Flujo o Chatbot) de un flujo ya
+ * creado. El tipo se deduce de tres cosas y el motor las lee en crudo, así que
+ * se escribe la del tipo nuevo Y se quitan las otras dos, en una transacción:
+ * ver `lib/tipo-de-activacion.ts`. Lo que no es del tipo (pasos, embudo,
+ * repeticiones, nombre) no se toca.
+ */
+export const cambiarElTipoDelFlujoAction = async (
+    workflowId: string,
+    pedida: ActivacionPedida,
+): Promise<RROperationResponse> => {
+    try {
+        const user = await currentUser();
+        if (!user) return { success: false, message: "Usuario no autenticado." };
+
+        const motivo = porQueNoSePuedeCambiar(pedida);
+        if (motivo) return { success: false, message: motivo };
+
+        const alcanzado = await laCuentaDelFlujo(workflowId);
+        if (!alcanzado) return NO_ES_TUYO;
+        const dueno = alcanzado.flujo.userId;
+
+        const cambios = losCambiosDelTipo(pedida);
+        const flujo = await db.workflow.findUnique({ where: { id: workflowId }, select: { name: true } });
+        if (!flujo) return NO_ES_TUYO;
+
+        await db.$transaction(async (tx) => {
+            if (cambios.apagarLasOtrasBienvenidas) {
+                await tx.workflow.updateMany({
+                    where: { userId: dueno, triggerOnNewSession: true, NOT: { id: workflowId } },
+                    data: { triggerOnNewSession: false },
+                });
+            }
+            await tx.workflow.update({
+                where: { id: workflowId, userId: dueno },
+                data: { triggerOnNewSession: cambios.triggerOnNewSession, description: cambios.description },
+            });
+
+            const disparadores = await tx.intentTrigger.findMany({
+                where: { workflowId },
+                orderBy: { createdAt: "asc" },
+                select: { id: true },
+            });
+            if (cambios.disparador) {
+                const [primero, ...resto] = disparadores;
+                if (primero) {
+                    await tx.intentTrigger.update({
+                        where: { id: primero.id },
+                        data: { condition: cambios.disparador.condicion, mode: "prompt", isActive: true },
+                    });
+                } else {
+                    await tx.intentTrigger.create({
+                        data: {
+                            userId: dueno,
+                            workflowId,
+                            name: flujo.name,
+                            mode: "prompt",
+                            condition: cambios.disparador.condicion,
+                            isActive: true,
+                        },
+                    });
+                }
+                if (resto.length) {
+                    await tx.intentTrigger.deleteMany({ where: { id: { in: resto.map((d) => d.id) } } });
+                }
+            } else if (disparadores.length) {
+                await tx.intentTrigger.deleteMany({ where: { workflowId } });
+            }
+        });
+
+        return { success: true, message: "Tipo de activación actualizado." };
+    } catch (error) {
+        console.error("[flujos] no se pudo cambiar el tipo del flujo", { workflowId, error });
+        return { success: false, message: "No se pudo cambiar el tipo de activación." };
     }
 };
 

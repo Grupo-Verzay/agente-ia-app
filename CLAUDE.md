@@ -27490,3 +27490,23 @@ Lo prueban `scripts/banco-videollamada-ia.sh` (las reglas) y
 `scripts/banco-navegacion-de-verzy.sh` (la App servida: cada URL de la landing y
 de la plataforma se carga tal cual, las palabras sueltas no, y lo que no existe
 o está prohibido tampoco). `MODO=roto` afirma las listas de `9a1390d`.
+
+## Flujos: cambiar el tipo es escribir el nuevo y QUITAR los otros dos
+
+El tipo de un flujo (Inicio, IA, Flujo, Chatbot) no es una columna: se deduce
+de `triggerOnNewSession`, de un `IntentTrigger` con su `workflowId` y de las
+palabras clave en `description` (`elTipoDelFlujo`), y el motor lee esas tres
+cosas en crudo. No había forma de cambiarlo, y lo que se tocaba a mano dejaba
+el viejo mandando: un chatbot con disparador seguía siendo IA.
+
+> **«Cambiar tipo» en el «⋯» de la tarjeta abre el MISMO selector que «Nuevo»**
+> (`SelectorDeTipoDeActivacion`), con lo que el flujo es hoy
+> (`laActivacionActual`), y guarda con `cambiarElTipoDelFlujoAction`: en una
+> transacción escribe el tipo nuevo y borra los otros dos
+> (`losCambiosDelTipo`, `lib/tipo-de-activacion.ts`, pura). Pasar a Inicio
+> apaga la otra bienvenida de la cuenta; chatbot sin palabras o IA sin
+> intención no se guardan. El motor no cambia.
+
+Lo prueba `scripts/banco-tipo-de-flujo.sh` (regla, barrido y la acción contra
+Postgres con todas las transiciones); `MODO=roto` lee `75b7e76` y afirma que
+no había forma de cambiarlo.

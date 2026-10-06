@@ -21,6 +21,8 @@ import { z } from "zod";
 import { getWorkflowEditorPath } from "@/types/workflow";
 import { REPETICIONES_POR_DEFECTO, resumenDeRepeticiones, type RepeticionesDeFlujo } from "@/lib/repeticiones-de-flujo";
 import { RepeticionesDelFlujoDialog } from "./RepeticionesDelFlujoDialog";
+import { CambiarTipoDelFlujoDialog } from "./CambiarTipoDelFlujoDialog";
+import { laActivacionActual, lasPalabrasQueSeGuardan, type ActivacionPedida } from "@/lib/tipo-de-activacion";
 
 type MatchType = "Exacta" | "Contiene";
 
@@ -53,6 +55,7 @@ export const WorkflowCard = ({
 
     const [repeticionesLocales, setRepeticionesLocales] = useState<RepeticionesDeFlujo>(repeticiones ?? REPETICIONES_POR_DEFECTO);
     const [repeticionesOpen, setRepeticionesOpen] = useState(false);
+    const [tipoOpen, setTipoOpen] = useState(false);
     // La bienvenida y los pasos del embudo son de una vez por diseño: el motor
     // no les aplica las repeticiones, así que tampoco se ofrecen.
     const admiteRepeticiones = !welcomeActive && !funnelActive;
@@ -95,6 +98,20 @@ export const WorkflowCard = ({
             const updated = (res.data as IntentTrigger[]).find(t => t.workflowId === workflow.id) ?? null;
             setLocalTrigger(updated);
         }
+    };
+
+    // Tras cambiar el tipo: lo que la tarjeta pinta en local se pone al día ya,
+    // y el resto (la descripción, la lista) llega con el refresco.
+    const handleTipoGuardado = async (guardada: ActivacionPedida) => {
+        setWelcomeActive(guardada.tipo === "inicio");
+        if (guardada.tipo === "inicio") setFunnelActive(false);
+        const palabras = guardada.tipo === "chatbot" ? lasPalabrasQueSeGuardan(guardada.palabras) : [];
+        setKeywords(palabras);
+        form.setValue("description", palabras.join(", "));
+        setMatchType(guardada.coincidencia === "contiene" ? "Contiene" : "Exacta");
+        if (guardada.tipo !== "ia") setLocalTrigger(null);
+        else await handleTriggerSaved();
+        router.refresh();
     };
 
     const handleToggleTrigger = async () => {
@@ -468,6 +485,7 @@ export const WorkflowCard = ({
                         isFunnelStep={funnelActive}
                         onToggleFunnel={!welcomeActive ? handleToggleFunnel : undefined}
                         onRepeticiones={admiteRepeticiones ? () => setRepeticionesOpen(true) : undefined}
+                        onCambiarTipo={() => setTipoOpen(true)}
                     />
                 </div>
                 </div>
@@ -511,6 +529,20 @@ export const WorkflowCard = ({
                     </div>
                 )}
             </CardContent>
+
+            {tipoOpen && (
+                <CambiarTipoDelFlujoDialog
+                    workflowId={workflow.id}
+                    workflowName={workflow.name}
+                    inicial={laActivacionActual(
+                        { id: workflow.id, triggerOnNewSession: welcomeActive, description: workflow.description },
+                        localTrigger ? localTrigger.condition ?? "" : null,
+                    )}
+                    open={tipoOpen}
+                    onOpenChange={setTipoOpen}
+                    onGuardado={handleTipoGuardado}
+                />
+            )}
 
             {repeticionesOpen && (
                 <RepeticionesDelFlujoDialog

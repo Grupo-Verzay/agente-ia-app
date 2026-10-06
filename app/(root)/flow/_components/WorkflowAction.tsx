@@ -28,6 +28,7 @@ export const WorkflowAction = ({
     isFunnelStep,
     onToggleFunnel,
     onRepeticiones,
+    onCambiarTipo,
 }: {
     workflowId: string;
     userId: string;
@@ -37,6 +38,8 @@ export const WorkflowAction = ({
     onToggleFunnel?: () => void;
     /** Abre el ajuste de repeticiones. Sin él (bienvenida, embudo) no se ofrece. */
     onRepeticiones?: () => void;
+    /** Abre «Cambiar tipo de activación» (Inicio, IA, Flujo o Chatbot). */
+    onCambiarTipo?: () => void;
 }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -88,6 +91,16 @@ export const WorkflowAction = ({
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {onCambiarTipo && (
+                        <DropdownMenuItem
+                            className="flex items-center gap-2"
+                            onSelect={onCambiarTipo}
+                            data-cambiar-tipo-del-flujo
+                        >
+                            <ShuffleIcon size={16} className="text-blue-600" />
+                            Cambiar tipo
+                        </DropdownMenuItem>
+                    )}
                     {onRepeticiones && (
                         <DropdownMenuItem
                             className="flex items-center gap-2"
