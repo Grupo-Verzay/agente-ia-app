@@ -23,7 +23,18 @@ export const NOMBRE_DE_LA_HERRAMIENTA = "mostrar_pantalla";
 /** Clave para dejar de compartir. */
 export const OCULTAR = "ninguna";
 
-export type OrdenDeLaPantalla = { accion: "mostrar"; lugar: LugarDeVerzy } | { accion: "ocultar" };
+export type OrdenDeLaPantalla =
+    | { accion: "mostrar"; lugar: LugarDeVerzy }
+    | { accion: "ocultar" }
+    /** Llamó a la herramienta sin una ruta que sea una pantalla: se le dice, no se carga nada. */
+    | { accion: "invalida"; pedido: string };
+
+/** Lo que se le cuenta a Verzy cuando llama a la herramienta sin una ruta válida. */
+export function elAvisoDeRutaInvalida(pedido: string): string {
+    const lo = pedido ? `«${pedido.slice(0, 80)}»` : "una ruta vacía";
+    return `La pantalla NO cambió: pediste ${lo}, que no es una pantalla de la plataforma. ` +
+        "No digas que lo estás mostrando. Si tu entrenamiento indica mostrar algo en este paso, vuelve a llamar a la herramienta con la ruta completa que dice tu entrenamiento.";
+}
 
 function losArgumentos(valor: unknown): Record<string, unknown> | null {
     if (valor && typeof valor === "object") return valor as Record<string, unknown>;
@@ -59,9 +70,11 @@ function laLlamadaA(mensaje: unknown, nombre: string): Record<string, unknown> |
 export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null {
     const args = laLlamadaA(mensaje, NOMBRE_DE_LA_HERRAMIENTA);
     if (!args) return null;
+    let pedido = "";
     for (const campo of ["ruta", "url", "destino", "pagina"] as const) {
         const valor = typeof args[campo] === "string" ? (args[campo] as string).trim() : "";
         if (!valor) continue;
+        pedido = valor;
         if (valor.toLowerCase() === OCULTAR) return { accion: "ocultar" };
         const lugar = comoRutaDeVerzy(valor);
         if (lugar) return { accion: "mostrar", lugar };
@@ -73,9 +86,10 @@ export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null 
             const ruta = deTavus ? comoRutaDeVerzy(deTavus) : null;
             if (ruta) return { accion: "mostrar", lugar: ruta };
         }
-        return null;
+        return { accion: "invalida", pedido };
     }
-    return null;
+    // La llamó sin nada: es la «ruta vacía» que cargaba un 404.
+    return { accion: "invalida", pedido };
 }
 
 /** La herramienta tal como se configura en la persona de Tavus (`layers.llm.tools`). */
@@ -149,14 +163,16 @@ export function elBloqueDeLaPantalla(): string {
         "PANTALLA COMPARTIDA",
         `Puedes compartir pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA}: pásale la ruta de Agente IA, o la página de su lista si la herramienta te da una lista. ` +
             "Se carga tal cual, en vivo, y la ve el cliente.",
-        "- Cuando el tema lo pide (los precios, una función, la plataforma), LLAMA a la herramienta: decir que muestras algo sin llamarla deja la pantalla vacía.",
+        "- Comparte SOLO en el paso de tu entrenamiento que lo indica, o cuando el cliente pide ver algo. Nunca por tu cuenta: no adelantes pantallas de pasos que todavía no llegaron ni abras otra página porque se mencionó un tema.",
+        "- Cuando compartas, LLAMA a la herramienta: decir que muestras algo sin llamarla deja la pantalla vacía.",
+        "- Pasa siempre la ruta completa que dice tu entrenamiento. Nunca la llames con la ruta vacía ni solo con la barra.",
         `- ${REGLA_DE_LO_QUE_PIDE_VER}`,
-        "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas y el tema que se está hablando.",
+        "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas, en su orden.",
         "- Nunca digas una URL en voz alta: llama a la herramienta y NÓMBRALA en palabras, di qué se está viendo.",
         `- Para dejar de compartir: ${OCULTAR}.`,
         `- ${NOMBRE_DE_TOMAR_NOTA} escribe en la ficha del cliente en Verzay Ventas; ella misma la abre.`,
         "- Después de cada orden recibirás qué pasó; si algo falló, no digas que se ve o que quedó guardado.",
-        "- Mientras hablas, la pantalla que está puesta se recorre sola.",
+        "- La pantalla solo cambia cuando tú llamas a la herramienta: mientras hablas se queda en la página que pusiste.",
     ].join("\n");
 }
 

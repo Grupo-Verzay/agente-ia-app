@@ -10,7 +10,7 @@ import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 import {
     laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, conLaNotaAgregada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
-    elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca,
+    elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca, elDestinoQueSeRetoma,
     type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
@@ -298,6 +298,10 @@ async function tomarElTurno(citaId: string): Promise<boolean> {
 export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
     try {
         await asegurarLasTablas();
+        // Antes de marcarla pedida: si NADIE la miraba hace rato, lo guardado es de
+        // otra llamada (o de antes de un corte largo) y no se vuelve a abrir.
+        const previa = await db.$queryRaw<{ destino: string | null; pedidaEn: Date | null }[]>`
+            SELECT "destino", "pedidaEn" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}`;
         await db.$executeRaw`UPDATE "verzy_pantallas" SET "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
         if (pantallasVivas.has(citaId)) return true;
         if (!(await tomarElTurno(citaId))) return false;
@@ -312,9 +316,11 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         await empezarElScreencast(viva);
         void elCiclo(viva);
         void elRelevo(viva);
-        // Si otra réplica la tenía antes, se vuelve a donde estaba.
-        const antes = await db.$queryRaw<{ destino: string | null }[]>`SELECT "destino" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}`;
-        const destino = comoRutaDeVerzy(antes[0]?.destino);
+        // Solo un RELEVO en vivo (otra réplica la movía hace nada) vuelve a donde
+        // estaba. Si no, lo guardado es viejo: abrirlo era saltar a una página que
+        // nadie pidió (la agenda de la prueba anterior). Se olvida.
+        const destino = elDestinoQueSeRetoma(previa[0]);
+        if (!destino) await db.$executeRaw`UPDATE "verzy_pantallas" SET "destino" = NULL WHERE "citaId" = ${citaId}`.catch(() => {});
         if (destino) void irA(viva, destino).catch(() => {});
         else void pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
         return true;
@@ -470,6 +476,7 @@ async function cargar(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
             return { ok: false, motivo: "La sesión de Verzay Ventas no se pudo abrir" };
         }
     }
+    if (res && res.status() === 404) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     if (res && res.status() >= 500) return { ok: false, motivo: `La plataforma contestó ${res.status()}` };
     // Corto: Chats y otras pantallas preguntan siempre y nunca quedan «sin red»,
     // y mientras se espera aquí la pantalla está quieta.
@@ -494,13 +501,14 @@ async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrde
         const r = await cargar(viva, camino);
         if (!r.ok) return r;
     }
+    // Lo que no existe no se apunta: si no, una reapertura volvería al 404.
+    if (await laPaginaDiceQueNoExiste(viva)) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     await anotarElDestino(viva, destino);
     if (ancla) {
         if (!(await bajarAlAncla(viva, ancla))) return { ok: true, aviso: "La página se abrió, pero esa sección no está en ella" };
     } else {
         await recorrerConLaRueda(viva);
     }
-    if (await laPaginaDiceQueNoExiste(viva)) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     return { ok: true };
 }
 

@@ -27401,6 +27401,19 @@ es el diccionario de la herramienta tal como está registrada en Tavus. **Se
 borra el día que la persona acepte la herramienta nueva con `ruta`.** Lo prueba
 `scripts/banco-videollamada-ia.sh`.
 
+### La primera pantalla iba a «/» y después saltaba sola a la agenda
+
+Dos fallos de la videollamada real, con dos causas:
+
+| lo que se veía | la causa | ahora |
+| --- | --- | --- |
+| la primera pantalla compartida salía con la ruta vacía («/») y un 404 | `comoRutaDeVerzy` daba «/» por buena, el 404 se guardaba como destino, y una llamada a la herramienta con una ruta que no sirve se descartaba callada: Verzy decía que la mostraba | «/» y lo vacío no son una pantalla; un 404 es un fallo y no se apunta; una ruta inválida devuelve `{accion:"invalida"}` y la sala se lo cuenta a Verzy (`elAvisoDeRutaInvalida`) para que vuelva a llamar con la ruta de su entrenamiento |
+| más tarde saltaba sola a una página no pedida | al reabrir la pantalla se retomaba el destino guardado aunque fuera de antes (otra llamada, un corte largo), y el contexto la animaba a compartir «cuando el tema lo pide» | se retoma solo un relevo en vivo (`elDestinoQueSeRetoma`, `RELEVO_EN_VIVO_MS` 20 s); si no, pantalla de espera. El contexto dice: comparte SOLO en el paso del entrenamiento que lo indica o si el cliente lo pide, nunca por tu cuenta |
+
+Lo prueba `scripts/banco-videollamada-ia.sh` (con `ruta-de-verzy.test.mjs`);
+`MODO=roto` compila las reglas de `665af12` y afirma los dos fallos. Contra
+Tavus y Daily reales no se puede probar desde este entorno.
+
 ## El DDL de arranque mira el catálogo primero y nunca espera un candado
 
 El 2026-10-05 toda la plataforma salió en «mantenimiento». Una consulta larga

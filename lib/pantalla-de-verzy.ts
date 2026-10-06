@@ -44,6 +44,9 @@ export function comoRutaDeVerzy(valor: unknown): LugarDeVerzy | null {
     }
     if (/\s/.test(v) || v.includes("\\") || v.includes("..")) return null;
     const camino = v.split(/[?#]/)[0].toLowerCase();
+    // La raíz sola no es una pantalla: con sesión no lleva a nada que el
+    // cliente pueda ver, y era lo que mandaba Verzy con la ruta vacía (404).
+    if (camino === "" || camino === "/") return null;
     if (RUTAS_PROHIBIDAS.some((p) => camino === p || camino.startsWith(`${p}/`))) return null;
     return v as LugarDeVerzy;
 }
@@ -182,3 +185,20 @@ export function loQueSeBusca(nombre: string, telefono: string | null): string {
     return String(telefono ?? "").replace(/\D/g, "").slice(-7);
 }
 
+
+/**
+ * Al abrir la pantalla, lo guardado se retoma SOLO si es un relevo en vivo:
+ * alguien la miraba hace menos de `RELEVO_EN_VIVO_MS` (otra réplica, una
+ * reconexión corta). Si no, es de otra llamada o de antes de un corte largo, y
+ * abrirlo era saltar sola a una página que nadie pidió.
+ */
+export const RELEVO_EN_VIVO_MS = 20_000;
+export function elDestinoQueSeRetoma(
+    fila: { destino: string | null; pedidaEn: Date | string | null } | null | undefined,
+    ahora: number = Date.now(),
+): LugarDeVerzy | null {
+    if (!fila?.pedidaEn) return null;
+    const t = new Date(fila.pedidaEn).getTime();
+    if (!Number.isFinite(t) || ahora - t > RELEVO_EN_VIVO_MS) return null;
+    return comoRutaDeVerzy(fila.destino);
+}
