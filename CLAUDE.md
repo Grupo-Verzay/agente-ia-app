@@ -27540,3 +27540,21 @@ Waha) lo enviaba y no dejaba la marca.
 
 Lo prueba `scripts/banco-flujo-manual-en-la-fila.sh`, contra Postgres y con la
 acción de verdad; `MODO=roto` contra `f0ad78b` afirma que la marca no aparecía.
+
+## Perfil › «Plan y facturación»: la prueba se decide como en el panel, y los planes van en «Cambiar plan»
+
+Un cliente al que el administrador le puso el plan a mano (Instancias › «Editar
+pagos») seguía viendo «Prueba · N días» y, debajo, las tarjetas de otros planes.
+La tarjeta deducía «prueba» de `!lastPaymentAt`, y ese camino no escribe esa
+columna. Ahora:
+
+1. **En prueba lo decide `estaEnPrueba` (`lib/plan-del-perfil.ts`, puro), con
+   la regla del panel**: la cuenta es demo (`User.isDemo`, que
+   `getOwnBillingAction` devuelve como `esDemo`) y no se ha cobrado (ni `PAID`
+   ni un pago registrado).
+2. **Las tarjetas de planes (`ChoosePlanToPay`) ya no se pintan ahí**: cambiar
+   de plan va por el botón «Cambiar plan» del Perfil. «Pagar y renovar» sale si
+   no está en prueba y hay precio (`seOfrecePagar`).
+
+Lo prueba `scripts/banco-plan-del-perfil.sh`; `MODO=roto` lee `7c1db1f` y
+afirma el plan puesto a mano visto como prueba y las tarjetas de planes.

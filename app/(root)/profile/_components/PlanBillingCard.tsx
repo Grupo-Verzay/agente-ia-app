@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getOwnBillingAction } from '@/actions/billing/billing-actions';
 import { crearEnlacePagoRenovacion } from '@/actions/billing/wompi-checkout-actions';
-import ChoosePlanToPay from '@/components/shared/ChoosePlanToPay';
+import { estaEnPrueba, diasQueQuedan, seOfrecePagar } from '@/lib/plan-del-perfil';
 import { PLAN_LABELS } from '@/types/plans';
 import type { Plan } from '@prisma/client';
 import { elMontoAlMes } from '@/lib/pantalla-de-perfil';
@@ -22,14 +22,6 @@ function fmt(date: string | null | undefined) {
     return new Date(date).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-
-/** Días que le quedan de prueba. Negativo o cero = ya se le pasó. */
-function diasRestantes(dueDate: string | null | undefined): number | null {
-    if (!dueDate) return null;
-    const ms = new Date(dueDate).getTime() - Date.now();
-    if (!Number.isFinite(ms)) return null;
-    return Math.max(0, Math.ceil(ms / 86_400_000));
-}
 
 export function PlanBillingCard({ userPlan }: Props) {
     const [billing, setBilling] = useState<any>(null);
@@ -54,10 +46,11 @@ export function PlanBillingCard({ userPlan }: Props) {
     // Prueba) no tienen de dónde salir.
     const tieneFacturacion = !!billing && !billing.sinFacturacion;
 
-    // Nunca ha pagado: sigue en prueba o compró sin completar el pago. Mientras
-    // esté así ve los tres planes, aunque ya tenga uno asignado con su precio.
-    const nuncaHaPagado = tieneFacturacion && !billing.lastPaymentAt;
-    const diasDePrueba = nuncaHaPagado && isActive ? diasRestantes(billing?.dueDate) : null;
+    // En prueba con la MISMA regla que el panel de administración: la cuenta es
+    // de prueba y no se ha cobrado. Un plan puesto a mano por el administrador
+    // ya no sale como «Prueba».
+    const enPrueba = tieneFacturacion && estaEnPrueba(billing);
+    const diasDePrueba = enPrueba && isActive ? diasQueQuedan(billing?.dueDate) : null;
 
     return (
         <>
@@ -143,18 +136,9 @@ export function PlanBillingCard({ userPlan }: Props) {
 
                                     Solo aparece si hay un precio asignado; sin el, el boton
                                     llevaria a un cobro de importe cero. */}
-                                {/* Mientras no haya pagado nunca, los tres planes.
-                                    Antes la condición era "no tiene precio asignado", y a
-                                    quien venía con uno puesto solo le salía un botón por
-                                    el importe más alto: no llegaba a enterarse de que
-                                    había un plan más barato con el que quedarse. */}
-                                {nuncaHaPagado && !loading && (
-                                    <div className="mt-2">
-                                        <ChoosePlanToPay compact whatsapp={billing?.brandWhatsapp} />
-                                    </div>
-                                )}
-
-                                {!nuncaHaPagado && Number(billing?.price ?? 0) > 0 && (
+                                {/* Cambiar de plan va por el botón «Cambiar plan» del
+                                    Perfil: las tarjetas de los planes ya no se pintan aquí. */}
+                                {tieneFacturacion && seOfrecePagar(billing) && (
                                     <Button
                                         className="mt-2 w-full"
                                         disabled={pagando}

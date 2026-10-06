@@ -108,7 +108,7 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
         const cuenta = await db.user
             .findUnique({
                 where: { id: me.effectiveId ?? me.id },
-                select: { plan: true, demoResellerId: true },
+                select: { plan: true, demoResellerId: true, isDemo: true },
             })
             .catch(() => null);
 
@@ -128,7 +128,7 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
             return {
                 success: true,
                 message: "Sin billing.",
-                data: { sinFacturacion: true, planLabel, brandWhatsapp },
+                data: { sinFacturacion: true, planLabel, brandWhatsapp, esDemo: cuenta?.isDemo === true },
             };
         }
 
@@ -139,6 +139,9 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
                 ...billing,
                 planLabel,
                 brandWhatsapp,
+                // De la CUENTA: el mismo dato con el que el panel la marca
+                // «Prueba» (ver `lib/plan-del-perfil.ts`).
+                esDemo: cuenta?.isDemo === true,
                 price: billing.price ? billing.price.toString() : null,
                 dueDate: billing.dueDate ? billing.dueDate.toISOString() : null,
                 serviceStartAt: billing.serviceStartAt ? billing.serviceStartAt.toISOString() : null,
