@@ -27510,3 +27510,20 @@ el viejo mandando: un chatbot con disparador seguía siendo IA.
 Lo prueba `scripts/banco-tipo-de-flujo.sh` (regla, barrido y la acción contra
 Postgres con todas las transiciones); `MODO=roto` lee `75b7e76` y afirma que
 no había forma de cambiarlo.
+
+## Chats: lanzar un flujo A MANO también marca la fila
+
+La pastilla de «flujo ejecutado» de la fila lee `Session.flujos`, y solo la
+escribía el motor (`registerWorkflow`) al ejecutar un flujo él. Lanzar el mismo
+flujo a mano desde la conversación (`sendManualWorkflowAction`, por Evolution o
+Waha) lo enviaba y no dejaba la marca.
+
+> **Después de enviar, `apuntarElFlujoEjecutado`
+> (`lib/flujos-ejecutados.server.ts`) lo añade a la ficha de esa línea**, por
+> todas las identidades del contacto y con la MISMA forma que el motor
+> (`[{id,name}]`, o los nombres por comas de antes: `lib/flujos-ejecutados.ts`,
+> pura). No repite un flujo, no borra lo que puso el motor, y nunca tumba el
+> envío (se dice en la consola). La fila se pone al día con el aviso de siempre.
+
+Lo prueba `scripts/banco-flujo-manual-en-la-fila.sh`, contra Postgres y con la
+acción de verdad; `MODO=roto` contra `f0ad78b` afirma que la marca no aparecía.
