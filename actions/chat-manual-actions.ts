@@ -1,5 +1,6 @@
 "use server";
 
+import { apuntarElFlujoEjecutado } from "@/lib/flujos-ejecutados.server";
 import { esAtajoDeLaLinea } from "@/lib/atajos-de-la-linea.server";
 import { porQueNoEsDeLaLinea } from "@/lib/atajos-de-la-linea";
 import type { MediaType, FetchChatsResult, FindMessagesResult, SendMessageResult } from "./chat-actions";
@@ -2010,6 +2011,15 @@ export async function sendManualWorkflowAction(
       message: `El flujo "${workflow.name}" no tiene nodos enviables manualmente.`,
     };
   }
+
+  // La fila de Chats marca un flujo ejecutado con `Session.flujos`, que hasta
+  // ahora solo escribia el motor. Ejecutado a mano tiene que quedar igual.
+  await apuntarElFlujoEjecutado({
+    userId: dueno,
+    instanceName: ctx.instanceName,
+    remoteJid,
+    flujo: { id: workflow.id, name: workflow.name },
+  });
 
   const detalle = [
     sentCount > 0 ? `${sentCount} envio(s)` : "",
