@@ -6,6 +6,13 @@ import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaQueConfigura } from "@/lib/cuenta-que-configura";
 import { db } from "@/lib/db";
 import { arrancarDeCeroElPuesto } from "@/lib/historial-del-equipo.server";
+import {
+  aplicarALasConversaciones,
+  guardarLosAjustes,
+  lasConversacionesDelAsesor,
+  laLlaveDeLosAjustes,
+  losAjustesDeLosAsesores,
+} from "@/lib/ia-del-asesor-db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
@@ -57,6 +64,12 @@ export type AdvisorRow = {
    * un porcentaje sería ofrecer algo que nunca se cumple.
    */
   entraEnElReparto: boolean;
+  /**
+   * Los dos interruptores de la IA del asesor en ESTA cuenta
+   * (`lib/ia-del-asesor.ts`). En `false` = encendido, que es lo de fábrica.
+   */
+  sesionApagada: boolean;
+  agenteApagado: boolean;
 };
 export type AdvisorInfo = {
   id: string;
@@ -198,12 +211,26 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     ORDER BY d.name ASC
   `;
 
+  // Los interruptores de la IA. Si no se pueden leer, salen encendidos (lo de
+  // fábrica) y se dice: la tabla sigue funcionando, solo se ve de menos.
+  let ajustes = new Map<string, { sesionApagada: boolean; agenteApagado: boolean }>();
+  try {
+    ajustes = await losAjustesDeLosAsesores([owner.id]);
+  } catch (error) {
+    console.warn("[equipo] no se pudieron leer los interruptores de IA", error);
+  }
+
   return {
     success: true,
-    data: rows.map((row) => ({
-      ...row,
-      lastActivity: row.lastActivity ? String(row.lastActivity) : null,
-    })),
+    data: rows.map((row) => {
+      const a = ajustes.get(laLlaveDeLosAjustes(owner.id, row.id));
+      return {
+        ...row,
+        lastActivity: row.lastActivity ? String(row.lastActivity) : null,
+        sesionApagada: a?.sesionApagada ?? false,
+        agenteApagado: a?.agenteApagado ?? false,
+      };
+    }),
   };
 }
 
@@ -224,12 +251,16 @@ export async function releaseAdvisorSessions(advisorId: string): Promise<ActionR
   if (!belongs) return { success: false, message: "Asesor no encontrado." };
 
   try {
-    const released = await db.$executeRaw`
+    const soltadas = await db.$queryRaw<Array<{ id: number }>>`
       UPDATE "Session"
       SET assigned_advisor_id = NULL
       WHERE assigned_advisor_id = ${advisorId}
         AND "userId" = ${owner.id}
+      RETURNING id
     `;
+    const released = soltadas.length;
+    // Sin asesor, lo que apagaron sus interruptores vuelve como estaba.
+    await aplicarALasConversaciones(soltadas.map((f) => Number(f.id)));
 
     return {
       success: true,
@@ -417,6 +448,38 @@ export async function toggleAdvisorAvailability(advisorId: string, available: bo
 
   await db.$executeRaw`UPDATE "User" SET advisor_available = ${available} WHERE id = ${advisorId}`;
   return { success: true };
+}
+
+/**
+ * Enciende o apaga la IA de las conversaciones de un asesor (`sesion` = la
+ * sesión temporal; `agente` = el agente de forma indefinida). Se aplica a las
+ * que hoy lleva en esta cuenta y a las que se le asignen mientras siga
+ * apagado; encender devuelve SOLO las que apagó este interruptor.
+ */
+export async function toggleAdvisorIa(
+  advisorId: string,
+  parte: "sesion" | "agente",
+  encendido: boolean,
+): Promise<ActionResult<{ apagadas: number; devueltas: number }>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+  if (parte !== "sesion" && parte !== "agente") return { success: false, message: "Interruptor desconocido." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  const actuales = (await losAjustesDeLosAsesores([owner.id])).get(laLlaveDeLosAjustes(owner.id, advisorId));
+  const ajustes = {
+    sesionApagada: actuales?.sesionApagada ?? false,
+    agenteApagado: actuales?.agenteApagado ?? false,
+  };
+  if (parte === "sesion") ajustes.sesionApagada = !encendido;
+  else ajustes.agenteApagado = !encendido;
+
+  await guardarLosAjustes(advisorId, owner.id, ajustes);
+  const ids = await lasConversacionesDelAsesor(advisorId, owner.id);
+  const cuenta = await aplicarALasConversaciones(ids);
+  return { success: true, data: cuenta };
 }
 
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
@@ -683,7 +746,11 @@ export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
   }
 
   // Release any sessions assigned to this advisor
-  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = NULL WHERE assigned_advisor_id = ${advisorId}`;
+  const soltadas = await db.$queryRaw<Array<{ id: number }>>`
+    UPDATE "Session" SET assigned_advisor_id = NULL WHERE assigned_advisor_id = ${advisorId} RETURNING id
+  `;
+  // Sin asesor, lo que apagaron sus interruptores vuelve como estaba.
+  await aplicarALasConversaciones(soltadas.map((f) => Number(f.id)));
 
   // Service has no onDelete:Cascade — clean up appointments then services manually
   const services = await db.service.findMany({ where: { userId: advisorId }, select: { id: true } });

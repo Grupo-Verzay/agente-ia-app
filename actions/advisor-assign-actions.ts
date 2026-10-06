@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { quitarSelloDeEscaladoPorSesion } from "@/lib/escalado";
 import { encolarLaEncuestaDeSatisfaccion } from "@/lib/encuesta-de-satisfaccion.server";
 import { asignarPorPorcentaje, leerElReparto } from "@/lib/reparto-por-porcentaje-db";
+import { aplicarALasConversaciones, olvidarLaMarca } from "@/lib/ia-del-asesor-db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import {
@@ -165,6 +166,8 @@ export async function autoAssignUnassignedSessionsForOwner(
         };
       }
       await logAssignment(session.id, advisorId, options.assignedBy, "auto_assigned");
+      // La IA como dicen los interruptores de su asesor (Equipo).
+      await aplicarALasConversaciones([session.id]);
       void triggerAdvisorAutomations(session.id, advisorId);
       asignadosPorPorcentaje++;
     }
@@ -237,6 +240,8 @@ export async function autoAssignUnassignedSessionsForOwner(
 
     if (Number(updated) > 0) {
       await logAssignment(session.id, advisorId, options.assignedBy, "auto_assigned");
+      // La IA como dicen los interruptores de su asesor (Equipo).
+      await aplicarALasConversaciones([session.id]);
       void triggerAdvisorAutomations(session.id, advisorId);
       assigned++;
     }
@@ -309,6 +314,9 @@ export async function devolverChatALaIaAction(sessionId: number): Promise<Result
     // Ya no espera a nadie: fuera el sello de la fila.
     await quitarSelloDeEscaladoPorSesion(sessionId);
     await logAssignment(sessionId, rows[0].assignedAdvisorId, laPersona(user).id, "returned_to_ai");
+    // Devolver a la IA lo enciende todo: las marcas de su asesor sobran.
+    await olvidarLaMarca(sessionId, "sesion");
+    await olvidarLaMarca(sessionId, "agente");
 
     revalidatePath("/chats");
     return { success: true };
@@ -365,6 +373,7 @@ export async function assignSessionToAdvisor(
   `;
 
   await logAssignment(sessionId, advisorId, auth.personaId, advisorId ? "assigned" : "released");
+  await aplicarALasConversaciones([sessionId]);
   void triggerAdvisorAutomations(sessionId, advisorId);
 
   // Auto-sync a Google Sheets (opt-in): cambió el asesor del contacto.
@@ -410,6 +419,7 @@ export async function takeSession(sessionId: number): Promise<Result> {
 
   // Las dos columnas, la misma identidad: quien lo tomó es quien lo hizo.
   await logAssignment(sessionId, yo, yo, "taken");
+  await aplicarALasConversaciones([sessionId]);
   void triggerAdvisorAutomations(sessionId, yo);
 
   return { success: true };
@@ -440,6 +450,7 @@ export async function releaseSession(sessionId: number): Promise<Result> {
   `;
 
   await logAssignment(sessionId, null, yo, "released");
+  await aplicarALasConversaciones([sessionId]);
 
   return { success: true };
 }
@@ -501,6 +512,7 @@ export async function transferSession(
   `;
 
   await logAssignment(sessionId, targetAdvisorId, yo, "transferred");
+  await aplicarALasConversaciones([sessionId]);
   void triggerAdvisorAutomations(sessionId, targetAdvisorId);
 
   return { success: true };

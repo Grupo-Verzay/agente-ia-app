@@ -27608,3 +27608,23 @@ pantallas que transcriben (Chats, chat de equipo y reuniones) pasan por ahí.
 Lo prueba `scripts/banco-clave-propia-transcripcion.sh` con OpenAI fingido;
 `MODO=roto` empaqueta `7c1db1f` y afirma que se elegía la clave de Google y se
 tragaba el error.
+
+## Equipo: los interruptores «Sesión» y «Agente» de cada asesor
+
+En `/equipo` cada asesor tiene dos interruptores, encendidos por defecto. «Sesión»
+apagado pausa (`Session.status = false`) las conversaciones que tiene asignadas, y
+un mensaje entrante no las reabre; «Agente» apagado pone `agentDisabled = true,
+aiOptIn = false`. Lo que se le asigna mientras está apagado entra apagado.
+
+> **Al encender se devuelve SOLO lo que apagó el interruptor.** Cada conversación
+> tocada lleva su marca (`asesor_ia_marcas`: `apagoSesion`, `apagoAgente`,
+> `aiOptInAntes`); lo pausado a mano no la tiene y no se toca. Pausar o apagar la
+> IA a mano (`updateSessionStatus`, `toggleAgentDisabled`) olvida la marca.
+
+La regla es pura (`lib/ia-del-asesor.ts`) y está **copiada byte a byte** en
+`api-webhook` (`auto-assign/ia-del-asesor.ts`), que es quien asigna los chats que
+entran. Los ajustes viven en `asesor_ia_ajustes` (tabla de la App, sin columna en
+`User`). Mueve los interruptores quien configura la cuenta (`laCuentaQueConfigura`);
+un agente no. Lo prueba `scripts/banco-ia-del-asesor.sh` (aquí, contra Postgres con
+las acciones de verdad) y el del mismo nombre en `api-webhook`; `MODO=roto` contra
+`7d3709d` afirma que no existían.
