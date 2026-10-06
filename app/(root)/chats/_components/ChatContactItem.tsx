@@ -124,15 +124,21 @@ type ChatContactItemProps = {
   onToggleStar?: (id: string, instanceName?: string | null) => void;
   hasNotes?: boolean;
   /**
-   * Los iconitos que quien mira eligió ver (Perfil › Apariencia,
+   * Las pastillas que quien mira eligió ver (Perfil › Apariencia,
    * `lib/iconos-de-la-fila.ts`). Van como booleanos sueltos y no como objeto
    * para que la fila memoizada no se repinte en cada vuelta de la lista.
    * Encendidos por defecto: sin la prop la fila se ve como siempre.
    */
+  verEspera?: boolean;
+  verEtapa?: boolean;
   verCalificacion?: boolean;
   verAsesor?: boolean;
-  verSinLeer?: boolean;
+  verRecordatorios?: boolean;
+  verFlujos?: boolean;
+  verSeguimientos?: boolean;
+  verCita?: boolean;
   verNotas?: boolean;
+  verEtiquetas?: boolean;
   /** Bloquear o desbloquear (`lib/bloqueo-y-silencio.ts`). */
   onBlock?: (contact: SidebarContact, activar: boolean) => void;
   /** Silenciar o quitar el silencio. */
@@ -167,10 +173,16 @@ function ChatContactItemBase({
   isStarred,
   onToggleStar,
   hasNotes,
+  verEspera = true,
+  verEtapa = true,
   verCalificacion = true,
   verAsesor = true,
-  verSinLeer = true,
+  verRecordatorios = true,
+  verFlujos = true,
+  verSeguimientos = true,
+  verCita = true,
   verNotas = true,
+  verEtiquetas = true,
   onBlock,
   onMute,
 }: ChatContactItemProps) {
@@ -222,7 +234,7 @@ function ChatContactItemBase({
     //    delante, que es lo que distingue una de hace un minuto de una de hace
     //    media hora. Desaparece solo en cuanto alguien contesta.
     const escaladaEn = contact.chatSession.escalatedAt ?? null;
-    if (escaladaEn) {
+    if (verEspera && escaladaEn) {
       const minutos = Math.max(0, Math.round((Date.now() - escaladaEn) / 60000));
       const cuanto = minutos < 1 ? "ahora" : minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)} h`;
       badgeItems.push(
@@ -259,7 +271,7 @@ function ChatContactItemBase({
     //    caliente. Con la calificación delante, la fila y el menú contaban lo
     //    mismo al revés. No se pinta nada cuando la cuenta no usa embudos
     //    (`etapa` en null), y no deja hueco: la fila reparte con `gap`.
-    if (contact.chatSession.etapa) {
+    if (verEtapa && contact.chatSession.etapa) {
       badgeItems.push(<PastillaDeEtapa key="etapa" etapa={contact.chatSession.etapa} />);
     }
     // 1.5. Calificación del lead. Se pinta SOLO cuando la hay —Frío, Tibio,
@@ -303,7 +315,7 @@ function ChatContactItemBase({
     //    llevaba además el estado del cliente y el tipo de asistencia; esos dos
     //    ya no están (#864) y el orden se queda igual, que es el que se lee.
     const recordatorios = contact.chatSession.reminderCount ?? 0;
-    if (recordatorios > 0) {
+    if (verRecordatorios && recordatorios > 0) {
       badgeItems.push(
         <TooltipProvider key="reminders">
           <Tooltip>
@@ -331,10 +343,10 @@ function ChatContactItemBase({
       );
     }
   }
-  if (contact.chatSession?.flujos) {
+  if (verFlujos && contact.chatSession?.flujos) {
     badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} compacta />);
   }
-  if ((contact.chatSession?.pendingSeguimientos ?? 0) > 0) {
+  if (verSeguimientos && (contact.chatSession?.pendingSeguimientos ?? 0) > 0) {
     badgeItems.push(
       <SeguimientoBadge
         key="seguimiento"
@@ -344,7 +356,7 @@ function ChatContactItemBase({
       />
     );
   }
-  if (apptStatus) {
+  if (verCita && apptStatus) {
     badgeItems.push(
       <TooltipProvider key="appt">
         <Tooltip>
@@ -408,7 +420,7 @@ function ChatContactItemBase({
    */
   const tags = contact.chatSession?.tags ?? [];
   const pastillaDeEtiquetas =
-    tags.length > 0 ? (
+    verEtiquetas && tags.length > 0 ? (
       <TooltipProvider key="tags">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -636,7 +648,7 @@ function ChatContactItemBase({
                     nombre={contact.instanceDisplayName ?? contact.instanceName}
                   />
                 )}
-                {verSinLeer && isUnread && (
+                {isUnread && (
                   <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                 )}
               </div>

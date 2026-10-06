@@ -1,40 +1,31 @@
 /**
- * Qué iconitos ve cada PERSONA en la lista de conversaciones de Chats.
+ * Qué PASTILLAS ve cada persona en la fila de una conversación de Chats.
  *
- * Son cinco interruptores, todos ENCENDIDOS por defecto: no haber tocado nada
- * es ver la fila como siempre. Apagar uno es una decisión de quien mira y no
- * cambia ningún dato: la calificación, el asesor, lo no leído y las notas
- * siguen ahí; solo dejan de pintarse en la fila.
+ * Son los diez indicadores del renglón de pastillas, repartidos en dos
+ * tarjetas de Perfil › Apariencia: prioritarios a la izquierda y secundarios a
+ * la derecha. Todos ENCENDIDOS por defecto: no haber tocado nada es ver la fila
+ * como siempre. Apagar uno solo deja de pintarlo: el dato sigue existiendo.
  *
- * Puro: lo usan la tarjeta de Apariencia, la acción que guarda y la lista.
+ * Lo que NO es una pastilla —el aro, el ancla, lo no leído, las palomitas, la
+ * vista previa…— no tiene interruptor y no entra aquí.
+ *
+ * Puro: lo usan la tarjeta de Apariencia, la acción que guarda y la fila.
  */
 
+export type GrupoDeIconos = "prioritarios" | "secundarios";
+
 export const ICONOS_DE_LA_FILA = [
-  {
-    clave: "calificacion",
-    titulo: "Estado del cliente",
-    detalle: "Frío, tibio o caliente.",
-  },
-  {
-    clave: "asesor",
-    titulo: "Asesor asignado",
-    detalle: "Asignado a ti o a otro asesor.",
-  },
-  {
-    clave: "sinLeer",
-    titulo: "Mensajes sin leer",
-    detalle: "El punto azul de las conversaciones que no has abierto.",
-  },
-  {
-    clave: "notaInterna",
-    titulo: "Nota interna",
-    detalle: "El candado de las conversaciones con notas.",
-  },
-  {
-    clave: "resumenIa",
-    titulo: "Resumen de IA",
-    detalle: "El resumen que deja la IA al cerrar una conversación.",
-  },
+  { clave: "calificacion", grupo: "prioritarios", titulo: "Calificación", detalle: "Frío, tibio, caliente, finalizado o descartado." },
+  { clave: "asesor", grupo: "prioritarios", titulo: "Asesor asignado", detalle: "Las iniciales de quien lleva la conversación." },
+  { clave: "etapa", grupo: "prioritarios", titulo: "Etapa del embudo", detalle: "En qué etapa del embudo está." },
+  { clave: "cita", grupo: "prioritarios", titulo: "Cita agendada", detalle: "El calendario con el estado de la cita." },
+  // Se llama `notaInterna` porque así se guardaba antes: quien la apagó la sigue teniendo apagada.
+  { clave: "notaInterna", grupo: "prioritarios", titulo: "Notas internas", detalle: "El candado de las conversaciones con notas." },
+  { clave: "espera", grupo: "secundarios", titulo: "En espera de asesor", detalle: "El reloj de quien espera a una persona." },
+  { clave: "recordatorios", grupo: "secundarios", titulo: "Recordatorios", detalle: "La campana con los recordatorios programados." },
+  { clave: "flujos", grupo: "secundarios", titulo: "Flujos ejecutados", detalle: "Los flujos que ya corrieron en la conversación." },
+  { clave: "seguimientos", grupo: "secundarios", titulo: "Seguimientos", detalle: "Los seguimientos pendientes." },
+  { clave: "etiquetas", grupo: "secundarios", titulo: "Etiquetas", detalle: "Cuántas etiquetas tiene la conversación." },
 ] as const;
 
 export type ClaveDeIcono = (typeof ICONOS_DE_LA_FILA)[number]["clave"];
@@ -42,18 +33,27 @@ export type IconosDeLaFila = Record<ClaveDeIcono, boolean>;
 
 export const CLAVES_DE_ICONOS: readonly ClaveDeIcono[] = ICONOS_DE_LA_FILA.map((i) => i.clave);
 
-export const ICONOS_POR_DEFECTO: IconosDeLaFila = {
-  calificacion: true,
-  asesor: true,
-  sinLeer: true,
-  notaInterna: true,
-  resumenIa: true,
-};
+export const TARJETAS_DE_ICONOS: readonly {
+  grupo: GrupoDeIconos;
+  titulo: string;
+  detalle: string;
+}[] = [
+  { grupo: "prioritarios", titulo: "Indicadores prioritarios", detalle: "Lo que más se mira en cada conversación" },
+  { grupo: "secundarios", titulo: "Indicadores secundarios", detalle: "El resto de pastillas de la fila" },
+];
+
+export function losIconosDelGrupo(grupo: GrupoDeIconos) {
+  return ICONOS_DE_LA_FILA.filter((i) => i.grupo === grupo);
+}
+
+export const ICONOS_POR_DEFECTO: IconosDeLaFila = Object.fromEntries(
+  CLAVES_DE_ICONOS.map((c) => [c, true]),
+) as IconosDeLaFila;
 
 /**
  * Lo que llega de la base o del navegador. Solo un `false` explícito apaga:
- * lo que falte o no se entienda queda ENCENDIDO, que es ver de más y nunca
- * esconder un aviso por un dato raro.
+ * lo que falte o no se entienda queda ENCENDIDO. Las claves de antes que ya no
+ * son pastillas (`sinLeer`, `resumenIa`) se ignoran.
  */
 export function comoIconosDeLaFila(valor: unknown): IconosDeLaFila {
   const fuente =
@@ -75,34 +75,4 @@ export function conElIcono(
 ): IconosDeLaFila {
   if (!(CLAVES_DE_ICONOS as readonly string[]).includes(clave)) return actuales;
   return { ...actuales, [clave]: visible === true };
-}
-
-/**
- * Si una nota interna es el resumen que escribe la IA al cerrar o transferir
- * (`conversation-intelligence-actions.ts` la titula «RESUMEN IA · …»).
- */
-export const PREFIJO_DEL_RESUMEN_IA = "RESUMEN IA";
-
-export function esResumenIa(texto: string | null | undefined): boolean {
-  return (texto ?? "").trimStart().toUpperCase().startsWith(PREFIJO_DEL_RESUMEN_IA);
-}
-
-/**
- * La nota que puede salir en la vista previa de la fila, según los iconos.
- *
- * - Con «Nota interna» apagada no sale ninguna: la vista previa de una nota
- *   lleva el mismo candado que se apagó.
- * - Con «Resumen de IA» apagado no sale el resumen; una nota escrita por una
- *   persona sí.
- *
- * Sin nota que enseñar, la vista previa vuelve a ser el último mensaje.
- */
-export function laNotaQueSeEnsena<T extends { texto: string }>(
-  nota: T | null,
-  iconos: IconosDeLaFila,
-): T | null {
-  if (!nota) return null;
-  if (!iconos.notaInterna) return null;
-  if (!iconos.resumenIa && esResumenIa(nota.texto)) return null;
-  return nota;
 }

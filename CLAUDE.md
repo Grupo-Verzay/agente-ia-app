@@ -27567,23 +27567,28 @@ afirma el plan puesto a mano visto como prueba y las tarjetas de planes.
 
 ## Chats: los iconitos de la fila los elige cada PERSONA, en Apariencia
 
-Perfil › Apariencia lleva la tarjeta «Iconos de la lista de conversaciones»,
-con un interruptor por icono: calificación (frío/tibio/caliente), asesor
-asignado, sin leer, nota interna y resumen de IA de una conversación cerrada.
-Las reglas son puras en `lib/iconos-de-la-fila.ts` y las usan la tarjeta, la
-fila (`ChatContactItem`, props `ver*`) y la lista (`laNotaQueSeEnsena`).
+Perfil › Apariencia lleva DOS tarjetas lado a lado, en su propia fila
+(`md:col-span-2`), con un interruptor por cada pastilla del renglón de la fila
+de Chats: **Indicadores prioritarios** (calificación, asesor asignado, etapa
+del embudo, cita agendada, notas internas) e **Indicadores secundarios** (en
+espera de asesor, recordatorios, flujos ejecutados, seguimientos, etiquetas).
+Las reglas son puras en `lib/iconos-de-la-fila.ts` (`ICONOS_DE_LA_FILA`,
+`TARJETAS_DE_ICONOS`) y las usan la tarjeta, la lista y la fila
+(`ChatContactItem`, props `ver*`).
 
 1. **Todos encendidos por defecto**: solo un `false` explícito apaga; lo raro no
-   esconde nada (`comoIconosDeLaFila`).
-2. **Es de la PERSONA** (`laPersonaQueActua`), en
-   `preferencias_de_persona.iconosDeLaFila` (JSONB, `asegurarColumna`); ni una
-   columna en `User`. Ninguna acción recibe un id.
-3. **Esconder no filtra**: el filtro de notas y el de sin leer siguen igual.
-4. Guardar avisa a la lista abierta (`chats:iconos-de-la-fila`) y, si falla,
-   el interruptor vuelve.
+   esconde nada (`comoIconosDeLaFila`). Las claves viejas `sinLeer` y
+   `resumenIa` se ignoran: ya no tienen interruptor.
+2. **Solo pastillas.** El aro, el ancla, archivada, bloqueada, silenciada, el
+   tipo de mensaje, escribiendo, las palomitas, la nota o el resumen en la
+   línea del mensaje, la marca de línea, sin leer y destacada no se apagan.
+3. **Es de la PERSONA** (`laPersonaQueActua`), en
+   `preferencias_de_persona.iconosDeLaFila` (JSONB); ninguna acción recibe un id.
+4. **Esconder no filtra** ni borra el dato. Guardar avisa a la lista abierta
+   (`chats:iconos-de-la-fila`) y, si falla, el interruptor vuelve.
 
-Lo prueba `scripts/banco-iconos-de-la-fila.sh`; `MODO=roto` lee `da69baf` y
-afirma que no había tarjeta ni forma de esconderlos.
+Lo prueba `scripts/banco-iconos-de-la-fila.sh`; `MODO=roto` lee `7d3709d` y
+afirma los cinco interruptores de antes.
 
 ## Transcribir con la clave PROPIA del cliente: siempre la de OpenAI, y su error se dice
 
