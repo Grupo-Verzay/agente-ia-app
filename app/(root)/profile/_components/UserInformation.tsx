@@ -48,6 +48,7 @@ import { OperatorContactsManager } from "./OperatorContactsManager";
 import { EscaladoCard } from "./EscaladoCard";
 import { EncuestaSatisfaccionCard } from "./EncuestaSatisfaccionCard";
 import { SentimientoCard } from "./SentimientoCard";
+import { IconosDeLaFilaCard } from "./IconosDeLaFilaCard";
 import { OwnerModeToggle } from "./OwnerModeToggle";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
@@ -1278,6 +1279,8 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </div>
                                         </CardContent>
                                     </Card>
+
+                                    <IconosDeLaFilaCard />
                                 </div>
                             </TabPanel>
                         </TabsContent>

@@ -9321,9 +9321,15 @@ Cuatro cosas que hay que mantener:
 «Transcribir 3 créditos», con el número en tono más claro, porque la duración
 **es** el precio. Una nota por
 encima del tope no ofrece botón y dice por qué — un botón que al pulsarlo da
-error es peor que no tenerlo. Y **solo se ofrece en lo que entra**: lo que
-escribe el asesor o la IA ya está en texto, así que transcribirlo es pagar dos
-veces por algo que ya se tiene.
+error es peor que no tenerlo.
+
+**Se ofrece en las notas de voz de LOS DOS lados**: la del cliente y la que
+manda el asesor o la IA (`fromMe = true`), para revisar qué le dice el equipo a
+los clientes. Lo decide `esNotaDeVozTranscribible` y `laNotaDeVoz` no filtra
+por `fromMe`; en la burbuja propia la pastilla va en tonos claros
+(`enMensajePropio`). Un audio ADJUNTO (`ptt: false`) no es una nota y no se
+ofrece. Lo prueba `scripts/banco-transcribir-nota-del-asesor.sh`; `MODO=roto`
+contra `7c1db1f` afirma que solo se ofrecía la del cliente.
 
 ### Compartir la TARIFA no basta: hay que compartir la DURACIÓN
 
@@ -27540,6 +27546,44 @@ Waha) lo enviaba y no dejaba la marca.
 
 Lo prueba `scripts/banco-flujo-manual-en-la-fila.sh`, contra Postgres y con la
 acción de verdad; `MODO=roto` contra `f0ad78b` afirma que la marca no aparecía.
+
+## Perfil › «Plan y facturación»: la prueba se decide como en el panel, y los planes van en «Cambiar plan»
+
+Un cliente al que el administrador le puso el plan a mano (Instancias › «Editar
+pagos») seguía viendo «Prueba · N días» y, debajo, las tarjetas de otros planes.
+La tarjeta deducía «prueba» de `!lastPaymentAt`, y ese camino no escribe esa
+columna. Ahora:
+
+1. **En prueba lo decide `estaEnPrueba` (`lib/plan-del-perfil.ts`, puro), con
+   la regla del panel**: la cuenta es demo (`User.isDemo`, que
+   `getOwnBillingAction` devuelve como `esDemo`) y no se ha cobrado (ni `PAID`
+   ni un pago registrado).
+2. **Las tarjetas de planes (`ChoosePlanToPay`) ya no se pintan ahí**: cambiar
+   de plan va por el botón «Cambiar plan» del Perfil. «Pagar y renovar» sale si
+   no está en prueba y hay precio (`seOfrecePagar`).
+
+Lo prueba `scripts/banco-plan-del-perfil.sh`; `MODO=roto` lee `7c1db1f` y
+afirma el plan puesto a mano visto como prueba y las tarjetas de planes.
+
+## Chats: los iconitos de la fila los elige cada PERSONA, en Apariencia
+
+Perfil › Apariencia lleva la tarjeta «Iconos de la lista de conversaciones»,
+con un interruptor por icono: calificación (frío/tibio/caliente), asesor
+asignado, sin leer, nota interna y resumen de IA de una conversación cerrada.
+Las reglas son puras en `lib/iconos-de-la-fila.ts` y las usan la tarjeta, la
+fila (`ChatContactItem`, props `ver*`) y la lista (`laNotaQueSeEnsena`).
+
+1. **Todos encendidos por defecto**: solo un `false` explícito apaga; lo raro no
+   esconde nada (`comoIconosDeLaFila`).
+2. **Es de la PERSONA** (`laPersonaQueActua`), en
+   `preferencias_de_persona.iconosDeLaFila` (JSONB, `asegurarColumna`); ni una
+   columna en `User`. Ninguna acción recibe un id.
+3. **Esconder no filtra**: el filtro de notas y el de sin leer siguen igual.
+4. Guardar avisa a la lista abierta (`chats:iconos-de-la-fila`) y, si falla,
+   el interruptor vuelve.
+
+Lo prueba `scripts/banco-iconos-de-la-fila.sh`; `MODO=roto` lee `da69baf` y
+afirma que no había tarjeta ni forma de esconderlos.
 
 ## Transcribir con la clave PROPIA del cliente: siempre la de OpenAI, y su error se dice
 
