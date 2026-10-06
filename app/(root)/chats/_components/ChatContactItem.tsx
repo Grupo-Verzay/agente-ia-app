@@ -123,6 +123,16 @@ type ChatContactItemProps = {
   isStarred?: boolean;
   onToggleStar?: (id: string, instanceName?: string | null) => void;
   hasNotes?: boolean;
+  /**
+   * Los iconitos que quien mira eligió ver (Perfil › Apariencia,
+   * `lib/iconos-de-la-fila.ts`). Van como booleanos sueltos y no como objeto
+   * para que la fila memoizada no se repinte en cada vuelta de la lista.
+   * Encendidos por defecto: sin la prop la fila se ve como siempre.
+   */
+  verCalificacion?: boolean;
+  verAsesor?: boolean;
+  verSinLeer?: boolean;
+  verNotas?: boolean;
   /** Bloquear o desbloquear (`lib/bloqueo-y-silencio.ts`). */
   onBlock?: (contact: SidebarContact, activar: boolean) => void;
   /** Silenciar o quitar el silencio. */
@@ -157,6 +167,10 @@ function ChatContactItemBase({
   isStarred,
   onToggleStar,
   hasNotes,
+  verCalificacion = true,
+  verAsesor = true,
+  verSinLeer = true,
+  verNotas = true,
   onBlock,
   onMute,
 }: ChatContactItemProps) {
@@ -259,7 +273,7 @@ function ChatContactItemBase({
     //    Chats, así que se mudó al menú «⋯» de la fila, que es donde ya viven
     //    «Asignar agente» y «Asignar etiqueta». La pastilla sigue abriendo el
     //    mismo menú cuando existe.
-    if (seVeLaCalificacion(contact.chatSession.leadStatus)) {
+    if (verCalificacion && seVeLaCalificacion(contact.chatSession.leadStatus)) {
       badgeItems.push(
         <LeadStatusSelect
           key="status"
@@ -270,7 +284,7 @@ function ChatContactItemBase({
       );
     }
     // 2. Asesor asignado (Sin asignar / iniciales)
-    if (advisors && advisors.length > 0) {
+    if (verAsesor && advisors && advisors.length > 0) {
       badgeItems.push(
         <AdvisorAssignBadge
           key="advisor"
@@ -353,7 +367,7 @@ function ChatContactItemBase({
       </TooltipProvider>
     );
   }
-  if (hasNotes) {
+  if (verNotas && hasNotes) {
     badgeItems.push(
       <TooltipProvider key="notes">
         <Tooltip>
@@ -622,7 +636,7 @@ function ChatContactItemBase({
                     nombre={contact.instanceDisplayName ?? contact.instanceName}
                   />
                 )}
-                {isUnread && (
+                {verSinLeer && isUnread && (
                   <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                 )}
               </div>

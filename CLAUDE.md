@@ -27558,3 +27558,23 @@ columna. Ahora:
 
 Lo prueba `scripts/banco-plan-del-perfil.sh`; `MODO=roto` lee `7c1db1f` y
 afirma el plan puesto a mano visto como prueba y las tarjetas de planes.
+
+## Chats: los iconitos de la fila los elige cada PERSONA, en Apariencia
+
+Perfil › Apariencia lleva la tarjeta «Iconos de la lista de conversaciones»,
+con un interruptor por icono: calificación (frío/tibio/caliente), asesor
+asignado, sin leer, nota interna y resumen de IA de una conversación cerrada.
+Las reglas son puras en `lib/iconos-de-la-fila.ts` y las usan la tarjeta, la
+fila (`ChatContactItem`, props `ver*`) y la lista (`laNotaQueSeEnsena`).
+
+1. **Todos encendidos por defecto**: solo un `false` explícito apaga; lo raro no
+   esconde nada (`comoIconosDeLaFila`).
+2. **Es de la PERSONA** (`laPersonaQueActua`), en
+   `preferencias_de_persona.iconosDeLaFila` (JSONB, `asegurarColumna`); ni una
+   columna en `User`. Ninguna acción recibe un id.
+3. **Esconder no filtra**: el filtro de notas y el de sin leer siguen igual.
+4. Guardar avisa a la lista abierta (`chats:iconos-de-la-fila`) y, si falla,
+   el interruptor vuelve.
+
+Lo prueba `scripts/banco-iconos-de-la-fila.sh`; `MODO=roto` lee `da69baf` y
+afirma que no había tarjeta ni forma de esconderlos.
