@@ -16,6 +16,7 @@
 
 import { elBloqueDelGuionDe, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { TOPE_DE_LA_NOTA, comoRutaDeVerzy, type LugarDeVerzy } from "@/lib/pantalla-de-verzy";
+import { laRutaDeLaPaginaDeTavus } from "@/lib/herramienta-vieja-de-tavus";
 
 export const NOMBRE_DE_LA_HERRAMIENTA = "mostrar_pantalla";
 
@@ -63,7 +64,16 @@ export function laOrdenDeLaPantalla(mensaje: unknown): OrdenDeLaPantalla | null 
         if (!valor) continue;
         if (valor.toLowerCase() === OCULTAR) return { accion: "ocultar" };
         const lugar = comoRutaDeVerzy(valor);
-        return lugar ? { accion: "mostrar", lugar } : null;
+        if (lugar) return { accion: "mostrar", lugar };
+        // La herramienta VIEJA de la persona de Tavus manda una palabra de su
+        // lista fija (`pagina`, y `modulo` para una guía). Sin traducirla, la
+        // sala ignoraba todas sus llamadas. Ver lib/herramienta-vieja-de-tavus.
+        if (campo === "pagina") {
+            const deTavus = laRutaDeLaPaginaDeTavus(valor, args.modulo);
+            const ruta = deTavus ? comoRutaDeVerzy(deTavus) : null;
+            if (ruta) return { accion: "mostrar", lugar: ruta };
+        }
+        return null;
     }
     return null;
 }
@@ -126,8 +136,9 @@ export const HERRAMIENTA_DE_TOMAR_NOTA = {
 export function elBloqueDeLaPantalla(): string {
     return [
         "PANTALLA COMPARTIDA",
-        `Puedes compartir pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA} con una URL de Agente IA (la landing o la plataforma con la sesión de Verzay Ventas). ` +
-            "Se carga tal cual, en vivo.",
+        `Puedes compartir pantalla llamando a ${NOMBRE_DE_LA_HERRAMIENTA}: pásale la ruta de Agente IA, o la página de su lista si la herramienta te da una lista. ` +
+            "Se carga tal cual, en vivo, y la ve el cliente.",
+        "- Cuando el tema lo pide (los precios, una función, la plataforma), LLAMA a la herramienta: decir que muestras algo sin llamarla deja la pantalla vacía.",
         "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas y el tema que se está hablando.",
         "- Nunca digas una URL en voz alta: llama a la herramienta y NÓMBRALA en palabras, di qué se está viendo.",
         `- Para dejar de compartir: ${OCULTAR}.`,
