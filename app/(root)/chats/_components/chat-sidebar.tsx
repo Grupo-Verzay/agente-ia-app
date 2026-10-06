@@ -153,7 +153,7 @@ import { normalizeDeliveryState } from "./chat-message-utils";
 import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
 import { misIconosDeLaFilaAction } from "@/actions/iconos-de-la-fila-actions";
-import { ICONOS_POR_DEFECTO, laNotaQueSeEnsena, type IconosDeLaFila } from "@/lib/iconos-de-la-fila";
+import { ICONOS_POR_DEFECTO, type IconosDeLaFila } from "@/lib/iconos-de-la-fila";
 import { EVENTO_ICONOS_DE_LA_FILA } from "@/lib/iconos-de-la-fila-evento";
 
 // --- Virtualización de la lista lateral ---
@@ -650,7 +650,7 @@ export function ChatSidebar({
         const vistaPrevia = laVistaPreviaDeLaFila({
           textoDelMensaje: lastMsgData.text,
           ultimoMensajeMs: ts,
-          nota: laNotaQueSeEnsena(ultimaNota, iconos),
+          nota: ultimaNota,
         });
 
         return {
@@ -738,7 +738,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, bloqueos, chatSessions, iconos, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
+  }, [chatPreferences, bloqueos, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la
@@ -2098,10 +2098,16 @@ export function ChatSidebar({
                 isStarred={estaDestacado(contact)}
                 onToggleStar={toggleStarred}
                 hasNotes={contact.hasNotes}
+                verEspera={iconos.espera}
+                verEtapa={iconos.etapa}
                 verCalificacion={iconos.calificacion}
                 verAsesor={iconos.asesor}
-                verSinLeer={iconos.sinLeer}
+                verRecordatorios={iconos.recordatorios}
+                verFlujos={iconos.flujos}
+                verSeguimientos={iconos.seguimientos}
+                verCita={iconos.cita}
                 verNotas={iconos.notaInterna}
+                verEtiquetas={iconos.etiquetas}
               />
               ))}
               {listVirtual.afterHeight > 0 && (
