@@ -2,11 +2,11 @@
 # Banco de los iconos de la fila de Chats (Perfil › Apariencia):
 #  - la regla pura y un barrido de la tarjeta, la fila y la lista;
 #  - las acciones de verdad contra Postgres (de la persona, todos por defecto).
-# MODO=roto lee ANTES_REF y afirma que no había tarjeta ni forma de esconderlos.
+# MODO=roto lee ANTES_REF y afirma la tarjeta vieja: cinco interruptores, solo tres pastillas.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export ANTES_REF="${ANTES_REF:-da69baf}"
+export ANTES_REF="${ANTES_REF:-7d3709d}"
 export PATH="/usr/lib/postgresql/16/bin:$PATH"
 PGDIR=/tmp/pgiconosdelafila
 PORT=55498
