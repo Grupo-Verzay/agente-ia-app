@@ -85,7 +85,8 @@ export async function laNotaDeVoz(input: {
           AND ("remoteJid" IN (${Prisma.join(input.candidatos)})
                OR "remoteJidAlt" IN (${Prisma.join(input.candidatos)})
                OR "senderPn" IN (${Prisma.join(input.candidatos)}))
-          AND "fromMe" = FALSE
+          -- Sin filtro de "fromMe": la nota del asesor se transcribe igual que
+          -- la del cliente (revisar qué le dice el equipo a los clientes).
           AND "messageType" = 'audioMessage'
         LIMIT 1
     `;

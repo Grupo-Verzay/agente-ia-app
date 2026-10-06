@@ -94,7 +94,8 @@ export function useTranscribirNota({
     segundos,
     transcripcion,
     transcripcionMotivo,
-    esNotaEntrante,
+    esNotaDeVoz,
+    enMensajePropio = false,
 }: {
     messageId?: string;
     /** Lo que dura la nota: de aquí sale el precio, y baja del servidor. */
@@ -103,8 +104,13 @@ export function useTranscribirNota({
     transcripcion?: string;
     /** La marca que dejó el paso automático mientras existió. */
     transcripcionMotivo?: 'muy_larga' | 'fallo';
-    /** Solo las notas que ENTRAN se transcriben: lo propio ya está en texto. */
-    esNotaEntrante: boolean;
+    /**
+     * Si la burbuja es una nota de voz. **De los dos lados**: la del cliente y
+     * la del asesor, que es lo que hay que poder revisar.
+     */
+    esNotaDeVoz: boolean;
+    /** La burbuja es del asesor: fondo de color, así que el texto va claro. */
+    enMensajePropio?: boolean;
 }): LoDeLaNota {
     const conversacion = useConversacionDeLaNota();
     const [pidiendo, setPidiendo] = useState(false);
@@ -126,12 +132,14 @@ export function useTranscribirNota({
             pastilla: null,
             debajoDelAudio: parrafo(
                 elTexto,
-                'text-[13px] text-gray-700 dark:text-gray-200',
+                enMensajePropio
+                    ? 'text-[13px] text-white/90'
+                    : 'text-[13px] text-gray-700 dark:text-gray-200',
             ),
         };
     }
 
-    if (!esNotaEntrante) return NADA;
+    if (!esNotaDeVoz) return NADA;
 
     // Sin conversación no se puede pedir nada, así que no se ofrece un botón que
     // al pulsarlo daría error.
@@ -149,7 +157,9 @@ export function useTranscribirNota({
             pastilla: null,
             debajoDelAudio: parrafo(
                 vieja.explicar,
-                'text-[11px] italic text-gray-500 dark:text-gray-400',
+                enMensajePropio
+                    ? 'text-[11px] italic text-white/70'
+                    : 'text-[11px] italic text-gray-500 dark:text-gray-400',
             ),
         };
     }
@@ -164,7 +174,9 @@ export function useTranscribirNota({
             pastilla: null,
             debajoDelAudio: parrafo(
                 porQueNoSeTranscribio('muy_larga'),
-                'text-[11px] italic text-gray-500 dark:text-gray-400',
+                enMensajePropio
+                    ? 'text-[11px] italic text-white/70'
+                    : 'text-[11px] italic text-gray-500 dark:text-gray-400',
             ),
         };
     }
@@ -220,8 +232,9 @@ export function useTranscribirNota({
                 className={cn(
                     'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5',
                     'text-[0.6rem] font-medium leading-none transition-colors',
-                    'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                    'dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20',
+                    enMensajePropio
+                        ? 'bg-white/20 text-white hover:bg-white/30'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20',
                     'disabled:cursor-default disabled:opacity-60',
                 )}
             >
@@ -235,14 +248,24 @@ export function useTranscribirNota({
                   * con la acción. Y va SIEMPRE que haya botón, también al
                   * reintentar, porque lo que se va a gastar es lo mismo. */}
                 {!pidiendo && (
-                    <span className="font-normal text-gray-400 dark:text-gray-400">
+                    <span
+                        className={cn(
+                            'font-normal',
+                            enMensajePropio ? 'text-white/70' : 'text-gray-400 dark:text-gray-400',
+                        )}
+                    >
                         {comoSeLeeElCosto(costo)}
                     </span>
                 )}
             </button>
         ) : null,
         debajoDelAudio: fallo
-            ? parrafo(fallo.message, 'text-[11px] italic text-amber-700 dark:text-amber-400')
+            ? parrafo(
+                  fallo.message,
+                  enMensajePropio
+                      ? 'text-[11px] italic text-amber-200'
+                      : 'text-[11px] italic text-amber-700 dark:text-amber-400',
+              )
             : null,
     };
 }

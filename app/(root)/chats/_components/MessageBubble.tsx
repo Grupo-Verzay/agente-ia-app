@@ -204,7 +204,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     segundos: audioSegundos,
     transcripcion,
     transcripcionMotivo,
-    esNotaEntrante: !isUserMessage && media?.type === 'audio',
+    esNotaDeVoz: media?.type === 'audio',
+    enMensajePropio: isUserMessage,
   });
 
   // La linea por la que entro esta conversacion: la necesita «devolver
