@@ -115,7 +115,7 @@ const COMMANDS = [
   {
     label: "Abrir CRM",
     description: "Entrar al CRM de leads y seguimiento",
-    href: "/crm",
+    href: "/crm/registros",
     Icon: Plus,
     keywords: ["crm", "lead", "leads", "ventas"],
   },

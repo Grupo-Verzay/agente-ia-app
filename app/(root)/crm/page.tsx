@@ -1,45 +1,17 @@
-// app/(dashboard)/crm/page.tsx
-import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { MainCrm } from "./components/MainCrm";
-import { listTagsAction } from "@/actions/tag-actions";
 
-interface PageProps {
-    params: { id?: string };
-    searchParams: { [key: string]: string | string[] | undefined };
+/*
+ * `/crm` era una lista vieja de leads, fuera de todo menú, que repetía lo que
+ * ya hacen Leads (`/sessions`) y CRM › Registros. Se quitó: quien llegue aquí
+ * —un enlace guardado, el buscador o Verzy— aterriza en Registros, con el
+ * filtro de cuentas si lo traía.
+ */
+export default function CrmPage({
+    searchParams,
+}: {
+    searchParams?: { cuentas?: string | string[] };
+}) {
+    const cuentas = searchParams?.cuentas;
+    const valor = Array.isArray(cuentas) ? cuentas.join(",") : cuentas;
+    redirect(valor ? `/crm/registros?cuentas=${encodeURIComponent(valor)}` : "/crm/registros");
 }
-
-const CrmPage = async ({ searchParams }: PageProps) => {
-    const user = await currentUser();
-
-    if (!user) {
-        redirect("/login");
-    }
-
-    // si quieres filtrar por ?status=true/false en la URL:
-    // const rawStatus = searchParams.status;
-    // const status =
-    //     rawStatus === "true"
-    //         ? true
-    //         : rawStatus === "false"
-    //             ? false
-    //             : undefined;
-
-    const tagsRes = await listTagsAction(user.effectiveId);
-
-    const allTags =
-        tagsRes.data?.map((t) => ({
-            id: t.id,
-            name: t.name,
-            slug: t.slug,
-            color: t.color,
-            order: t.order ?? 0,
-            sessionCount: t._count?.sessionTags ?? 0,
-
-        })) ?? [];
-
-    return <MainCrm userId={user.effectiveId} allTags={allTags} />
-
-};
-
-export default CrmPage;
