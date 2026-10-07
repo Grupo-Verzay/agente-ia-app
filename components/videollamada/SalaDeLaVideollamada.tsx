@@ -17,6 +17,7 @@ import {
     type OrdenDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
 import { NOVEDADES_CADA_MS } from "@/lib/videollamada-en-vivo";
+import { AL_CALLARSE, AL_LLAMARLO_DE_NUEVO, loQueHaceConElSilencio } from "@/lib/silencio-de-verzy";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import {
     AL_DESPEDIRSE_EL_CLIENTE,
@@ -207,6 +208,31 @@ export default function SalaDeLaVideollamada({
         } catch (e) {
             console.warn("[videollamada] no se pudo darle contexto a Verzy", e);
         }
+    };
+
+    // «Verzy, yo sigo desde aquí»: callado hasta que lo llamen por su nombre.
+    // El modelo no puede cortar su propia voz, así que lo corta la sala.
+    const silenciadoRef = useRef(false);
+    const cortarAVerzy = () => {
+        const llamada = llamadaRef.current;
+        const conversacion = conversacionRef.current;
+        if (!llamada || !conversacion) return;
+        try {
+            llamada.sendAppMessage({
+                message_type: "conversation",
+                event_type: "conversation.interrupt",
+                conversation_id: conversacion,
+            }, "*");
+        } catch (e) {
+            console.warn("[videollamada] no se pudo interrumpir a Verzy", e);
+        }
+    };
+    const silenciarAVerzy = (si: boolean) => {
+        silenciadoRef.current = si;
+        if (audioAvatar.current) audioAvatar.current.muted = si;
+        if (si) cortarAVerzy();
+        contarleAVerzy(si ? AL_CALLARSE : AL_LLAMARLO_DE_NUEVO);
+        console.info(si ? "[videollamada] Verzy se calla: tomó la palabra un asesor" : "[videollamada] Verzy vuelve a hablar");
     };
 
     const agendar = (orden: OrdenDeAgendar) => {
@@ -445,6 +471,10 @@ export default function SalaDeLaVideollamada({
         llamada.on("local-screen-share-started", () => setPantallaOn(true));
         llamada.on("local-screen-share-stopped", () => setPantallaOn(false));
         llamada.on("app-message", (ev) => {
+            // Va PRIMERO: nada detrás puede impedir que Verzy se calle.
+            const silencio = loQueHaceConElSilencio(ev?.data, silenciadoRef.current);
+            if (silencio) silenciarAVerzy(silencio === "silenciar");
+            if (silenciadoRef.current && siVerzyEstaHablando(ev?.data) === true) cortarAVerzy();
             const fin = loQueTerminaLaLlamada(ev?.data);
             if (fin?.tipo === "fin") {
                 colgar("fin-de-tavus");
