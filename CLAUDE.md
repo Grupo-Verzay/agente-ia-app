@@ -27306,8 +27306,11 @@ La sala (`SalaDeLaVideollamada`) se ve así, y no de otra forma:
    UNO y siempre montado: un recuadro que se monta tarde se queda en negro
    (`usarPista` ya corrió para esa pista). Por eso se quitó el recuadro de la
    cámara propia, que era el que salía negro.
-2. **Dos mandos, centrados: «Apagar cámara» y «Compartir pantalla».** Sin
-   «Silenciar»: el micrófono va abierto y los turnos y el ruido los maneja Tavus.
+2. **Mandos, centrados: «Silenciar», «Apagar cámara», «Compartir pantalla» y
+   «Salir».** El micrófono nace abierto (los turnos y el ruido los maneja
+   Tavus) y se silencia con `setLocalAudio`; el botón lee el estado de Daily
+   (`micOn`, `aria-pressed`) y, silenciado, va en rojo y dice «Activar
+   micrófono». Esto deshace el «sin Silenciar» de antes: se pidió.
 3. **`enviar_por_whatsapp`**: cuando el cliente pide la web, un plan o el pago,
    Verzy llama a la herramienta, la sala la pasa a `/api/videollamada/whatsapp`
    (firmado) y el SERVIDOR arma el enlace (`elEnvioArmado`) y lo manda al número
