@@ -27656,3 +27656,18 @@ entran. Los ajustes viven en `asesor_ia_ajustes` (tabla de la App, sin columna e
 un agente no. Lo prueba `scripts/banco-ia-del-asesor.sh` (aquí, contra Postgres con
 las acciones de verdad) y el del mismo nombre en `api-webhook`; `MODO=roto` contra
 `7d3709d` afirma que no existían.
+
+## Videollamada: «Verzy, yo sigo desde aquí» lo decide la SALA, y la pantalla cambia sin esperar
+
+La regla del entrenamiento («cuando te digan "Verzy, yo sigo desde aquí", cállate») se ignoraba. **No era el prompt**: el modelo de Tavus recibe lo que dijo el cliente cuando TERMINA su turno y no puede cortar su propia voz; lo que estaba diciendo seguía saliendo, y su respuesta siguiente era «claro, te dejo». Una herramienta (`silenciar_agente`) llegaría igual de tarde, y registrarla en la persona puede rebotar con 409 `maker_changes`.
+
+> **Lo decide la sala** (`lib/silencio-de-verzy.ts`, puro): oye cada frase transcrita del CLIENTE (`conversation.utterance`, `role: user`) y, al reconocer la orden, manda `conversation.interrupt`, silencia el audio del avatar, le cuenta a Verzy que se calle (`AL_CALLARSE`) y corta cualquier intento de volver a hablar. Vuelve solo si alguien lo llama por su nombre (`AL_LLAMARLO_DE_NUEVO`). Lo que dice Verzy nunca cuenta.
+
+Y `mostrar_pantalla` iba lenta por esperas fijas, no por Chromium:
+
+1. **El ciclo de la pantalla despierta al llegar una orden** (`viva.despertar`), y `pedirALaPantalla` mira cada `MIRAR_LA_ORDEN_MS` (100).
+2. **La espera de red se topa en `CALMA_DE_LA_RED_MS`** (1,2 s): una página con sondeos nunca queda «quieta».
+3. **El gesto del menú va A LA VEZ que la carga**, y bajar al ancla o recorrer con la rueda corre DESPUÉS de contestar (`viva.despues`): la sala sabe el resultado sin esperar la animación.
+4. **Nada de caracteres sin escapar en una regla que corre en la sala**: el arnés sirve el paquete sin `charset` y un `[̀-ͯ]` literal tumbó la sala entera. Van como `̀-ͯ`.
+
+Lo prueba `scripts/banco-silencio-y-pantalla.sh` (la regla y un barrido; `MODO=roto` contra `ae856c1` afirma que no existía). Contra Tavus y Daily de verdad no se puede probar desde este entorno.

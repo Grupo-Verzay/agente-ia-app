@@ -49,6 +49,10 @@ const SIN_MIRAR_MS = 60_000;
 /** La sesión lista se conserva este rato después de usarla. */
 const SESION_TIBIA_MS = 10 * 60_000;
 const ESPERA_DE_LA_ORDEN_MS = 30_000;
+/** Cada cuánto mira la sala si su orden ya salió. La réplica dueña además la avisa al momento. */
+const MIRAR_LA_ORDEN_MS = 100;
+/** Lo que se espera a que la red se calme tras cargar. Más es pantalla quieta. */
+const CALMA_DE_LA_RED_MS = 1_200;
 
 const REPLICA = randomBytes(6).toString("hex");
 
@@ -274,6 +278,10 @@ type Viva = {
     /** El chat que Verzy dejó abierto. La URL no lo dice: abrirlo pulsando la fila no pone `?jid=`. */
     chatAbierto?: string | null;
     parada: boolean;
+    /** Despierta al ciclo: hay una orden nueva y no se espera la vuelta. */
+    despertar?: () => void;
+    /** Lo que se termina de mover DESPUÉS de contestar la orden (bajar, recorrer). */
+    despues?: (() => Promise<void>) | null;
 };
 const pantallasVivas = new Map<string, Viva>();
 
@@ -386,9 +394,17 @@ async function elCiclo(viva: Viva): Promise<void> {
                 await db.$executeRaw`
                     UPDATE "verzy_ordenes" SET "hechoEn" = NOW(), "resultado" = ${JSON.stringify(resultado)}::jsonb WHERE "id" = ${o.id}
                 `;
+                // Contestada la orden, se termina el movimiento (bajar, recorrer):
+                // Verzy ya puede hablar de la pantalla mientras se mueve.
+                const despues = viva.despues;
+                viva.despues = null;
+                if (despues) await despues().catch(() => {});
                 latidoEn = 0;
             }
-            await dormir(VUELTA_MS);
+            await new Promise<void>((listo) => {
+                const t = setTimeout(() => { viva.despertar = undefined; listo(); }, VUELTA_MS);
+                viva.despertar = () => { clearTimeout(t); viva.despertar = undefined; listo(); };
+            });
         }
     } catch (error) {
         console.error("[verzy] la pantalla se detuvo", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
@@ -480,7 +496,7 @@ async function cargar(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
     if (res && res.status() >= 500) return { ok: false, motivo: `La plataforma contestó ${res.status()}` };
     // Corto: Chats y otras pantallas preguntan siempre y nunca quedan «sin red»,
     // y mientras se espera aquí la pantalla está quieta.
-    await viva.pagina.waitForLoadState("networkidle", { timeout: 2_500 }).catch(() => {});
+    await viva.pagina.waitForLoadState("networkidle", { timeout: CALMA_DE_LA_RED_MS }).catch(() => {});
     await viva.pagina.keyboard.press("Escape").catch(() => {});
     return { ok: true };
 }
@@ -497,29 +513,37 @@ async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrde
     const aqui = new URL(viva.pagina.url());
     const yaEstamos = !camino || (aqui.origin === new URL(BASE_LOCAL).origin && `${aqui.pathname}${aqui.search}` === camino);
     if (!yaEstamos) {
-        await irAlMenu(viva);
+        // El gesto hacia el menú va A LA VEZ que la carga, no antes: esperarlo
+        // eran ~0,5 s de pantalla quieta antes de empezar a navegar.
+        const gesto = irAlMenu(viva).catch(() => {});
         const r = await cargar(viva, camino);
+        await gesto;
         if (!r.ok) return r;
     }
     // Lo que no existe no se apunta: si no, una reapertura volvería al 404.
     if (await laPaginaDiceQueNoExiste(viva)) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     await anotarElDestino(viva, destino);
     if (ancla) {
-        if (!(await bajarAlAncla(viva, ancla))) return { ok: true, aviso: "La página se abrió, pero esa sección no está en ella" };
+        const seccion = await laSeccion(viva, ancla);
+        if (!seccion) return { ok: true, aviso: "La página se abrió, pero esa sección no está en ella" };
+        viva.despues = () => bajarA(viva, seccion);
     } else {
-        await recorrerConLaRueda(viva);
+        viva.despues = () => recorrerConLaRueda(viva);
     }
     return { ok: true };
 }
 
-/** Baja, suave y con el cursor, hasta la sección `#ancla` de la página puesta. */
-async function bajarAlAncla(viva: Viva, ancla: string): Promise<boolean> {
+/** La sección `#ancla` de la página puesta, si existe. */
+async function laSeccion(viva: Viva, ancla: string): Promise<Localizador | null> {
     const destino = viva.pagina.locator(`[id="${ancla.replace(/"/g, "")}"]`).first();
-    if (!(await destino.waitFor({ state: "attached", timeout: 8_000 }).then(() => true, () => false))) return false;
+    return (await destino.waitFor({ state: "attached", timeout: 8_000 }).then(() => true, () => false)) ? destino : null;
+}
+
+/** Baja, suave y con el cursor, hasta esa sección. */
+async function bajarA(viva: Viva, destino: Localizador): Promise<void> {
     await moverA(viva, ANCHO * 0.55, ALTO * 0.5, 450);
     await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
     await dormir(1_200);
-    return true;
 }
 
 /** El 404 de Next: la ruta no es una pantalla. */
@@ -537,8 +561,9 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
     const pagina = viva.pagina;
     if (!new URL(pagina.url()).pathname.startsWith("/chats")) {
-        await irAlMenu(viva);
+        const gesto = irAlMenu(viva).catch(() => {});
         const r = await cargar(viva, "/chats");
+        await gesto;
         if (!r.ok) return r;
     }
     if (!p?.jid) return { ok: true };
@@ -676,10 +701,12 @@ export async function pedirALaPantalla(citaId: string, orden: OrdenDeLaPantalla)
             RETURNING "id"
         `;
         await asegurarLaPantalla(citaId);
+        // Si la pantalla vive en ESTA réplica, se la despierta: no espera su vuelta.
+        pantallasVivas.get(citaId)?.despertar?.();
         const id = filas[0].id;
         const hasta = Date.now() + ESPERA_DE_LA_ORDEN_MS;
         while (Date.now() < hasta) {
-            await dormir(400);
+            await dormir(MIRAR_LA_ORDEN_MS);
             const r = await db.$queryRaw<{ resultado: ResultadoDeLaOrden | null; hechoEn: Date | null }[]>`
                 SELECT "resultado", "hechoEn" FROM "verzy_ordenes" WHERE "id" = ${id}
             `;
