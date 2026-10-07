@@ -26,6 +26,8 @@ import {
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
+import { laDisposicion, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
+import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
 export const REABRIR_EL_VIDEO_MS = 1_500;
@@ -68,12 +70,26 @@ function usarPista(track: MediaStreamTrack | null) {
 }
 
 type VozDeHumano = { id: string; audio: MediaStreamTrack };
-type Pistas = { avatarVideo: MediaStreamTrack | null; avatarAudio: MediaStreamTrack | null; humanos: VozDeHumano[] };
-const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [] };
+type Pistas = {
+    avatarVideo: MediaStreamTrack | null;
+    avatarAudio: MediaStreamTrack | null;
+    humanos: VozDeHumano[];
+    /** La cámara y la pantalla del ASESOR (quien entra marcado como del equipo). La del cliente no se pinta nunca. */
+    asesorCamara: MediaStreamTrack | null;
+    asesorPantalla: MediaStreamTrack | null;
+};
+const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [], asesorCamara: null, asesorPantalla: null };
 
 /** Cada persona entra marcada (`userData.humano`): así se distingue del avatar
  * de Tavus, que es el único remoto SIN la marca. */
 export const MARCA_DE_HUMANO = { humano: true } as const;
+/** La marca de quien entra como alguien del EQUIPO (un asesor). */
+export function laMarcaDe(esAsesor: boolean) {
+    return esAsesor ? { humano: true, asesor: true } : MARCA_DE_HUMANO;
+}
+export function esAsesorDeLaSala(p: { userData?: unknown }): boolean {
+    return esHumano(p) && (p.userData as { asesor?: unknown }).asesor === true;
+}
 type Remoto = ReturnType<DailyCall["participants"]>[string];
 export function esHumano(p: { userData?: unknown }): boolean {
     return !!(p.userData && typeof p.userData === "object" && (p.userData as { humano?: unknown }).humano === true);
@@ -88,10 +104,11 @@ export function elAvatarEntre<T extends { user_name?: string; userData?: unknown
 /** Lee las pistas: video y voz del avatar, y la VOZ de cada otra persona de la
  * sala. Sin pintar la voz de los demás, dos personas en la misma reunión no se
  * oían entre sí (el avatar sí las oía). La cámara propia no se pinta. */
-function lasPistas(llamada: DailyCall): Pistas {
-    const remotos = Object.values(llamada.participants()).filter((p) => !p.local) as Remoto[];
+function lasPistas(llamada: DailyCall, soyAsesor: boolean): Pistas {
+    const todos = llamada.participants();
+    const remotos = Object.values(todos).filter((p) => !p.local) as Remoto[];
     const avatar = elAvatarEntre(remotos);
-    const pista = (p: Remoto | undefined, tipo: "video" | "audio") =>
+    const pista = (p: Remoto | undefined, tipo: "video" | "audio" | "screenVideo") =>
         p?.tracks?.[tipo]?.state === "playable" ? p.tracks[tipo].persistentTrack ?? null : null;
     const humanos: VozDeHumano[] = [];
     for (const p of remotos) {
@@ -99,10 +116,31 @@ function lasPistas(llamada: DailyCall): Pistas {
         const audio = pista(p, "audio");
         if (audio) humanos.push({ id: p.session_id, audio });
     }
-    return { avatarVideo: pista(avatar, "video"), avatarAudio: pista(avatar, "audio"), humanos };
+    // El asesor: yo mismo si entré como del equipo; si no, el remoto marcado.
+    const asesor = soyAsesor ? (todos.local as Remoto | undefined) : remotos.find((p) => p !== avatar && esAsesorDeLaSala(p));
+    return {
+        avatarVideo: pista(avatar, "video"),
+        avatarAudio: pista(avatar, "audio"),
+        humanos,
+        asesorCamara: pista(asesor, "video"),
+        asesorPantalla: pista(asesor, "screenVideo"),
+    };
 }
 
 /** La voz de otra persona de la sala: un `<audio>` por persona. */
+function VideoDePista({ pista, cubrir }: { pista: MediaStreamTrack | null; cubrir: boolean }) {
+    const ref = usarPista(pista);
+    return (
+        <video
+            ref={ref}
+            autoPlay
+            playsInline
+            muted
+            className={`h-full w-full bg-black ${cubrir ? "object-cover" : "object-contain"}`}
+        />
+    );
+}
+
 function VozDeOtraPersona({ id, pista, bloqueado }: { id: string; pista: MediaStreamTrack; bloqueado: () => void }) {
     const ref = usarPista(pista);
     useEffect(() => {
@@ -153,6 +191,9 @@ export default function SalaDeLaVideollamada({
     firma,
     reentrada = false,
     saludo = SALUDO_INICIAL,
+    limiteMinutos = LIMITE_DE_FABRICA_MIN,
+    empezoEn = null,
+    esAsesor = false,
 }: {
     url: string;
     nombre?: string | null;
@@ -161,7 +202,18 @@ export default function SalaDeLaVideollamada({
     reentrada?: boolean;
     /** El saludo del guion de la cuenta (Agente IA › Videollamadas); de fábrica, SALUDO_INICIAL. */
     saludo?: string;
+    /** Minutos que dura como mucho la sala (Agenda › Ajustes); llegado el tope se cuelga. */
+    limiteMinutos?: number;
+    /** Cuándo empezó de verdad (ISO); sin él, desde que se abrió esta página. */
+    empezoEn?: string | null;
+    /** ¿Quien abre es del equipo? Entonces su cámara y su pantalla se ven cuando toma la palabra. */
+    esAsesor?: boolean;
 }) {
+    const inicioRef = useRef(new Date());
+    // «Verzy, yo sigo desde aquí»: el asesor toma la palabra.
+    const [asesorAlMando, setAsesorAlMando] = useState(false);
+    // La presentación inicial (Verzy en grande) termina una vez y no vuelve.
+    const [presentacionAcabo, setPresentacionAcabo] = useState(false);
     const [conexion, setConexion] = useState({ url: urlInicial, reentrada, vuelta: 0 });
     // Lo que Verzy enseña: una pantalla REAL de Verzay Ventas, navegada en el
     // servidor. Aquí solo llegan sus fotos.
@@ -229,6 +281,8 @@ export default function SalaDeLaVideollamada({
     };
     const silenciarAVerzy = (si: boolean) => {
         silenciadoRef.current = si;
+        setAsesorAlMando(si);
+        if (si) setPresentacionAcabo(true);
         if (audioAvatar.current) audioAvatar.current.muted = si;
         if (si) cortarAVerzy();
         contarleAVerzy(si ? AL_CALLARSE : AL_LLAMARLO_DE_NUEVO);
@@ -376,7 +430,7 @@ export default function SalaDeLaVideollamada({
         }
         llamadaRef.current = llamada;
         const refrescar = () => {
-            setPistas(lasPistas(llamada));
+            setPistas(lasPistas(llamada, esAsesor));
             setCamOn(!!llamada.participants().local?.video);
         };
         // Se cayó: se vuelve a pedir la sala al servidor (misma conversación
@@ -433,6 +487,10 @@ export default function SalaDeLaVideollamada({
             despidiendo = window.setTimeout(() => colgar(porque), ESPERA_TRAS_LA_DESPEDIDA_MS);
         };
         let verzySalio: number | null = null;
+        let finDeLaPresentacion: number | null = null;
+        // El límite de duración: se cuelga sola al llegar, contando desde que empezó de verdad.
+        const cierre = elCierreDeLaSala(empezoEn ?? inicioRef.current, new Date(), limiteMinutos);
+        const limite = window.setTimeout(() => colgar("limite"), Math.max(0, cierre.getTime() - Date.now()));
         for (const ev of ["participant-joined", "participant-updated", "participant-left", "track-started", "track-stopped"] as const) {
             llamada.on(ev, refrescar);
         }
@@ -463,6 +521,9 @@ export default function SalaDeLaVideollamada({
             );
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
             else saludarTrasElMargen(llamada);
+            if (finDeLaPresentacion === null) {
+                finDeLaPresentacion = window.setTimeout(() => setPresentacionAcabo(true), TOPE_DE_LA_PRESENTACION_MS);
+            }
         });
         llamada.on("left-meeting", () => {
             if (!colgada) reconectar("left-meeting");
@@ -524,7 +585,8 @@ export default function SalaDeLaVideollamada({
         });
         // El nombre sale de la cita: nunca se le pide al prospecto.
         const conNombre = nombre?.trim();
-        llamada.join(conNombre ? { url: conexion.url, userName: conNombre, userData: MARCA_DE_HUMANO } : { url: conexion.url, userData: MARCA_DE_HUMANO }).catch((e) => {
+        const marca = laMarcaDe(esAsesor);
+        llamada.join(conNombre ? { url: conexion.url, userName: conNombre, userData: marca } : { url: conexion.url, userData: marca }).catch((e) => {
             console.error("[videollamada] no se pudo entrar", e);
             aProposito = false;
             reconectar(e);
@@ -535,6 +597,8 @@ export default function SalaDeLaVideollamada({
             if (despidiendo !== null) window.clearTimeout(despidiendo);
             if (tope !== null) window.clearTimeout(tope);
             if (verzySalio !== null) window.clearTimeout(verzySalio);
+            if (finDeLaPresentacion !== null) window.clearTimeout(finDeLaPresentacion);
+            window.clearTimeout(limite);
             llamadaRef.current = null;
             void llamada.destroy();
         };
@@ -562,11 +626,43 @@ export default function SalaDeLaVideollamada({
     };
     const reentrar = () => window.location.reload();
     const pantallaQueSeVe = destino ?? pantallaFija;
-    const enMiniatura = !!pantallaQueSeVe;
+    // Qué va en grande y qué en miniatura lo decide la regla pura; la sala solo
+    // le cuenta lo que sabe. La presentación acaba con la primera pantalla, un
+    // asesor al mando, una reentrada o el tope de tiempo.
+    const disp = laDisposicion({
+        presentacionTerminada: presentacionAcabo || conexion.reentrada || !!pantallaFija,
+        pantallaVerzy: !!pantallaQueSeVe,
+        asesorAlMando,
+        asesor: { camara: !!pistas.asesorCamara, pantalla: !!pistas.asesorPantalla },
+    });
+    const avatarGrande = disp.grande === "avatar";
+    const enMiniatura = disp.mini === "avatar";
+    const MINI = "absolute bottom-16 right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:bottom-2 sm:h-32 sm:w-48";
+    const GRANDE = "absolute inset-x-0 top-0 bottom-16 bg-black";
 
     return (
-        <main data-zona="sala" className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100">
-            {pantallaQueSeVe && (
+        <main
+            data-zona="sala"
+            data-grande={disp.grande}
+            data-mini={disp.mini ?? "ninguna"}
+            className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
+        >
+            {disp.grande === "portada" && (
+                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-slate-950 px-6 text-center">
+                    <p className="text-2xl font-semibold text-slate-100 sm:text-4xl">{TEXTO_DE_LA_PORTADA}</p>
+                </section>
+            )}
+            {(disp.grande === "asesor-camara" || disp.mini === "asesor-camara") && (
+                <div data-zona="camara-del-asesor" className={disp.grande === "asesor-camara" ? GRANDE : MINI}>
+                    <VideoDePista pista={pistas.asesorCamara} cubrir={disp.mini === "asesor-camara"} />
+                </div>
+            )}
+            {disp.grande === "asesor-pantalla" && (
+                <div data-zona="pantalla-del-asesor" className={GRANDE}>
+                    <VideoDePista pista={pistas.asesorPantalla} cubrir={false} />
+                </div>
+            )}
+            {disp.grande === "pantalla-verzy" && pantallaQueSeVe && (
                 <section
                     data-zona="pantalla-del-avatar"
                     data-destino={pantallaQueSeVe}
@@ -592,11 +688,9 @@ export default function SalaDeLaVideollamada({
             <div
                 data-zona="avatar"
                 data-miniatura={enMiniatura ? "si" : "no"}
-                className={
-                    enMiniatura
-                        ? "absolute bottom-16 right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:bottom-2 sm:h-32 sm:w-48"
-                        : "absolute inset-x-0 top-0 bottom-16 bg-black"
-                }
+                data-visible={avatarGrande || enMiniatura ? "si" : "no"}
+                // Siempre montado: un <video> que se monta tarde se queda negro.
+                className={enMiniatura ? MINI : avatarGrande ? GRANDE : "hidden"}
             >
                 <video
                     ref={videoAvatar}

@@ -10,6 +10,8 @@ window.fetch = async (url, init) => {
     return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
 };
 createRoot(document.getElementById("raiz")).render(
-    <Sala url="https://tavus.daily.co/c123conv" nombre="Alexis" citaId="cita-1" firma="f" reentrada={p.get("reentrada") === "1"} />,
+    <Sala url="https://tavus.daily.co/c123conv" nombre="Alexis" citaId="cita-1" firma="f" reentrada={p.get("reentrada") === "1"}
+        {...(p.get("limite") ? { limiteMinutos: Number(p.get("limite")) } : {})}
+        {...(p.get("empezo") ? { empezoEn: p.get("empezo") } : {})} />,
 );
 window.listo = true;

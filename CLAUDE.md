@@ -27671,3 +27671,22 @@ Y `mostrar_pantalla` iba lenta por esperas fijas, no por Chromium:
 4. **Nada de caracteres sin escapar en una regla que corre en la sala**: el arnés sirve el paquete sin `charset` y un `[̀-ͯ]` literal tumbó la sala entera. Van como `̀-ͯ`.
 
 Lo prueba `scripts/banco-silencio-y-pantalla.sh` (la regla y un barrido; `MODO=roto` contra `ae856c1` afirma que no existía). Contra Tavus y Daily de verdad no se puede probar desde este entorno.
+
+## Videollamada: Verzy en grande SOLO al presentarse, y la llamada tiene un límite de minutos
+
+> **Esta sección manda sobre las de arriba** en qué se ve en grande: ya no es «el avatar hasta la primera pantalla compartida».
+
+Qué va en grande y qué en miniatura lo decide `laDisposicion` (`lib/disposicion-de-la-videollamada.ts`, pura); la sala solo le pasa lo que sabe y pinta lo que devuelve (`<main data-zona="sala" data-grande data-mini>`):
+
+| situación | grande | miniatura |
+| --- | --- | --- |
+| presentación (hasta `TOPE_DE_LA_PRESENTACION_MS`, 2 min) | Verzy | — |
+| Verzy comparte pantalla | su pantalla | Verzy |
+| nada compartido, ya presentado | la PORTADA («Verzay — Soluciones Digitales con IA») | Verzy |
+| un asesor dijo «Verzy, yo sigo desde aquí» | su pantalla o su cámara | su cámara (si comparte) |
+
+1. **La presentación acaba** a los 2 minutos, con la primera pantalla compartida o en una reentrada; después Verzy no vuelve a crecer solo.
+2. **La cámara del CLIENTE no se pinta nunca.** El asesor entra marcado (`userData: {humano, asesor}`, prop `esAsesor`).
+3. **La llamada tiene límite**: `limiteMinutos` de la cuenta (fábrica `LIMITE_DE_FABRICA_MIN` 30, entre 5 y 240), contado desde que EMPEZÓ (`empezoEn`, no desde que abrió esta pestaña: recargar no lo reinicia). Lo decide `elCierreDeLaSala`; al cumplirse la sala cuelga sola (`colgar("limite")`).
+
+Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (portada, miniatura, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite. Contra Tavus y Daily de verdad no se puede probar desde este entorno.

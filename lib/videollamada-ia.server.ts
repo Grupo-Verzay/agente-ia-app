@@ -18,7 +18,8 @@ import {
     elEnlaceDeLaVideollamada,
     elEnlaceDelNombre,
     elNombreDelProspecto,
-    laDuracionMaxima,
+    laDuracionConLimite,
+    LIMITE_DE_FABRICA_MIN,
     pareceUnEnlaceConNombre,
     queHacerAlAbrir,
 } from "@/lib/videollamada-ia";
@@ -58,6 +59,12 @@ export type ResultadoAlAbrir =
           reentrada: boolean;
           /** El saludo del guion de la cuenta: la sala lo dice si Verzy calla al entrar. */
           saludo: string;
+          /** Minutos que dura como mucho la reunión (Agenda › Ajustes): al llegar, la sala se cierra sola. */
+          limiteMinutos: number;
+          /** Cuándo entró alguien de verdad (si ya pasó): el límite se cuenta desde ahí, no desde la recarga. */
+          empezoEn: string | null;
+          /** La cuenta dueña de la cita: la página decide con ella si quien abre es del equipo. */
+          cuentaId: string;
       }
     | { estado: "temprano"; abreEn: Date; zona: string }
     | { estado: "cerrada" }
@@ -295,6 +302,7 @@ async function crearLaConversacion(
     tavus: { clave: string; personaId: string },
     yaHablado?: string | null,
     guionLeido?: GuionDeVideollamada | null,
+    limiteMinutos: number = LIMITE_DE_FABRICA_MIN,
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
     const ahora = new Date();
@@ -308,7 +316,7 @@ async function crearLaConversacion(
         conversation_name: `Cita ${cita.id}`,
         conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita)),
         properties: {
-            max_call_duration: laDuracionMaxima(ahora, cita.endTime),
+            max_call_duration: laDuracionConLimite(ahora, cita.endTime, limiteMinutos),
             participant_absent_timeout: 300,
             // Si se le cae la conexión al cliente, la conversación espera
             // tres minutos a que vuelva por el mismo enlace: así el avatar
@@ -394,6 +402,9 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         firma: laFirmaDeLaCita(id),
         reentrada: false,
         saludo: elGuionQueSeUsa(guion).saludo || SALUDO_INICIAL,
+        limiteMinutos: ajustes.limiteMinutos,
+        empezoEn: null as string | null,
+        cuentaId: cita.userId,
     });
     const decision = queHacerAlAbrir({
         ahora,
@@ -413,7 +424,11 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         // sala lo apunta al unirse, `marcarLaEntradaReal`). Abrir o precargar
         // la página no cuenta: si contara, la primera entrada de verdad
         // arrancaba «a mitad de conversación».
-        return { ...irA(existente.conversacionUrl), reentrada: !!existente.entroEn };
+        return {
+            ...irA(existente.conversacionUrl),
+            reentrada: !!existente.entroEn,
+            empezoEn: existente.entroEn ? existente.entroEn.toISOString() : null,
+        };
     }
 
     const reclamada = await reclamarLaCreacion(id, cita.userId);
@@ -424,7 +439,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     }
 
     try {
-        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion);
+        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion, ajustes.limiteMinutos);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
         return irA(conversacion.url);

@@ -179,21 +179,55 @@ export function elAvatarQueUsa(propio: { clave?: unknown; personaId?: unknown } 
     return clave && personaId ? { clave, personaId } : casa;
 }
 
-export type AjustesParaGuardar = { modo: ModoDeReunion };
+/* ── El límite de duración de cada videollamada ───────────────────────── */
+
+/** Cuánto dura como mucho una videollamada si la cuenta no lo cambia. */
+export const LIMITE_DE_FABRICA_MIN = 30;
+export const LIMITE_MINIMO_MIN = 5;
+export const LIMITE_MAXIMO_MIN = 240;
+
+/**
+ * El límite en minutos de una videollamada: un entero entre el mínimo y el
+ * máximo. Lo que no se entiende (vacío, texto, `null`) es el de fábrica,
+ * nunca «sin límite»: una sala que no se cierra es una sala que se paga.
+ */
+export function comoLimiteDeMinutos(valor: unknown): number {
+    if (valor === null || valor === undefined || valor === "") return LIMITE_DE_FABRICA_MIN;
+    const n = Math.round(Number(valor));
+    if (!Number.isFinite(n)) return LIMITE_DE_FABRICA_MIN;
+    return Math.min(LIMITE_MAXIMO_MIN, Math.max(LIMITE_MINIMO_MIN, n));
+}
+
+/** Tavus nunca puede durar más que el límite, ni que la franja. */
+export function laDuracionConLimite(ahora: Date, fin: Date, limiteMinutos: number): number {
+    return Math.min(laDuracionMaxima(ahora, fin), comoLimiteDeMinutos(limiteMinutos) * 60);
+}
+
+/**
+ * Cuándo se cierra la sala: el límite contado desde que alguien ENTRÓ de
+ * verdad (no desde que se abrió el enlace). Sin entrada todavía, desde ahora.
+ */
+export function elCierreDeLaSala(empezoEn: Date | string | null | undefined, ahora: Date, limiteMinutos: number): Date {
+    const inicio = empezoEn ? new Date(empezoEn) : ahora;
+    const base = Number.isFinite(inicio.getTime()) ? inicio : ahora;
+    return new Date(base.getTime() + comoLimiteDeMinutos(limiteMinutos) * 60_000);
+}
+
+export type AjustesParaGuardar = { modo: ModoDeReunion; limiteMinutos: number };
 
 /**
  * Qué se guarda: el modo y nada más. El modo `tavus` solo se puede encender si
  * la plataforma tiene su avatar configurado; apagarlo se puede siempre.
  */
 export function losAjustesQueSeGuardan(
-    pedido: { modo?: unknown },
+    pedido: { modo?: unknown; limiteMinutos?: unknown },
     hayAvatar: boolean,
 ): { ok: true; ajustes: AjustesParaGuardar } | { ok: false; motivo: string } {
     const modo = comoModoDeReunion(pedido.modo);
     if (modo === "tavus" && !hayAvatar) {
         return { ok: false, motivo: "La videollamada con IA no está disponible en este momento." };
     }
-    return { ok: true, ajustes: { modo } };
+    return { ok: true, ajustes: { modo, limiteMinutos: comoLimiteDeMinutos(pedido.limiteMinutos) } };
 }
 
 /* ── El contexto que se le da al avatar ────────────────────────────────── */

@@ -10,7 +10,15 @@ import { updateUserMeetingDuration } from "@/actions/userClientDataActions";
 import { useRouter } from "next/navigation";
 import { Bot, Clock, Link2, Settings2, Timer } from "lucide-react";
 import { guardarAjustesDeVideollamadaAction, leerAjustesDeVideollamadaAction } from "@/actions/videollamada-ia-actions";
-import { MODOS_DE_REUNION, NOMBRE_DEL_MODO, type ModoDeReunion } from "@/lib/videollamada-ia";
+import {
+    LIMITE_DE_FABRICA_MIN,
+    LIMITE_MAXIMO_MIN,
+    LIMITE_MINIMO_MIN,
+    MODOS_DE_REUNION,
+    NOMBRE_DEL_MODO,
+    comoLimiteDeMinutos,
+    type ModoDeReunion,
+} from "@/lib/videollamada-ia";
 
 type NoticeUnit = "minutes" | "hours" | "days";
 const toMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -50,6 +58,9 @@ export const UpdateMeetingDuration = ({
     const [modo, setModo] = useState<ModoDeReunion>("enlace");
     const [disponible, setDisponible] = useState(true);
     const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
+    // Cuánto dura como mucho una videollamada con IA; al llegar, la sala se cierra sola.
+    const [limite, setLimite] = useState<number>(LIMITE_DE_FABRICA_MIN);
+    const [limiteGuardado, setLimiteGuardado] = useState<number>(LIMITE_DE_FABRICA_MIN);
 
     useEffect(() => {
         let vivo = true;
@@ -59,6 +70,8 @@ export const UpdateMeetingDuration = ({
                 setModo(res.data.modo);
                 setDisponible(res.data.disponible);
                 setGuardado(res.data.modo);
+                setLimite(res.data.limiteMinutos);
+                setLimiteGuardado(res.data.limiteMinutos);
             })
             .catch((error) => console.warn("[videollamada] no se pudieron leer los ajustes", error));
         return () => {
@@ -70,10 +83,12 @@ export const UpdateMeetingDuration = ({
         mutationFn: async (payload: { duration: number; url: string; minNotice: number }) => {
             // Primero el modo: con él guardado, el recordatorio de la cita se
             // escribe con el enlace que toca (la variable o el fijo).
-            const video = await guardarAjustesDeVideollamadaAction(userId, { modo });
+            const video = await guardarAjustesDeVideollamadaAction(userId, { modo, limiteMinutos: limite });
             if (!video.success) throw new Error(video.message);
             setDisponible(video.data.disponible);
             setGuardado(video.data.modo);
+            setLimite(video.data.limiteMinutos);
+            setLimiteGuardado(video.data.limiteMinutos);
             const res = await updateUserMeetingDuration(userId, payload.duration, payload.url, payload.minNotice);
             if (!res.success) throw new Error(res.message);
             router.refresh();
@@ -118,6 +133,7 @@ export const UpdateMeetingDuration = ({
         setNoticeValue(value);
         setNoticeUnit(unit);
         setModo(guardado);
+        setLimite(limiteGuardado);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -231,6 +247,29 @@ export const UpdateMeetingDuration = ({
                                 ? "Cada cita recibe su propio enlace. La sala se abre cuando el cliente la abre."
                                 : "La videollamada con IA no está disponible en este momento."}
                         </p>
+                        <label
+                            htmlFor="limiteDeLaVideollamada"
+                            className="flex items-center gap-1.5 pt-2 text-sm font-semibold text-foreground"
+                        >
+                            <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                            Límite de la videollamada (minutos)
+                        </label>
+                        <div className="flex items-center gap-3 w-full">
+                            <p className="flex-1 text-xs text-muted-foreground">
+                                Al llegar a este tiempo la videollamada se cierra sola. Entre {LIMITE_MINIMO_MIN} y {LIMITE_MAXIMO_MIN} minutos.
+                            </p>
+                            <Input
+                                id="limiteDeLaVideollamada"
+                                data-limite-de-la-videollamada
+                                type="number"
+                                value={limite}
+                                onChange={(e) => setLimite(parseInt(e.target.value) || LIMITE_MINIMO_MIN)}
+                                onBlur={() => setLimite((v) => comoLimiteDeMinutos(v))}
+                                min={LIMITE_MINIMO_MIN}
+                                max={LIMITE_MAXIMO_MIN}
+                                className="w-28 text-center text-lg font-bold shrink-0"
+                            />
+                        </div>
                     </div>
                 )}
 
