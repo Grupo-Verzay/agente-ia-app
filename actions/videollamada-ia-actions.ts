@@ -27,7 +27,7 @@ export async function leerAjustesDeVideollamadaAction(userId?: string | null): P
 
 export async function guardarAjustesDeVideollamadaAction(
     userId: string | null,
-    pedido: { modo?: unknown },
+    pedido: { modo?: unknown; limiteMinutos?: unknown },
 ): Promise<Respuesta<AjustesDeLaVideollamada>> {
     const cuenta = await laCuentaDeLaAccion(userId);
     if (!cuenta) return { success: false, message: 'No autorizado.' };

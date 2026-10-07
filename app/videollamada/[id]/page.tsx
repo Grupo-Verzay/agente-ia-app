@@ -3,6 +3,24 @@ import SalaDeLaVideollamada from "@/components/videollamada/SalaDeLaVideollamada
 import { CENTRADO_QUE_NO_SE_CORTA, PANTALLA_PUBLICA_QUE_SE_DESPLAZA } from "@/lib/pantalla-publica";
 import { abrirLaVideollamada, type ResultadoAlAbrir } from "@/lib/videollamada-ia.server";
 import { deInstanteAReloj } from "@/lib/zona-de-la-cuenta";
+import { currentUser } from "@/lib/auth";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
+
+/**
+ * ¿Quien abre el enlace es del equipo de la cuenta dueña de la cita? Lo decide
+ * el SERVIDOR con su sesión (la puerta de siempre, hacia abajo): solo ese
+ * puede tomar el relevo de Verzy y verse en grande. El cliente nunca.
+ */
+async function esDelEquipo(cuentaId: string): Promise<boolean> {
+    try {
+        const yo = await currentUser();
+        if (!yo) return false;
+        await assertCanAccessTargetUser(cuentaId);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 /**
  * El enlace que recibe el cliente para su videollamada con IA. Es PÚBLICO (lo
@@ -54,6 +72,9 @@ export default async function PaginaDeLaVideollamada({ params }: { params: { id:
                 firma={resultado.firma}
                 reentrada={resultado.reentrada}
                 saludo={resultado.saludo}
+                limiteMinutos={resultado.limiteMinutos}
+                empezoEn={resultado.empezoEn}
+                esAsesor={await esDelEquipo(resultado.cuentaId)}
             />
         );
     const { titulo, texto } = elMensaje(resultado);

@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
 import { comoCapacidad, laCapacidadQueVale } from "@/lib/capacidad-de-multiagenda";
-import { elEnlaceConSufijo, comoModoDeReunion, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FABRICA_MIN, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -53,6 +53,7 @@ function asegurarLasTablas(): Promise<void> {
         `);
         await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioPersonaId" TEXT`);
         await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioClaveSellada" TEXT`);
+        await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "limiteMinutos" INTEGER`);
         await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "videollamadas_ia" (
                 "citaId" TEXT PRIMARY KEY,
@@ -131,6 +132,8 @@ async function conLasTablas<T>(hacer: () => Promise<T>): Promise<T> {
 
 export type AjustesDeLaVideollamada = {
     modo: ModoDeReunion;
+    /** Cuánto dura como mucho cada videollamada, en minutos (30 si no se cambia). */
+    limiteMinutos: number;
     /** Si la plataforma tiene su avatar configurado (sin él no hay modo Tavus). */
     disponible: boolean;
 };
@@ -192,23 +195,24 @@ export async function guardarElAvatarPropio(cuentaId: string, avatar: { clave: s
 
 export async function leerLosAjustes(cuentaId: string): Promise<AjustesDeLaVideollamada> {
     const disponible = Boolean(await elAvatarDeLaCuenta(cuentaId));
-    if (!cuentaId) return { modo: "enlace", disponible };
+    if (!cuentaId) return { modo: "enlace", limiteMinutos: LIMITE_DE_FABRICA_MIN, disponible };
     return conLasTablas(async () => {
-        const filas = await db.$queryRaw<{ modo: string }[]>`
-            SELECT "modo" FROM "videollamada_ajustes"
+        const filas = await db.$queryRaw<{ modo: string; limiteMinutos: number | null }[]>`
+            SELECT "modo", "limiteMinutos" FROM "videollamada_ajustes"
             WHERE "cuentaId" = ${cuentaId} LIMIT 1
         `;
-        return { modo: comoModoDeReunion(filas[0]?.modo), disponible };
+        return { modo: comoModoDeReunion(filas[0]?.modo), limiteMinutos: comoLimiteDeMinutos(filas[0]?.limiteMinutos), disponible };
     });
 }
 
 export async function guardarLosAjustes(cuentaId: string, ajustes: AjustesParaGuardar): Promise<AjustesDeLaVideollamada> {
     await conLasTablas(async () => {
         await db.$executeRaw`
-            INSERT INTO "videollamada_ajustes" ("cuentaId", "modo", "actualizadoEn")
-            VALUES (${cuentaId}, ${ajustes.modo}, CURRENT_TIMESTAMP)
+            INSERT INTO "videollamada_ajustes" ("cuentaId", "modo", "limiteMinutos", "actualizadoEn")
+            VALUES (${cuentaId}, ${ajustes.modo}, ${comoLimiteDeMinutos(ajustes.limiteMinutos)}, CURRENT_TIMESTAMP)
             ON CONFLICT ("cuentaId") DO UPDATE SET
                 "modo" = EXCLUDED."modo",
+                "limiteMinutos" = EXCLUDED."limiteMinutos",
                 "actualizadoEn" = CURRENT_TIMESTAMP
         `;
     });
