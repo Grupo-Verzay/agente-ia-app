@@ -56,6 +56,7 @@ export const PALETA_DOCUMENTADA = {
         "Agregar tag",
         "Quitar tag",
         "Asignar asesor",
+        "Agregar participante",
         "Crear tarea",
         "Notificar asesor",
         "Cambiar estado",
@@ -345,7 +346,7 @@ export const GUIA_FLUJOS: Contenido = {
                 {
                     titulo: "El grupo Automatizaciones",
                     texto:
-                        "Etiquetar, asignar un asesor, crear una tarea, avisar al asesor, cambiar el estado, encender o " +
+                        "Etiquetar, asignar un asesor, sumar un participante, crear una tarea, avisar al asesor, cambiar el estado, encender o " +
                         "apagar la IA, y más.",
                     imagen: "automatizaciones.webp",
                     alt: "El grupo Automatizaciones de la lista de pasos",

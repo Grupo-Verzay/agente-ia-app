@@ -75,7 +75,7 @@ export function AutomationNodeConfig({
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
 
-  const needsAdvisors = tipo === 'assign-advisor' || tipo === 'create-task';
+  const needsAdvisors = tipo === 'assign-advisor' || tipo === 'add-participant' || tipo === 'create-task';
   const needsTags = tipo === 'tag-add' || tipo === 'tag-remove';
 
   useEffect(() => {
@@ -136,6 +136,7 @@ export function AutomationNodeConfig({
       );
 
     case 'assign-advisor':
+    case 'add-participant':
       return wrap(
         <>
           <Label className="text-xs font-medium text-muted-foreground">Asesor</Label>
@@ -155,7 +156,9 @@ export function AutomationNodeConfig({
             </SelectContent>
           </Select>
           <p className="text-[10px] text-muted-foreground">
-            Asigna el contacto a este asesor.
+            {tipo === 'add-participant'
+              ? 'Agrega a este asesor como participante de la conversación.'
+              : 'Asigna el contacto a este asesor.'}
           </p>
         </>,
       );

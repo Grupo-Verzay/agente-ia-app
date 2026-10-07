@@ -17,6 +17,7 @@ const ACCION_POR_NODO: Record<string, string> = {
     "tag-add": "TAG_ADD",
     "tag-remove": "TAG_REMOVE",
     "assign-advisor": "ASSIGN",
+    "add-participant": "ADD_PARTICIPANT",
     "create-task": "TASK",
     "notify-advisor": "NOTIFY_ADVISOR",
     "change-status": "CHANGE_STATUS",
