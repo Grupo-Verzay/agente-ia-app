@@ -117,6 +117,7 @@ function initials(name: string | null, email: string) {
 }
 import { ChatContactItem } from "./ChatContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
+import { elVacioEsCompacto } from "@/lib/vacio-de-la-lista";
 import ResultadosEnMensajes from "./ResultadosEnMensajes";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
@@ -1214,6 +1215,17 @@ export function ChatSidebar({
     if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
   }, [filtered.length, tab]);
 
+  // Al cambiar lo que se busca, la lista vuelve ARRIBA. Si se quedara donde
+  // estaba, el resultado nuevo -mas corto- arrancaria con un hueco en blanco
+  // encima (el desplazamiento y el espaciador de la virtualizacion son de la
+  // lista anterior) y pareceria que no hay coincidencias.
+  React.useEffect(() => {
+    const el = listScrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    setListViewport({ scrollTop: 0, height: el.clientHeight });
+  }, [q]);
+
   /**
    * Donde empieza cada fila. Depende SOLO de la lista, no de por donde va el
    * scroll.
@@ -2121,6 +2133,7 @@ export function ChatSidebar({
             <ChatEmptyState
               Icon={Inbox}
               message={result.success ? emptyMessage : result.message || "No disponible."}
+              compacto={result.success && elVacioEsCompacto(q)}
             />
           )}
           {/* Lo que el buscador encuentra DENTRO de los mensajes: palabras,
