@@ -346,6 +346,39 @@ export default function SalaDeLaVideollamada({
         window.setTimeout(() => setVideo((v) => v + 1), Math.min(REABRIR_EL_VIDEO_MS * n, 10_000));
     };
 
+    // El navegador del servidor pinta la pantalla con el FORMATO del hueco
+    // donde se ve aquí: si no, el video (1280×800) deja franjas a los lados.
+    const [cajaDeLaPantalla, setCajaDeLaPantalla] = useState<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const caja = cajaDeLaPantalla;
+        if (!caja || typeof ResizeObserver === "undefined") return;
+        let espera: number | undefined;
+        let ultimo = "";
+        const avisar = () => {
+            const { width, height } = caja.getBoundingClientRect();
+            const ancho = Math.round(width), alto = Math.round(height);
+            if (ancho < 50 || alto < 50) return;
+            const llave = `${ancho}x${alto}`;
+            if (llave === ultimo) return;
+            ultimo = llave;
+            fetch(`/api/videollamada/pantalla?${consulta}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ tipo: "tamano", ancho, alto }),
+            })
+                .then((r) => r.json())
+                .then((r) => { if (!r?.ok) console.warn("[videollamada] la pantalla no cambió de tamaño", r?.motivo); })
+                .catch((e) => console.warn("[videollamada] no se pudo ajustar el tamaño de la pantalla", e));
+        };
+        const ro = new ResizeObserver(() => {
+            window.clearTimeout(espera);
+            espera = window.setTimeout(avisar, 250);
+        });
+        ro.observe(caja);
+        avisar();
+        return () => { ro.disconnect(); window.clearTimeout(espera); };
+    }, [cajaDeLaPantalla]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Una orden de Verzy (ir a un destino o apuntar una nota) va al servidor,
     // y lo que de verdad pasó se le cuenta a Verzy: nunca dice algo que no pasó.
     const pedirALaPantalla = (orden: OrdenDeLaPantalla) => {
@@ -672,7 +705,7 @@ export default function SalaDeLaVideollamada({
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
                         Verzy te está mostrando: <strong className="text-slate-100">{pantallaQueSeVe}</strong>
                     </header>
-                    <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
+                    <div ref={setCajaDeLaPantalla} data-zona="caja-de-la-pantalla" className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             data-zona="video-de-la-pantalla"
@@ -680,7 +713,7 @@ export default function SalaDeLaVideollamada({
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
-                            className="max-h-full max-w-full object-contain"
+                            className="h-full w-full object-contain"
                         />
                     </div>
                 </section>

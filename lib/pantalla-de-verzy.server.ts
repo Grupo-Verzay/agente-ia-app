@@ -11,7 +11,8 @@ import {
     laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, conLaNotaAgregada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
     elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca, elDestinoQueSeRetoma,
-    type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden,
+    TAMANO_DE_FABRICA,
+    type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden, type TamanoDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
@@ -35,8 +36,10 @@ import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
 const RUTA_DEL_NAVEGADOR = process.env.CHROMIUM_PATH || undefined;
 const BASE_LOCAL = `http://127.0.0.1:${process.env.PORT || 3000}`;
-const ANCHO = 1280;
-const ALTO = 800;
+// La ventana nace con el tamaño de fábrica y después toma el formato del hueco
+// de la sala (orden «tamano»): así el video la llena sin franjas a los lados.
+const ANCHO = TAMANO_DE_FABRICA.ancho;
+const ALTO = TAMANO_DE_FABRICA.alto;
 const VUELTA_MS = 300;
 const LATIDO_MS = 2_000;
 const RELEVO_MS = 200;
@@ -275,6 +278,10 @@ type Viva = {
     ultimoEn: number;
     suscriptores: Set<Suscriptor>;
     raton: { x: number; y: number };
+    /** El tamaño de la ventana ahora mismo: el de fábrica o el que pidió la sala. */
+    tamano: TamanoDeLaPantalla;
+    /** La sesión del screencast, para volver a arrancarlo con otro tamaño. */
+    cdp?: { send: (metodo: string, params?: Record<string, unknown>) => Promise<unknown> };
     /** El chat que Verzy dejó abierto. La URL no lo dice: abrirlo pulsando la fila no pone `?jid=`. */
     chatAbierto?: string | null;
     parada: boolean;
@@ -318,7 +325,7 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         const pagina = await contexto.newPage();
         const viva: Viva = {
             citaId, pagina, destino: null, prospecto: await elProspecto(citaId),
-            ultimo: null, ultimoEn: 0, suscriptores: new Set(), raton: { x: ANCHO / 2, y: ALTO / 2 }, parada: false,
+            ultimo: null, ultimoEn: 0, suscriptores: new Set(), raton: { x: ANCHO / 2, y: ALTO / 2 }, tamano: { ...TAMANO_DE_FABRICA }, parada: false,
         };
         pantallasVivas.set(citaId, viva);
         await empezarElScreencast(viva);
@@ -355,7 +362,29 @@ async function empezarElScreencast(viva: Viva): Promise<void> {
             }
         }
     });
-    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, maxWidth: ANCHO, maxHeight: ALTO, everyNthFrame: 1 });
+    viva.cdp = cdp as unknown as Viva["cdp"];
+    await arrancarElScreencast(viva);
+}
+
+/** El screencast con el tamaño de la ventana: si no, Chromium lo encoge y vuelven las franjas. */
+async function arrancarElScreencast(viva: Viva): Promise<void> {
+    await viva.cdp?.send("Page.startScreencast", {
+        format: "jpeg", quality: 70, maxWidth: viva.tamano.ancho, maxHeight: viva.tamano.alto, everyNthFrame: 1,
+    });
+}
+
+/** La ventana toma el formato del hueco de la sala. Mismo tamaño: no se toca nada. */
+async function cambiarElTamano(viva: Viva, tamano: TamanoDeLaPantalla): Promise<ResultadoDeLaOrden> {
+    if (viva.tamano.ancho === tamano.ancho && viva.tamano.alto === tamano.alto) return { ok: true };
+    await viva.pagina.setViewportSize({ width: tamano.ancho, height: tamano.alto });
+    viva.tamano = tamano;
+    viva.raton = {
+        x: Math.min(viva.raton.x, tamano.ancho - 1),
+        y: Math.min(viva.raton.y, tamano.alto - 1),
+    };
+    await viva.cdp?.send("Page.stopScreencast").catch(() => {});
+    await arrancarElScreencast(viva);
+    return { ok: true };
 }
 
 async function anotarElError(citaId: string, error: unknown): Promise<void> {
@@ -474,7 +503,7 @@ async function irAlMenu(viva: Viva): Promise<void> {
 }
 
 async function recorrerConLaRueda(viva: Viva): Promise<void> {
-    await moverA(viva, ANCHO * 0.6, ALTO * 0.55);
+    await moverA(viva, viva.tamano.ancho * 0.6, viva.tamano.alto * 0.55);
     for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, 90); await dormir(70); }
     await dormir(450);
     for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, -90); await dormir(70); }
@@ -541,7 +570,7 @@ async function laSeccion(viva: Viva, ancla: string): Promise<Localizador | null>
 
 /** Baja, suave y con el cursor, hasta esa sección. */
 async function bajarA(viva: Viva, destino: Localizador): Promise<void> {
-    await moverA(viva, ANCHO * 0.55, ALTO * 0.5, 450);
+    await moverA(viva, viva.tamano.ancho * 0.55, viva.tamano.alto * 0.5, 450);
     await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
     await dormir(1_200);
 }
@@ -626,8 +655,8 @@ async function esperarMoviendose(viva: Viva, l: Localizador, plazoMs: number): P
     const fin = Date.now() + plazoMs;
     let i = 0;
     while (!listo && Date.now() < fin) {
-        const x = ANCHO * (0.78 + 0.08 * Math.sin(i * 1.3));
-        const y = ALTO * (0.35 + 0.25 * Math.abs(Math.sin(i * 0.7)));
+        const x = viva.tamano.ancho * (0.78 + 0.08 * Math.sin(i * 1.3));
+        const y = viva.tamano.alto * (0.35 + 0.25 * Math.abs(Math.sin(i * 0.7)));
         await moverA(viva, x, y, 450);
         i++;
     }
@@ -654,7 +683,7 @@ async function tomarLaNota(viva: Viva, texto: string): Promise<ResultadoDeLaOrde
     else if (falta) await caja.pressSequentially(falta, { delay: PAUSA_ENTRE_LETRAS_MS });
     await dormir(300);
     // La ficha guarda al salir del campo: el cursor se va y el campo se suelta.
-    await moverA(viva, ANCHO * 0.45, ALTO * 0.3);
+    await moverA(viva, viva.tamano.ancho * 0.45, viva.tamano.alto * 0.3);
     await caja.blur();
     // Se comprueba en la BASE, no en la pantalla: guardada de verdad o no.
     for (let i = 0; i < 20; i++) {
@@ -687,6 +716,7 @@ async function hacerLaOrden(viva: Viva, orden: OrdenDeLaPantalla): Promise<Resul
         if (!texto) return { ok: false, motivo: "Nota vacía" };
         return tomarLaNota(viva, texto);
     }
+    if (orden.tipo === "tamano") return cambiarElTamano(viva, orden.datos);
     return { ok: false, motivo: "Orden desconocida" };
 }
 
