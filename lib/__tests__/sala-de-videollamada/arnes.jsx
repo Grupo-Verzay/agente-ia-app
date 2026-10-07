@@ -5,6 +5,8 @@ window.__pedidos = [];
 const fetchReal = window.fetch;
 window.fetch = async (url, init) => {
     window.__pedidos.push({ url: String(url), metodo: init?.method ?? "GET", cuerpo: init?.body ?? null });
+    // `?pantallaFalla=1`: el navegador del servidor no carga la pantalla.
+    if (String(url).includes("/api/videollamada/pantalla") && init?.method === "POST" && p.get("pantallaFalla") === "1") throw new TypeError("Failed to fetch");
     if (String(url).includes("/api/videollamada/pantalla") && init?.method === "POST") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
     if (String(url).includes("/api/videollamada/pantalla")) return new Response(null, { status: 204 });
     return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });

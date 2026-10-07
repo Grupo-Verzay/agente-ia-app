@@ -222,6 +222,9 @@ export default function SalaDeLaVideollamada({
     // pantalla, el avatar se queda en miniatura el resto de la reunión: aunque
     // la oculte o una orden falle, se sigue viendo la última.
     const [pantallaFija, setPantallaFija] = useState<LugarDeVerzy | null>(null);
+    // Fijo: en cuanto Verzy pide compartir una pantalla, la presentación acabó
+    // para siempre, salga bien o mal esa pantalla (regla 5 de la disposición).
+    const [yaSeCompartio, setYaSeCompartio] = useState(false);
     const [video, setVideo] = useState(0);
     const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
     const verzyHablo = useRef(false);
@@ -358,6 +361,8 @@ export default function SalaDeLaVideollamada({
         if (!cuerpo) return;
         if (orden.tipo === "ir") {
             setDestino(orden.datos.lugar);
+            setYaSeCompartio(true);
+            setPresentacionAcabo(true);
         }
         fetch(`/api/videollamada/pantalla?${consulta}`, {
             method: "POST",
@@ -631,6 +636,7 @@ export default function SalaDeLaVideollamada({
     // asesor al mando, una reentrada o el tope de tiempo.
     const disp = laDisposicion({
         presentacionTerminada: presentacionAcabo || conexion.reentrada || !!pantallaFija,
+        yaSeCompartio,
         pantallaVerzy: !!pantallaQueSeVe,
         asesorAlMando,
         asesor: { camara: !!pistas.asesorCamara, pantalla: !!pistas.asesorPantalla },
