@@ -27690,3 +27690,24 @@ Qué va en grande y qué en miniatura lo decide `laDisposicion` (`lib/disposicio
 3. **La llamada tiene límite**: `limiteMinutos` de la cuenta (fábrica `LIMITE_DE_FABRICA_MIN` 30, entre 5 y 240), contado desde que EMPEZÓ (`empezoEn`, no desde que abrió esta pestaña: recargar no lo reinicia). Lo decide `elCierreDeLaSala`; al cumplirse la sala cuelga sola (`colgar("limite")`).
 
 Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (portada, miniatura, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
+
+## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
+
+Un `agente` ve los números de los clientes con los cuatro últimos dígitos
+tapados (`lib/telefono-visible.ts`). En `/equipo` cada agente tiene un
+interruptor «Ver número», **apagado por defecto**: encendido, ESE agente ve el
+número completo en Chats (lista, conversación y «Nueva conversación»). Los
+administradores y el dueño lo ven siempre, y su interruptor sale encendido y
+fijo.
+
+1. **Es un permiso aparte, no un rol**: `asesor_ver_numero` (tabla de la App,
+   `lib/ver-numero-completo-db.ts`, una fila por cuenta y asesor, sin columna
+   en `User`). Sin fila = tapado.
+2. **Lo mueve quien configura la cuenta** (`toggleAdvisorVerNumero`, por
+   `requireOwner`); un agente no se lo da a sí mismo, y solo a asesores de esa
+   cuenta.
+3. **Leerlo nunca lanza**: si falla, el número va tapado (el lado seguro) y se
+   dice en la consola.
+
+Lo prueba `scripts/banco-ver-numero-completo.sh` (la regla, un barrido y las
+acciones contra Postgres); `MODO=roto` contra `4c84c02` afirma que no existía.

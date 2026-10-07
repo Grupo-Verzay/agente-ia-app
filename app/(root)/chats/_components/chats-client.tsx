@@ -790,6 +790,8 @@ interface ChatsClientProps {
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
   advisorRole?: string | null;
+  /** «Ver número» de Usuarios: este agente ve los números completos. */
+  verNumeroCompleto?: boolean;
   /** Si un agente ve la bolsa sin dueño, de donde salen las que "Toma". */
   canTakeUnassigned?: boolean;
   assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string; warning?: string }>;
@@ -827,6 +829,7 @@ export function ChatsClient({
   advisors: initialAdvisors = [],
   currentAdvisorId,
   advisorRole,
+  verNumeroCompleto,
   canTakeUnassigned = true,
   assignAdvisorAction,
   takeSessionAction,
@@ -6041,6 +6044,7 @@ export function ChatsClient({
           selectedInstanceName={selectedInstanceName}
           advisors={advisors}
           advisorRole={advisorRole}
+          verNumeroCompleto={verNumeroCompleto}
           currentAdvisorId={currentAdvisorId}
           instancias={instancias}
           selectedChannel={selectedChannel}
@@ -6138,6 +6142,7 @@ export function ChatsClient({
             advisors={advisors}
             currentAdvisorId={currentAdvisorId}
             advisorRole={advisorRole}
+            verNumeroCompleto={verNumeroCompleto}
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             resolvedAt={currentContactSession?.resolvedAt ?? null}
             escalatedAt={currentContactSession?.escalatedAt ?? null}
@@ -6195,6 +6200,7 @@ export function ChatsClient({
         workflows={workflows}
         cuentasDeLasLineas={instanceOwners}
         advisorRole={advisorRole}
+        verNumeroCompleto={verNumeroCompleto}
       />
     )}
     </>

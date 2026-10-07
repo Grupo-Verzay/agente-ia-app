@@ -290,6 +290,7 @@ type ChatSidebarProps = {
   selectedInstanceName?: string | null;
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
+  verNumeroCompleto?: boolean;
   currentAdvisorId?: string;
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null, instanceName?: string | null) => Promise<void>;
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
@@ -368,6 +369,7 @@ export function ChatSidebar({
   selectedJid,
   advisors,
   advisorRole,
+  verNumeroCompleto,
   currentAdvisorId,
   onAssignAdvisor,
   instancias = [],
@@ -662,7 +664,7 @@ export function ChatSidebar({
             if (custom && !isBadContactName(custom)) return custom;
             const push = s?.pushName?.trim();
             if (push && !isBadContactName(push)) return push;
-            return nameFrom(chat, advisorRole);
+            return nameFrom(chat, advisorRole, verNumeroCompleto);
           })(),
           avatarSrc: avatarFrom(chat),
           lastMessage: vistaPrevia.texto,
@@ -738,7 +740,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, bloqueos, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas]);
+  }, [chatPreferences, bloqueos, chatSessions, instancias, notasDeLasFilas, result, repartidasEntreLineas, advisorRole, verNumeroCompleto]);
 
   /**
    * Lo barato: quien esta abierto y que sigue sin leer. Se aplica encima de la

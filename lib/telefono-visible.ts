@@ -3,14 +3,20 @@ import { fmtPhone } from "@/lib/whatsapp-jid";
 /**
  * Quién puede ver el número de teléfono completo de un cliente.
  *
- * Los agentes no. Atienden desde la App —chatean, no marcan—, así que el número
+ * Los agentes no, salvo que su cuenta le haya encendido «Ver número» en
+ * Usuarios (`verNumeroCompleto`, de `asesor_ver_numero`). Por defecto está
+ * apagado y el número sigue tapado. Atienden desde la App —chatean, no marcan—, así que el número
  * no les hace falta para trabajar, y es justo lo que se lleva alguien que se va.
  *
  * `advisorRole` viene vacío para el dueño de la cuenta y vale "administrador"
  * para quien él haya puesto de confianza; solo "agente" queda tapado.
  */
-export function puedeVerTelefonoCompleto(advisorRole?: string | null): boolean {
+export function puedeVerTelefonoCompleto(
+    advisorRole?: string | null,
+    verNumeroCompleto?: boolean | null,
+): boolean {
     if (!advisorRole) return true;
+    if (verNumeroCompleto === true) return true;
     return advisorRole === "administrador";
 }
 
@@ -38,10 +44,11 @@ export function puedeVerTelefonoCompleto(advisorRole?: string | null): boolean {
 export function telefonoParaMostrar(
     remoteJid: string | null | undefined,
     advisorRole?: string | null,
+    verNumeroCompleto?: boolean | null,
 ): string {
     const completo = fmtPhone(remoteJid);
     if (!completo) return completo;
-    if (puedeVerTelefonoCompleto(advisorRole)) return completo;
+    if (puedeVerTelefonoCompleto(advisorRole, verNumeroCompleto)) return completo;
 
     // Se cambian los cuatro ULTIMOS digitos, respetando los espacios del
     // formato: asi el numero conserva su forma y no parece roto.

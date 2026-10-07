@@ -50,6 +50,7 @@ import { leerTrazaConfigAction } from "@/actions/traza-actions";
 import { conLaCuentaPropia } from "@/lib/asesores";
 import { analizarElSentimientoAlAbrirChats } from "@/lib/sentimiento-runner.server";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
+import { veElNumeroCompleto } from "@/lib/ver-numero-completo-db";
 import { applyLidMappingToChats, type LidPhoneMap } from "./_components/lid-mapping";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 
@@ -935,6 +936,10 @@ export default async function ChatsPage({
   // asesores— así que comparándolo con la fila efectiva, un agente dentro de
   // otra cuenta veía «Mías» VACÍA teniendo chats asignados.
   const currentAdvisorId: string = laPersonaQueActua(user).id;
+  // «Ver número» de Usuarios: un agente con el interruptor encendido en ESTA
+  // cuenta ve los números completos. Solo se pregunta a un agente.
+  const verNumeroCompleto: boolean =
+    advisorRole === "agente" ? await veElNumeroCompleto(effectiveOwnerId, currentAdvisorId) : false;
   // La clave de la linea seleccionada, con respaldo en la de la cuenta propia
   // para no cambiar nada en el caso de siempre (un dueño con su unica linea).
   //
@@ -1005,6 +1010,7 @@ export default async function ChatsPage({
       advisors={initialAdvisors}
       currentAdvisorId={currentAdvisorId}
       advisorRole={advisorRole}
+      verNumeroCompleto={verNumeroCompleto}
       canTakeUnassigned={user?.canTakeUnassigned ?? true}
       assignAdvisorAction={assignAdvisorAction}
       takeSessionAction={takeSessionAction}

@@ -13,6 +13,7 @@ import {
   laLlaveDeLosAjustes,
   losAjustesDeLosAsesores,
 } from "@/lib/ia-del-asesor-db";
+import { guardarVerNumero, laLlaveDelPermiso, losQueVenElNumero } from "@/lib/ver-numero-completo-db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
@@ -70,6 +71,12 @@ export type AdvisorRow = {
    */
   sesionApagada: boolean;
   agenteApagado: boolean;
+  /**
+   * El interruptor «Ver número»: si ESTE asesor ve los números de los clientes
+   * completos en esta cuenta (`lib/ver-numero-completo-db.ts`). Apagado de
+   * fábrica: un agente los ve con los cuatro últimos dígitos tapados.
+   */
+  verNumeroCompleto: boolean;
 };
 export type AdvisorInfo = {
   id: string;
@@ -220,6 +227,14 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     console.warn("[equipo] no se pudieron leer los interruptores de IA", error);
   }
 
+  // «Ver número». Si no se puede leer, sale apagado (el lado seguro) y se dice.
+  let venElNumero = new Set<string>();
+  try {
+    venElNumero = await losQueVenElNumero([owner.id]);
+  } catch (error) {
+    console.warn("[equipo] no se pudo leer el permiso de ver el número", error);
+  }
+
   return {
     success: true,
     data: rows.map((row) => {
@@ -229,6 +244,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
         lastActivity: row.lastActivity ? String(row.lastActivity) : null,
         sesionApagada: a?.sesionApagada ?? false,
         agenteApagado: a?.agenteApagado ?? false,
+        verNumeroCompleto: venElNumero.has(laLlaveDelPermiso(owner.id, row.id)),
       };
     }),
   };
@@ -480,6 +496,33 @@ export async function toggleAdvisorIa(
   const ids = await lasConversacionesDelAsesor(advisorId, owner.id);
   const cuenta = await aplicarALasConversaciones(ids);
   return { success: true, data: cuenta };
+}
+
+/**
+ * El interruptor «Ver número» de un asesor: encendido, ESE asesor ve completos
+ * los números de los clientes de esta cuenta; apagado (lo de fábrica), con los
+ * cuatro últimos dígitos tapados. Lo mueve quien configura la cuenta; un
+ * `agente` no (`requireOwner`).
+ */
+export async function toggleAdvisorVerNumero(
+  advisorId: string,
+  encendido: boolean,
+): Promise<ActionResult<{ verNumeroCompleto: boolean }>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+  if (typeof advisorId !== "string" || !advisorId) return { success: false, message: "Asesor no encontrado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  const valor = encendido === true;
+  try {
+    await guardarVerNumero(owner.id, advisorId, valor);
+  } catch (error) {
+    console.error("[equipo] no se pudo guardar el permiso de ver el número", error);
+    return { success: false, message: "No se pudo guardar el permiso." };
+  }
+  return { success: true, data: { verNumeroCompleto: valor } };
 }
 
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
