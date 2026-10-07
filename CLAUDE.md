@@ -12414,6 +12414,34 @@ lista paginada hasta el final) y `scripts/banco-todos-como-la-lista.sh` (la
 página servida: pastilla, «seleccionar todas», el menú y cada línea elegida).
 Los dos en dos modos; el roto afirma el `COUNT` de leads y el cursor de antes.
 
+## Chats: la bandeja NO espera a crear las fichas que faltan
+
+Chats se quedaba en «Cargando conversaciones» varios minutos, y cada día más.
+La página espera en su `Promise.all` a las preferencias de la bandeja
+(`getChatConversationPreferencesForAssociatedAccounts`), y estas esperaban a
+`crearFichasQueFaltan`: la consulta que crea la ficha (`Session`) de cada
+conversación que no la tiene. Medido en producción: **183 a 290 segundos** en
+las cuentas grandes, creciendo con `chat_conversations`.
+
+> **La revisión de fichas corre DE FONDO** (`lanzarLaRevisionDeFichas`): la
+> bandeja contesta sin esperarla, y las fichas que falten salen en la vuelta
+> siguiente de sesiones. Una sola revisión a la vez por juego de cuentas, con el
+> mismo freno de 5 min, y si tarda más de 5 s o falla, se dice en la consola.
+
+Y la consulta se reescribió: las conversaciones sin ficha se calculan con CTEs
+`MATERIALIZED` y un anti-join por hash sobre `(jid, cuenta, línea)` en vez de un
+`NOT EXISTS` correlacionado con `regexp_replace` por fila. Medido en las cuentas
+más grandes: de ~98 s a ~0,5 s. Sigue respetando la lápida de chats eliminados.
+
+**Nada que la pantalla necesite para pintarse espera a una tarea de
+mantenimiento.** Si se añade otra reparación al abrir la bandeja, va de fondo.
+
+Lo prueba `scripts/banco-carga-de-chats.sh`, contra Postgres: con
+`chats_eliminados` cogida desde otra conexión (como una consulta lenta), la
+bandeja contesta al momento y las fichas se crean al soltarla, sin repetidas y
+sin revivir un lead eliminado. `MODO=roto` empaqueta `50adf03` y afirma que la
+bandeja se quedaba esperando.
+
 ## Una consulta que devuelve una página tiene que poder PARARSE
 
 Una consulta que junta varias fuentes, las deduplica y al final se queda con 26

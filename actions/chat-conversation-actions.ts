@@ -387,6 +387,38 @@ async function levantarMarcasSiElContactoEscribio(userIds: string[]): Promise<vo
 const REVISAR_FICHAS_CADA_MS = 5 * 60 * 1000;
 const DIAS_DE_FICHAS_A_REVISAR = 7;
 const ultimaRevisionDeFichas = new Map<string, number>();
+const revisionesEnCurso = new Map<string, Promise<void>>();
+
+/**
+ * Lanza la revisión de fichas DE FONDO. La pantalla de Chats no la espera.
+ *
+ * Estuvo con `await` dentro de la carga de las preferencias, y esa carga va en
+ * el `Promise.all` de la página: cuando la consulta tardaba (llegó a 3-5
+ * minutos en las cuentas grandes, y crecía cada día) la bandeja se quedaba en
+ * «Cargando conversaciones» todo ese rato. Crear fichas que faltan es una
+ * mejora de fondo, no algo que la persona esté esperando ver.
+ *
+ * Una sola en marcha por juego de cuentas y proceso: dos pestañas no lanzan la
+ * misma consulta dos veces. Nunca lanza, y no es muda.
+ */
+function lanzarLaRevisionDeFichas(userIds: string[]): void {
+  if (!userIds.length) return;
+  const llave = [...userIds].sort().join(",");
+  if (revisionesEnCurso.has(llave)) return;
+  const t0 = Date.now();
+  const revision = crearFichasQueFaltan(userIds)
+    .then(() => {
+      const ms = Date.now() - t0;
+      if (ms > 5000) console.warn("[chats] la revisión de fichas va lenta", { ms, cuentas: userIds.length });
+    })
+    .catch((error) => {
+      console.warn("[chats] falló la revisión de fichas de fondo", { error: String(error) });
+    })
+    .finally(() => {
+      revisionesEnCurso.delete(llave);
+    });
+  revisionesEnCurso.set(llave, revision);
+}
 
 /**
  * Crea la ficha del CRM de las conversaciones que se quedaron sin ella.
@@ -434,19 +466,14 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
   try {
     // La consulta de abajo mira las lapidas: la tabla tiene que existir.
     await asegurarLaTablaDeEliminados();
+    // Las fichas que ya existen se cruzan por IGUALDAD (hash), no con un
+    // `regexp_replace ... = ANY` correlacionado por cada conversacion: ese
+    // NOT EXISTS recorria todas las fichas de la linea por cada candidata y
+    // tardaba 3-5 MINUTOS en las cuentas grandes (medido en produccion), mas
+    // cada dia que crecia la tabla. Asi tarda medio segundo.
     const creadas = await db.$queryRaw<Array<{ remoteJid: string; instanceName: string }>>`
-      INSERT INTO "Session" (
-        "userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId",
-        "status", "createdAt", "updatedAt"
-      )
-      SELECT duena."userId",
-             c."canonico",
-             NULLIF(c."alterno", c."canonico"),
-             COALESCE(NULLIF(BTRIM(c."pushName"), ''), c."canonico"),
-             c."instanceName",
-             TRUE, NOW(), NOW()
-      FROM (
-        SELECT v."userId", v."instanceName", v."pushName", v."lastMessageTimestamp",
+      WITH "candidatas" AS (
+        SELECT v."id", v."instanceName", v."pushName",
                -- Sin el sufijo de dispositivo: WhatsApp numera el aparato desde el
                -- que se escribe (573001:39@s.whatsapp.net) y ese ":39" NO es parte
                -- del numero. Una ficha con el sufijo es un lead duplicado del
@@ -468,48 +495,69 @@ async function crearFichasQueFaltan(userIds: string[]): Promise<void> {
                   WHERE j IS NOT NULL AND j <> ''
                ) AS "identidades"
         FROM "chat_conversations" v
-      ) c
+        WHERE v."userId" IN (${Prisma.join(userIds)})
+          AND v."lastMessageTimestamp" > ${desde}
+      ),
       -- La ficha es del DUEÑO DE LA LÍNEA, nunca de quien la está mirando.
       --
       -- chat_conversations es el cache de la bandeja y se guarda bajo el userId
       -- de QUIEN MIRA: en la bandeja unificada un administrador ve las líneas de
-      -- las cuentas asociadas, y esa fila queda a su nombre. Eso está bien para
-      -- el cache -lo dice upsertSessionFromChatMessage, que por eso resuelve el
-      -- dueño antes de tocar Session- pero aquí se insertaba con el userId de la
-      -- conversación tal cual, así que CADA CUENTA QUE ABRÍA LA BANDEJA SE
-      -- LLEVABA UNA COPIA DEL LEAD. Desde fuera: leads en una cuenta que no
-      -- tiene ninguna línea creada, que volvían solos unos minutos después de
-      -- borrarlos, porque esto se vuelve a ejecutar al abrir la bandeja.
+      -- las cuentas asociadas, y esa fila queda a su nombre. Insertando con ese
+      -- userId, CADA CUENTA QUE ABRÍA LA BANDEJA SE LLEVABA UNA COPIA DEL LEAD.
       --
       -- Con el JOIN, una conversación cuya línea no se puede resolver no crea
       -- ficha: sin dueño no hay lead. Es preferible que falte a que aparezca en
       -- la cuenta equivocada.
-      JOIN LATERAL (
-        SELECT i."userId"
-        FROM "Instancias" i
-        WHERE i."instanceName" = c."instanceName"
-        ORDER BY i.id
-        LIMIT 1
-      ) duena ON TRUE
-      WHERE c."userId" IN (${Prisma.join(userIds)})
-        AND c."lastMessageTimestamp" > ${desde}
-        AND c."canonico" NOT LIKE '%@g.us'
-        AND c."canonico" <> 'status@broadcast'
-        AND NOT EXISTS (
-          SELECT 1 FROM "Session" s
-          WHERE s."userId" = duena."userId"
-            AND s."instanceId" = c."instanceName"
-            AND (
-              regexp_replace(s."remoteJid", ':[0-9]+@', '@') = ANY (c."identidades")
-              OR regexp_replace(COALESCE(s."remoteJidAlt", ''), ':[0-9]+@', '@') = ANY (c."identidades")
-            )
-        )
+      "con_duena" AS MATERIALIZED (
+        SELECT c.*, duena."userId" AS "duenaId"
+        FROM "candidatas" c
+        JOIN LATERAL (
+          SELECT i."userId"
+          FROM "Instancias" i
+          WHERE i."instanceName" = c."instanceName"
+          ORDER BY i.id
+          LIMIT 1
+        ) duena ON TRUE
+        WHERE c."canonico" NOT LIKE '%@g.us'
+          AND c."canonico" <> 'status@broadcast'
+      ),
+      "fichas" AS MATERIALIZED (
+        SELECT s."userId", s."instanceId", regexp_replace(s."remoteJid", ':[0-9]+@', '@') AS "j"
+        FROM "Session" s
+        WHERE s."instanceId" IN (SELECT DISTINCT "instanceName" FROM "con_duena")
+        UNION
+        SELECT s."userId", s."instanceId", regexp_replace(s."remoteJidAlt", ':[0-9]+@', '@')
+        FROM "Session" s
+        WHERE s."instanceId" IN (SELECT DISTINCT "instanceName" FROM "con_duena")
+          AND s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" <> ''
+      ),
+      "pares" AS MATERIALIZED (
+        SELECT c."id", c."duenaId", c."instanceName", idn.j
+        FROM "con_duena" c
+        CROSS JOIN LATERAL unnest(c."identidades") AS idn(j)
+      ),
+      "cubiertas" AS (
+        SELECT DISTINCT p."id"
+        FROM "pares" p
+        JOIN "fichas" f
+          ON f."j" = p.j AND f."userId" = p."duenaId" AND f."instanceId" = p."instanceName"
+      )
+      INSERT INTO "Session" (
+        "userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId",
+        "status", "createdAt", "updatedAt"
+      )
+      SELECT c."duenaId",
+             c."canonico",
+             NULLIF(c."alterno", c."canonico"),
+             COALESCE(NULLIF(BTRIM(c."pushName"), ''), c."canonico"),
+             c."instanceName",
+             TRUE, NOW(), NOW()
+      FROM "con_duena" c
+      WHERE NOT EXISTS (SELECT 1 FROM "cubiertas" k WHERE k."id" = c."id")
         -- NI la de un contacto ELIMINADO. Esta reposicion era la que volvia a
-        -- crear, cinco minutos despues, el lead que alguien acababa de borrar:
-        -- la conversacion sigue ahi y para esta consulta eso era «una
-        -- conversacion sin ficha». La lapida dice que se borro a proposito; el
-        -- lead vuelve cuando el contacto escribe (y entonces la lapida esta
-        -- revivida).
+        -- crear, cinco minutos despues, el lead que alguien acababa de borrar.
+        -- La lapida dice que se borro a proposito; el lead vuelve cuando el
+        -- contacto escribe (y entonces la lapida esta revivida).
         AND NOT EXISTS (
           SELECT 1 FROM "chats_eliminados" e
           WHERE e."instanceName" = c."instanceName"
@@ -558,7 +606,8 @@ export async function getChatConversationPreferencesForAssociatedAccounts(): Pro
     const userIds = await getAssociatedAccountIds(user);
     await medir("levantarMarcas", () => levantarMarcasSiElContactoEscribio(userIds));
     await medir("reaperturas", () => levantarArchivosYResueltas(userIds));
-    await medir("fichasQueFaltan", () => crearFichasQueFaltan(userIds));
+    // De fondo: la bandeja no espera a que se creen las fichas que faltan.
+    lanzarLaRevisionDeFichas(userIds);
     const preferences = await medir("leerLasMarcas", () => chatConversationPreferenceTable.findMany({
       where: { userId: { in: userIds } },
       select: {
