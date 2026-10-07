@@ -12112,6 +12112,43 @@ puro y jest corre en CJS: por eso el banco lo mapea a un CJS de una página —e
 lo mismo que tumba esas seis suites, y aquí solo hace falta que el módulo
 cargue.)
 
+## Chats: el buscador también busca DENTRO de los mensajes, y por fecha
+
+El buscador de la columna filtraba solo por nombre y número. Ahora, debajo de
+las conversaciones que casan por nombre, sale «En los mensajes»: las
+conversaciones con un mensaje que contiene lo escrito (sin tildes, por
+prefijo: «cotiz» encuentra «cotización»; «FAC-8841» encuentra la factura) o
+de la fecha escrita («15/09/2026», «2026-09-15», «15 de septiembre», «hoy»,
+«ayer»), con el extracto y la hora. Pulsar uno abre esa conversación.
+
+> **Lo pide `ResultadosEnMensajes` a `POST /api/chats/buscar`**, y las reglas
+> son puras en `lib/busqueda-en-mensajes.ts` (la consulta de texto, la fecha,
+> el extracto, qué ve un agente). La consulta vive en
+> `lib/busqueda-en-mensajes.server.ts`.
+
+Cinco cosas que hay que mantener:
+
+1. **La ruta pone la puerta**: las cuentas son las de la bandeja
+   (`lasCuentasQueVeLaBandeja`, hacia abajo) y cada línea pedida se comprueba
+   con `resolveInstanceOwner` contra ellas. Una línea de otra cuenta se ignora.
+2. **Un agente ve lo suyo y lo sin dueño (si puede tomarlo)**, filtrado en el
+   SERVIDOR (`loQueVeUnAgente`), buscando su ficha por todas las identidades
+   del resultado: filtrarlo en el navegador sería mandarle el texto ajeno.
+3. **Dos ramas, cada una con su `LIMIT` dentro** (texto por el GIN, fecha por
+   el índice de `messageTimestamp`), y después una fila por conversación con
+   su mensaje más reciente. Nunca un `OR` entre las dos.
+4. **El GIN (`chat_messages_busqueda_gin_idx`) se crea `CONCURRENTLY` y de
+   fondo**, una vez por proceso; si quedó inválido se rehace, salvo que otro lo
+   esté construyendo. Sin él la búsqueda funciona, más lenta.
+5. **Lo borrado y los estados (`status@broadcast`) no salen**, y la fecha se
+   lee en la zona del navegador (`desfase`). Solo se busca con 3 letras o una
+   fecha.
+
+Lo prueba `scripts/banco-busqueda-en-mensajes.sh`: la regla, un barrido y la
+ruta de verdad contra Postgres (palabra, prefijo, fecha, borrado, línea ajena,
+agente por su `@lid` e índice válido). `MODO=roto` lee `bf1a4af` y afirma que
+no había ni ruta ni resultados.
+
 ## Chats: el filtro de canales tiene que sumar
 
 En el desplegable de canales, «Todos» decía **614** y las filas de abajo sumaban

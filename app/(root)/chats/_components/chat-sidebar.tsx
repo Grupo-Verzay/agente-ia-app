@@ -117,6 +117,7 @@ function initials(name: string | null, email: string) {
 }
 import { ChatContactItem } from "./ChatContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
+import ResultadosEnMensajes from "./ResultadosEnMensajes";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
 import { useExportarConversaciones } from "@/hooks/useExportarConversaciones";
@@ -2118,6 +2119,17 @@ export function ChatSidebar({
             <ChatEmptyState
               Icon={Inbox}
               message={result.success ? emptyMessage : result.message || "No disponible."}
+            />
+          )}
+          {/* Lo que el buscador encuentra DENTRO de los mensajes: palabras,
+              fechas o cualquier dato escrito. Va debajo de los chats que casan
+              por nombre o numero; ver lib/busqueda-en-mensajes.ts. */}
+          {result.success && (
+            <ResultadosEnMensajes
+              q={q}
+              lineas={lineasDelBorrado}
+              contactos={contacts}
+              alElegir={(jid, instanceName) => handleSelectJid(jid, "", instanceName)}
             />
           )}
         </div>
