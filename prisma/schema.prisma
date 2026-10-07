@@ -2233,6 +2233,7 @@ enum StageActionType {
   WEBHOOK
   CHANGE_STATUS
   AI_CALL
+  ADD_PARTICIPANT
 }
 
 model StageAutomation {

@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
   Tag,
   UserPlus,
+  Users,
   CheckCircle2,
   BellRing,
   RefreshCw,
@@ -49,6 +50,7 @@ export type AutomationActionType =
   | "tag-add"
   | "tag-remove"
   | "assign-advisor"
+  | "add-participant"
   | "create-task"
   | "notify-advisor"
   | "change-status"
@@ -62,6 +64,7 @@ export const AUTOMATION_NODE_TO_STAGE_ACTION: Record<AutomationActionType, strin
   "tag-add": "TAG_ADD",
   "tag-remove": "TAG_REMOVE",
   "assign-advisor": "ASSIGN",
+  "add-participant": "ADD_PARTICIPANT",
   "create-task": "TASK",
   "notify-advisor": "NOTIFY_ADVISOR",
   "change-status": "CHANGE_STATUS",
@@ -74,6 +77,7 @@ export const AUTOMATION_NODE_TYPES: AutomationActionType[] = [
   "tag-add",
   "tag-remove",
   "assign-advisor",
+  "add-participant",
   "create-task",
   "notify-advisor",
   "change-status",
@@ -201,6 +205,7 @@ export const automationActions: Action[] = [
   { type: "tag-add", label: "Agregar tag", icon: Tag, iconClassName: "text-emerald-600" },
   { type: "tag-remove", label: "Quitar tag", icon: Tag, iconClassName: "text-rose-500" },
   { type: "assign-advisor", label: "Asignar asesor", icon: UserPlus, iconClassName: "text-indigo-500" },
+  { type: "add-participant", label: "Agregar participante", icon: Users, iconClassName: "text-indigo-400" },
   { type: "create-task", label: "Crear tarea", icon: CheckCircle2, iconClassName: "text-sky-500" },
   { type: "notify-advisor", label: "Notificar asesor", icon: BellRing, iconClassName: "text-amber-500" },
   { type: "change-status", label: "Cambiar estado", icon: RefreshCw, iconClassName: "text-violet-500" },
@@ -248,6 +253,7 @@ export const cardAutomationActions: Action[] = [
   { type: "tag-add", label: "Agregar tag", icon: Tag, bg: "bg-emerald-600", iconClassName: "h-4 w-4 text-white" },
   { type: "tag-remove", label: "Quitar tag", icon: Tag, bg: "bg-rose-500", iconClassName: "h-4 w-4 text-white" },
   { type: "assign-advisor", label: "Asignar asesor", icon: UserPlus, bg: "bg-indigo-500", iconClassName: "h-4 w-4 text-white" },
+  { type: "add-participant", label: "Agregar participante", icon: Users, bg: "bg-indigo-400", iconClassName: "h-4 w-4 text-white" },
   { type: "create-task", label: "Crear tarea", icon: CheckCircle2, bg: "bg-sky-500", iconClassName: "h-4 w-4 text-white" },
   { type: "notify-advisor", label: "Notificar asesor", icon: BellRing, bg: "bg-amber-500", iconClassName: "h-4 w-4 text-white" },
   { type: "change-status", label: "Cambiar estado", icon: RefreshCw, bg: "bg-violet-500", iconClassName: "h-4 w-4 text-white" },

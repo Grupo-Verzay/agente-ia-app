@@ -44,6 +44,7 @@ export const WORKFLOW_FEATURES: WorkflowFeature[] = [
   { key: "tag-add", label: "Agregar tag", group: "Automatizaciones" },
   { key: "tag-remove", label: "Quitar tag", group: "Automatizaciones" },
   { key: "assign-advisor", label: "Asignar asesor", group: "Automatizaciones" },
+  { key: "add-participant", label: "Agregar participante", group: "Automatizaciones" },
   { key: "create-task", label: "Crear tarea", group: "Automatizaciones" },
   { key: "notify-advisor", label: "Notificar asesor", group: "Automatizaciones" },
   { key: "change-status", label: "Cambiar estado", group: "Automatizaciones" },
