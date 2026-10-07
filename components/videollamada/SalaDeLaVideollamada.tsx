@@ -637,7 +637,11 @@ export default function SalaDeLaVideollamada({
     });
     const avatarGrande = disp.grande === "avatar";
     const enMiniatura = disp.mini === "avatar";
-    const MINI = "absolute bottom-16 right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:bottom-2 sm:h-32 sm:w-48";
+    // La miniatura va DENTRO del área de contenido (que acaba en bottom-16, encima
+    // de la barra de mandos) y a 8 px de sus dos bordes, en todas las anchuras.
+    // Con `sm:bottom-2` bajaba encima de los mandos en escritorio y no casaba con
+    // la imagen grande.
+    const MINI = "absolute bottom-[4.5rem] right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:h-32 sm:w-48";
     const GRANDE = "absolute inset-x-0 top-0 bottom-16 bg-black";
 
     return (

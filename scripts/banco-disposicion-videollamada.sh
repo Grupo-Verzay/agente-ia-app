@@ -6,8 +6,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 MODO="${MODO:-bueno}"; export MODO
 # bf1a4af — antes de esto: el avatar se quedaba en grande y no había límite.
-ANTES_REF="${ANTES_REF:-bf1a4af}"
-if [ "$MODO" = roto ]; then
+# 4c84c02 — antes del BUG 5: la miniatura bajaba encima de los mandos (`MODO=roto-mini`).
+if [ "$MODO" = roto-mini ]; then ANTES_REF="${ANTES_REF:-4c84c02}"; else ANTES_REF="${ANTES_REF:-bf1a4af}"; fi
+if [ "$MODO" = roto ] || [ "$MODO" = roto-mini ]; then
   ARBOL="$(mktemp -d)/sala"
   git worktree add --detach -q "$ARBOL" "$ANTES_REF"
   trap 'git worktree remove --force "$ARBOL" 2>/dev/null || true' EXIT
