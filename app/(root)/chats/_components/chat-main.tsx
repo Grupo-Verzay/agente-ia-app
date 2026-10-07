@@ -135,6 +135,7 @@ type ChatMainProps = {
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
   advisorRole?: string | null;
+  verNumeroCompleto?: boolean;
   assignedAdvisorId?: string | null;
   /** Cuando se marco como resuelta (ms), o null si sigue abierta. */
   resolvedAt?: number | null;
@@ -193,6 +194,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   advisors,
   currentAdvisorId,
   advisorRole,
+  verNumeroCompleto,
   assignedAdvisorId,
   resolvedAt,
   escalatedAt,
@@ -401,9 +403,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   // abrir el chat para leerlo entero.
   const displayedContactName =
     rawContactName.toLowerCase().endsWith('@s.whatsapp.net')
-      ? telefonoParaMostrar(rawContactName, advisorRole) || rawContactName.split('@')[0]
+      ? telefonoParaMostrar(rawContactName, advisorRole, verNumeroCompleto) || rawContactName.split('@')[0]
       : rawContactName && rawContactName === extractWhatsAppDigits(contactJid)
-      ? telefonoParaMostrar(contactJid, advisorRole) || rawContactName
+      ? telefonoParaMostrar(contactJid, advisorRole, verNumeroCompleto) || rawContactName
       : rawContactName;
   const assignedAdvisorName = useMemo(() => {
     if (!advisors?.length) return 'Asesor';
@@ -417,9 +419,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       : info?.remoteJid?.includes('@')
         ? info.remoteJid.split('@')[0]
         : info?.remoteJid || '';
-  const displayedWhatsapp = puedeVerTelefonoCompleto(advisorRole)
+  const displayedWhatsapp = puedeVerTelefonoCompleto(advisorRole, verNumeroCompleto)
     ? whatsappCrudo
-    : telefonoParaMostrar(whatsappCrudo, advisorRole);
+    : telefonoParaMostrar(whatsappCrudo, advisorRole, verNumeroCompleto);
 
   /* ─── Message list ─── */
   const reversed = useMemo(() => messages.slice().reverse(), [messages]);

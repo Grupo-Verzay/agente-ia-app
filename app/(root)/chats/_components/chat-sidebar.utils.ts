@@ -343,7 +343,7 @@ export function isBadContactName(name?: string | null): boolean {
   return /^\d{6,}$/.test(limpio);
 }
 
-export function nameFrom(chat: ChatData, advisorRole?: string | null): string {
+export function nameFrom(chat: ChatData, advisorRole?: string | null, verNumeroCompleto?: boolean): string {
   const name = chat.pushName?.trim();
   if (name && !isBadContactName(name)) return name;
 
@@ -358,14 +358,14 @@ export function nameFrom(chat: ChatData, advisorRole?: string | null): string {
   // Este es el sitio por donde MAS numeros ve un agente: toda conversacion sin
   // nombre guardado se lista por su numero. Por eso va tapado para quien no
   // deba verlos, igual que en el resto de la pantalla.
-  const phone = telefonoParaMostrar(jid, advisorRole);
+  const phone = telefonoParaMostrar(jid, advisorRole, verNumeroCompleto);
   if (phone) return phone;
 
   // Los digitos crudos son el mismo numero sin formato, asi que tambien se
   // esconden: dejarlos aqui haria inutil todo lo anterior.
   const digits = extractWhatsAppDigits(jid);
   if (digits) {
-    return puedeVerTelefonoCompleto(advisorRole) ? digits : "Sin nombre";
+    return puedeVerTelefonoCompleto(advisorRole, verNumeroCompleto) ? digits : "Sin nombre";
   }
 
   const base = jid.includes("@") ? jid.split("@")[0] : jid;

@@ -48,7 +48,7 @@ interface Props {
   cuentasDeLasLineas?: Record<string, string>;
 }
 
-export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies: todasLasRapidas = [], workflows: todosLosWorkflows = [], cuentasDeLasLineas = {}, advisorRole }: Props & { advisorRole?: string | null }) {
+export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies: todasLasRapidas = [], workflows: todosLosWorkflows = [], cuentasDeLasLineas = {}, advisorRole, verNumeroCompleto }: Props & { advisorRole?: string | null; verNumeroCompleto?: boolean }) {
   const [phone, setPhone] = React.useState('');
   const [selectedJid, setSelectedJid] = React.useState('');
   const [selectedContactName, setSelectedContactName] = React.useState('');
@@ -255,10 +255,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
   const handleSelectContact = (contact: ChatData) => {
     const phoneLabel =
-      telefonoParaMostrar(contact.remoteJid, advisorRole) ||
-      telefonoParaMostrar(contact.remoteJidAlt, advisorRole) ||
-      telefonoParaMostrar(contact.senderPn, advisorRole) ||
-      (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole)).find(Boolean) ||
+      telefonoParaMostrar(contact.remoteJid, advisorRole, verNumeroCompleto) ||
+      telefonoParaMostrar(contact.remoteJidAlt, advisorRole, verNumeroCompleto) ||
+      telefonoParaMostrar(contact.senderPn, advisorRole, verNumeroCompleto) ||
+      (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole, verNumeroCompleto)).find(Boolean) ||
       '';
     const name = contact.pushName?.trim() || phoneLabel || contact.remoteJid;
     setSelectedJid(contact.remoteJid);
@@ -360,10 +360,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                         <CommandGroup heading="Contactos recientes">
                           {filteredContacts.map((contact) => {
                             const phoneStr =
-                              telefonoParaMostrar(contact.remoteJid, advisorRole) ||
-                              telefonoParaMostrar(contact.remoteJidAlt, advisorRole) ||
-                              telefonoParaMostrar(contact.senderPn, advisorRole) ||
-                              (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole)).find(Boolean) ||
+                              telefonoParaMostrar(contact.remoteJid, advisorRole, verNumeroCompleto) ||
+                              telefonoParaMostrar(contact.remoteJidAlt, advisorRole, verNumeroCompleto) ||
+                              telefonoParaMostrar(contact.senderPn, advisorRole, verNumeroCompleto) ||
+                              (contact.aliases ?? []).map((alias) => telefonoParaMostrar(alias, advisorRole, verNumeroCompleto)).find(Boolean) ||
                               '';
                             const name = contact.pushName?.trim() || phoneStr || contact.remoteJid;
                             return (

@@ -60,6 +60,7 @@ import {
   updateAdvisorRole,
   toggleAdvisorAvailability,
   toggleAdvisorIa,
+  toggleAdvisorVerNumero,
   deleteAdvisor,
   linkExistingAdvisor,
   getTeamAdvisors,
@@ -193,6 +194,15 @@ async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | n
     console.error(`[EquipoClient:${label}]`, error);
     return null;
   }
+}
+
+/** Solo a un `agente` se le tapa el número: es al único al que el interruptor le cambia algo. */
+function esAgente(a: AdvisorRow): boolean {
+  return a.advisorRole === "agente";
+}
+
+function veElNumeroCompleto(a: AdvisorRow): boolean {
+  return !esAgente(a) || a.verNumeroCompleto === true;
 }
 
 export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics, conClientesQueAsignar, puedeVincular, pideContrasena, puedeReiniciarVinculos, hayCuentasParaMudar }: Props) {
@@ -330,7 +340,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     const metricsMap = new Map((metrics?.advisors ?? []).map((a) => [a.id, a]));
     const date = new Date().toISOString().split("T")[0];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const headers = ["Asesor", "Email", "Rol", "Disponible", "Sesión IA", "Agente IA", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
+    const headers = ["Asesor", "Email", "Rol", "Disponible", "Sesión IA", "Agente IA", "Ver número", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
     const rows = advisors.map((a) => {
       const m = metricsMap.get(a.id);
       return [
@@ -338,6 +348,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         a.advisorAvailable ? "Sí" : "No",
         a.sesionApagada ? "Apagada" : "Encendida",
         a.agenteApagado ? "Apagado" : "Encendido",
+        veElNumeroCompleto(a) ? "Completo" : "Oculto",
         String(a.activeCount),
         String(m?.closedCount ?? 0),
         String(m?.hotCount ?? 0),
@@ -759,6 +770,13 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                   >
                     Agente
                   </TableHead>
+                  <TableHead
+                    className="text-center whitespace-nowrap"
+                    data-columna="ver-numero"
+                    title="Deja que este asesor vea completo el número de los clientes. Apagado, ve los cuatro últimos dígitos tapados"
+                  >
+                    Ver número
+                  </TableHead>
                   {autoAssignEnabled && modo === "porcentaje" && (
                     <TableHead className="text-center whitespace-nowrap" data-columna="porcentaje">Porcentaje</TableHead>
                   )}
@@ -883,6 +901,42 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                           </TableCell>
                         );
                       })}
+                      <TableCell className="text-center" data-celda-ver-numero={advisor.id}>
+                        {esAgente(advisor) ? (
+                          <Switch
+                            aria-label={`Ver número completo: ${advisor.name ?? advisor.email}`}
+                            title={advisor.verNumeroCompleto
+                              ? "Ve completo el número de los clientes"
+                              : "Ve el número con los cuatro últimos dígitos tapados"}
+                            checked={advisor.verNumeroCompleto}
+                            onCheckedChange={(val) => {
+                              setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, verNumeroCompleto: val } : a));
+                              toggleAdvisorVerNumero(advisor.id, val)
+                                .then((res) => {
+                                  if (!res.success) {
+                                    toast.error(res.message);
+                                    setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, verNumeroCompleto: !val } : a));
+                                    return;
+                                  }
+                                  toast.success(val
+                                    ? `${advisor.name ?? advisor.email} ya ve el número completo.`
+                                    : `${advisor.name ?? advisor.email} vuelve a ver el número oculto.`);
+                                })
+                                .catch(() => {
+                                  toast.error("No se pudo guardar. Revisa la conexión.");
+                                  setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, verNumeroCompleto: !val } : a));
+                                });
+                            }}
+                          />
+                        ) : (
+                          <Switch
+                            aria-label={`Ver número completo: ${advisor.name ?? advisor.email}`}
+                            title="Un administrador ya ve el número completo"
+                            checked
+                            disabled
+                          />
+                        )}
+                      </TableCell>
                       {autoAssignEnabled && modo === "porcentaje" && (
                         <TableCell className="text-center" data-celda-porcentaje={advisor.id}>
                           {advisor.entraEnElReparto ? (() => {
