@@ -7,7 +7,11 @@ cd "$(dirname "$0")/.."
 MODO="${MODO:-bueno}"; export MODO
 # bf1a4af — antes de esto: el avatar se quedaba en grande y no había límite.
 ANTES_REF="${ANTES_REF:-bf1a4af}"
-if [ "$MODO" = roto ]; then
+# 47824de — antes de esto: si la pantalla que pedía Verzy fallaba o la ocultaba,
+# Verzy volvía a pantalla grande. `MODO=roto-miniatura` lo afirma.
+ANTES_MINIATURA_REF="${ANTES_MINIATURA_REF:-47824de}"
+if [ "$MODO" = roto-miniatura ]; then ANTES_REF="$ANTES_MINIATURA_REF"; fi
+if [ "$MODO" = roto ] || [ "$MODO" = roto-miniatura ]; then
   ARBOL="$(mktemp -d)/sala"
   git worktree add --detach -q "$ARBOL" "$ANTES_REF"
   trap 'git worktree remove --force "$ARBOL" 2>/dev/null || true' EXIT
