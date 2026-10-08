@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, Send, StickyNote, Tag, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, Send, Settings, StickyNote, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -306,7 +306,7 @@ export function PropuestasClient({
                             setEsloganAbierto(true);
                         }}
                     >
-                        <Tag className="h-4 w-4" />
+                        <Settings className="h-4 w-4" />
                         <span className="hidden sm:inline">Configuración</span>
                     </Button>
                 }
