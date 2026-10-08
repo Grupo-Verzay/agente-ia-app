@@ -1020,7 +1020,7 @@ await espera(p, 1300);
 await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_CONFIRMADA}`, abajo: true }]);
 await espera(p, 700);
 await captura("embudo");
-await alDecir("con toda su historia", 400);
+await alDecir(CASO === "tienda" ? "avanza solo" : "con toda su historia", 400);
 await anillos([]);
 await acabar(900);
 
@@ -1060,12 +1060,12 @@ await espera(p, 1600);
         return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
     });
     await captura("lineas");
-    await alDecir("Cada asesor ve solo sus chats", 700);
-    if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de Ventas`, abajo: true }]);
+    await alDecir(CASO === "tienda" ? "ventas, soporte y despachos" : "Cada asesor ve solo sus chats", 700);
+    if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de ${ASESORA.linea ?? "Ventas"}`, abajo: true }]);
 }
 await esperarEn("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]', { ms: 20_000, que: "el embudo filtrado" });
 await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_CONFIRMADA], { ms: 20_000, que: `${NOMBRE_CORTO} en el embudo de la asesora` });
-await alDecir("con su propio embudo", 500);
+await alDecir(CASO === "tienda" ? "cada una con sus asesores" : "con su propio embudo", 500);
 await anillos([]);
 await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
