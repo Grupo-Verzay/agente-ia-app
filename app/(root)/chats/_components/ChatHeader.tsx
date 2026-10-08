@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { CompartirConElEquipo } from "@/components/chat-equipo/CompartirConElEquipo";
 import { AlarmClockOff, ArrowRight, Bot, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, RotateCcw, UserPlus, UserRound, Share2, SquarePen, Search, Download } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -388,10 +387,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     instanceName,
   };
 
-  const sessionStatusTone = session?.status
-    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-    : 'border-amber-300 bg-amber-100 text-amber-800';
-
   // Las etiquetas de la cuenta de la linea de ESTA conversacion, y ninguna
   // mas. Si esa linea no tiene etiquetas el selector sale vacio: ofrecer las
   // de otra linea serian botones que el servidor rechaza.
@@ -440,7 +435,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       checked={session.status ?? false}
       mutateSessions={onSessionMutate}
       onChanged={onSessionStatusChange}
-      compact
+      pastilla
     />
   );
 
@@ -770,9 +765,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
           {session ? (
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <Badge variant="outline" data-estado-de-sesion className={`${sessionStatusTone} text-xs py-0.5`}>
-                {session.status ? 'Activa' : 'Pausada'}
-              </Badge>
               {sessionToggle}
               <button
                 type="button"
@@ -798,11 +790,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* Herramientas expandibles — una fila con scroll */}
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
-            {/* `justify-start` y no `justify-between`: aquel reparte el
-                sobrante entre los huecos, así que con sitio de sobra los
-                controles salen más separados de lo que declara el `gap`. El
-                hueco es el mismo número que en la fila de escritorio. */}
-            <div className={cn('flex items-center justify-start px-2 py-1.5 overflow-x-auto scrollbar-none', CLASE_HUECO_ENTRE_CONTROLES)}>
+            {/* `justify-between`: los iconos ocupan TODO el ancho con huecos
+                iguales (el `gap` es el mínimo); sin esto quedaba un vacío a la
+                derecha donde estaba el icono duplicado. */}
+            <div className={cn('flex items-center justify-between px-2 py-1.5 overflow-x-auto scrollbar-none', CLASE_HUECO_ENTRE_CONTROLES)}>
               {/* 1. Acción directa */}
               <MenuDeLlamada datos={datosParaLlamar} className="h-7 w-7" iconoClassName="h-3.5 w-3.5" />
               {advisorBadge}

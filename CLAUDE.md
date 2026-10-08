@@ -27834,3 +27834,16 @@ plan», y al final un botón verde de ancho completo, «Enviar por WhatsApp».
 Lo prueba `scripts/banco-propuesta-desde-el-chat.sh` (barrido y las acciones
 contra Postgres con el despachador fingido); `MODO=roto` lee `70273b0` y afirma
 que no existía.
+
+## Chats: el estado de la sesión es UNA pastilla que ES el interruptor
+
+> **Esta sección manda sobre la del #1192** en cómo se ve el estado de la
+> sesión en la cabecera del móvil.
+
+La pastilla «Activa» (verde) / «Pausada» (gris) **es** el interruptor
+(`SwitchStatus` con `pastilla`): un solo elemento, sin control al lado. La
+versión por defecto y la compacta no cambian (Leads las usa). Y la fila de
+herramientas del móvil reparte todo el ancho con `justify-between`, así que al
+quitar un icono los demás se reacomodan con huecos iguales y los dos bordes
+pegados. Lo prueba `scripts/banco-estado-de-sesion-en-la-cabecera.sh`;
+`MODO=roto` lee `f227386` y afirma la pastilla aparte y el hueco.
