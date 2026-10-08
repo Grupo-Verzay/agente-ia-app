@@ -89,6 +89,8 @@ const NUMERO = CLIENTA.jid.split("@")[0];
 /** El primer nombre de quien escribe y la etapa donde queda al confirmar: salen del caso. */
 const NOMBRE_CORTO = CLIENTA.nombre.split(" ")[0];
 const ETAPA_CONFIRMADA = ETAPAS[4].nombre;
+/** Donde la clienta está en el embudo al llegar a esa escena: la tienda ya la entregó. */
+const ETAPA_EN_EL_EMBUDO = CASO === "tienda" ? "Entregado" : ETAPA_CONFIRMADA;
 
 /**
  * La primera vez que Laura escribe, la lista del panel se pone al día con la
@@ -1024,13 +1026,13 @@ await acabar(600);
 // 11. El embudo: cada cliente en su etapa.
 await anillos([]);
 await clicEn("embudo", '[aria-label="Actualizar"]');
-await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_CONFIRMADA], { que: `la tarjeta de ${NOMBRE_CORTO} en ${ETAPA_CONFIRMADA}` });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_EN_EL_EMBUDO], { que: `la tarjeta de ${NOMBRE_CORTO} en ${ETAPA_EN_EL_EMBUDO}` });
 await capacidad("embudo");
 await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
 await decir("embudo");
 await espera(p, 1300);
-await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_CONFIRMADA}`, abajo: true }]);
+await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_EN_EL_EMBUDO}`, abajo: true }]);
 await espera(p, 700);
 await captura("embudo");
 await alDecir(CASO === "tienda" ? "avanza solo" : "con toda su historia", 400);
@@ -1077,7 +1079,7 @@ await espera(p, 1600);
     if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de ${ASESORA.linea ?? "Ventas"}`, abajo: true }]);
 }
 await esperarEn("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]', { ms: 20_000, que: "el embudo filtrado" });
-await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_CONFIRMADA], { ms: 20_000, que: `${NOMBRE_CORTO} en el embudo de la asesora` });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_EN_EL_EMBUDO], { ms: 20_000, que: `${NOMBRE_CORTO} en el embudo de la asesora` });
 await alDecir(CASO === "tienda" ? "cada una con sus asesores" : "con su propio embudo", 500);
 await anillos([]);
 await est("plano", PLANOS.panel);
