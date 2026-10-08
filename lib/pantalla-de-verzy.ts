@@ -85,7 +85,49 @@ export function conLaNotaAgregada(antes: string, texto: string): string {
 
 export type OrdenDeLaPantalla =
     | { tipo: "ir"; datos: { lugar: LugarDeVerzy } }
-    | { tipo: "nota"; datos: { texto: string } };
+    | { tipo: "nota"; datos: { texto: string } }
+    | { tipo: "tamano"; datos: TamanoDeLaPantalla };
+
+// ---------------------------------------------------------------- el tamaño de la pantalla
+//
+// El Chromium del servidor pinta con un tamaño de ventana, y la sala enseña ese
+// video con `object-contain`. Si el formato de los dos no coincide, sobran
+// franjas: con 1280×800 fijo en una sala ancha, quedaban dos franjas vacías a
+// los lados. Así que la sala dice cuánto mide su hueco y la ventana del
+// servidor toma ESE formato: el video llena la sala de lado a lado.
+
+export type TamanoDeLaPantalla = { ancho: number; alto: number };
+
+/** Con el que nace la ventana, antes de que la sala diga lo suyo. */
+export const TAMANO_DE_FABRICA: TamanoDeLaPantalla = { ancho: 1280, alto: 800 };
+/** El lado corto de la ventana: la plataforma se ve como en un portátil, ni más grande ni más chica. */
+export const LADO_CORTO = 800;
+/** Topes del lado largo: una sala absurda no puede pedir una ventana absurda. */
+export const LADO_LARGO_MAXIMO = 2400;
+/** Por debajo de este ancho la plataforma se parte en su vista de teléfono. */
+export const ANCHO_MINIMO = 1024;
+
+/**
+ * La ventana del servidor para un hueco de `ancho`×`alto` en la sala: el MISMO
+ * formato, con la plataforma a tamaño de portátil. Sala ancha: 800 de alto y
+ * el ancho que pida su formato. Sala estrecha (un teléfono): 1024 de ancho y
+ * el alto que pida, así el video ocupa todo el ancho sin franjas a los lados.
+ * Lo que no es un tamaño de verdad devuelve null.
+ */
+export function elTamanoDeLaPantalla(ancho: unknown, alto: unknown): TamanoDeLaPantalla | null {
+    const a = Number(ancho);
+    const h = Number(alto);
+    if (!Number.isFinite(a) || !Number.isFinite(h) || a < 50 || h < 50) return null;
+    const formato = a / h;
+    const tamano =
+        formato >= ANCHO_MINIMO / LADO_CORTO
+            ? { ancho: Math.round(LADO_CORTO * formato), alto: LADO_CORTO }
+            : { ancho: ANCHO_MINIMO, alto: Math.round(ANCHO_MINIMO / formato) };
+    return {
+        ancho: Math.min(LADO_LARGO_MAXIMO, Math.max(ANCHO_MINIMO, tamano.ancho)),
+        alto: Math.min(LADO_LARGO_MAXIMO, Math.max(LADO_CORTO / 2, tamano.alto)),
+    };
+}
 
 export type ResultadoDeLaOrden = { ok: true; aviso?: string } | { ok: false; motivo: string };
 
@@ -101,11 +143,18 @@ export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
         const texto = String(c.texto ?? "").replace(/\s+/g, " ").trim().slice(0, TOPE_DE_LA_NOTA);
         return texto ? { tipo: "nota", datos: { texto } } : null;
     }
+    if (c.tipo === "tamano") {
+        const t = cuerpo as { ancho?: unknown; alto?: unknown };
+        const tamano = elTamanoDeLaPantalla(t.ancho, t.alto);
+        return tamano ? { tipo: "tamano", datos: tamano } : null;
+    }
     return null;
 }
 
 /** Lo que se le cuenta a Verzy después de cada orden, para que no diga algo que no pasó. */
 export function loQueSeLeCuentaAVerzy(orden: OrdenDeLaPantalla, r: ResultadoDeLaOrden): string {
+    // Ajustar el tamaño es cosa de la sala: a Verzy no se le cuenta nada.
+    if (orden.tipo === "tamano") return "";
     if (orden.tipo === "nota") {
         return r.ok
             ? `La nota quedó guardada en la ficha del cliente en Verzay Ventas: «${orden.datos.texto}».`

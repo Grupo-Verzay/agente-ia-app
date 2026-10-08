@@ -27398,6 +27398,17 @@ quedaba muda.
 Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
 saludo, ni CRM, y que las notas salían sueltas.
 
+### La pantalla de Verzy ocupa TODO su hueco: el servidor toma la forma de la sala
+
+Compartida, la pantalla salía con franjas vacías a los lados: el Chromium del
+servidor iba fijo a 1280×800 y la sala la encajaba (`object-contain`) en un
+hueco de otra forma. Ahora la sala MIDE su hueco (`ResizeObserver`, con pausa
+de 250 ms) y lo manda como orden `{ tipo: "tamano", ancho, alto }`; el servidor
+pone la ventana de esa forma (`elTamanoDeLaPantalla`, mínimo 1024 de ancho para
+que la plataforma no pase a móvil) y rearranca el screencast con ese tope
+(`cambiarElTamano`). La imagen va `h-full w-full object-contain`. Lo prueba
+`scripts/banco-tamano-de-la-pantalla.sh`; `MODO=roto` lee `47824de`.
+
 ### La sala entiende los DOS formatos de `mostrar_pantalla`, y se cuelga sola
 
 Tavus no acepta el PATCH de una persona con cambios propios en su editor, así
