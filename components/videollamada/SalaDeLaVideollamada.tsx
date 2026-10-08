@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useMandosQueSeEsconden } from "@/hooks/useMandosQueSeEsconden";
 import DailyIframe, { type DailyCall } from "@daily-co/daily-js";
+import { Mic, MicOff, MonitorOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react";
 import {
     laOrdenDeAgendar,
     laOrdenDeEnvio,
@@ -691,10 +692,12 @@ export default function SalaDeLaVideollamada({
     const mandosOcultos = mandosFlotan && !mandos.seVen;
     // La miniatura va encima de la barra de mandos y a 8 px de los bordes, en
     // todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos.
-    const MINI = "absolute bottom-[4.5rem] right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:h-32 sm:w-48";
+    // La miniatura vive EN la barra de abajo, centrada con los botones
+    // (BARRA_DE_ABAJO mide 80 px; la miniatura 64, a 8 de cada borde).
+    const MINI = "absolute bottom-2 right-2 z-20 h-16 w-28 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg";
     // Con los mandos flotando, lo grande ocupa toda la caja: una franja de
     // 64 px vacía cuando los mandos se apartan se lee como un hueco.
-    const ABAJO = mandosFlotan ? "bottom-0" : "bottom-16";
+    const ABAJO = mandosFlotan ? "bottom-0" : "bottom-20";
     const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
     return (
@@ -705,7 +708,7 @@ export default function SalaDeLaVideollamada({
             className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
         >
             {disp.grande === "portada" && (
-                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 pb-36 text-center sm:pb-0">
+                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-20 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 text-center">
                     <div aria-label={TEXTO_DE_LA_PORTADA} className="flex max-w-3xl flex-col items-center gap-3 sm:gap-4">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img data-zona="logo-de-la-portada" src={LOGO_DE_LA_PORTADA} alt="" className="h-20 w-20 drop-shadow-[0_16px_40px_rgba(31,123,255,0.45)] sm:h-32 sm:w-32" />
@@ -732,13 +735,9 @@ export default function SalaDeLaVideollamada({
                 <section
                     data-zona="pantalla-del-avatar"
                     data-destino={pantallaQueSeVe}
-                    className={`absolute inset-x-0 top-0 ${ABAJO} flex flex-col`}
+                    className={`absolute inset-x-0 top-0 ${ABAJO} bg-black`}
                 >
-                    <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                        Verzy te está mostrando: <strong className="text-slate-100">{pantallaQueSeVe}</strong>
-                    </header>
-                    <div ref={setCajaDeLaPantalla} data-zona="caja-de-la-pantalla" className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
+                    <div ref={setCajaDeLaPantalla} data-zona="caja-de-la-pantalla" className="h-full w-full overflow-hidden bg-black">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             data-zona="video-de-la-pantalla"
@@ -746,7 +745,10 @@ export default function SalaDeLaVideollamada({
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
-                            className="h-full w-full object-contain"
+                            // Cubre la caja entera: nunca franjas negras. La forma
+                            // ya la sigue el servidor (elTamanoDeLaPantalla), así
+                            // que en reposo no recorta nada.
+                            className="h-full w-full object-cover object-top"
                         />
                     </div>
                 </section>
@@ -813,7 +815,7 @@ export default function SalaDeLaVideollamada({
                 onFocus={() => mandos.mostrar()}
                 // Escondidos NO se pueden pulsar: un «Salir» invisible que
                 // responde al clic es colgar sin querer.
-                className={`absolute inset-x-0 bottom-0 z-10 flex min-h-16 flex-wrap items-center justify-center gap-2 px-2 py-3 transition-opacity duration-300 ${
+                className={`absolute inset-x-0 bottom-0 z-10 flex h-20 flex-nowrap items-center justify-center gap-2 pl-2 pr-32 transition-opacity duration-300 sm:px-32 ${
                     mandosFlotan ? "bg-gradient-to-t from-slate-950/80 to-transparent" : ""
                 } ${mandosOcultos ? "pointer-events-none opacity-0" : "opacity-100"}`}
             >
@@ -824,35 +826,43 @@ export default function SalaDeLaVideollamada({
                             data-mando="microfono"
                             aria-pressed={!micOn}
                             onClick={() => llamadaRef.current?.setLocalAudio(!micOn)}
-                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${micOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                            title={micOn ? "Silenciar" : "Activar micrófono"}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${micOn ? "bg-slate-800" : "bg-red-600"}`}
                         >
-                            {micOn ? "Silenciar" : "Activar micrófono"}
+                            {micOn ? <Mic className="h-4 w-4" aria-hidden /> : <MicOff className="h-4 w-4" aria-hidden />}
+                            <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{micOn ? "Silenciar" : "Activar micrófono"}</span>
                         </button>
                         <button
                             type="button"
                             data-mando="camara"
                             onClick={() => llamadaRef.current?.setLocalVideo(!camOn)}
-                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${camOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                            title={camOn ? "Apagar cámara" : "Encender cámara"}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${camOn ? "bg-slate-800" : "bg-red-600"}`}
                         >
-                            {camOn ? "Apagar cámara" : "Encender cámara"}
+                            {camOn ? <Video className="h-4 w-4" aria-hidden /> : <VideoOff className="h-4 w-4" aria-hidden />}
+                            <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{camOn ? "Apagar cámara" : "Encender cámara"}</span>
                         </button>
                         {hayCompartir && (
                             <button
                                 type="button"
                                 data-mando="pantalla"
                                 onClick={alternarPantalla}
-                                className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
+                                title={pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${pantallaOn ? "bg-emerald-600" : "bg-slate-800"}`}
                             >
-                                {pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
+                                {pantallaOn ? <MonitorOff className="h-4 w-4" aria-hidden /> : <MonitorUp className="h-4 w-4" aria-hidden />}
+                                <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}</span>
                             </button>
                         )}
                         <button
                             type="button"
                             data-mando="salir"
                             onClick={() => colgarRef.current()}
-                            className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white"
+                            title="Salir"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 bg-red-600"
                         >
-                            Salir
+                            <PhoneOff className="h-4 w-4" aria-hidden />
+                            <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">Salir</span>
                         </button>
                     </>
                 )}

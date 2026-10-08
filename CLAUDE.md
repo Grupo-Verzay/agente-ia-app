@@ -27779,3 +27779,13 @@ fijo.
 
 Lo prueba `scripts/banco-ver-numero-completo.sh` (la regla, un barrido y las
 acciones contra Postgres); `MODO=roto` contra `4c84c02` afirma que no existía.
+
+## Videollamada: la pantalla compartida llena la sala, y los mandos y la miniatura son UNA barra
+
+Con la pantalla compartida había una franja negra arriba con «Verzy te está mostrando: /ruta», franjas negras a los lados y la miniatura de Verzy flotando encima de la pantalla.
+
+1. **No hay ninguna etiqueta de ruta, nunca.** La ruta es un dato interno y su franja le quitaba alto a la pantalla.
+2. **La pantalla compartida va `object-cover object-top`** y, cuando los mandos flotan (`mandosFlotan`), llega a `bottom-0`: ocupa la sala entera, sin franjas.
+3. **Abajo hay UNA barra (`h-20`)**: los botones centrados y, a la derecha, la miniatura de Verzy (`h-16 w-28`, `bottom-2 right-2`), alineada con ellos. La barra deja hueco a la derecha (`pr-32`) para que la miniatura no tape ningún botón; en el teléfono los botones van solo con su icono.
+
+Lo prueba `scripts/banco-barra-de-la-videollamada.sh`. Monta la sala real con una pantalla compartida a 1440/1024/390 y comprueba que no hay etiqueta, que no hay píxeles negros alrededor de la pantalla y que la miniatura está dentro de la barra, alineada y sin tapar botones. `MODO=roto` monta la sala de `42e8f15` y afirma la etiqueta y las franjas.
