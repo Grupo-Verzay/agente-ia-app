@@ -42,6 +42,14 @@ import {
     type LineaParaEnviar,
 } from "@/lib/propuestas-db";
 import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
+import { resolveInstanceOwner } from "@/lib/chat-persistence";
+import {
+    comoDestino,
+    elDestinoParaMostrar,
+    elJidDelDestino,
+    esDestinoLid,
+    losDigitosDelDestino,
+} from "@/lib/destino-de-la-llamada";
 
 /**
  * Las acciones de Panel › Propuestas.
@@ -71,10 +79,16 @@ type QuienManda = {
     esDeLaCasa: () => Promise<boolean>;
 };
 
-async function quienManda(): Promise<QuienManda | null> {
+/**
+ * `pedida` solo lo pasan las acciones del panel de Chats: allí la cuenta es la
+ * DUEÑA de la línea de la conversación, que puede ser una hija. Pasa por
+ * `laCuentaDeLaAccion`, o sea `assertCanAccessTargetUser`: hacia abajo, nunca
+ * hacia arriba.
+ */
+async function quienManda(pedida?: string | null): Promise<QuienManda | null> {
     const user = await currentUser();
     if (!user || !canManageWorkspace(user)) return null;
-    const cuenta = await laCuentaDeLaAccion();
+    const cuenta = await laCuentaDeLaAccion(pedida ?? undefined);
     if (!cuenta) return null;
     let casa: Promise<boolean> | null = null;
     return {
@@ -290,8 +304,9 @@ export async function borrarPlantillaAction(id: unknown): Promise<Respuesta<null
  */
 export async function cargarPlanEnLaPropuestaAction(
     plantillaId: unknown,
+    cuenta?: unknown,
 ): Promise<Respuesta<{ plan: PlanParaCargar; avisos: string[] }>> {
-    const q = await quienManda();
+    const q = await quienManda(typeof cuenta === "string" && cuenta.trim() ? cuenta : null);
     if (!q) return NO_AUTORIZADO;
     if (typeof plantillaId !== "string" || !plantillaId.trim()) return { success: false, message: "Plantilla no encontrada." };
     try {
@@ -347,35 +362,140 @@ export async function enviarPropuestaPorWhatsappAction(id: unknown): Promise<Res
         if (!p.linea) {
             return { success: false, message: "Esta propuesta no tiene la línea desde la que se envía. Edítala y elígela." };
         }
-        const lineas = await lasLineasParaEnviar(q.cuenta);
-        const deLaCuenta = lineas.find((l) => l.instanceName === p.linea);
-        if (!deLaCuenta) {
-            return { success: false, message: `La línea «${p.linea}» ya no es de esta cuenta. Edita la propuesta y elige otra.` };
-        }
-        const dispatcher = await resolveWhatsAppDispatcherLine({
-            ownerUserId: q.cuenta,
-            preferredInstanceName: p.linea,
-            includeAdminFallback: false,
-        });
-        // El despachador cae a otra línea conectada si la pedida no lo está:
-        // aquí eso sería mandar desde un número que no es el elegido.
-        if (!dispatcher || dispatcher.instanceName !== p.linea) {
-            console.warn("[propuestas] la línea elegida no está conectada", { cuenta: q.cuenta, linea: p.linea, otra: dispatcher?.instanceName ?? null });
-            return { success: false, message: `La línea «${deLaCuenta.nombre}» no está conectada ahora mismo. Conéctala y vuelve a intentarlo.` };
-        }
-        const enlace = elEnlaceDeLaPropuesta(await elOrigenDeLaApp(), p);
-        const r = await sendViaWhatsAppDispatcher({
-            dispatcher,
-            remoteJid: elJidDelWhatsapp(p.whatsapp),
-            text: elMensajeDeWhatsapp(p.cliente, enlace),
-        });
-        if (!r?.success) {
-            console.warn("[propuestas] el envío por WhatsApp no salió", { cuenta: q.cuenta, id, motivo: r?.message });
-            return { success: false, message: r?.message ? `No se pudo enviar: ${r.message}` : "No se pudo enviar por WhatsApp." };
-        }
-        return { success: true, data: { a: `+${p.whatsapp}`, linea: deLaCuenta.nombre } };
+        return await enviarLaPropuesta(q.cuenta, p, p.linea, elJidDelWhatsapp(p.whatsapp), `+${p.whatsapp}`);
     } catch (error) {
         console.error("[propuestas] no se pudo enviar por WhatsApp", { cuenta: q.cuenta, id, error: String(error) });
         return { success: false, message: "No se pudo enviar por WhatsApp." };
+    }
+}
+
+/**
+ * El envío de verdad, compartido por el panel y por el panel de Chats: por la
+ * línea pedida y por NINGUNA otra. Si la línea no es de la cuenta, o no está
+ * conectada, se dice y no se manda nada.
+ */
+async function enviarLaPropuesta(
+    cuenta: string,
+    p: Propuesta,
+    linea: string,
+    remoteJid: string,
+    aMostrar: string,
+): Promise<Respuesta<{ a: string; linea: string }>> {
+    const lineas = await lasLineasParaEnviar(cuenta);
+    const deLaCuenta = lineas.find((l) => l.instanceName === linea);
+    if (!deLaCuenta) {
+        return { success: false, message: `La línea «${linea}» ya no es de esta cuenta. Edita la propuesta y elige otra.` };
+    }
+    const dispatcher = await resolveWhatsAppDispatcherLine({
+        ownerUserId: cuenta,
+        preferredInstanceName: linea,
+        includeAdminFallback: false,
+    });
+    // El despachador cae a otra línea conectada si la pedida no lo está:
+    // aquí eso sería mandar desde un número que no es el elegido.
+    if (!dispatcher || dispatcher.instanceName !== linea) {
+        console.warn("[propuestas] la línea elegida no está conectada", { cuenta, linea, otra: dispatcher?.instanceName ?? null });
+        return { success: false, message: `La línea «${deLaCuenta.nombre}» no está conectada ahora mismo. Conéctala y vuelve a intentarlo.` };
+    }
+    const enlace = elEnlaceDeLaPropuesta(await elOrigenDeLaApp(), p);
+    const r = await sendViaWhatsAppDispatcher({
+        dispatcher,
+        remoteJid,
+        text: elMensajeDeWhatsapp(p.cliente, enlace),
+    });
+    if (!r?.success) {
+        console.warn("[propuestas] el envío por WhatsApp no salió", { cuenta, id: p.id, motivo: r?.message });
+        return { success: false, message: r?.message ? `No se pudo enviar: ${r.message}` : "No se pudo enviar por WhatsApp." };
+    }
+    return { success: true, data: { a: aMostrar, linea: deLaCuenta.nombre } };
+}
+
+/**
+ * La cuenta de una conversación de Chats es la DUEÑA de su línea, y su línea
+ * tiene que ser una de las que esa cuenta puede usar para enviar. Lo que llega
+ * del navegador es solo el nombre de la línea: la cuenta se resuelve aquí.
+ */
+async function laLineaDelChat(instanceName: unknown): Promise<{ q: QuienManda; linea: string } | { error: string }> {
+    if (typeof instanceName !== "string" || !instanceName.trim()) {
+        return { error: "No se sabe por qué línea va esta conversación." };
+    }
+    const linea = instanceName.trim();
+    const dueno = await resolveInstanceOwner(linea);
+    if (!dueno) return { error: "Esa línea ya no existe." };
+    const q = await quienManda(dueno.userId);
+    if (!q) return { error: NO_AUTORIZADO.message };
+    const lineas = await lasLineasParaEnviar(q.cuenta);
+    if (!lineas.some((l) => l.instanceName === linea)) {
+        return { error: "Por esta línea no se pueden enviar propuestas." };
+    }
+    return { q, linea };
+}
+
+/** Lo que necesita el formulario del panel de Chats para esa conversación. */
+export async function propuestaDesdeElChatAction(instanceName: unknown): Promise<
+    Respuesta<{
+        origen: string;
+        lineas: LineaParaEnviar[];
+        plantillas: PlantillaDePlan[];
+        planes: PlanParaElegir[];
+        linea: string;
+        cuenta: string;
+    }>
+> {
+    try {
+        const r = await laLineaDelChat(instanceName);
+        if ("error" in r) return { success: false, message: r.error };
+        const { q, linea } = r;
+        const [origen, lineas, plantillas, planes] = await Promise.all([
+            elOrigenDeLaApp(),
+            lasLineasParaEnviar(q.cuenta),
+            lasPlantillasDe(q.cuenta).then(conLoVigente),
+            q.esDeLaCasa().then((casa) => (casa ? losPlanesParaElegir() : [])),
+        ]);
+        return { success: true, data: { origen, lineas, plantillas, planes, linea, cuenta: q.cuenta } };
+    } catch (error) {
+        console.error("[propuestas] no se pudo preparar la propuesta del chat", { instanceName, error: String(error) });
+        return { success: false, message: "No se pudo abrir el formulario de la propuesta." };
+    }
+}
+
+/**
+ * Crea la propuesta en la cuenta dueña de la línea de la conversación y la manda
+ * por WhatsApp a ESE contacto, por ESA línea. El WhatsApp y la línea que traiga
+ * el formulario no mandan: los ponen la conversación (`destino`, que puede ser
+ * un `@lid` sin teléfono) y su línea.
+ */
+export async function crearYEnviarPropuestaDesdeElChatAction(
+    instanceName: unknown,
+    destino: unknown,
+    raw: unknown,
+): Promise<Respuesta<{ propuesta: Propuesta; a: string; linea: string }>> {
+    try {
+        const r = await laLineaDelChat(instanceName);
+        if ("error" in r) return { success: false, message: r.error };
+        const { q, linea } = r;
+        const d = comoDestino(typeof destino === "string" ? destino : "");
+        if (!d) return { success: false, message: "Esta conversación no tiene a quién enviarle la propuesta." };
+        const whatsapp = esDestinoLid(d) ? "" : losDigitosDelDestino(d);
+        const base = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+        const v = comoPropuesta({ ...base, whatsapp, linea });
+        if (!v.ok) return { success: false, message: v.motivo };
+        const planes = (await q.esDeLaCasa()) ? v.datos.planes : [];
+        let p: Propuesta;
+        try {
+            p = await crearPropuesta({ ...v.datos, planes, cuentaId: q.cuenta, creadoPorId: q.personaId || null });
+        } catch (error) {
+            if (error instanceof EnlaceOcupado) return { success: false, message: ENLACE_OCUPADO };
+            throw error;
+        }
+        revalidatePath(RUTA);
+        const envio = await enviarLaPropuesta(q.cuenta, p, linea, elJidDelDestino(d), elDestinoParaMostrar(d));
+        if (!envio.success) {
+            return { success: false, message: `La propuesta se guardó en Propuestas, pero no se envió: ${envio.message}` };
+        }
+        return { success: true, data: { propuesta: p, ...envio.data } };
+    } catch (error) {
+        console.error("[propuestas] no se pudo crear y enviar desde el chat", { instanceName, error: String(error) });
+        return { success: false, message: "No se pudo crear y enviar la propuesta." };
     }
 }
