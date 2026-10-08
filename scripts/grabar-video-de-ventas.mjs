@@ -43,6 +43,7 @@ import {
     CAPACIDADES,
     CIERRE_DEL_MONTAJE,
     CLIENTA,
+    ETAPAS,
     LA_LLAMADA,
     LA_VOZ_EN_LA_LLAMADA,
     LLAMADO,
@@ -84,6 +85,9 @@ export { ARCHIVOS_DEL_VIDEO };
 const RESPIRO_ENTRE_FRASES_MS = 250;
 /** El número de la clienta sin el `@…`: así lo guardan las rutas del panel. */
 const NUMERO = CLIENTA.jid.split("@")[0];
+/** El primer nombre de quien escribe y la etapa donde queda al confirmar: salen del caso. */
+const NOMBRE_CORTO = CLIENTA.nombre.split(" ")[0];
+const ETAPA_CONFIRMADA = ETAPAS[4].nombre;
 
 /**
  * La primera vez que Laura escribe, la lista del panel se pone al día con la
@@ -499,7 +503,7 @@ await clicEn("agenda", ".fc-semanaBtn-button");
 // El embudo, con sus columnas.
 // Por `textContent` y no `innerText`: las columnas van en mayúsculas por CSS,
 // e `innerText` devuelve el texto ya transformado.
-await esperarEn("embudo", () => document.body.textContent.includes("Cita confirmada"), null, { ms: 60_000, que: "el embudo" });
+await esperarEn("embudo", () => document.body.textContent.includes(ETAPA_CONFIRMADA), null, { ms: 60_000, que: "el embudo" });
 // Los reportes, con el de la semana pasada.
 await esperarEn("reportes", () => !!document.querySelector("div.cursor-pointer"), null, { ms: 60_000, que: "los reportes" });
 for (const capa of CAPAS_DEL_PORTATIL) {
@@ -647,7 +651,7 @@ await espera(p, ESPERA_DEL_PRIMER_MENSAJE_MS - 900);
     }
 }
 await llega("M01", { banner: true });
-await esperarEn("app", ENCONTRAR.filaDelCliente, CLIENTA.jid, { ms: 13_000, que: "la fila de Laura en el panel" });
+await esperarEn("app", ENCONTRAR.filaDelCliente, CLIENTA.jid, { ms: 13_000, que: `la fila de ${NOMBRE_CORTO} en el panel` });
 await espera(p, 700);
 // El negocio la abre en las tres pantallas.
 const fila = await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid);
@@ -768,7 +772,7 @@ await acabar(600);
 // 8. Seguimiento: dos horas después, sin respuesta; la IA insiste.
 await anillos([]);
 await est("capacidad", 0, "");
-await est("cartel", "2 horas después", "Laura no ha vuelto a escribir", "reloj");
+await est("cartel", "2 horas después", `${NOMBRE_CORTO} no ha vuelto a escribir`, "reloj");
 await ctx.clock.setSystemTime(new Date(cal.seguimiento));
 await est("plano", PLANOS.telWeb, { ms: 10 });
 await decir("seguimiento");
@@ -781,7 +785,7 @@ await alDecir("un archivo", 300);
 await llega("M10");
 await captura("seguimiento");
 await alDecir("hasta una llamada", 200);
-await est("cartel", "Por la tarde", "Laura sigue sin responder: la IA la llama", "reloj");
+await est("cartel", "Por la tarde", `${NOMBRE_CORTO} sigue sin responder: la IA la llama`, "reloj");
 await acabar(300);
 
 // 8b. La llamada con IA: suena, Laura contesta y se les oye hablar.
@@ -819,12 +823,12 @@ if (cal.cita) {
     await clicEn("agenda", "button,a,[role=tab]", "Dashboard");
     await esperarEn("agenda", () => !!document.querySelector(".fc-semanaBtn-button"), null, { que: "la agenda otra vez" });
     await clicEn("agenda", ".fc-semanaBtn-button");
-    await esperarEn("agenda", ENCONTRAR.eventoDelCliente, "Laura", { que: "la cita de Laura en la agenda" });
+    await esperarEn("agenda", ENCONTRAR.eventoDelCliente, NOMBRE_CORTO, { que: `la cita de ${NOMBRE_CORTO} en la agenda` });
     await alDecir("en tu calendario", 900);
     await est("plano", PLANOS.panel);
     await est("mostrarApp", "agenda");
     await espera(p, 1250);
-    await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDelCliente, "Laura"), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
+    await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDelCliente, NOMBRE_CORTO), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
     await captura("cita");
     await acabar(1200);
 }
@@ -845,9 +849,9 @@ await alDecir("Confirma", 500);
 await llega("M14");
 await espera(p, 1600);
 {
-    const confirmada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, "Cita confirmada"], { ms: 5_000, que: "la etapa en la fila" }).catch(() => null);
+    const confirmada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, ETAPA_CONFIRMADA], { ms: 5_000, que: "la etapa en la fila" }).catch(() => null);
     const marcas = [];
-    if (confirmada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: "Cita confirmada", abajo: true });
+    if (confirmada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: ETAPA_CONFIRMADA, abajo: true });
     marcas.push({ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M14"]), texto: "Confirmó" });
     await anillos(marcas);
 }
@@ -873,13 +877,13 @@ await acabar(600);
 // 11. El embudo: cada cliente en su etapa.
 await anillos([]);
 await clicEn("embudo", '[aria-label="Actualizar"]');
-await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, "Cita confirmada"], { que: "la tarjeta de Laura en Cita confirmada" });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_CONFIRMADA], { que: `la tarjeta de ${NOMBRE_CORTO} en ${ETAPA_CONFIRMADA}` });
 await capacidad("embudo");
 await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
 await decir("embudo");
 await espera(p, 1300);
-await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: "Laura, en Cita confirmada", abajo: true }]);
+await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_CONFIRMADA}`, abajo: true }]);
 await espera(p, 700);
 await captura("embudo");
 await alDecir("con toda su historia", 400);
@@ -926,7 +930,7 @@ await espera(p, 1600);
     if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de Ventas`, abajo: true }]);
 }
 await esperarEn("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]', { ms: 20_000, que: "el embudo filtrado" });
-await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, "Cita confirmada"], { ms: 20_000, que: "Laura en el embudo de la asesora" });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, ETAPA_CONFIRMADA], { ms: 20_000, que: `${NOMBRE_CORTO} en el embudo de la asesora` });
 await alDecir("con su propio embudo", 500);
 await anillos([]);
 await est("plano", PLANOS.panel);
