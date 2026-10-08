@@ -27747,6 +27747,18 @@ Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTAD
 
 **La miniatura va DENTRO del área de contenido** (que acaba en `bottom-16`, encima de la barra de mandos), a 8 px de su borde derecho y de su borde de abajo, en todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos en escritorio. Lo mide el mismo banco a 1440/1024/390; `MODO=roto-mini` monta la de `4c84c02` y afirma el fallo.
 
+## Videollamada: con pantalla compartida los mandos se esconden solos
+
+Durante una pantalla compartida (la de Verzy, la del asesor o la propia) los
+mandos de la sala (Salir, Compartir pantalla, cámara…) flotan encima y **se
+apartan solos a los 3,5 s sin actividad**; vuelven al mover el cursor, tocar o
+recibir el foco, y no se van con el cursor encima. Sin pantalla compartida se
+quedan siempre. No es una regla nueva: es la de la reunión
+(`lib/mandos-de-la-reunion.ts` + `hooks/useMandosQueSeEsconden.ts`), y
+escondidos van `pointer-events-none` (un Salir invisible no se pulsa). Lo prueba
+`scripts/banco-mandos-de-la-videollamada.sh` con la sala montada a 1440 y 390;
+`MODO=roto` monta la de `47824de` y afirma que no se escondían.
+
 ## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
 Un `agente` ve los números de los clientes con los cuatro últimos dígitos

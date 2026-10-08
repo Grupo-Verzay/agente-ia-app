@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
+import { useMandosQueSeEsconden } from "@/hooks/useMandosQueSeEsconden";
 import DailyIframe, { type DailyCall } from "@daily-co/daily-js";
 import {
     laOrdenDeAgendar,
@@ -678,12 +680,22 @@ export default function SalaDeLaVideollamada({
     });
     const avatarGrande = disp.grande === "avatar";
     const enMiniatura = disp.mini === "avatar";
-    // La miniatura va DENTRO del área de contenido (que acaba en bottom-16, encima
-    // de la barra de mandos) y a 8 px de sus dos bordes, en todas las anchuras.
-    // Con `sm:bottom-2` bajaba encima de los mandos en escritorio y no casaba con
-    // la imagen grande.
+    // Con una pantalla compartida en grande —la de Verzy, la de un asesor o la
+    // propia— los mandos flotan encima y se apartan solos; vuelven al mover el
+    // cursor, tocar o pulsar una tecla. Es el MISMO hook que Reuniones
+    // (`useMandosQueSeEsconden`, regla en `lib/mandos-de-la-reunion.ts`).
+    const hayPantallaCompartida =
+        disp.grande === "pantalla-verzy" || disp.grande === "asesor-pantalla" || pantallaOn;
+    const mandosFlotan = estado === "dentro" && hayPantallaCompartida;
+    const mandos = useMandosQueSeEsconden({ activo: mandosFlotan });
+    const mandosOcultos = mandosFlotan && !mandos.seVen;
+    // La miniatura va encima de la barra de mandos y a 8 px de los bordes, en
+    // todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos.
     const MINI = "absolute bottom-[4.5rem] right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:h-32 sm:w-48";
-    const GRANDE = "absolute inset-x-0 top-0 bottom-16 bg-black";
+    // Con los mandos flotando, lo grande ocupa toda la caja: una franja de
+    // 64 px vacía cuando los mandos se apartan se lee como un hueco.
+    const ABAJO = mandosFlotan ? "bottom-0" : "bottom-16";
+    const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
     return (
         <main
@@ -720,7 +732,7 @@ export default function SalaDeLaVideollamada({
                 <section
                     data-zona="pantalla-del-avatar"
                     data-destino={pantallaQueSeVe}
-                    className="absolute inset-x-0 top-0 bottom-16 flex flex-col"
+                    className={`absolute inset-x-0 top-0 ${ABAJO} flex flex-col`}
                 >
                     <header className="flex h-10 shrink-0 items-center gap-2 px-4 text-sm text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
@@ -792,7 +804,19 @@ export default function SalaDeLaVideollamada({
                     Toca aquí para escuchar a Verzy
                 </button>
             )}
-            <div data-zona="mandos" className="absolute inset-x-0 bottom-0 z-10 flex min-h-16 flex-wrap items-center justify-center gap-2 px-2 py-3">
+            <div
+                data-zona="mandos"
+                data-flotan={mandosFlotan ? "si" : "no"}
+                data-ocultos={mandosOcultos ? "si" : "no"}
+                onMouseEnter={() => mandos.fijar("encima", true)}
+                onMouseLeave={() => mandos.fijar("encima", false)}
+                onFocus={() => mandos.mostrar()}
+                // Escondidos NO se pueden pulsar: un «Salir» invisible que
+                // responde al clic es colgar sin querer.
+                className={`absolute inset-x-0 bottom-0 z-10 flex min-h-16 flex-wrap items-center justify-center gap-2 px-2 py-3 transition-opacity duration-300 ${
+                    mandosFlotan ? "bg-gradient-to-t from-slate-950/80 to-transparent" : ""
+                } ${mandosOcultos ? "pointer-events-none opacity-0" : "opacity-100"}`}
+            >
                 {estado === "dentro" && (
                     <>
                         <button
