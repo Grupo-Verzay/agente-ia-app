@@ -229,6 +229,7 @@ export default function SalaDeLaVideollamada({
     const [estado, setEstado] = useState<Estado>("entrando");
     const [pistas, setPistas] = useState<Pistas>(SIN_PISTAS);
     const [camOn, setCamOn] = useState(true);
+    const [micOn, setMicOn] = useState(true);
     const [pantallaOn, setPantallaOn] = useState(false);
     const [sinSonido, setSinSonido] = useState(false);
     // Compartir pantalla solo se ofrece donde el navegador lo deja (un iPhone no).
@@ -432,6 +433,7 @@ export default function SalaDeLaVideollamada({
         const refrescar = () => {
             setPistas(lasPistas(llamada, esAsesor));
             setCamOn(!!llamada.participants().local?.video);
+            setMicOn(!!llamada.participants().local?.audio);
         };
         // Se cayó: se vuelve a pedir la sala al servidor (misma conversación
         // si sigue viva) y se entra otra vez, con esperas crecientes.
@@ -747,14 +749,23 @@ export default function SalaDeLaVideollamada({
                     Toca aquí para escuchar a Verzy
                 </button>
             )}
-            <div data-zona="mandos" className="absolute inset-x-0 bottom-0 z-10 flex h-16 items-center justify-center gap-2 px-2">
+            <div data-zona="mandos" className="absolute inset-x-0 bottom-0 z-10 flex min-h-16 flex-wrap items-center justify-center gap-2 px-2 py-3">
                 {estado === "dentro" && (
                     <>
                         <button
                             type="button"
+                            data-mando="microfono"
+                            aria-pressed={!micOn}
+                            onClick={() => llamadaRef.current?.setLocalAudio(!micOn)}
+                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${micOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                        >
+                            {micOn ? "Silenciar" : "Activar micrófono"}
+                        </button>
+                        <button
+                            type="button"
                             data-mando="camara"
                             onClick={() => llamadaRef.current?.setLocalVideo(!camOn)}
-                            className={`rounded-full px-4 py-2 text-sm font-medium ${camOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${camOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
                         >
                             {camOn ? "Apagar cámara" : "Encender cámara"}
                         </button>
@@ -763,7 +774,7 @@ export default function SalaDeLaVideollamada({
                                 type="button"
                                 data-mando="pantalla"
                                 onClick={alternarPantalla}
-                                className={`rounded-full px-4 py-2 text-sm font-medium ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
+                                className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
                             >
                                 {pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
                             </button>
