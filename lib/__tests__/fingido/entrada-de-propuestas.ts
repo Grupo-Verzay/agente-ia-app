@@ -15,6 +15,8 @@ export {
     borrarPropuestaAction,
     ponerEsloganAction,
     enviarPropuestaPorWhatsappAction,
+    propuestaDesdeElChatAction,
+    crearYEnviarPropuestaDesdeElChatAction,
 } from "@/actions/propuestas-actions";
 export { laPropuestaPublica, elLogoQueSeEnsena } from "@/lib/propuestas-db";
 export { db } from "@/lib/db";

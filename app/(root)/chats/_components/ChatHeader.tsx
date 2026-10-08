@@ -39,6 +39,7 @@ import { MenuDeLlamada } from '@/components/chats/MenuDeLlamada';
 import { elDestinoDeLaConversacion } from '@/lib/destino-de-la-llamada';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
+import { ChatPropuestaPanel } from './ChatPropuestaPanel';
 import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
 import { RECORTE_A_LO_ANCHO, TIPOGRAFIA_DEL_NOMBRE } from '@/lib/nombre-del-contacto';
@@ -804,6 +805,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {advisorBadge}
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
+              <ChatPropuestaPanel instanceName={instanceName} destino={destinoDeLaLlamada ?? ''} pushName={session.pushName} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}
                 userId={session.userId}
@@ -972,6 +974,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {advisorBadge}
                 {/* 2. CRM / agenda */}
                 <ChatReminderDialog session={session!} userId={userId} />
+                <ChatPropuestaPanel instanceName={instanceName} destino={destinoDeLaLlamada ?? ''} pushName={session.pushName} />
                 <ChatAppointmentStatusButton
                   sessionId={session.id}
                   userId={session.userId}

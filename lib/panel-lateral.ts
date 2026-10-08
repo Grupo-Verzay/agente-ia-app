@@ -229,6 +229,8 @@ export const PANEL_DEL_EQUIPO = "panel-chat-equipo";
 export const PANEL_DEL_CONTEXTO = "panel-contexto-del-lead";
 export const PANEL_DEL_RECORDATORIO = "panel-crear-recordatorio";
 export const PANEL_DE_LA_TAREA = "panel-nueva-tarea";
+/** Armar una propuesta comercial y mandarla a la conversación abierta. */
+export const PANEL_DE_LA_PROPUESTA = "panel-propuesta";
 /**
  * La ficha de Contacto. Es un `PanelLateral` como los demás: misma franja,
  * mismo deslizamiento, misma exclusión y reserva la franja igual.
