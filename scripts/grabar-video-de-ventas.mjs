@@ -113,7 +113,7 @@ const ahora = Date.now();
 console.log("· archivos de la historia");
 const medios = await generarLosMedios(MEDIOS_DIR, { chromium, ahora });
 const cal = medios.calendario;
-console.log("· clínica sembrada");
+console.log("· cuenta sembrada");
 const sembrado = await sembrarLaClinica({ db, embudos, ahora });
 
 let rt = null;
@@ -155,7 +155,7 @@ const AVISO = elAvisoDeMensaje(voz.gancho.audio.frecuencia);
  */
 const TONO = elTonoDeLlamada(voz.gancho.audio.frecuencia);
 const RESPIRO_EN_LA_LLAMADA_MS = 350;
-const EN_LA_LLAMADA = LA_LLAMADA.map((l) => ({
+const EN_LA_LLAMADA = (LA_LLAMADA ?? []).map((l) => ({
     ...l,
     quien: l.quien === "ia" ? `${NEGOCIO.asistente} (IA):` : `${CLIENTA.nombreDeWhatsapp}:`,
     audio: porTelefono(acortarLasPausas(leerWav(wavDeLaCache(l.texto, CACHE_DE_VENTAS, LA_VOZ_EN_LA_LLAMADA[l.quien])))),
@@ -329,7 +329,7 @@ const ENCONTRAR = {
         const r = e.getBoundingClientRect();
         return r.width ? { x: r.x, y: r.y, w: r.width, h: r.height } : null;
     },
-    filaDeLaura: (jid) => {
+    filaDelCliente: (jid) => {
         const e = document.querySelector(`[data-chat-id="${jid}"]`);
         if (!e) return null;
         const r = e.getBoundingClientRect();
@@ -380,13 +380,13 @@ const ENCONTRAR = {
         const r = e.getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
     },
-    eventoDeLaura: (nombre) => {
+    eventoDelCliente: (nombre) => {
         const e = [...document.querySelectorAll(".fc-event")].find((x) => x.textContent.includes(nombre));
         if (!e) return null;
         const r = e.getBoundingClientRect();
         return r.width ? { x: r.x, y: r.y, w: r.width, h: r.height } : null;
     },
-    tarjetaDeLaura: ([numero, etapa]) => {
+    tarjetaDelCliente: ([numero, etapa]) => {
         const a = document.querySelector(`a[href*="${numero}"]`);
         const t = a?.closest(".rounded-lg.border");
         if (!t) return null;
@@ -647,10 +647,10 @@ await espera(p, ESPERA_DEL_PRIMER_MENSAJE_MS - 900);
     }
 }
 await llega("M01", { banner: true });
-await esperarEn("app", ENCONTRAR.filaDeLaura, CLIENTA.jid, { ms: 13_000, que: "la fila de Laura en el panel" });
+await esperarEn("app", ENCONTRAR.filaDelCliente, CLIENTA.jid, { ms: 13_000, que: "la fila de Laura en el panel" });
 await espera(p, 700);
 // El negocio la abre en las tres pantallas.
-const fila = await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid);
+const fila = await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid);
 await pulsarEn(fila, { ms: 700, antes: () => clicEn("app", `[data-chat-id="${CLIENTA.jid}"] button`, CLIENTA.nombreDeWhatsapp) });
 await est("tel.abrir");
 await est("web.abrir");
@@ -757,7 +757,7 @@ await decir("caliente");
 await alDecir("calificada");
 {
     await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, "Caliente"], { ms: 6_000, que: "Caliente en la fila" }).catch(() => null);
-    const marcas = [{ c: await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid), texto: "Caliente · Interesado · Promo Instagram", abajo: true }];
+    const marcas = [{ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: "Caliente · Interesado · Promo Instagram", abajo: true }];
     const origen = await enElCuadro("app", ENCONTRAR.campoDeLaFicha, ["Cómo nos conoció", "Instagram"]);
     if (origen) marcas.push({ c: origen, texto: "Origen: Instagram" });
     await anillos(marcas);
@@ -816,12 +816,12 @@ await espera(p, 700);
 await clicEn("agenda", "button,a,[role=tab]", "Dashboard");
 await esperarEn("agenda", () => !!document.querySelector(".fc-semanaBtn-button"), null, { que: "la agenda otra vez" });
 await clicEn("agenda", ".fc-semanaBtn-button");
-await esperarEn("agenda", ENCONTRAR.eventoDeLaura, "Laura", { que: "la cita de Laura en la agenda" });
+await esperarEn("agenda", ENCONTRAR.eventoDelCliente, "Laura", { que: "la cita de Laura en la agenda" });
 await alDecir("en tu calendario", 900);
 await est("plano", PLANOS.panel);
 await est("mostrarApp", "agenda");
 await espera(p, 1250);
-await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDeLaura, "Laura"), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
+await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDelCliente, "Laura"), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
 await captura("cita");
 await acabar(1200);
 
@@ -843,7 +843,7 @@ await espera(p, 1600);
 {
     const confirmada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, "Cita confirmada"], { ms: 5_000, que: "la etapa en la fila" }).catch(() => null);
     const marcas = [];
-    if (confirmada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid), texto: "Cita confirmada", abajo: true });
+    if (confirmada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: "Cita confirmada", abajo: true });
     marcas.push({ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M14"]), texto: "Confirmó" });
     await anillos(marcas);
 }
@@ -860,7 +860,7 @@ await llega("M16");
 {
     const asignada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, ASESORA_INICIALES], { ms: 6_000, que: "la asesora en la fila" }).catch(() => null);
     const marcas = [{ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M15"]), texto: "Pidió hablar con alguien" }];
-    if (asignada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDeLaura, CLIENTA.jid), texto: `Asignada a ${ASESORA.nombre}`, abajo: true });
+    if (asignada) marcas.push({ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: `Asignada a ${ASESORA.nombre}`, abajo: true });
     await anillos(marcas);
 }
 await captura("asesor");
@@ -869,13 +869,13 @@ await acabar(600);
 // 11. El embudo: cada cliente en su etapa.
 await anillos([]);
 await clicEn("embudo", '[aria-label="Actualizar"]');
-await esperarEn("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO, "Cita confirmada"], { que: "la tarjeta de Laura en Cita confirmada" });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, "Cita confirmada"], { que: "la tarjeta de Laura en Cita confirmada" });
 await capacidad("embudo");
 await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
 await decir("embudo");
 await espera(p, 1300);
-await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO]), texto: "Laura, en Cita confirmada", abajo: true }]);
+await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: "Laura, en Cita confirmada", abajo: true }]);
 await espera(p, 700);
 await captura("embudo");
 await alDecir("con toda su historia", 400);
@@ -922,7 +922,7 @@ await espera(p, 1600);
     if (r) await anillos([{ c: r, texto: `${ASESORA.nombre}, de Ventas`, abajo: true }]);
 }
 await esperarEn("embudo", ENCONTRAR.porSelector, '[data-filtro="asesor"]', { ms: 20_000, que: "el embudo filtrado" });
-await esperarEn("embudo", ENCONTRAR.tarjetaDeLaura, [NUMERO, "Cita confirmada"], { ms: 20_000, que: "Laura en el embudo de la asesora" });
+await esperarEn("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO, "Cita confirmada"], { ms: 20_000, que: "Laura en el embudo de la asesora" });
 await alDecir("con su propio embudo", 500);
 await anillos([]);
 await est("plano", PLANOS.panel);
