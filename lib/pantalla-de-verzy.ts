@@ -15,6 +15,14 @@
 /** Prefijos que NO son una pantalla, o que sacarían a Verzy de su sesión. Es seguridad, no navegación. */
 export const RUTAS_PROHIBIDAS = ["/api", "/_next", "/login", "/register", "/logout", "/auth", "/videollamada", "/reunion", "/abrir"] as const;
 
+/**
+ * Donde se ven los precios: la sección de planes de la landing. La vista de
+ * planes de dentro de la plataforma (`/planes`, con sesión) ya no existe: lleva
+ * aquí. Verzy, si pide «/planes» a secas, aterriza aquí directo, sin pasar por
+ * la redirección (que dibujaba un salto en la pantalla compartida).
+ */
+export const LOS_PRECIOS_DE_LA_LANDING = "/inicio#pricing";
+
 /** Tope del largo de una ruta, para que no se cuele cualquier cosa. */
 export const TOPE_DE_LA_RUTA = 300;
 
@@ -48,6 +56,7 @@ export function comoRutaDeVerzy(valor: unknown): LugarDeVerzy | null {
     // cliente pueda ver, y era lo que mandaba Verzy con la ruta vacía (404).
     if (camino === "" || camino === "/") return null;
     if (RUTAS_PROHIBIDAS.some((p) => camino === p || camino.startsWith(`${p}/`))) return null;
+    if (camino === "/planes" || camino === "/planes/") return LOS_PRECIOS_DE_LA_LANDING;
     return v as LugarDeVerzy;
 }
 

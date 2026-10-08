@@ -146,7 +146,6 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/cotizaciones" },
     { route: "/credits" },
     { route: "/messages" },
-    { route: "/planes" },
     { route: "/qr" },
     { route: "/tools/docs" },
     { route: "/tools/drive" },

@@ -106,9 +106,9 @@ const COMMANDS = [
     keywords: ["configurar ia", "api key", "openai", "modelo", "proveedor"],
   },
   {
-    label: "Ver planes",
-    description: "Abrir planes y pagos",
-    href: "/planes",
+    label: "Plan y facturación",
+    description: "Ver tu plan, pagar y renovar",
+    href: "/profile",
     Icon: CreditCard,
     keywords: ["planes", "plan", "pago", "facturacion", "suscripcion"],
   },
