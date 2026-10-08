@@ -24,9 +24,11 @@ interface Props {
    * lista otra vez, y de ahi el "tarda mucho".
    */
   onChanged?: (status: boolean) => void;
+  /** Version corta (h-5 w-9) para ir junto al nombre. Sin ella, la de siempre. */
+  compact?: boolean;
 }
 
-export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged }: Props) => {
+export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged, compact }: Props) => {
   const [localChecked, setLocalChecked] = useState(checked);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -72,7 +74,7 @@ export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged }: 
       onCheckedChange={handleUpdateClientStatus}
       aria-label={localChecked ? 'Desactivar cliente' : 'Activar cliente'}
       className={cn(
-        'relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-300',
+        compact ? 'relative inline-flex h-5 w-9 shrink-0' : 'relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-300',
         'border-gray-300 bg-gray-400',
         'data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/30 focus-visible:ring-offset-2',
@@ -81,14 +83,15 @@ export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged }: 
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          'pointer-events-none flex h-6 w-6 items-center justify-center rounded-full bg-background shadow-sm',
+          'pointer-events-none flex items-center justify-center rounded-full bg-background shadow-sm',
+          compact ? 'h-3.5 w-3.5' : 'h-6 w-6',
           'transition-transform duration-300 will-change-transform',
-          'translate-x-1 data-[state=checked]:translate-x-7'
+          compact ? 'translate-x-0.5 data-[state=checked]:translate-x-[18px]' : 'translate-x-1 data-[state=checked]:translate-x-7'
         )}
       >
         <User
           className={cn(
-            'h-3.5 w-3.5 transition-colors duration-300',
+            compact ? 'h-2 w-2 transition-colors duration-300' : 'h-3.5 w-3.5 transition-colors duration-300',
             'text-gray-500',
             'data-[state=checked]:text-green-500'
           )}
