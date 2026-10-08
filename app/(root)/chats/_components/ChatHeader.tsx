@@ -439,6 +439,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       checked={session.status ?? false}
       mutateSessions={onSessionMutate}
       onChanged={onSessionStatusChange}
+      compact
     />
   );
 
@@ -768,14 +769,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
           {session ? (
             <div className="flex items-center gap-1.5 flex-shrink-0">
+              <Badge variant="outline" data-estado-de-sesion className={`${sessionStatusTone} text-xs py-0.5`}>
+                {session.status ? 'Activa' : 'Pausada'}
+              </Badge>
+              {sessionToggle}
               <button
                 type="button"
                 onClick={() => setMobileToolsOpen((v) => !v)}
+                aria-label="Mostrar herramientas"
                 className="flex items-center gap-1 rounded-md"
               >
-                <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
-                  {session.status ? 'Activa' : 'Pausada'}
-                </Badge>
                 <ChevronDown
                   className={cn(
                     'h-3 w-3 text-muted-foreground transition-transform duration-200',
@@ -842,8 +845,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               {selectorDeEtapa}
               {tagsCombobox}
-              {/* 4. Gestión */}
-              {sessionToggle}
             </div>
           </div>
         )}
