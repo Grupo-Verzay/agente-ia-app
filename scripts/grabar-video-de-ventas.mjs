@@ -700,6 +700,11 @@ await presencia("grabando");
 await espera(p, 1300);
 await presencia(null);
 if (CASO === "tienda") {
+    // El catálogo y el video del producto llegan antes de la nota de voz.
+    await llega("M03");
+    await espera(p, 400);
+    await llega("M04");
+    await espera(p, 600);
     // La nota de voz del cliente: se transcribe, y la IA contesta por texto con su talla.
     await llega("M05");
     await espera(p, 250);
@@ -760,18 +765,27 @@ await capacidad("sheets");
 await est("plano", PLANOS.sheets);
 await espera(p, 500);
 await decir("sheets");
-await alDecir("quedan guardados", 200);
+await alDecir(CASO === "tienda" ? "queda anotado" : "quedan guardados", 200);
 await est("hoja");
 await espera(p, 1000);
 await anillos([{ c: await p.evaluate(() => {
     const b = document.querySelector("#sheets tr.laura").getBoundingClientRect();
     return { x: b.x, y: b.y, w: b.width, h: b.height };
-}), texto: "Nombre, servicio y financiación", abajo: true }]);
+}), texto: CASO === "tienda" ? "Nombre, producto y total" : "Nombre, servicio y financiación", abajo: true }]);
 await captura("sheets");
 await acabar(700);
 
 // 6. Archivos: PDF, video e imagen.
 await anillos([]);
+if (CASO === "tienda") {
+    // La guía de tallas en PDF; el catálogo y el video ya salieron.
+    await est("plano", PLANOS.telWeb);
+    await espera(p, 400);
+    await llega("M07");
+    await espera(p, 1200);
+    await captura("medios");
+    await acabar(600);
+} else {
 await capacidad("medios");
 await est("plano", PLANOS.telWeb);
 await espera(p, 400);
@@ -785,6 +799,8 @@ await alDecir("entiende la imagen", 700);
 await llega("M07");
 await captura("medios");
 await acabar(900);
+
+}
 
 // 7. Caliente: calificación, etiquetas y etapa, solas.
 await capacidad("caliente");
