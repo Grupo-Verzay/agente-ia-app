@@ -596,6 +596,7 @@ const acabar = async (respiro = 0) => {
     await est("subtitulo", "");
 };
 const capacidad = async (escena2) => {
+    if (typeof CAPACIDADES[0] === "string") return; // Tienda: la lista es de textos, sin escena
     const i = CAPACIDADES.findIndex((c) => c.escena === escena2);
     await est("capacidad", i + 1, CAPACIDADES[i].titulo, CAPACIDADES[i].detalle);
 };
@@ -802,6 +803,89 @@ await acabar(900);
 
 }
 
+if (CASO === "tienda") {
+    // 7. El carrito: elige color, la IA ofrece unas medias y Mateo acepta.
+    await est("plano", PLANOS.panel);
+    await llega("M08");
+    await decir("carrito");
+    await alDecir("Arma el carrito", 100);
+    await llega("M09");
+    await alDecir("Mateo dice que sí", 300);
+    await llega("M10");
+    await llega("M11");
+    await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, "Caliente"], { ms: 6_000, que: "Caliente en la fila" }).catch(() => null);
+    await anillos([{ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: "En carrito", abajo: true }]);
+    await captura("caliente");
+    await acabar(600);
+
+    // 8. El pago: link de pago y ficha con el pedido.
+    await anillos([]);
+    await llega("M12");
+    await decir("pago");
+    await alDecir("link de pago", 200);
+    await llega("M13");
+    await alDecir("se llena sola", 300);
+    await captura("pago");
+    await acabar(500);
+
+    // 9. Seguimiento: una hora después, sin pago; la IA recuerda el carrito.
+    await est("cartel", "1 hora después", `${NOMBRE_CORTO} no ha pagado`, "reloj");
+    await ctx.clock.setSystemTime(new Date(cal.seguimiento));
+    await est("plano", PLANOS.telWeb, { ms: 10 });
+    await decir("seguimiento");
+    await est("cartel", "");
+    await llega("M14");
+    await alDecir("la venta se recupera", 300);
+    await llega("M15");
+    await llega("M16");
+    await captura("seguimiento");
+    await acabar(500);
+
+    // 10. Envío: dirección, despacho y guía en PDF.
+    await est("cartel", "Al día siguiente", "El pedido sale despachado", "calendario");
+    await ctx.clock.setSystemTime(new Date(cal.despacho));
+    await est("plano", PLANOS.telPanel, { ms: 10 });
+    await espera(p, 1000);
+    await est("cartel", "");
+    await decir("envio");
+    await llega("M17");
+    await llega("M18");
+    await llega("M19");
+    await alDecir("guía de envío", 300);
+    await llega("M20");
+    await captura("envio");
+    await acabar(500);
+
+    // 11. Recordatorio de entrega: el aviso y la pregunta del cliente.
+    await est("cartel", "Día de la entrega", "El aviso sale solo", "calendario");
+    await ctx.clock.setSystemTime(new Date(cal.recordatorio));
+    await espera(p, 1000);
+    await est("cartel", "");
+    await decir("recordatorio");
+    await llega("M21");
+    await alDecir("dónde va", 200);
+    await llega("M22");
+    await llega("M23");
+    await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, ETAPA_CONFIRMADA], { ms: 5_000, que: "la etapa en la fila" }).catch(() => null);
+    await anillos([{ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: ETAPA_CONFIRMADA, abajo: true }]);
+    await captura("recordatorio");
+    await acabar(500);
+
+    // 12. Un cambio: la conversación pasa a una asesora de soporte.
+    await anillos([]);
+    await ctx.clock.setSystemTime(new Date(cal.cambio));
+    await llega("M24");
+    await decir("asesor");
+    await alDecir("pasa directo", 300);
+    await llega("M25");
+    await llega("M26");
+    {
+        const asignada = await esperarEn("app", ENCONTRAR.textoEnLaFila, [CLIENTA.jid, ASESORA_INICIALES], { ms: 6_000, que: "la asesora en la fila" }).catch(() => null);
+        if (asignada) await anillos([{ c: await enElCuadro("app", ENCONTRAR.filaDelCliente, CLIENTA.jid), texto: `Asignada a ${ASESORA.nombre}`, abajo: true }]);
+    }
+    await captura("asesor");
+    await acabar(600);
+} else {
 // 7. Caliente: calificación, etiquetas y etapa, solas.
 await capacidad("caliente");
 await est("plano", PLANOS.panel);
@@ -922,6 +1006,7 @@ await llega("M16");
 }
 await captura("asesor");
 await acabar(600);
+}
 
 // 11. El embudo: cada cliente en su etapa.
 await anillos([]);
