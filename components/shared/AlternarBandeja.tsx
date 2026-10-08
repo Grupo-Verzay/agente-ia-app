@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Home, Mail, MessageCircle } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Home, Mail, MessageCircle, Phone } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { resolveModuleItemDest } from "@/lib/canva-embed";
 import { useModuleStore } from "@/stores/modules/useModuleStore";
 import {
     BANDEJAS,
     dondeVaElSelector,
     HUECO_DE_LA_BARRA_PX,
     laBandejaActiva,
+    lasBandejasQueSeVen,
     seVeLaBarritaDeBandejas,
     type SinLeerDeLasBandejas,
 } from "@/lib/alternar-bandejas";
@@ -21,7 +24,7 @@ import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
 import { esVarianteDePanel } from "@/lib/sidebar-modules";
 import { cn } from "@/lib/utils";
 
-const ICONO = { chats: MessageCircle, correo: Mail } as const;
+const ICONO = { chats: MessageCircle, correo: Mail, llamadas: Phone } as const;
 
 /** Hueco entre el selector y lo que tiene a cada lado: el MISMO que hay
  *  entre los botones de la derecha (`gap-2` en la barra). */
@@ -108,6 +111,13 @@ export function AlternarBandeja({
 }) {
     const pathname = usePathname();
     const seVe = useSeVeLaBarritaDeBandejas();
+    const router = useRouter();
+    const setLabelModule = useModuleStore((s) => s.setLabelModule);
+    const modulosDelMenu = useModuleStore((s) => s.modules);
+    const bandejas = useMemo(
+        () => lasBandejasQueSeVen(modulosDelMenu.flatMap((m) => [m.route, ...(m.moduleItems ?? []).map((i) => i.url)])),
+        [modulosDelMenu],
+    );
     const panel = useModuleStore((s) => s.modules.find((m) => esVarianteDePanel(m.route)) ?? null);
     const conCasita = !!panel;
     const activo = seVe || conCasita;
@@ -139,9 +149,10 @@ export function AlternarBandeja({
         }
         const siguiente = dondeVaElSelector({
             columna: { izquierda: columna.left - b.left, ancho: columna.width },
-            minimo,
-            // El sitio de la casita, reservado: así no pisa nada.
-            maximo: d.left - b.left - HUECO_PX - (conCasita ? CASITA_PX + HUECO_PX : 0),
+            // La casita va justo tras el menú; el selector arranca después de ella.
+            minimo: minimo + (conCasita ? CASITA_PX + HUECO_PX : 0),
+            maximo: d.left - b.left - HUECO_PX,
+            cuantas: bandejas.length,
         });
         setSitio((antes) =>
             antes &&
@@ -151,7 +162,7 @@ export function AlternarBandeja({
                 ? antes
                 : { izquierda: siguiente.izquierda, ancho: siguiente.ancho, compacto: siguiente.compacto },
         );
-    }, [barra, izquierda, derecha, conCasita]);
+    }, [barra, izquierda, derecha, conCasita, bandejas.length]);
 
     useLayoutEffect(() => {
         if (activo) medir();
@@ -182,13 +193,21 @@ export function AlternarBandeja({
     if (!activo) return null;
     const compacto = sitio?.compacto ?? true;
     const enElPanel = !!panel && (pathname === panel.route || !!pathname?.startsWith(panel.route + "/"));
-    const izquierdaDeLaCasita = seVe ? (sitio ? sitio.izquierda + sitio.ancho + HUECO_PX : null) : inicio;
+    const izquierdaDeLaCasita = inicio;
 
     return (
         <>
             {panel && (
                 <Link
                     href={panel.route}
+                    onClick={(e) => {
+                        // Igual que el icono del menú lateral: mismo destino y misma etiqueta.
+                        e.preventDefault();
+                        const sub = (panel.moduleItems ?? [])[0];
+                        const destino = sub?.url ? sub.url.replace("/admin/", "/panel/") : panel.route;
+                        setLabelModule(panel.label);
+                        router.push(resolveModuleItemDest(destino, sub?.customUrl));
+                    }}
                     data-boton-del-panel
                     title="Panel"
                     aria-label="Ir al Panel"
@@ -210,11 +229,11 @@ export function AlternarBandeja({
             {seVe && (<nav
                 data-alternar-bandeja
                 data-compacto={compacto ? "" : undefined}
-                aria-label="Cambiar entre Chats y Correos"
+                aria-label="Cambiar entre Chats, Correos y Llamadas"
                 style={{ left: sitio?.izquierda ?? 0, width: sitio?.ancho, visibility: sitio ? "visible" : "hidden" }}
                 className="absolute top-1/2 flex h-9 -translate-y-1/2 items-center gap-0.5 rounded-md border border-border bg-muted/60 p-px"
             >
-                {BANDEJAS.map((b) => {
+                {bandejas.map((b) => {
                     const Icono = ICONO[b.clave];
                     const esLaActiva = activa === b.clave;
                     const numero = elTextoDelContador(b.ruta, sinLeer);

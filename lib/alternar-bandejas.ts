@@ -1,5 +1,5 @@
 /**
- * El selector de la barra de arriba que alterna entre Chats y Correos sin pasar
+ * El selector de la barra de arriba que alterna entre Chats, Correos y Llamadas sin pasar
  * por el menú. Puro, para poder probarlo sin navegador.
  *
  * Dos reglas:
@@ -12,6 +12,7 @@
 export const BANDEJAS = [
     { clave: "chats", ruta: "/chats", nombre: "Chats" },
     { clave: "correo", ruta: "/correo", nombre: "Correos" },
+    { clave: "llamadas", ruta: "/crm/llamadas", nombre: "Llamadas" },
 ] as const;
 
 export type ClaveDeBandeja = (typeof BANDEJAS)[number]["clave"];
@@ -32,7 +33,13 @@ export function laBandejaActiva(pathname: string | null | undefined): ClaveDeBan
  */
 export function seVeLaBarritaDeBandejas(rutas: (string | null | undefined)[]): boolean {
     const tiene = new Set(rutas.filter((r): r is string => typeof r === "string").map((r) => r.replace(/\/+$/, "")));
-    return BANDEJAS.every((b) => tiene.has(b.ruta));
+    return tiene.has("/chats") && tiene.has("/correo");
+}
+
+/** Las bandejas que se pintan: Chats y Correos siempre; Llamadas solo si está en el menú. */
+export function lasBandejasQueSeVen(rutas: (string | null | undefined)[]) {
+    const tiene = new Set(rutas.filter((r): r is string => typeof r === "string").map((r) => r.replace(/\/+$/, "")));
+    return BANDEJAS.filter((b) => b.clave !== "llamadas" || tiene.has(b.ruta));
 }
 
 // ─── Dónde va el selector ────────────────────────────────────────────────
@@ -74,7 +81,7 @@ export const PESTANA_SOLO_ICONO_PX = 36;
  */
 export const PESTANA_MAXIMA_PX = 160;
 
-const anchoCon = (pestana: number) => pestana * BANDEJAS.length + RELLENO_DEL_SELECTOR_PX;
+const anchoCon = (pestana: number, cuantas: number = BANDEJAS.length) => pestana * cuantas + RELLENO_DEL_SELECTOR_PX;
 export const ANCHO_MINIMO_DEL_SELECTOR = anchoCon(PESTANA_SOLO_ICONO_PX);
 export const ANCHO_CON_PALABRAS = anchoCon(PESTANA_CON_PALABRA_PX);
 export const ANCHO_MAXIMO_DEL_SELECTOR = anchoCon(PESTANA_MAXIMA_PX);
@@ -88,8 +95,14 @@ export function dondeVaElSelector(entrada: {
     columna: { izquierda: number; ancho: number };
     minimo: number;
     maximo: number;
+    /** Cuántas pestañas se pintan (2 o 3). */
+    cuantas?: number;
 }): { izquierda: number; ancho: number; compacto: boolean; centrado: boolean } {
     const { columna, minimo, maximo } = entrada;
+    const cuantas = entrada.cuantas ?? BANDEJAS.length;
+    const ANCHO_MINIMO_DEL_SELECTOR = anchoCon(PESTANA_SOLO_ICONO_PX, cuantas);
+    const ANCHO_CON_PALABRAS = anchoCon(PESTANA_CON_PALABRA_PX, cuantas);
+    const ANCHO_MAXIMO_DEL_SELECTOR = anchoCon(PESTANA_MAXIMA_PX, cuantas);
     const inicio = Math.round(minimo);
     const centro = Math.round(columna.izquierda + columna.ancho / 2);
     const cabe = (ancho: number) => inicio + ancho <= maximo;
