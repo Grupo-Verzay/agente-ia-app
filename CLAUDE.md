@@ -27813,6 +27813,19 @@ Lo prueban `scripts/banco-notas-de-verzy.sh` (la regla y un barrido; `MODO=roto`
 
 Lo prueba `scripts/banco-barra-de-la-videollamada.sh` con la sala montada a 1440×900, 1024×768, 768×1024 y 390×844 (la imagen entera, su forma real, encima de la barra); `MODO=roto` contra `60d2a1b` afirma el recorte.
 
+## Videollamada: sin páginas de error, el dispositivo del cliente, y el video crece al esconder los mandos
+
+> **Manda sobre la sección de arriba** en el borde de abajo: con los mandos escondidos la pantalla compartida baja a `bottom-0`.
+
+1. **Nunca se ve una página de error** (`ERR_CONNECTION_REFUSED`, `chrome-error://`…): `esUnaPaginaDeError` (`lib/pantalla-de-verzy.ts`) la reconoce, el screencast no manda sus fotogramas, `cargar` la cuenta como fallo y el ciclo vuelve a la pantalla anterior.
+2. **Los mismos 4 mandos en el móvil que en el PC** (silenciar, cámara, compartir, salir), centrados y simétricos; la barra deja `px-28 sm:px-32` a los lados para la miniatura.
+3. **La pantalla emula el dispositivo del cliente**: la sala manda `dispositivo` (`elDispositivo`) con el tamaño, y el servidor pone métricas (dpr 2 y móvil fuera del PC), `AGENTE_DEL_DISPOSITIVO` y táctil por CDP; si cambia el dispositivo, recarga.
+4. **Al esconderse los mandos el video baja a `bottom-0`** con una transición de 300 ms (`elAbajoDeLoGrande`); al volver, sube a `bottom-20` y nada queda tapado. El tamaño que se pide al servidor cuenta ese hueco.
+5. **Una cámara vertical lleva miniatura vertical** (`miniDe`).
+6. **Más rápida**: calma de red 400 ms, esperas tras clic y rueda más cortas, bajar al ancla topado en 1 s.
+
+Lo prueban `banco-tamano-de-la-pantalla.sh`, `banco-mandos-de-la-videollamada.sh`, `banco-barra-de-la-videollamada.sh` y `banco-disposicion-videollamada.sh` a 390×844, 768×1024 y 1440×900. `banco-video-de-verzy.sh` tiene tres fallos que ya da `main` (moverse a Chats, la nota y volver de /inicio): no son de esto.
+
 ### Y desde el CHAT: el icono de propuestas de la cabecera
 
 La cabecera de una conversación lleva, junto a notas, recordatorio y Google
