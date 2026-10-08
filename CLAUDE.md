@@ -27580,7 +27580,10 @@ servidor la carga. Nada más.
 3. **Una ruta que no existe NO es un ok**: un 404 o un 5xx se le cuenta a Verzy
    (`loQueSeLeCuentaAVerzy`) para que no diga que la ve. Mientras habla, la
    pantalla puesta solo se recorre; nunca cambia por su voz.
-4. **Si el código vuelve a decidir una ruta, está mal**: el banco falla si
+4. **La única excepción es sanear `/planes`** (pide sesión y en la pantalla no
+   abre): `comoRutaDeVerzy` la cambia por `LOS_PRECIOS_DE_LA_LANDING`
+   (`/inicio#pricing`). No es navegación: es una dirección que no funciona.
+5. **Si el código vuelve a decidir una ruta, está mal**: el banco falla si
    reaparece una tabla (`LUGARES_DE_LA_LANDING`, `DESTINOS_DE_VERZY`,
    `PAGINAS_DEL_AVATAR`…) o una ruta escrita en esos ficheros.
 
