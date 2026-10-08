@@ -222,7 +222,7 @@ rt = await servirElTiempoReal(ctx);
 const LOGO_DEL_NEGOCIO = CASO === "tienda" ? "logo-nativa.png" : "logo-sonrie.png";
 const PORTADA_DEL_DOCUMENTO = CASO === "tienda" ? "guia-de-tallas.jpg" : "lista-de-precios.jpg";
 const archivos = Object.fromEntries(
-    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), ...Object.values(MEDIOS_DEL_MONTAJE).map((m) => m.archivo), PORTADA_DEL_DOCUMENTO, LOGO_DEL_NEGOCIO])].map((f) => [
+    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada ?? (m.archivo.endsWith(".pdf") ? m.archivo.replace(/\.pdf$/, ".jpg") : null)].filter(Boolean)), ...Object.values(MEDIOS_DEL_MONTAJE).map((m) => m.archivo), PORTADA_DEL_DOCUMENTO, LOGO_DEL_NEGOCIO])].map((f) => [
         f,
         path.join(MEDIOS_DIR, f),
     ]),
@@ -1032,6 +1032,13 @@ await est("plano", PLANOS.panel);
 await est("mostrarApp", "embudo");
 await decir("embudo");
 await espera(p, 1300);
+// El tablero se desplaza a lo ancho: la etapa de la tienda (Entregado) cae fuera
+// de la pantalla, así que se trae a la vista ANTES de medir el aro.
+await (await laCapa("embudo")).evaluate((numero) => {
+    const t = document.querySelector(`a[href*="${numero}"]`)?.closest(".rounded-lg.border");
+    t?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
+}, NUMERO);
+await espera(p, 1200);
 await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_EN_EL_EMBUDO}`, abajo: true }]);
 await espera(p, 700);
 await captura("embudo");
