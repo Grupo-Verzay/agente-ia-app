@@ -37,8 +37,17 @@ export type Disposicion = { grande: LoGrande; mini: LoPequeno };
 /** Lo que dura como mucho la presentación inicial con Verzy en grande. */
 export const TOPE_DE_LA_PRESENTACION_MS = 120_000;
 
-/** El texto de la portada que se ve cuando no se comparte nada. */
-export const TEXTO_DE_LA_PORTADA = "Verzay — Soluciones Digitales con IA";
+/**
+ * La pizarra que se ve cuando no se comparte nada: el NOMBRE y el ESLOGAN van
+ * separados —el nombre grande, el eslogan debajo—, con el logo encima. Juntos
+ * en una sola línea de texto («Verzay — …») no se leía como la marca.
+ */
+export const NOMBRE_DE_LA_PORTADA = "Verzay";
+export const ESLOGAN_DE_LA_PORTADA = "Soluciones Digitales con IA";
+/** El logo de la pizarra, servido desde `public/` (la sala es pública). */
+export const LOGO_DE_LA_PORTADA = "/logo-agente.png";
+/** Lo que dice la pizarra, entero (para lectores de pantalla y el banco). */
+export const TEXTO_DE_LA_PORTADA = `${NOMBRE_DE_LA_PORTADA} — ${ESLOGAN_DE_LA_PORTADA}`;
 
 export function laDisposicion(e: EntradaDeLaDisposicion): Disposicion {
     if (e.asesorAlMando) {

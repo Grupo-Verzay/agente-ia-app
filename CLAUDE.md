@@ -27306,8 +27306,11 @@ La sala (`SalaDeLaVideollamada`) se ve así, y no de otra forma:
    UNO y siempre montado: un recuadro que se monta tarde se queda en negro
    (`usarPista` ya corrió para esa pista). Por eso se quitó el recuadro de la
    cámara propia, que era el que salía negro.
-2. **Dos mandos, centrados: «Apagar cámara» y «Compartir pantalla».** Sin
-   «Silenciar»: el micrófono va abierto y los turnos y el ruido los maneja Tavus.
+2. **Mandos, centrados: «Silenciar», «Apagar cámara», «Compartir pantalla» y
+   «Salir».** El micrófono nace abierto (los turnos y el ruido los maneja
+   Tavus) y se silencia con `setLocalAudio`; el botón lee el estado de Daily
+   (`micOn`, `aria-pressed`) y, silenciado, va en rojo y dice «Activar
+   micrófono». Esto deshace el «sin Silenciar» de antes: se pidió.
 3. **`enviar_por_whatsapp`**: cuando el cliente pide la web, un plan o el pago,
    Verzy llama a la herramienta, la sala la pasa a `/api/videollamada/whatsapp`
    (firmado) y el SERVIDOR arma el enlace (`elEnvioArmado`) y lo manda al número
@@ -27394,6 +27397,17 @@ leída de la base). `MODO=roto` monta la sala de `9c0e76d` y afirma que se
 quedaba muda.
 Lo prueba el mismo banco; `MODO=roto` contra `3d2ff75` afirma que no había
 saludo, ni CRM, y que las notas salían sueltas.
+
+### La pantalla de Verzy ocupa TODO su hueco: el servidor toma la forma de la sala
+
+Compartida, la pantalla salía con franjas vacías a los lados: el Chromium del
+servidor iba fijo a 1280×800 y la sala la encajaba (`object-contain`) en un
+hueco de otra forma. Ahora la sala MIDE su hueco (`ResizeObserver`, con pausa
+de 250 ms) y lo manda como orden `{ tipo: "tamano", ancho, alto }`; el servidor
+pone la ventana de esa forma (`elTamanoDeLaPantalla`, mínimo 1024 de ancho para
+que la plataforma no pase a móvil) y rearranca el screencast con ese tope
+(`cambiarElTamano`). La imagen va `h-full w-full object-contain`. Lo prueba
+`scripts/banco-tamano-de-la-pantalla.sh`; `MODO=roto` lee `47824de`.
 
 ### La sala entiende los DOS formatos de `mostrar_pantalla`, y se cuelga sola
 
@@ -27727,7 +27741,9 @@ Qué va en grande y qué en miniatura lo decide `laDisposicion` (`lib/disposicio
 2. **La cámara del CLIENTE no se pinta nunca.** El asesor entra marcado (`userData: {humano, asesor}`, prop `esAsesor`).
 3. **La llamada tiene límite**: `limiteMinutos` de la cuenta (fábrica `LIMITE_DE_FABRICA_MIN` 30, entre 5 y 240), contado desde que EMPEZÓ (`empezoEn`, no desde que abrió esta pestaña: recargar no lo reinicia). Lo decide `elCierreDeLaSala`; al cumplirse la sala cuelga sola (`colgar("limite")`).
 
-Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (portada, miniatura, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite. `MODO=roto-miniatura` monta la de `47824de` y afirma que, con la pantalla fallando, Verzy volvía a grande. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
+**La portada es una PIZARRA de la marca**, no una línea suelta: fondo de la marca (el degradado del vídeo de ventas), el logo, «Verzay» en grande y el eslogan aparte (`NOMBRE_DE_LA_PORTADA`, `ESLOGAN_DE_LA_PORTADA`, `LOGO_DE_LA_PORTADA`), con `pb-36` en el teléfono para que la miniatura de Verzy no tape el texto.
+
+Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (la pizarra con logo, nombre y eslogan sin que la miniatura los tape, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite, y lee la de `4c84c02` y afirma que la pizarra era una línea suelta, sin logo ni eslogan aparte. `MODO=roto-miniatura` monta la de `47824de` y afirma que, con la pantalla fallando, Verzy volvía a grande. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
 
 ## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
