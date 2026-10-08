@@ -785,45 +785,49 @@ await est("cartel", "Por la tarde", "Laura sigue sin responder: la IA la llama",
 await acabar(300);
 
 // 8b. La llamada con IA: suena, Laura contesta y se les oye hablar.
-await ctx.clock.setSystemTime(new Date(cal.llamada));
-await est("cartel", "");
-await capacidad("llamada");
-await est("plano", PLANOS.telPanel);
-await est("llamada", "sonando");
-sonar("tono", TONO, "tono de llamada");
-await espera(p, TONO.ms + 200);
-await est("llamada", "hablando");
-await espera(p, RESPIRO_EN_LA_LLAMADA_MS);
-for (const l of EN_LA_LLAMADA) {
-    await est("subtitulo", l.texto, l.quien);
-    sonar("llamada", l.audio, l.texto);
-    await espera(p, l.audio.ms + RESPIRO_EN_LA_LLAMADA_MS);
+if (EN_LA_LLAMADA.length) {
+    await ctx.clock.setSystemTime(new Date(cal.llamada));
+    await est("cartel", "");
+    await capacidad("llamada");
+    await est("plano", PLANOS.telPanel);
+    await est("llamada", "sonando");
+    sonar("tono", TONO, "tono de llamada");
+    await espera(p, TONO.ms + 200);
+    await est("llamada", "hablando");
+    await espera(p, RESPIRO_EN_LA_LLAMADA_MS);
+    for (const l of EN_LA_LLAMADA) {
+        await est("subtitulo", l.texto, l.quien);
+        sonar("llamada", l.audio, l.texto);
+        await espera(p, l.audio.ms + RESPIRO_EN_LA_LLAMADA_MS);
+    }
+    await captura("llamada");
+    await est("subtitulo", "");
+    await est("llamada", null);
+    await llega("M11");
+    await espera(p, 900);
 }
-await captura("llamada");
-await est("subtitulo", "");
-await est("llamada", null);
-await llega("M11");
-await espera(p, 900);
 
 // 9. La cita: lo que hablaron, agendado en el calendario.
-await capacidad("cita");
-await decir("cita");
-await alDecir("y la cita", 300);
-await llega("M12");
-// La agenda se entera al volver a montarse (como al entrar a Agenda).
-await clicEn("agenda", "button,a,[role=tab]", "Kanban");
-await espera(p, 700);
-await clicEn("agenda", "button,a,[role=tab]", "Dashboard");
-await esperarEn("agenda", () => !!document.querySelector(".fc-semanaBtn-button"), null, { que: "la agenda otra vez" });
-await clicEn("agenda", ".fc-semanaBtn-button");
-await esperarEn("agenda", ENCONTRAR.eventoDelCliente, "Laura", { que: "la cita de Laura en la agenda" });
-await alDecir("en tu calendario", 900);
-await est("plano", PLANOS.panel);
-await est("mostrarApp", "agenda");
-await espera(p, 1250);
-await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDelCliente, "Laura"), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
-await captura("cita");
-await acabar(1200);
+if (cal.cita) {
+    await capacidad("cita");
+    await decir("cita");
+    await alDecir("y la cita", 300);
+    await llega("M12");
+    // La agenda se entera al volver a montarse (como al entrar a Agenda).
+    await clicEn("agenda", "button,a,[role=tab]", "Kanban");
+    await espera(p, 700);
+    await clicEn("agenda", "button,a,[role=tab]", "Dashboard");
+    await esperarEn("agenda", () => !!document.querySelector(".fc-semanaBtn-button"), null, { que: "la agenda otra vez" });
+    await clicEn("agenda", ".fc-semanaBtn-button");
+    await esperarEn("agenda", ENCONTRAR.eventoDelCliente, "Laura", { que: "la cita de Laura en la agenda" });
+    await alDecir("en tu calendario", 900);
+    await est("plano", PLANOS.panel);
+    await est("mostrarApp", "agenda");
+    await espera(p, 1250);
+    await anillos([{ c: await enElCuadro("agenda", ENCONTRAR.eventoDelCliente, "Laura"), texto: `${elDia(cal.cita)} · ${laHora(cal.cita)}` }]);
+    await captura("cita");
+    await acabar(1200);
+}
 
 // 10. El recordatorio: un día antes, y confirma.
 await anillos([]);
