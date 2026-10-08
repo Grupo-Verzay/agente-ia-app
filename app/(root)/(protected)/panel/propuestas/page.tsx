@@ -21,6 +21,7 @@ export default async function PropuestasPage() {
             origen={r.data.origen}
             lineas={r.data.lineas}
             esloganInicial={r.data.eslogan}
+            saludoInicial={r.data.saludo}
             plantillasIniciales={r.data.plantillas}
             planes={r.data.planes}
         />

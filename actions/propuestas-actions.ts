@@ -33,6 +33,8 @@ import {
     editarPlantilla,
     editarPropuesta,
     elEsloganDe,
+    elSaludoDe,
+    ponerLosAjustes,
     EnlaceOcupado,
     lasPlantillasDe,
     laPropuestaDeLaCuenta,
@@ -125,6 +127,7 @@ export async function listarPropuestasAction(): Promise<
         origen: string;
         lineas: LineaParaEnviar[];
         eslogan: string;
+        saludo: string;
         plantillas: PlantillaDePlan[];
         /** Los planes del panel de Planes que se pueden enlazar. Vacío si no manda en la casa. */
         planes: PlanParaElegir[];
@@ -133,15 +136,16 @@ export async function listarPropuestasAction(): Promise<
     const q = await quienManda();
     if (!q) return NO_AUTORIZADO;
     try {
-        const [propuestas, origen, lineas, eslogan, plantillas, planes] = await Promise.all([
+        const [propuestas, origen, lineas, eslogan, saludo, plantillas, planes] = await Promise.all([
             lasPropuestasDe(q.cuenta),
             elOrigenDeLaApp(),
             lasLineasParaEnviar(q.cuenta),
             elEsloganDe(q.cuenta),
+            elSaludoDe(q.cuenta).catch(() => ""),
             lasPlantillasDe(q.cuenta).then(conLoVigente),
             q.esDeLaCasa().then((casa) => (casa ? losPlanesParaElegir() : [])),
         ]);
-        return { success: true, data: { propuestas, origen, lineas, eslogan, plantillas, planes } };
+        return { success: true, data: { propuestas, origen, lineas, eslogan, saludo, plantillas, planes } };
     } catch (error) {
         console.error("[propuestas] no se pudieron leer", { cuenta: q.cuenta, error: String(error) });
         return { success: false, message: "No se pudieron cargar las propuestas." };
@@ -324,6 +328,26 @@ export async function cargarPlanEnLaPropuestaAction(
     }
 }
 
+/** La configuración de la cuenta: el eslogan y el saludo del envío por WhatsApp. */
+export async function ponerConfiguracionAction(
+    eslogan: unknown,
+    saludo: unknown,
+): Promise<Respuesta<{ eslogan: string; saludo: string }>> {
+    const q = await quienManda();
+    if (!q) return NO_AUTORIZADO;
+    try {
+        const guardado = await ponerLosAjustes(q.cuenta, {
+            eslogan: typeof eslogan === "string" ? eslogan : "",
+            saludo: typeof saludo === "string" ? saludo : "",
+        });
+        revalidatePath(RUTA);
+        return { success: true, data: guardado };
+    } catch (error) {
+        console.error("[propuestas] no se pudo guardar la configuración", { cuenta: q.cuenta, error: String(error) });
+        return { success: false, message: "No se pudo guardar la configuración." };
+    }
+}
+
 /** El eslogan del encabezado de las propuestas de la cuenta. Vacío = ninguno. */
 export async function ponerEsloganAction(eslogan: unknown): Promise<Respuesta<string>> {
     const q = await quienManda();
@@ -401,7 +425,7 @@ async function enviarLaPropuesta(
     const r = await sendViaWhatsAppDispatcher({
         dispatcher,
         remoteJid,
-        text: elMensajeDeWhatsapp(p.cliente, enlace),
+        text: elMensajeDeWhatsapp(p.cliente, enlace, await elSaludoDe(cuenta).catch(() => "")),
     });
     if (!r?.success) {
         console.warn("[propuestas] el envío por WhatsApp no salió", { cuenta, id: p.id, motivo: r?.message });

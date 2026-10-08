@@ -431,10 +431,35 @@ export function elEnlaceDeLaPropuesta(origen: string, p: { token: string; slug?:
     return elEnlacePublico(origen, laLlaveDelEnlace(p));
 }
 
-/** El texto que se abre en WhatsApp para mandar el enlace. */
-export function elMensajeDeWhatsapp(cliente: string, enlace: string): string {
-    const saludo = cliente ? `Hola ${cliente}, ` : "Hola, ";
-    return `${saludo}te comparto la propuesta comercial: ${enlace}`;
+/** El saludo de fábrica al mandar una propuesta; `{cliente}` y `{enlace}` se rellenan al enviar. */
+export const SALUDO_DE_FABRICA =
+    "Hola *{cliente}*, te comparto nuestra propuesta comercial, haz clic en el enlace para conocer los detalles.\n\n👉 {enlace}";
+
+export const TOPE_DE_SALUDO = 600;
+
+/**
+ * El saludo que escribe la cuenta: conserva los saltos de línea, topado.
+ * Vacío, o igual al de fábrica, es «sin saludo propio» (cadena vacía).
+ */
+export function comoSaludo(v: unknown): string {
+    if (typeof v !== "string") return "";
+    const limpio = v.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, TOPE_DE_SALUDO).trim();
+    return limpio === SALUDO_DE_FABRICA ? "" : limpio;
+}
+
+/**
+ * El texto que se manda por WhatsApp: el saludo de la cuenta (o el de fábrica)
+ * con el nombre del cliente y el enlace de ESTA propuesta. Si el saludo no trae
+ * `{enlace}`, el enlace va al final: el mensaje nunca sale sin él.
+ */
+export function elMensajeDeWhatsapp(cliente: string, enlace: string, saludo?: string | null): string {
+    let texto = comoSaludo(saludo ?? "") || SALUDO_DE_FABRICA;
+    const nombre = (cliente ?? "").trim();
+    if (!texto.includes("{enlace}")) texto = `${texto}\n\n👉 {enlace}`;
+    texto = nombre
+        ? texto.split("{cliente}").join(nombre)
+        : texto.replace(/\s*\*?\{cliente\}\*?/g, "").replace(/\s+,/g, ",");
+    return texto.split("{enlace}").join(enlace);
 }
 
 /** El eslogan de la cuenta: una línea, opcional. */

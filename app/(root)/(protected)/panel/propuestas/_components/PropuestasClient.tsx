@@ -5,6 +5,7 @@ import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, Send, Sticky
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -45,7 +46,7 @@ import {
     editarPlantillaAction,
     editarPropuestaAction,
     enviarPropuestaPorWhatsappAction,
-    ponerEsloganAction,
+    ponerConfiguracionAction,
 } from "@/actions/propuestas-actions";
 import {
     comoSeLeeElImporte,
@@ -56,6 +57,8 @@ import {
     elTotal,
     losRotulosDeItems,
     TOPE_DE_ESLOGAN,
+    TOPE_DE_SALUDO,
+    SALUDO_DE_FABRICA,
     type Propuesta,
 } from "@/lib/propuestas";
 import { FormularioDePlantilla, type BorradorDePlantilla } from "./FormularioDePlantilla";
@@ -82,6 +85,7 @@ export function PropuestasClient({
     origen,
     lineas,
     esloganInicial,
+    saludoInicial,
     plantillasIniciales = [],
     planes = [],
 }: {
@@ -89,6 +93,7 @@ export function PropuestasClient({
     origen: string;
     lineas: LineaDelFormulario[];
     esloganInicial: string;
+    saludoInicial: string;
     plantillasIniciales?: PlantillaDePlan[];
     /** Los planes del panel de Planes. Vacío = quien mira no manda en la casa y no enlaza. */
     planes?: PlanParaElegir[];
@@ -107,6 +112,8 @@ export function PropuestasClient({
     const [esloganAbierto, setEsloganAbierto] = useState(false);
     const [borradorEslogan, setBorradorEslogan] = useState(esloganInicial);
     const [guardandoEslogan, setGuardandoEslogan] = useState(false);
+    const [saludo, setSaludo] = useState(saludoInicial);
+    const [borradorSaludo, setBorradorSaludo] = useState(saludoInicial || SALUDO_DE_FABRICA);
     const nombreDeLinea = (n: string) => lineas.find((l) => l.instanceName === n)?.nombre ?? n;
     const [busqueda, setBusqueda] = useState("");
     const [formAbierto, setFormAbierto] = useState(false);
@@ -227,15 +234,16 @@ export function PropuestasClient({
 
     const guardarEslogan = async () => {
         setGuardandoEslogan(true);
-        const r = await pedir(() => ponerEsloganAction(borradorEslogan));
+        const r = await pedir(() => ponerConfiguracionAction(borradorEslogan, borradorSaludo));
         setGuardandoEslogan(false);
         if (!r.success) {
             toast.error(r.message);
             return;
         }
-        setEslogan(r.data);
+        setEslogan(r.data.eslogan);
+        setSaludo(r.data.saludo);
         setEsloganAbierto(false);
-        toast.success(r.data ? "Eslogan guardado: sale en todas tus propuestas." : "Eslogan quitado.");
+        toast.success("Configuración guardada.");
     };
 
     const borrar = async () => {
@@ -291,14 +299,15 @@ export function PropuestasClient({
                         variant="outline"
                         className="h-10 gap-1.5"
                         data-abrir-eslogan
-                        title={eslogan ? `Eslogan: ${eslogan}` : "Sin eslogan"}
+                        title="Configuración de tus propuestas"
                         onClick={() => {
                             setBorradorEslogan(eslogan);
+                            setBorradorSaludo(saludo || SALUDO_DE_FABRICA);
                             setEsloganAbierto(true);
                         }}
                     >
                         <Tag className="h-4 w-4" />
-                        <span className="hidden sm:inline">Eslogan</span>
+                        <span className="hidden sm:inline">Configuración</span>
                     </Button>
                 }
                 crear={<BotonDeCrear onClick={abrirNueva}>Nuevo</BotonDeCrear>}
@@ -518,7 +527,7 @@ export function PropuestasClient({
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem asChild>
                                                         <a
-                                                            href={elEnlaceDeWhatsapp(elMensajeDeWhatsapp(p.cliente, enlace))}
+                                                            href={elEnlaceDeWhatsapp(elMensajeDeWhatsapp(p.cliente, enlace, saludo))}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                         >
@@ -592,27 +601,46 @@ export function PropuestasClient({
             <Dialog open={esloganAbierto} onOpenChange={(o) => !o && !guardandoEslogan && setEsloganAbierto(false)}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Eslogan de tus propuestas</DialogTitle>
+                        <DialogTitle>Configuración</DialogTitle>
                         <DialogDescription>
-                            Sale a la derecha del logo en todas las propuestas de esta cuenta. Déjalo vacío si no quieres ninguno.
+                            Ajustes de las propuestas de esta cuenta.
                         </DialogDescription>
                     </DialogHeader>
                     <form
                         id="formulario-de-eslogan"
-                        className="space-y-1.5"
+                        className="space-y-4"
                         onSubmit={(e) => {
                             e.preventDefault();
                             void guardarEslogan();
                         }}
                     >
-                        <Label htmlFor="propuesta-eslogan">Eslogan o marca (opcional)</Label>
-                        <Input
-                            id="propuesta-eslogan"
-                            value={borradorEslogan}
-                            maxLength={TOPE_DE_ESLOGAN}
-                            onChange={(e) => setBorradorEslogan(e.target.value)}
-                            placeholder="Ej: Automatiza tu negocio con IA"
-                        />
+                        <div className="space-y-1.5">
+                            <Label htmlFor="propuesta-eslogan">Eslogan o marca (opcional)</Label>
+                            <Input
+                                id="propuesta-eslogan"
+                                value={borradorEslogan}
+                                maxLength={TOPE_DE_ESLOGAN}
+                                onChange={(e) => setBorradorEslogan(e.target.value)}
+                                placeholder="Ej: Automatiza tu negocio con IA"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Sale a la derecha del logo en todas tus propuestas. Vacío = ninguno.
+                            </p>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="propuesta-saludo">Saludo de envío por WhatsApp</Label>
+                            <Textarea
+                                id="propuesta-saludo"
+                                data-saludo-de-envio
+                                value={borradorSaludo}
+                                rows={6}
+                                maxLength={TOPE_DE_SALUDO}
+                                onChange={(e) => setBorradorSaludo(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                <code>{"{cliente}"}</code> y <code>{"{enlace}"}</code> se completan solos con los datos de cada propuesta.
+                            </p>
+                        </div>
                     </form>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setEsloganAbierto(false)} disabled={guardandoEslogan}>

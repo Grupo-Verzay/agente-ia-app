@@ -27850,3 +27850,23 @@ herramientas del móvil reparte todo el ancho con `justify-between`, así que al
 quitar un icono los demás se reacomodan con huecos iguales y los dos bordes
 pegados. Lo prueba `scripts/banco-estado-de-sesion-en-la-cabecera.sh`;
 `MODO=roto` lee `f227386` y afirma la pastilla aparte y el hueco.
+
+## Propuestas: el saludo de envío por WhatsApp es de la CUENTA, y el modal se llama «Configuración»
+
+El modal que era «Eslogan de tus propuestas» es **Configuración** y lleva dos
+campos: el eslogan y el **Saludo de envío por WhatsApp**. El de fábrica
+(`SALUDO_DE_FABRICA`, `lib/propuestas.ts`) es «Hola *{cliente}*, te comparto
+nuestra propuesta comercial, haz clic en el enlace para conocer los detalles.»,
+dos saltos de línea y «👉 {enlace}».
+
+1. **`{cliente}` y `{enlace}` los completa el envío** (`elMensajeDeWhatsapp`):
+   sin `{enlace}` se añade al final, para que nunca salga sin él.
+2. **Vacío o igual al de fábrica se guarda vacío**: la cuenta usa el de fábrica
+   (`comoSaludo`, tope `TOPE_DE_SALUDO`).
+3. **Vive en `propuestas_ajustes.saludo`** (tabla de la App, `ADD COLUMN IF NOT
+   EXISTS`); guardar uno no toca el otro y la fila se borra solo con los dos
+   vacíos (`ponerLosAjustes`).
+4. Lo lee el botón de WhatsApp de la pantalla y el envío del servidor.
+
+Lo prueba `scripts/banco-saludo-de-propuestas.sh`; `MODO=roto` lee `62386d4` y
+afirma que no existía.
