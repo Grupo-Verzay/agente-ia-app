@@ -1,0 +1,227 @@
+{
+  "voz": "cedar",
+  "modelo": "gpt-4o-mini-tts",
+  "frases": {
+    "gancho": "c5646546211389ae384bfa7b",
+    "promesa": "30bce838d67090932c445829",
+    "tresPantallas": "f415999b861c528433a5cb29",
+    "anuncio": "12a826dbac490d896bd277be",
+    "voz": "220251a978e0654e163d98e1",
+    "sheets": "14d34970a127b25cdad0dd7c",
+    "carrito": "8bb55027599b0278b634386d",
+    "pago": "038ca907d46d7f06081acda7",
+    "seguimiento": "b7b03f9d2239a44fea811a9b",
+    "envio": "cbcb6d30df7903827adc539a",
+    "recordatorio": "7611f60a3f0f5a2da0549a1a",
+    "asesor": "035a9bee8485001859b23d95",
+    "embudo": "81fe80f3f1aef3d76cbd972a",
+    "reportes": "8d6b166775daa093094cb092",
+    "multiagente": "79f559b3e63f93dc02c1b537",
+    "resumen": "5afe9a0e7298ac41260ed8f2",
+    "cierre": "56fa4c65bb9fefb86c5efd78"
+  },
+  "duracionMs": 140129,
+  "montaje": {
+    "tarjetas": [
+      "Tienda en línea",
+      "Clínica",
+      "Cursos",
+      "Consultoría",
+      "Agencia de viajes"
+    ],
+    "medios": [
+      "imagen",
+      "nota",
+      "video",
+      "documento",
+      "ubicacion"
+    ],
+    "cierre": "y cualquier negocio que venda por WhatsApp",
+    "cierreMs": 8792,
+    "cajas": {
+      "video": {
+        "x": 882,
+        "y": 300,
+        "w": 208,
+        "h": 117
+      },
+      "mapa": {
+        "x": 1554,
+        "y": 300,
+        "w": 208,
+        "h": 118
+      }
+    },
+    "cajasMs": 11765
+  },
+  "portada": {
+    "hastaMs": 500,
+    "jpgMs": 250
+  },
+  "marcaMs": 13434,
+  "lineasMs": 120817,
+  "colocados": [
+    {
+      "clase": "narracion",
+      "texto": "Cada minuto sin respuesta es una venta que se enfría. Tiendas en línea, clínicas, cursos, consultorías, agencias de viajes… y cualquier negocio que venda por WhatsApp, responde al instante.",
+      "inicioMs": 663,
+      "finMs": 13433
+    },
+    {
+      "clase": "narracion",
+      "texto": "Con Verzay, una inteligencia artificial les contesta al instante, entiende lo que piden y lo deja todo listo en tu CRM.",
+      "inicioMs": 13440,
+      "finMs": 21530
+    },
+    {
+      "clase": "narracion",
+      "texto": "Mira la misma conversación en el celular de la tienda, en WhatsApp Web y en el panel de Verzay, al mismo tiempo.",
+      "inicioMs": 22438,
+      "finMs": 28978
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M01",
+      "inicioMs": 24151,
+      "finMs": 24421
+    },
+    {
+      "clase": "narracion",
+      "texto": "Son las once de la noche. Mateo ve un anuncio y escribe. Nía, la IA de la tienda, le contesta al instante con fotos y video.",
+      "inicioMs": 30187,
+      "finMs": 39377
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M05",
+      "inicioMs": 42470,
+      "finMs": 42740
+    },
+    {
+      "clase": "nota",
+      "texto": "nota clienta",
+      "inicioMs": 42761,
+      "finMs": 46461
+    },
+    {
+      "clase": "narracion",
+      "texto": "¿Pregunta por la talla con una nota de voz? La entiende y le manda la guía de tallas.",
+      "inicioMs": 46717,
+      "finMs": 51857
+    },
+    {
+      "clase": "narracion",
+      "texto": "Consulta el inventario en tu Google Sheets, y cada pedido queda anotado ahí.",
+      "inicioMs": 60563,
+      "finMs": 66163
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M08",
+      "inicioMs": 68533,
+      "finMs": 68803
+    },
+    {
+      "clase": "narracion",
+      "texto": "Arma el carrito, le ofrece unas medias para el envío gratis, y Mateo dice que sí.",
+      "inicioMs": 68611,
+      "finMs": 73401
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M10",
+      "inicioMs": 72045,
+      "finMs": 72315
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M12",
+      "inicioMs": 74024,
+      "finMs": 74294
+    },
+    {
+      "clase": "narracion",
+      "texto": "Le envía el link de pago, y su ficha se llena sola con el pedido.",
+      "inicioMs": 74046,
+      "finMs": 78556
+    },
+    {
+      "clase": "narracion",
+      "texto": "¿Mateo no paga? Una hora después la IA le recuerda su carrito, y la venta se recupera.",
+      "inicioMs": 79070,
+      "finMs": 85150
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M15",
+      "inicioMs": 83372,
+      "finMs": 83642
+    },
+    {
+      "clase": "narracion",
+      "texto": "Toma la dirección, despacha y le manda la guía de envío en PDF.",
+      "inicioMs": 86672,
+      "finMs": 90862
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M18",
+      "inicioMs": 86755,
+      "finMs": 87025
+    },
+    {
+      "clase": "narracion",
+      "texto": "El día de la entrega le llega el aviso, y responde dónde va su pedido.",
+      "inicioMs": 92397,
+      "finMs": 96947
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M22",
+      "inicioMs": 95521,
+      "finMs": 95791
+    },
+    {
+      "clase": "aviso",
+      "texto": "aviso M24",
+      "inicioMs": 100842,
+      "finMs": 101112
+    },
+    {
+      "clase": "narracion",
+      "texto": "¿Un cambio? La conversación pasa directo a Andrea, de soporte, con toda la historia.",
+      "inicioMs": 100878,
+      "finMs": 106178
+    },
+    {
+      "clase": "narracion",
+      "texto": "Cada pedido avanza solo por tu embudo: en carrito, pagado, enviado, entregado.",
+      "inicioMs": 106990,
+      "finMs": 113020
+    },
+    {
+      "clase": "narracion",
+      "texto": "Y en tus reportes ves el ticket promedio y los carritos recuperados, sin perseguir a nadie.",
+      "inicioMs": 113971,
+      "finMs": 120001
+    },
+    {
+      "clase": "narracion",
+      "texto": "Si tu tienda crece, separas tus líneas: ventas, soporte y despachos, cada una con sus asesores.",
+      "inicioMs": 120870,
+      "finMs": 127930
+    },
+    {
+      "clase": "narracion",
+      "texto": "Toda tu tienda, en un solo WhatsApp.",
+      "inicioMs": 129155,
+      "finMs": 131495
+    },
+    {
+      "clase": "narracion",
+      "texto": "Verzay atiende, vende y despacha por WhatsApp… incluso mientras tu tienda duerme.",
+      "inicioMs": 132511,
+      "finMs": 138321
+    }
+  ]
+}
