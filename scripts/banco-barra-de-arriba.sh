@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# La barra de arriba de la plataforma: SIN casita —el menú es lo primero y en el
-# mismo píxel—, sin ruta de texto, el selector Chats ⇄ Correos en todas las
-# pantallas, con los sin leer de cada una y centrado en la columna de la lista
-# (quitar la casita no lo corrió), y todos los botones con la misma forma
-# (rectángulo de esquinas redondeadas).
+# La barra de arriba de la plataforma: el menú es lo primero y en el mismo
+# píxel, sin ruta de texto, el selector Chats ⇄ Correos en todas las pantallas,
+# con los sin leer de cada una y centrado en la columna de la lista, la casita
+# del Panel a un hueco a su derecha (reservarla no lo corre), y todos los
+# botones con la misma forma (rectángulo de esquinas redondeadas).
 #
 # Dos mitades:
 #  1. La regla del selector (`lib/alternar-bandejas.ts`), sin navegador: está en
@@ -15,7 +15,7 @@
 # el selector mide lo que ellos (h-9).
 #
 # `MODO=roto` monta la barra de un commit PINCHADO (`ANTES_REF`, nunca
-# `origin/main`) y afirma los fallos: la casita de primera y ningún número.
+# `origin/main`) y afirma los fallos: sin casita del Panel.
 #
 # Necesita el build (`npm run build`) para el CSS.
 set -euo pipefail
@@ -26,7 +26,7 @@ export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 MODO="${MODO:-bueno}"
 export MODO
-ANTES_REF="${ANTES_REF:-f3f296c}"
+ANTES_REF="${ANTES_REF:-70273b0}"
 
 C=lib/__tests__/.compilado/barra-de-arriba
 A=lib/__tests__/.antes/barra-de-arriba

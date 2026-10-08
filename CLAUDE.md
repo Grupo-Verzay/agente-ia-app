@@ -23476,6 +23476,9 @@ había panel ni barrita.
 
 ### La barra de arriba: el menú primero, sin ruta, y el selector en la columna
 
+
+> **Una casita lleva al Panel** (`data-boton-del-panel`, dentro de `AlternarBandeja`, 36 px, a un hueco a la derecha de Chats y Correos). Reserva su sitio antes de calcular el selector, que sigue centrado en su columna; el buscador por debajo de `xl` mide `sm:w-40` para que a 1024 el selector conserve sus palabras. Lo prueba `scripts/banco-barra-de-arriba.sh`.
+
 La barra de la plataforma (`components/custom/Breadcrumbs.tsx`) es la MISMA en
 todas las pantallas y se lee así:
 
