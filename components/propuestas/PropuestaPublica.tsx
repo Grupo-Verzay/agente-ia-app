@@ -1,6 +1,7 @@
 import { CalendarClock, CalendarDays, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
 
 import { PlanEnLaPropuesta } from "@/components/propuestas/PlanEnLaPropuesta";
+import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
 import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
 import { AIRE_ENCIMA_DEL_PIE, elTextoDePreparadaPor } from "@/lib/pie-de-las-publicas";
 import {
@@ -65,12 +66,11 @@ export const AZUL_DE_LA_PROPUESTA = "bg-gradient-to-br from-[color:var(--plan-he
 export const ESLOGAN_DE_LA_PROPUESTA = "text-base leading-snug sm:text-lg lg:text-xl";
 
 /**
- * El ancho del contenedor. Hasta `md` (teléfono y tableta) es el de siempre,
- * `max-w-2xl`; en escritorio crece por escalones —896, 1024 y 1152 px— para
- * no quedar como una tira de 672 px en medio de una pantalla de 1440 o 1920,
- * y **nunca llega al ancho entero**: siempre queda margen a los lados.
+ * El ancho del contenedor es el de la landing de planes (`ANCHO_DE_LA_LANDING`,
+ * hasta 1152 px): así las tarjetas de capacidad de un plan se ven igual de
+ * holgadas aquí que en su página. Una sola fuente para el ancho.
  */
-export const ANCHO_DE_LA_PROPUESTA = "max-w-2xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl";
+export const ANCHO_DE_LA_PROPUESTA = ANCHO_DE_LA_LANDING;
 
 /**
  * El tope de un párrafo largo (alcance, notas, condiciones, pago). Con el
@@ -110,7 +110,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
         <article
             data-propuesta
             data-tema-del-plan="dispositivo"
-            className={`mx-auto w-full ${ANCHO_DE_LA_PROPUESTA} px-4 pt-6 text-plan-tinta sm:px-6 sm:pt-10 lg:px-8`}
+            className={`w-full ${ANCHO_DE_LA_PROPUESTA} pt-6 text-plan-tinta sm:pt-10`}
         >
             {/* La tarjeta azul lleva la cabecera DENTRO: arriba, «Preparada
                 para» a la izquierda y el logo a la derecha, a la misma altura;
