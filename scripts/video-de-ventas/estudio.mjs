@@ -28,7 +28,7 @@
  */
 import { SVG_FLECHA, SVG_MANO, PUNTA } from "../cursor-de-la-guia.mjs";
 import { comoDuracion } from "./banda-sonora.mjs";
-import { CAPACIDADES, CIERRE_DEL_MONTAJE, LA_HOJA, LEMA_DE_LA_MARCA, LINEAS_DEL_EQUIPO, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./historia.mjs";
+import { CAPACIDADES, CIERRE_DEL_MONTAJE, LA_HOJA, LEMA_DE_LA_MARCA, LINEAS_DEL_EQUIPO, MEDIOS, MEDIOS_DEL_MONTAJE, laHora, lasIniciales } from "./caso.mjs";
 
 /** El cuadro del vídeo. */
 export const VISTA = Object.freeze({ ancho: 1920, alto: 1080 });
@@ -163,7 +163,9 @@ export function elMensajeDelEstudio(m, { segundos = {} } = {}) {
         case "nota":
             return { ...base, url: url(medio.archivo), duracion: comoDuracion(segundos[m.medio] ?? 0) };
         case "documento":
-            return { ...base, url: url(medio.archivo), nombre: medio.nombre, detalle: `${medio.paginas} páginas · PDF`, portada: url("lista-de-precios.jpg") };
+            return { ...base, url: url(medio.archivo), nombre: medio.nombre, detalle: `${medio.paginas} páginas · PDF`, portada: url(medio.portada ?? medio.archivo.replace(/\.pdf$/, ".jpg")) };
+        case "ubicacion":
+            return { ...base, url: url(medio.archivo), nombre: m.ubicacion.lugar, direccion: m.ubicacion.detalle };
         case "video":
             return { ...base, url: url(medio.archivo), portada: url(medio.portada), duracion: comoDuracion(segundos[m.medio] ?? 9) };
         case "imagen":
@@ -715,7 +717,7 @@ function programa(DATOS) {
         return Array.from({ length: n }, (_, i) => 18 + Math.round(70 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6)))).map((h) => `<i style="height:${h}%"></i>`).join("");
     };
     function burbuja(m, donde) {
-        const yo = m.de === "ia";
+        const yo = m.de !== "cliente";
         const lado = yo ? "yo" : "el";
         const meta = `<span class="meta${m.tipo === "imagen" || m.tipo === "video" ? " sobre" : ""}">${esc(m.hora)}${yo ? I.checks : ""}</span>`;
         let b;
@@ -792,7 +794,7 @@ function programa(DATOS) {
             const vieja = filas[donde].querySelector('[data-quien="laura"]');
             if (vieja) vieja.remove();
             const abierta = conversacionAbierta[donde];
-            const f = unaFila({ ...laura, hora: m.hora, prev: previa(m), yo: m.de === "ia" }, { nueva: !vieja, badge: abierta || m.de === "ia" ? 0 : sinLeer });
+            const f = unaFila({ ...laura, hora: m.hora, prev: previa(m), yo: m.de !== "cliente" }, { nueva: !vieja, badge: abierta || m.de !== "cliente" ? 0 : sinLeer });
             if (donde === "web" && abierta) f.classList.add("sel");
             filas[donde].prepend(f);
         }
@@ -887,7 +889,7 @@ function programa(DATOS) {
         if (m.separador) separador(m.separador);
         for (const donde of ["tel", "web"]) muros[donde].appendChild(burbuja(m, donde));
         subirFila(m);
-        if (m.de === "ia") sinLeer = 0;
+        if (m.de !== "cliente") sinLeer = 0;
     }
 
     function reproducirNota(id, ms, hasta = 1) {
@@ -994,7 +996,7 @@ function programa(DATOS) {
             const muro = minis[i].querySelector(".muro");
             let t = 700 + i * 380;
             for (const m of negocio.mensajes) {
-                const yo = m.de === "ia";
+                const yo = m.de !== "cliente";
                 if (yo) {
                     const escr = el("div", "escribiendo", "<i></i><i></i><i></i>");
                     setTimeout(() => muro.appendChild(escr), t);

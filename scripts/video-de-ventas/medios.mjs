@@ -39,9 +39,9 @@ export function elDiente(color = "#fff") {
     return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path fill="${color}" d="M32 11.5c-5.6-3.9-13.3-4.9-18.3-.1-6.2 5.9-3.6 16.6-.6 23.6 2.1 5 3.3 10.9 4.3 16.6.9 5.2 7.2 5.4 8.4.2l2.7-10.6c.9-3.4 6.1-3.4 7 0l2.7 10.6c1.2 5.2 7.5 5 8.4-.2 1-5.7 2.2-11.6 4.3-16.6 3-7 5.6-17.7-.6-23.6-5-4.8-12.7-3.8-18.3.1z"/><path fill="${color}" opacity=".55" d="M50 6l1.4 3.6L55 11l-3.6 1.4L50 16l-1.4-3.6L45 11l3.6-1.4z"/></svg>`;
 }
 
-const PRECIO = (n) => `$${n.toLocaleString("es-CO")}`;
+export const PRECIO = (n) => `$${n.toLocaleString("es-CO")}`;
 
-const BASE = `
+export const BASE = `
 @font-face { font-family: Inter; src: url(data:font/woff2;base64,${FUENTE}) format("woff2"); font-weight: 100 900; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -314,7 +314,7 @@ svg { width: 230px; height: 230px; }
 </style></head><body>${elDiente()}</body></html>`;
 }
 
-async function foto(navegador, html, ruta, { ancho, alto, calidad = 88 }) {
+export async function foto(navegador, html, ruta, { ancho, alto, calidad = 88 }) {
     const pagina = await navegador.newPage({ viewport: { width: ancho, height: alto } });
     await pagina.setContent(html, { waitUntil: "load" });
     await pagina.evaluate(() => document.fonts.ready);

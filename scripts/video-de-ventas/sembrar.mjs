@@ -27,7 +27,7 @@ import {
     ZONA,
     elCalendario,
     jidDe,
-} from "./historia.mjs";
+} from "./caso.mjs";
 
 /** Lo que el estudio necesita saber de la cuenta sembrada. */
 export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
@@ -159,15 +159,15 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         await laHoraDeLaPosicion(db, sesion.id, ultimo);
         // Dos mensajes por chat: lo que escribió el paciente y lo último.
         const previo =
-            c.ultimo.de === "ia"
+            c.ultimo.de !== "cliente"
                 ? { de: "cliente", texto: "Hola, buenos días" }
-                : { de: "ia", texto: "¡Hola! Soy Sofía, de Clínica Sonríe 😊 ¿En qué te puedo ayudar?" };
+                : { de: "ia", texto: `¡Hola! Soy ${NEGOCIO.asistente}, de ${NEGOCIO.nombre} 😊 ¿En qué te puedo ayudar?` };
         const mensajes = [
             { ...previo, en: ultimo - 3 * 60_000, id: `OTRO${i}A` },
             { ...c.ultimo, en: ultimo, id: `OTRO${i}B` },
         ];
         for (const m of mensajes) {
-            const fromMe = m.de === "ia";
+            const fromMe = m.de !== "cliente";
             const raw = {
                 key: { id: m.id, remoteJid: jid, fromMe },
                 message: { conversation: m.texto },
@@ -199,10 +199,10 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
                 remoteJid: jid,
                 pushName: c.nombre.split(" ")[0],
                 lastMessageId: ult.id,
-                lastMessageFromMe: ult.de === "ia",
+                lastMessageFromMe: ult.de !== "cliente",
                 lastMessageType: "conversation",
                 lastMessageContent: ult.texto,
-                lastMessageRaw: { key: { id: ult.id, remoteJid: jid, fromMe: ult.de === "ia" }, message: { conversation: ult.texto } },
+                lastMessageRaw: { key: { id: ult.id, remoteJid: jid, fromMe: ult.de !== "cliente" }, message: { conversation: ult.texto } },
                 lastMessageTimestamp: new Date(ult.en),
             },
         });

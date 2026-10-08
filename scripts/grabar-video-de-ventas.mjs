@@ -224,7 +224,7 @@ const horaDe = (msAntes) => laHora(cal.inicio - msAntes);
 const datos = {
     zona: ZONA,
     clienta: { nombre: CLIENTA.nombre, nombreCorto: CLIENTA.nombreDeWhatsapp, iniciales: lasIniciales(CLIENTA.nombreDeWhatsapp), color: "#d9774f" },
-    otros: OTROS_CHATS.map((c, i) => ({ id: `o${i}`, nombre: c.nombre, iniciales: lasIniciales(c.nombre), hora: horaDe(c.hace * 60_000), prev: c.ultimo.texto, yo: c.ultimo.de === "ia" })),
+    otros: OTROS_CHATS.map((c, i) => ({ id: `o${i}`, nombre: c.nombre, iniciales: lasIniciales(c.nombre), hora: horaDe(c.hace * 60_000), prev: c.ultimo.texto, yo: c.ultimo.de !== "cliente" })),
     montaje: losNegociosDelMontaje(NEGOCIOS_DEL_ARRANQUE, { hora: laHora(cal.inicio) }),
     logo: "/__estudio/medios/verzay.png",
     logoNegocio: "/__estudio/medios/logo-sonrie.png",

@@ -14,7 +14,7 @@
  * Lo que NO hay aquí es inteligencia: las respuestas de la IA son las de la
  * historia (`historia.mjs`). El vídeo lo dice en su cierre.
  */
-import { CALIFICACION, CLIENTA, MEDIOS, NEGOCIO, NOTAS_DE_VOZ, ZONA, laConversacion } from "./historia.mjs";
+import { CALIFICACION, CLIENTA, MEDIOS, NEGOCIO, NOTAS_DE_VOZ, ZONA, laConversacion } from "./caso.mjs";
 
 /** El id de WhatsApp de un mensaje de la historia. */
 export const idDelMensaje = (m) => `SONRIE_${m.id}`;
@@ -28,9 +28,9 @@ export const rutaDelMedio = (base, archivo) => `${base}/__estudio/medios/${archi
  * que el panel sabe pintar.
  */
 export function comoLoGuardaElWebhook(m, { base, segundos = {} }) {
-    const fromMe = m.de === "ia";
+    const fromMe = m.de !== "cliente";
     const key = { id: idDelMensaje(m), remoteJid: CLIENTA.jid, fromMe };
-    const marca = { messageTimestamp: Math.floor(m.en / 1000), pushName: fromMe ? null : CLIENTA.nombreDeWhatsapp, ...(fromMe ? { sentByAi: true } : {}) };
+    const marca = { messageTimestamp: Math.floor(m.en / 1000), pushName: fromMe ? null : CLIENTA.nombreDeWhatsapp, ...(m.de === "ia" ? { sentByAi: true } : {}) };
     const medio = m.medio ? MEDIOS[m.medio] : null;
     const url = medio ? rutaDelMedio(base, medio.archivo) : null;
     switch (m.tipo) {
@@ -82,6 +82,12 @@ export function comoLoGuardaElWebhook(m, { base, segundos = {} }) {
             const call = { direction: "outgoing", isVideo: false, durationSecs: segundos.llamada ?? 0, isBot: true, provider: "astra" };
             return { messageType: "call", content: "Llamada con IA realizada", mediaUrl: null, raw: { key, message: { call }, ...marca } };
         }
+        case "ubicacion": {
+            // Como entra una ubicación compartida desde WhatsApp (la forma de
+            // Evolution, `lib/ubicacion-de-whatsapp.ts`): Chapinero, Bogotá.
+            const lugar = { degreesLatitude: 4.6486, degreesLongitude: -74.0628, name: m.ubicacion.lugar, address: m.ubicacion.detalle };
+            return { messageType: "locationMessage", content: m.ubicacion.lugar, mediaUrl: url, raw: { key, message: { locationMessage: lugar }, ...marca } };
+        }
         default:
             throw new Error(`[video] tipo de mensaje desconocido: ${m.tipo}`);
     }
@@ -99,10 +105,10 @@ export function elAvisoEnVivo(m, fila) {
         instanceName: NEGOCIO.linea,
         message: {
             id: idDelMensaje(m),
-            fromMe: m.de === "ia",
+            fromMe: m.de !== "cliente",
             content: fila.content,
             messageType: fila.messageType,
-            pushName: m.de === "ia" ? null : CLIENTA.nombreDeWhatsapp,
+            pushName: m.de !== "cliente" ? null : CLIENTA.nombreDeWhatsapp,
             ts,
         },
         ts,
@@ -170,7 +176,7 @@ export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} 
         if (!m) throw new Error(`[video] la historia no tiene el mensaje ${id}`);
         await laSesion(m);
         const fila = comoLoGuardaElWebhook(m, { base, segundos });
-        const fromMe = m.de === "ia";
+        const fromMe = m.de !== "cliente";
         await db.chatMessage.create({
             data: {
                 userId: ctx.cuenta,
