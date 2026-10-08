@@ -13,6 +13,9 @@
  *    Verzy; si comparte pantalla, su pantalla en grande y su cámara en
  *    miniatura. Verzy no se ve hasta que lo llamen de nuevo.
  * 4. La cámara del CLIENTE no se pinta nunca.
+ * 5. Una vez que Verzy PIDIÓ compartir una pantalla (`yaSeCompartio`), aunque
+ *    esa pantalla falle, se oculte o se corte, Verzy no vuelve a grande bajo
+ *    ninguna circunstancia: sin pantalla va la portada y él en miniatura.
  */
 
 export type LoGrande = "avatar" | "pantalla-verzy" | "portada" | "asesor-camara" | "asesor-pantalla";
@@ -20,6 +23,8 @@ export type LoPequeno = "avatar" | "asesor-camara" | null;
 
 export type EntradaDeLaDisposicion = {
     presentacionTerminada: boolean;
+    /** ¿Verzy pidió alguna vez compartir pantalla en esta reunión? Es fijo: no se apaga. */
+    yaSeCompartio?: boolean;
     /** ¿Verzy tiene una pantalla abierta (la que comparte o la última)? */
     pantallaVerzy: boolean;
     /** ¿Un asesor tomó la palabra («Verzy, yo sigo desde aquí»)? */
@@ -51,6 +56,6 @@ export function laDisposicion(e: EntradaDeLaDisposicion): Disposicion {
         return { grande: e.pantallaVerzy ? "pantalla-verzy" : "portada", mini: null };
     }
     if (e.pantallaVerzy) return { grande: "pantalla-verzy", mini: "avatar" };
-    if (!e.presentacionTerminada) return { grande: "avatar", mini: null };
+    if (!e.presentacionTerminada && !e.yaSeCompartio) return { grande: "avatar", mini: null };
     return { grande: "portada", mini: "avatar" };
 }
