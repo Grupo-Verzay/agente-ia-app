@@ -689,7 +689,9 @@ export default function SalaDeLaVideollamada({
     const mandosFlotan = estado === "dentro" && hayPantallaCompartida;
     const mandos = useMandosQueSeEsconden({ activo: mandosFlotan });
     const mandosOcultos = mandosFlotan && !mandos.seVen;
-    const MINI = "absolute bottom-16 right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:bottom-2 sm:h-32 sm:w-48";
+    // La miniatura va encima de la barra de mandos y a 8 px de los bordes, en
+    // todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos.
+    const MINI = "absolute bottom-[4.5rem] right-2 z-20 h-28 w-40 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg sm:h-32 sm:w-48";
     // Con los mandos flotando, lo grande ocupa toda la caja: una franja de
     // 64 px vacía cuando los mandos se apartan se lee como un hueco.
     const ABAJO = mandosFlotan ? "bottom-0" : "bottom-16";
