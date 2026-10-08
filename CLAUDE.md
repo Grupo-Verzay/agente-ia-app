@@ -27802,3 +27802,13 @@ Lo prueba `scripts/banco-barra-de-la-videollamada.sh`. Monta la sala real con un
 | la voz iba por delante de la pantalla | `irA` contesta solo cuando ya hay un fotograma nuevo de la página (`esperarUnFotogramaDesde`) y ya bajó al ancla |
 
 Lo prueban `scripts/banco-notas-de-verzy.sh` (la regla y un barrido; `MODO=roto` contra `422d935` afirma la caja de la ficha) y `scripts/banco-video-de-verzy.sh` (la App servida: tres notas en una sola nota del prospecto y ninguna en la ficha, precios, embudo, agenda y vuelta al chat con su tiempo, y una ruta inexistente que no cambia la pantalla).
+
+## Videollamada: la pantalla compartida se ve ENTERA, va rápida y a la ruta exacta
+
+> **Manda sobre «la pantalla compartida llena la sala»** en cómo se ajusta: ya no es `object-cover` ni llega a `bottom-0`.
+
+1. **Nunca se corta**: la pantalla compartida va con `AJUSTE_DE_LA_PANTALLA` (`h-full w-full object-contain object-center`, `lib/disposicion-de-la-videollamada.ts`) y acaba ENCIMA de la barra (`ABAJO_DE_LO_GRANDE`, `bottom-20`), también con los mandos escondidos: si bajara, al volver taparían su parte de abajo (la barra de escribir con los emojis). El servidor ya toma la forma del hueco (`elTamanoDeLaPantalla`), así que casi siempre la llena; si la forma no cuadra, salen franjas en vez de deformar o recortar.
+2. **Más rápida**: la calma de red se topa en 600 ms, las esperas tras un clic y la rueda se acortaron, el fotograma nuevo se espera como mucho 900 ms, y el ratón y las letras van más ágiles (`RECORRIDO_DEL_RATON_MS` 400, `PAUSA_ENTRE_LETRAS_MS` 35).
+3. **Ruta exacta**: el contexto lleva `REGLA_DE_LA_RUTA_EXACTA` (`lib/pantalla-del-avatar.ts`): la URL es la que el entrenamiento declara para ese tema, tal cual, sin cambiarla por una sección parecida. La navegación sigue decidiéndola solo el prompt.
+
+Lo prueba `scripts/banco-barra-de-la-videollamada.sh` con la sala montada a 1440×900, 1024×768, 768×1024 y 390×844 (la imagen entera, su forma real, encima de la barra); `MODO=roto` contra `60d2a1b` afirma el recorte.

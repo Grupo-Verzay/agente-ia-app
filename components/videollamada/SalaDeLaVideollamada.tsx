@@ -29,7 +29,7 @@ import {
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
-import { ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
+import { ABAJO_DE_LO_GRANDE, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
@@ -695,9 +695,12 @@ export default function SalaDeLaVideollamada({
     // La miniatura vive EN la barra de abajo, centrada con los botones
     // (BARRA_DE_ABAJO mide 80 px; la miniatura 64, a 8 de cada borde).
     const MINI = "absolute bottom-2 right-2 z-20 h-16 w-28 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg";
-    // Con los mandos flotando, lo grande ocupa toda la caja: una franja de
-    // 64 px vacía cuando los mandos se apartan se lee como un hueco.
-    const ABAJO = mandosFlotan ? "bottom-0" : "bottom-20";
+    // Lo grande acaba SIEMPRE encima de la barra de abajo (80 px): ahí viven
+    // los mandos y la miniatura de Verzy, y una pantalla que bajara hasta el
+    // borde perdería su última franja (la barra de escribir, los emojis)
+    // debajo de ellos. Lo decide `ABAJO_DE_LO_GRANDE` y no los mandos: que
+    // se aparten solos no puede cambiar qué parte de la pantalla se ve.
+    const ABAJO = ABAJO_DE_LO_GRANDE;
     const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
     return (
@@ -745,10 +748,13 @@ export default function SalaDeLaVideollamada({
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
-                            // Cubre la caja entera: nunca franjas negras. La forma
-                            // ya la sigue el servidor (elTamanoDeLaPantalla), así
-                            // que en reposo no recorta nada.
-                            className="h-full w-full object-cover object-top"
+                            // ENTERA y con su forma real: `contain`, nunca `cover`.
+                            // El servidor ya toma la forma de esta caja
+                            // (elTamanoDeLaPantalla), así que en reposo llena el
+                            // hueco sin franjas; si la forma no coincide (girar el
+                            // teléfono, un relevo), se ve completa con franjas antes
+                            // que recortada o deformada.
+                            className={AJUSTE_DE_LA_PANTALLA}
                         />
                     </div>
                 </section>

@@ -196,9 +196,9 @@ export const FPS_DEL_FLUJO = 20;
 /** Con la pantalla quieta, el último fotograma se vuelve a mandar cada este rato. */
 export const REPETIR_QUIETA_MS = 1_000;
 /** Lo que tarda el cursor en ir de un sitio a otro. */
-export const RECORRIDO_DEL_RATON_MS = 650;
+export const RECORRIDO_DEL_RATON_MS = 400;
 /** Pausa entre letra y letra al escribir, como una persona que teclea rápido. */
-export const PAUSA_ENTRE_LETRAS_MS = 55;
+export const PAUSA_ENTRE_LETRAS_MS = 35;
 /** La frontera de cada parte del flujo MJPEG. */
 export const FRONTERA_DEL_FLUJO = "verzyframe";
 

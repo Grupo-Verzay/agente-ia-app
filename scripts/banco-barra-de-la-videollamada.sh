@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # La sala de la videollamada con pantalla compartida: sin la etiqueta de la ruta,
-# sin franjas negras y la miniatura de Verzy en la barra, alineada con los botones.
+# la pantalla ENTERA (sin cortar abajo) y sin deformar, y la miniatura de Verzy
+# en la barra, alineada con los botones; en móvil, tableta y escritorio.
 # `MODO=roto` monta la sala de un commit PINCHADO (nunca origin/main) y afirma
-# la etiqueta y la franja. `CAPTURAS=dir` guarda las capturas ahí.
+# el corte de abajo. `CAPTURAS=dir` guarda las capturas ahí.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MODO="${MODO:-bueno}"; export MODO
-# 42e8f15 — antes de esto: «Verzy te está mostrando: /ruta» encima de la pantalla.
-ANTES_REF="${ANTES_REF:-42e8f15}"
+# 60d2a1b — antes de esto: la pantalla iba object-cover hasta el borde de abajo y
+# la barra de mandos tapaba su parte de abajo (la barra de escribir).
+ANTES_REF="${ANTES_REF:-60d2a1b}"
 if [ "$MODO" = roto ]; then
   ARBOL="$(mktemp -d)/sala"
   git worktree add --detach -q "$ARBOL" "$ANTES_REF"
