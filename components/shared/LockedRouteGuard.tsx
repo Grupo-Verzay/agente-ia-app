@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Lock, Zap, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LOS_PRECIOS_DE_LA_LANDING } from '@/lib/pantalla-de-verzy';
 
 const BULLETS = [
   { icon: ShieldCheck, text: 'No dejes escapar clientes listos para comprar' },
@@ -33,7 +34,7 @@ function UpgradeScreen() {
           </li>
         ))}
       </ul>
-      <Button size="lg" onClick={() => router.push('/planes')}>
+      <Button size="lg" onClick={() => router.push(LOS_PRECIOS_DE_LA_LANDING)}>
         Mejorar mi plan ahora
       </Button>
     </div>

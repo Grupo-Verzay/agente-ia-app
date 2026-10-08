@@ -33,6 +33,7 @@ import { Settings2 } from 'lucide-react';
 import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE, ADMIN_PANEL_ROUTE, esVarianteDePanel } from '@/lib/sidebar-modules';
 import { aplicaBloqueoPorPlan } from '@/lib/panel-tabs';
 import { isAdminLike } from '@/lib/rbac';
+import { LOS_PRECIOS_DE_LA_LANDING } from "@/lib/pantalla-de-verzy";
 
 export function NavMain({ user }: { user: CurrentUser }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, canvaUrl, userIntegrations } = useModuleStore();
@@ -91,7 +92,7 @@ export function NavMain({ user }: { user: CurrentUser }) {
 
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null, isLocked?: boolean) => {
         if (isLocked) {
-            if (puedeMejorarPlan) router.push('/planes');
+            if (puedeMejorarPlan) router.push(LOS_PRECIOS_DE_LA_LANDING);
             if (isMobile) setOpenMobile(false);
             return;
         }

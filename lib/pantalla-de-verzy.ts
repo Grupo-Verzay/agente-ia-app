@@ -15,6 +15,14 @@
 /** Prefijos que NO son una pantalla, o que sacarían a Verzy de su sesión. Es seguridad, no navegación. */
 export const RUTAS_PROHIBIDAS = ["/api", "/_next", "/login", "/register", "/logout", "/auth", "/videollamada", "/reunion", "/abrir"] as const;
 
+/**
+ * Donde se ven los precios: la sección de planes de la landing. La vista de
+ * planes de dentro de la plataforma (`/planes`, con sesión) ya no existe: lleva
+ * aquí. Verzy, si pide «/planes» a secas, aterriza aquí directo, sin pasar por
+ * la redirección (que dibujaba un salto en la pantalla compartida).
+ */
+export const LOS_PRECIOS_DE_LA_LANDING = "/inicio#pricing";
+
 /** Tope del largo de una ruta, para que no se cuele cualquier cosa. */
 export const TOPE_DE_LA_RUTA = 300;
 
@@ -48,6 +56,7 @@ export function comoRutaDeVerzy(valor: unknown): LugarDeVerzy | null {
     // cliente pueda ver, y era lo que mandaba Verzy con la ruta vacía (404).
     if (camino === "" || camino === "/") return null;
     if (RUTAS_PROHIBIDAS.some((p) => camino === p || camino.startsWith(`${p}/`))) return null;
+    if (camino === "/planes" || camino === "/planes/") return LOS_PRECIOS_DE_LA_LANDING;
     return v as LugarDeVerzy;
 }
 
@@ -151,13 +160,23 @@ export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
     return null;
 }
 
+/**
+ * El título de la nota donde Verzy apunta lo que dice el cliente en la
+ * videollamada. UNA por prospecto: las notas siguientes se añaden debajo.
+ * En mayúsculas, como guarda los títulos el módulo de Notas.
+ */
+export function elTituloDeLaNotaDeLaLlamada(nombre: string | null | undefined): string {
+    const limpio = String(nombre ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+    return `NOTAS DE LA VIDEOLLAMADA · ${limpio || "PROSPECTO"}`.toUpperCase();
+}
+
 /** Lo que se le cuenta a Verzy después de cada orden, para que no diga algo que no pasó. */
 export function loQueSeLeCuentaAVerzy(orden: OrdenDeLaPantalla, r: ResultadoDeLaOrden): string {
     // Ajustar el tamaño es cosa de la sala: a Verzy no se le cuenta nada.
     if (orden.tipo === "tamano") return "";
     if (orden.tipo === "nota") {
         return r.ok
-            ? `La nota quedó guardada en la ficha del cliente en Verzay Ventas: «${orden.datos.texto}».`
+            ? `La nota quedó guardada en las Notas de la conversación del cliente en Verzay Ventas: «${orden.datos.texto}».`
             : `La nota NO se pudo guardar (${r.motivo}). No digas que quedó guardada.`;
     }
     const ruta = orden.datos.lugar;

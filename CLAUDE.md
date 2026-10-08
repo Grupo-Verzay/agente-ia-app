@@ -27580,7 +27580,10 @@ servidor la carga. Nada más.
 3. **Una ruta que no existe NO es un ok**: un 404 o un 5xx se le cuenta a Verzy
    (`loQueSeLeCuentaAVerzy`) para que no diga que la ve. Mientras habla, la
    pantalla puesta solo se recorre; nunca cambia por su voz.
-4. **Si el código vuelve a decidir una ruta, está mal**: el banco falla si
+4. **La única excepción es sanear `/planes`** (pide sesión y en la pantalla no
+   abre): `comoRutaDeVerzy` la cambia por `LOS_PRECIOS_DE_LA_LANDING`
+   (`/inicio#pricing`). No es navegación: es una dirección que no funciona.
+5. **Si el código vuelve a decidir una ruta, está mal**: el banco falla si
    reaparece una tabla (`LUGARES_DE_LA_LANDING`, `DESTINOS_DE_VERZY`,
    `PAGINAS_DEL_AVATAR`…) o una ruta escrita en esos ficheros.
 
@@ -27789,3 +27792,13 @@ Con la pantalla compartida había una franja negra arriba con «Verzy te está m
 3. **Abajo hay UNA barra (`h-20`)**: los botones centrados y, a la derecha, la miniatura de Verzy (`h-16 w-28`, `bottom-2 right-2`), alineada con ellos. La barra deja hueco a la derecha (`pr-32`) para que la miniatura no tape ningún botón; en el teléfono los botones van solo con su icono.
 
 Lo prueba `scripts/banco-barra-de-la-videollamada.sh`. Monta la sala real con una pantalla compartida a 1440/1024/390 y comprueba que no hay etiqueta, que no hay píxeles negros alrededor de la pantalla y que la miniatura está dentro de la barra, alineada y sin tapar botones. `MODO=roto` monta la sala de `42e8f15` y afirma la etiqueta y las franjas.
+
+## Videollamada: Verzy apunta en la pestaña «Notas» del chat, y un fallo de carga no se ve
+
+| lo que se veía | ahora |
+| --- | --- |
+| Verzy escribía en la caja «Notas» de la FICHA del contacto | escribe en la pestaña **«Notas»** de la conversación, al lado de «Mensajes» (`data-pestana-del-chat="notes"`): UNA nota por prospecto (`elTituloDeLaNotaDeLaLlamada`, «NOTAS DE LA VIDEOLLAMADA · NOMBRE») y las siguientes se añaden debajo. Si la pestaña no aparece, abre `/notas`, escribe allí y vuelve al chat. Se confirma leyendo `user_notes` |
+| una ruta que no existía se le enseñaba al cliente (404) | toda carga va por `cargarSinEnsenarElFallo`: el video se congela mientras carga y, si falla o la página dice que no existe, vuelve a la pantalla anterior (`volverA`) antes de soltar el video; a Verzy se le cuenta el fallo |
+| la voz iba por delante de la pantalla | `irA` contesta solo cuando ya hay un fotograma nuevo de la página (`esperarUnFotogramaDesde`) y ya bajó al ancla |
+
+Lo prueban `scripts/banco-notas-de-verzy.sh` (la regla y un barrido; `MODO=roto` contra `422d935` afirma la caja de la ficha) y `scripts/banco-video-de-verzy.sh` (la App servida: tres notas en una sola nota del prospecto y ninguna en la ficha, precios, embudo, agenda y vuelta al chat con su tiempo, y una ruta inexistente que no cambia la pantalla).

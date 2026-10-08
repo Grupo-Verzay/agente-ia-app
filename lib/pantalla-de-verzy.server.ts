@@ -8,9 +8,9 @@ import { laCuentaDeVerzy } from "@/lib/videollamada-crm.server";
 import { DURACION_DE_LA_SESION_S, lasCookiesDeVerzy } from "@/lib/sesion-de-verzy.server";
 import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
 import {
-    laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, conLaNotaAgregada,
+    laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, elTituloDeLaNotaDeLaLlamada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
-    elRecorridoDelRaton, loQueFaltaEscribir, loQueSeBusca, elDestinoQueSeRetoma,
+    elRecorridoDelRaton, loQueSeBusca, elDestinoQueSeRetoma,
     TAMANO_DE_FABRICA,
     type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden, type TamanoDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
@@ -287,8 +287,14 @@ type Viva = {
     parada: boolean;
     /** Despierta al ciclo: hay una orden nueva y no se espera la vuelta. */
     despertar?: () => void;
-    /** Lo que se termina de mover DESPUÉS de contestar la orden (bajar, recorrer). */
+    /** Lo que se termina de mover DESPUÉS de contestar la orden (recorrer). */
     despues?: (() => Promise<void>) | null;
+    /**
+     * Mientras se carga una página nueva el video NO avanza: la sala se queda
+     * con el último fotograma bueno. Así nunca ve una carga a medias ni un 404:
+     * si la página no existe, se vuelve a la de antes sin que nadie lo note.
+     */
+    congelada?: boolean;
 };
 const pantallasVivas = new Map<string, Viva>();
 
@@ -353,6 +359,7 @@ async function empezarElScreencast(viva: Viva): Promise<void> {
     const cdp = await viva.pagina.context().newCDPSession(viva.pagina);
     cdp.on("Page.screencastFrame", (f: { data: string; sessionId: number }) => {
         cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {});
+        if (viva.congelada) return;
         const jpeg = Buffer.from(f.data, "base64");
         viva.ultimo = jpeg;
         viva.ultimoEn = Date.now();
@@ -496,12 +503,6 @@ async function clicEn(viva: Viva, l: Localizador): Promise<boolean> {
     return true;
 }
 
-/** Un gesto hacia el menú de la izquierda, como quien va a cambiar de sección. */
-async function irAlMenu(viva: Viva): Promise<void> {
-    await moverA(viva, 26, 120 + Math.round(Math.random() * 160));
-    await dormir(180);
-}
-
 async function recorrerConLaRueda(viva: Viva): Promise<void> {
     await moverA(viva, viva.tamano.ancho * 0.6, viva.tamano.alto * 0.55);
     for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, 90); await dormir(70); }
@@ -541,25 +542,77 @@ async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrde
     const { camino, ancla } = laRutaYElAnclaDeVerzy(destino);
     const aqui = new URL(viva.pagina.url());
     const yaEstamos = !camino || (aqui.origin === new URL(BASE_LOCAL).origin && `${aqui.pathname}${aqui.search}` === camino);
+    // Directo, sin pasar por el menú ni por otra sección. La carga va con el
+    // video congelado: lo que no existe nunca llega a verse.
+    const desde = Date.now();
     if (!yaEstamos) {
-        // El gesto hacia el menú va A LA VEZ que la carga, no antes: esperarlo
-        // eran ~0,5 s de pantalla quieta antes de empezar a navegar.
-        const gesto = irAlMenu(viva).catch(() => {});
-        const r = await cargar(viva, camino);
-        await gesto;
+        const r = await cargarSinEnsenarElFallo(viva, camino);
         if (!r.ok) return r;
+    } else if (await laPaginaDiceQueNoExiste(viva)) {
+        return { ok: false, motivo: "Esa página no existe en la plataforma" };
     }
-    // Lo que no existe no se apunta: si no, una reapertura volvería al 404.
-    if (await laPaginaDiceQueNoExiste(viva)) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     await anotarElDestino(viva, destino);
     if (ancla) {
+        // Se baja ANTES de contestar: Verzy habla de la sección cuando ya se ve.
         const seccion = await laSeccion(viva, ancla);
         if (!seccion) return { ok: true, aviso: "La página se abrió, pero esa sección no está en ella" };
-        viva.despues = () => bajarA(viva, seccion);
+        await bajarA(viva, seccion);
     } else {
         viva.despues = () => recorrerConLaRueda(viva);
     }
+    await esperarUnFotogramaDesde(viva, desde);
     return { ok: true };
+}
+
+/**
+ * Carga una ruta con el video congelado. Si falla o la página dice 404, vuelve
+ * a donde estaba (o a la pantalla de espera) ANTES de soltar el video: la sala
+ * nunca ve el error. Nunca deja el video congelado.
+ */
+async function cargarSinEnsenarElFallo(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
+    const antes = viva.pagina.url();
+    viva.congelada = true;
+    try {
+        let r: ResultadoDeLaOrden;
+        try {
+            r = await cargar(viva, ruta);
+        } catch (error) {
+            r = { ok: false, motivo: error instanceof Error ? error.message : String(error) };
+        }
+        if (r.ok && await laPaginaDiceQueNoExiste(viva)) r = { ok: false, motivo: "Esa página no existe en la plataforma" };
+        if (!r.ok) {
+            console.warn("[verzy] una página no cargó; se vuelve a la de antes sin enseñarla", { cita: viva.citaId, ruta, motivo: r.motivo });
+            await volverA(viva, antes);
+        }
+        return r;
+    } finally {
+        viva.congelada = false;
+        // Un toque al ratón obliga a pintar: el video retoma al instante.
+        await viva.pagina.mouse.move(viva.raton.x + 1, viva.raton.y).catch(() => {});
+        await viva.pagina.mouse.move(viva.raton.x, viva.raton.y).catch(() => {});
+    }
+}
+
+async function volverA(viva: Viva, url: string): Promise<void> {
+    const deLaPlataforma = url.startsWith(BASE_LOCAL);
+    const ok = deLaPlataforma
+        ? await viva.pagina.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 }).then((res) => !res || res.status() < 400, () => false)
+        : false;
+    if (!ok || await laPaginaDiceQueNoExiste(viva)) {
+        await viva.pagina.setContent(PANTALLA_DE_ESPERA).catch((error) => {
+            console.warn("[verzy] no se pudo poner la pantalla de espera", { cita: viva.citaId, motivo: error instanceof Error ? error.message : String(error) });
+        });
+    }
+}
+
+/** Espera (poco) a que llegue a la sala un fotograma pintado después de `desde`. */
+async function esperarUnFotogramaDesde(viva: Viva, desde: number): Promise<void> {
+    const hasta = Date.now() + 1_500;
+    while (viva.ultimoEn <= desde && Date.now() < hasta) {
+        await viva.pagina.mouse.move(viva.raton.x + 1, viva.raton.y).catch(() => {});
+        await viva.pagina.mouse.move(viva.raton.x, viva.raton.y).catch(() => {});
+        await dormir(50);
+    }
 }
 
 /** La sección `#ancla` de la página puesta, si existe. */
@@ -570,9 +623,16 @@ async function laSeccion(viva: Viva, ancla: string): Promise<Localizador | null>
 
 /** Baja, suave y con el cursor, hasta esa sección. */
 async function bajarA(viva: Viva, destino: Localizador): Promise<void> {
-    await moverA(viva, viva.tamano.ancho * 0.55, viva.tamano.alto * 0.5, 450);
+    await moverA(viva, viva.tamano.ancho * 0.55, viva.tamano.alto * 0.5, 300);
     await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
-    await dormir(1_200);
+    // Hasta que la sección queda arriba (o un tope): el desplazamiento suave
+    // dura según lo lejos que esté, y esperar de más es pantalla quieta.
+    const hasta = Date.now() + 1_500;
+    while (Date.now() < hasta) {
+        await dormir(100);
+        const arriba = await destino.evaluate((el) => Math.abs(el.getBoundingClientRect().top)).catch(() => 0);
+        if (arriba < 4) break;
+    }
 }
 
 /** El 404 de Next: la ruta no es una pantalla. */
@@ -590,9 +650,7 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
     const pagina = viva.pagina;
     if (!new URL(pagina.url()).pathname.startsWith("/chats")) {
-        const gesto = irAlMenu(viva).catch(() => {});
-        const r = await cargar(viva, "/chats");
-        await gesto;
+        const r = await cargarSinEnsenarElFallo(viva, "/chats");
         if (!r.ok) return r;
     }
     if (!p?.jid) return { ok: true };
@@ -629,19 +687,9 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
         return { ok: true };
     }
     console.info("[verzy] el chat no salió en la bandeja; se abre por enlace", { cita: viva.citaId, jid: p.jid });
-    const r = await cargar(viva, laUrlDeLaConversacion({ jid: p.jid, linea: p.linea }) ?? "/chats");
+    const r = await cargarSinEnsenarElFallo(viva, laUrlDeLaConversacion({ jid: p.jid, linea: p.linea }) ?? "/chats");
     viva.chatAbierto = r.ok ? p.jid : null;
     return r;
-}
-
-async function abrirLaFicha(viva: Viva): Promise<boolean> {
-    const pagina = viva.pagina;
-    if (await pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false)) return true;
-    const boton = pagina.locator('button[title="Ver ficha del contacto"]:visible').first();
-    await boton.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
-    if (!(await boton.isVisible().catch(() => false))) return false;
-    await clicEn(viva, boton);
-    return esperarMoviendose(viva, pagina.locator("textarea[data-notas]").first(), 15_000);
 }
 
 /**
@@ -663,45 +711,149 @@ async function esperarMoviendose(viva: Viva, l: Localizador, plazoMs: number): P
     return espera;
 }
 
+/**
+ * La nota del prospecto en el módulo de Notas: UNA por prospecto y cuenta,
+ * vinculada a su conversación. Si no existe se crea vacía; Verzy la escribe
+ * después en pantalla, como una persona.
+ */
+async function laNotaDelProspecto(p: ElProspecto): Promise<{ id: string; titulo: string }> {
+    const titulo = elTituloDeLaNotaDeLaLlamada(p.nombre);
+    const ya = await db.userNote.findFirst({
+        where: { userId: p.cuentaId, isArchived: false, title: titulo },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+    });
+    if (ya) return { id: ya.id, titulo };
+    const nueva = await db.userNote.create({
+        data: { userId: p.cuentaId, title: titulo, contactJid: p.jid, contactName: p.nombre || null, content: {} },
+        select: { id: true },
+    });
+    return { id: nueva.id, titulo };
+}
+
+/** Abre la pestaña «Notas» de la conversación abierta (o la de «Mensajes»). */
+async function laPestanaDelChat(viva: Viva, id: "notes" | "messages"): Promise<boolean> {
+    const pagina = viva.pagina;
+    const pestana = pagina.locator(`[data-pestana-del-chat="${id}"]:visible`).first();
+    if (await pestana.isVisible().catch(() => false)) {
+        await clicEn(viva, pestana);
+        return true;
+    }
+    // Sin sitio, la pestaña vive dentro de «Más».
+    const mas = pagina.locator("[data-mas-pestanas]:visible").first();
+    if (!(await mas.isVisible().catch(() => false))) return false;
+    await clicEn(viva, mas);
+    const plegada = pagina.locator(`[data-pestana-plegada="${id}"]:visible`).first();
+    if (!(await plegada.waitFor({ state: "visible", timeout: 3_000 }).then(() => true, () => false))) {
+        await pagina.keyboard.press("Escape").catch(() => {});
+        return false;
+    }
+    await clicEn(viva, plegada);
+    return true;
+}
+
+/**
+ * Con el módulo de Notas en pantalla (la pestaña del chat o /notas), deja
+ * abierta la nota del prospecto: si no es la que se ve, la busca por su título
+ * en el panel y la pulsa.
+ */
+async function abrirLaNota(viva: Viva, nota: { id: string; titulo: string }): Promise<boolean> {
+    const pagina = viva.pagina;
+    const titulo = pagina.locator('input[placeholder="Sin título"]:visible').first();
+    const texto = pagina.locator("[data-texto-de-la-nota] .ProseMirror:visible").first();
+    const abierta = async () =>
+        (await titulo.inputValue({ timeout: 500 }).catch(() => "")).trim().toUpperCase() === nota.titulo
+        && await texto.isVisible().catch(() => false);
+    // El módulo tarda en traer sus notas: mientras, el cursor no se queda quieto.
+    const buscador = pagina.locator("[data-buscador-de-notas] input:visible").first();
+    await esperarMoviendose(viva, pagina.locator("[data-buscador-de-notas] input:visible, [data-texto-de-la-nota]:visible, button[title=\"Mostrar panel\"]:visible").first(), 15_000);
+    if (await abierta()) return true;
+    if (!(await buscador.isVisible().catch(() => false))) {
+        const mostrar = pagina.locator('button[title="Mostrar panel"]:visible').first();
+        if (await mostrar.isVisible().catch(() => false)) await clicEn(viva, mostrar);
+        if (!(await buscador.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false))) return false;
+    }
+    await clicEn(viva, buscador);
+    await pagina.keyboard.press("Control+A").catch(() => {});
+    await pagina.keyboard.press("Backspace").catch(() => {});
+    await buscador.pressSequentially(nota.titulo.slice(0, 40), { delay: PAUSA_ENTRE_LETRAS_MS });
+    const fila = pagina.locator(`[data-nota-de-la-lista="${nota.id}"]:visible`).first();
+    if (!(await esperarMoviendose(viva, fila, 8_000))) return false;
+    await clicEn(viva, fila);
+    for (let i = 0; i < 20; i++) {
+        if (await abierta()) return true;
+        await dormir(250);
+    }
+    return false;
+}
+
+/** Escribe el texto al final de la nota abierta, letra a letra. */
+async function escribirEnLaNota(viva: Viva, textoNuevo: string): Promise<void> {
+    const pagina = viva.pagina;
+    const caja = pagina.locator("[data-texto-de-la-nota] .ProseMirror:visible").first();
+    const antes = ((await caja.innerText({ timeout: 2_000 }).catch(() => "")) ?? "").trim();
+    await clicEn(viva, caja);
+    await pagina.keyboard.press("Control+End").catch(() => {});
+    if (antes) await pagina.keyboard.press("Enter").catch(() => {});
+    await caja.pressSequentially(textoNuevo, { delay: PAUSA_ENTRE_LETRAS_MS });
+    await dormir(300);
+}
+
+/** La nota guardada en la BASE trae el texto (el editor guarda solo). */
+async function laNotaTraeElTexto(id: string, texto: string): Promise<boolean> {
+    const fila = await db.userNote.findUnique({ where: { id }, select: { content: true } });
+    if (!fila) return false;
+    const aguja = JSON.stringify(texto.trim()).slice(1, -1);
+    return JSON.stringify(fila.content ?? {}).includes(aguja);
+}
+
+/**
+ * Tomar una nota es una ACCIÓN: se escribe en la pestaña «Notas» de la
+ * conversación del prospecto (al lado de «Mensajes»), NUNCA en la ficha de
+ * contacto. Si esa pestaña no se puede usar, se abre «Notas» del menú, se
+ * escribe ahí y se vuelve al chat. Se confirma en la base.
+ */
 async function tomarLaNota(viva: Viva, texto: string): Promise<ResultadoDeLaOrden> {
     const p = viva.prospecto;
     if (!p?.jid) return { ok: false, motivo: "El prospecto todavía no tiene conversación en Verzay Ventas" };
-    // Tomar una nota es una ACCIÓN de la herramienta, no una navegación: se
-    // escribe en el campo Notas de la ficha del prospecto, esté donde esté.
-    if (!(await viva.pagina.locator("textarea[data-notas]").first().isVisible().catch(() => false))) {
-        const r = await abrirElChat(viva);
-        if (!r.ok) return r;
-        if (!(await abrirLaFicha(viva))) return { ok: false, motivo: "No se pudo abrir la ficha del contacto" };
-    }
-    const caja = viva.pagina.locator("textarea[data-notas]").first();
-    const antes = await caja.inputValue();
-    const despues = conLaNotaAgregada(antes, texto);
-    await clicEn(viva, caja);
-    await viva.pagina.keyboard.press("Control+End").catch(() => {});
-    const falta = loQueFaltaEscribir(antes, despues);
-    if (falta === null) await caja.fill(despues);
-    else if (falta) await caja.pressSequentially(falta, { delay: PAUSA_ENTRE_LETRAS_MS });
-    await dormir(300);
-    // La ficha guarda al salir del campo: el cursor se va y el campo se suelta.
-    await moverA(viva, viva.tamano.ancho * 0.45, viva.tamano.alto * 0.3);
-    await caja.blur();
-    // Se comprueba en la BASE, no en la pantalla: guardada de verdad o no.
-    for (let i = 0; i < 20; i++) {
-        await dormir(500);
-        if (await laNotaEstaGuardada(p, texto)) return { ok: true };
-    }
-    return { ok: false, motivo: "La nota se escribió en la ficha pero no se confirmó guardada" };
-}
+    const nota = await laNotaDelProspecto(p);
 
-async function laNotaEstaGuardada(p: ElProspecto, texto: string): Promise<boolean> {
-    const filas = await db.externalClientData.findMany({
-        where: { userId: p.cuentaId, remoteJid: { in: Array.from(new Set([p.jid!, ...p.identidades])) } },
-        select: { data: true },
-    });
-    return filas.some((f) => {
-        const notas = (f.data as Record<string, unknown> | null)?.notas;
-        return typeof notas === "string" && notas.includes(texto.trim());
-    });
+    let escrita = false;
+    const r = await abrirElChat(viva);
+    if (r.ok && await laPestanaDelChat(viva, "notes") && await abrirLaNota(viva, nota)) {
+        await escribirEnLaNota(viva, texto);
+        escrita = true;
+    }
+    let porElMenu = false;
+    if (!escrita) {
+        console.info("[verzy] la pestaña Notas del chat no se pudo usar; se escribe desde Notas del menú", { cita: viva.citaId });
+        const enNotas = await cargarSinEnsenarElFallo(viva, "/notas");
+        if (enNotas.ok && await abrirLaNota(viva, nota)) {
+            await escribirEnLaNota(viva, texto);
+            escrita = true;
+            porElMenu = true;
+        }
+    }
+    if (!escrita) return { ok: false, motivo: "No se pudo abrir la nota de la conversación" };
+
+    // Se comprueba en la BASE, no en la pantalla: guardada de verdad o no.
+    let guardada = false;
+    for (let i = 0; i < 24 && !guardada; i++) {
+        await dormir(500);
+        guardada = await laNotaTraeElTexto(nota.id, texto);
+    }
+    // De vuelta a la conversación, como estaba.
+    if (porElMenu) {
+        viva.chatAbierto = null;
+        await abrirElChat(viva);
+    } else {
+        await laPestanaDelChat(viva, "messages");
+    }
+    if (!guardada) {
+        console.error("[verzy] la nota se escribió pero no se confirmó guardada", { cita: viva.citaId, nota: nota.id });
+        return { ok: false, motivo: "La nota se escribió pero no se confirmó guardada" };
+    }
+    return { ok: true };
 }
 
 async function hacerLaOrden(viva: Viva, orden: OrdenDeLaPantalla): Promise<ResultadoDeLaOrden> {

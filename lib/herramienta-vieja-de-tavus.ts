@@ -14,6 +14,8 @@
  * El día que la persona acepte la herramienta nueva (`ruta`), esto sobra.
  */
 
+import { esModuloConGuia } from "./introduccion-de-la-guia";
+
 /** Las palabras del enum de la persona y la ruta que significan. */
 export const RUTA_DE_LA_PAGINA_DE_TAVUS: Readonly<Record<string, `/${string}`>> = {
     inicio: "/inicio",
@@ -30,10 +32,15 @@ export const RUTA_DE_LA_PAGINA_DE_TAVUS: Readonly<Record<string, `/${string}`>> 
     resultados: "/crm/reportes",
 };
 
-/** La guía de un módulo; sin un módulo que sea un nombre de guía, la portada de tutoriales. */
+/**
+ * La guía de un módulo. Solo una guía que EXISTE (`MODULOS_CON_GUIA`); lo
+ * demás va a la portada de tutoriales. Antes valía cualquier palabra con forma
+ * de nombre, y un `modulo` inventado por el modelo («crm», «whatsapp») abría
+ * un 404 delante del cliente.
+ */
 export function laRutaDeLaGuiaDeTavus(modulo: unknown): `/${string}` {
-    const m = typeof modulo === "string" ? modulo.trim().toLowerCase() : "";
-    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(m) ? `/guia/${m}` : "/inicio#tutoriales";
+    const m = typeof modulo === "string" ? modulo.trim().toLowerCase().replace(/[\s_]+/g, "-") : "";
+    return esModuloConGuia(m) ? `/guia/${m}` : "/inicio#tutoriales";
 }
 
 /** La ruta de una `pagina` de Tavus, o null si no es una de las suyas. */
