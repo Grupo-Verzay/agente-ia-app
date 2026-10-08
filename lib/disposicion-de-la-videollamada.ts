@@ -59,3 +59,20 @@ export function laDisposicion(e: EntradaDeLaDisposicion): Disposicion {
     if (!e.presentacionTerminada && !e.yaSeCompartio) return { grande: "avatar", mini: null };
     return { grande: "portada", mini: "avatar" };
 }
+
+/**
+ * Dónde acaba lo grande de la sala: SIEMPRE encima de la barra de abajo
+ * (80 px), donde viven los mandos y la miniatura de Verzy. Con `bottom-0`
+ * la última franja de la pantalla compartida —la barra de escribir de un
+ * chat, sus emojis— quedaba debajo de ellos.
+ */
+export const ABAJO_DE_LO_GRANDE = "bottom-20";
+
+/**
+ * Cómo se encaja la pantalla de Verzy en su caja: ENTERA y con su forma real
+ * (`object-contain`), centrada. El servidor ya toma la forma de la caja
+ * (`elTamanoDeLaPantalla`), así que en reposo la llena sin franjas; si la
+ * forma no coincide, se ve completa antes que recortada (`cover`) o
+ * deformada (`fill`).
+ */
+export const AJUSTE_DE_LA_PANTALLA = "h-full w-full object-contain object-center";

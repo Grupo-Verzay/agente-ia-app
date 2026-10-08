@@ -99,7 +99,7 @@ export const HERRAMIENTA_DE_LA_PANTALLA = {
         name: NOMBRE_DE_LA_HERRAMIENTA,
         description:
             "Comparte en la pantalla del cliente, en vivo, la página de Agente IA que le pases (la landing o la plataforma con la sesión de Verzay Ventas). " +
-            "La URL la decides tú siguiendo tu entrenamiento de Videollamadas y el tema de la conversación en ese momento. " +
+            "La URL la decides tú siguiendo tu entrenamiento de Videollamadas y el tema de la conversación en ese momento: usa la ruta EXACTA que escribe tu entrenamiento para ese tema, nunca una sección parecida. " +
             `Usa "${OCULTAR}" para dejar de compartir.`,
         parameters: {
             type: "object",
@@ -158,6 +158,14 @@ export const REGLA_DE_LO_QUE_PIDE_VER =
  * Lo que se le cuenta al avatar sobre CÓMO se comparte pantalla. No dice QUÉ
  * abrir ni cuándo: eso lo dice solo el entrenamiento de Videollamadas.
  */
+/**
+ * Precisión de ruta: el modelo tiende a ir a una sección «parecida» (otra
+ * pantalla del mismo módulo). La regla es genérica a propósito: QUÉ ruta es
+ * cada tema lo dice el entrenamiento, nunca este código.
+ */
+export const REGLA_DE_LA_RUTA_EXACTA =
+    "Usa la URL EXACTA que tu entrenamiento escribe para ese tema, letra por letra. Nunca la cambies por otra sección que suene parecida ni la deduzcas por el nombre del módulo: si tu entrenamiento dice una ruta para ese tema, es esa y ninguna otra. Si tu entrenamiento no da una ruta para lo que se pide, no compartas: descríbelo en palabras.";
+
 export function elBloqueDeLaPantalla(): string {
     return [
         "PANTALLA COMPARTIDA",
@@ -166,6 +174,7 @@ export function elBloqueDeLaPantalla(): string {
         "- Comparte SOLO en el paso de tu entrenamiento que lo indica, o cuando el cliente pide ver algo. Nunca por tu cuenta: no adelantes pantallas de pasos que todavía no llegaron ni abras otra página porque se mencionó un tema.",
         "- Cuando compartas, LLAMA a la herramienta: decir que muestras algo sin llamarla deja la pantalla vacía.",
         "- Pasa siempre la ruta completa que dice tu entrenamiento. Nunca la llames con la ruta vacía ni solo con la barra.",
+        `- ${REGLA_DE_LA_RUTA_EXACTA}`,
         `- ${REGLA_DE_LO_QUE_PIDE_VER}`,
         "- Qué URL abrir y en qué momento lo decides SOLO siguiendo tu entrenamiento de Videollamadas, en su orden.",
         "- Nunca digas una URL en voz alta: llama a la herramienta y NÓMBRALA en palabras, di qué se está viendo.",

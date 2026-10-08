@@ -55,7 +55,7 @@ const ESPERA_DE_LA_ORDEN_MS = 30_000;
 /** Cada cuánto mira la sala si su orden ya salió. La réplica dueña además la avisa al momento. */
 const MIRAR_LA_ORDEN_MS = 100;
 /** Lo que se espera a que la red se calme tras cargar. Más es pantalla quieta. */
-const CALMA_DE_LA_RED_MS = 1_200;
+const CALMA_DE_LA_RED_MS = 600;
 
 const REPLICA = randomBytes(6).toString("hex");
 
@@ -496,18 +496,18 @@ async function clicEn(viva: Viva, l: Localizador): Promise<boolean> {
     const caja = await l.boundingBox().catch(() => null);
     if (!caja) return false;
     await moverA(viva, caja.x + caja.width / 2, caja.y + Math.min(caja.height / 2, 18));
-    await dormir(120);
+    await dormir(50);
     await viva.pagina.mouse.down();
-    await dormir(80);
+    await dormir(40);
     await viva.pagina.mouse.up();
     return true;
 }
 
 async function recorrerConLaRueda(viva: Viva): Promise<void> {
     await moverA(viva, viva.tamano.ancho * 0.6, viva.tamano.alto * 0.55);
-    for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, 90); await dormir(70); }
-    await dormir(450);
-    for (let i = 0; i < 6; i++) { await viva.pagina.mouse.wheel(0, -90); await dormir(70); }
+    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, 120); await dormir(40); }
+    await dormir(250);
+    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, -120); await dormir(40); }
 }
 
 // ---------------------------------------------------------------- las órdenes
@@ -607,7 +607,7 @@ async function volverA(viva: Viva, url: string): Promise<void> {
 
 /** Espera (poco) a que llegue a la sala un fotograma pintado después de `desde`. */
 async function esperarUnFotogramaDesde(viva: Viva, desde: number): Promise<void> {
-    const hasta = Date.now() + 1_500;
+    const hasta = Date.now() + 900;
     while (viva.ultimoEn <= desde && Date.now() < hasta) {
         await viva.pagina.mouse.move(viva.raton.x + 1, viva.raton.y).catch(() => {});
         await viva.pagina.mouse.move(viva.raton.x, viva.raton.y).catch(() => {});
@@ -623,7 +623,7 @@ async function laSeccion(viva: Viva, ancla: string): Promise<Localizador | null>
 
 /** Baja, suave y con el cursor, hasta esa sección. */
 async function bajarA(viva: Viva, destino: Localizador): Promise<void> {
-    await moverA(viva, viva.tamano.ancho * 0.55, viva.tamano.alto * 0.5, 300);
+    await moverA(viva, viva.tamano.ancho * 0.55, viva.tamano.alto * 0.5, 200);
     await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
     // Hasta que la sección queda arriba (o un tope): el desplazamiento suave
     // dura según lo lejos que esté, y esperar de más es pantalla quieta.
@@ -673,7 +673,7 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
         await pagina.keyboard.press("Control+A").catch(() => {});
         await pagina.keyboard.press("Backspace").catch(() => {});
         await buscador.pressSequentially(busqueda, { delay: PAUSA_ENTRE_LETRAS_MS });
-        await dormir(400);
+        await dormir(200);
     }
     if (await fila.waitFor({ state: "visible", timeout: 6_000 }).then(() => true, () => false)) {
         const botones = fila.locator("button");
@@ -782,7 +782,7 @@ async function abrirLaNota(viva: Viva, nota: { id: string; titulo: string }): Pr
     await clicEn(viva, fila);
     for (let i = 0; i < 20; i++) {
         if (await abierta()) return true;
-        await dormir(250);
+        await dormir(150);
     }
     return false;
 }
@@ -796,7 +796,7 @@ async function escribirEnLaNota(viva: Viva, textoNuevo: string): Promise<void> {
     await pagina.keyboard.press("Control+End").catch(() => {});
     if (antes) await pagina.keyboard.press("Enter").catch(() => {});
     await caja.pressSequentially(textoNuevo, { delay: PAUSA_ENTRE_LETRAS_MS });
-    await dormir(300);
+    await dormir(150);
 }
 
 /** La nota guardada en la BASE trae el texto (el editor guarda solo). */
@@ -839,7 +839,7 @@ async function tomarLaNota(viva: Viva, texto: string): Promise<ResultadoDeLaOrde
     // Se comprueba en la BASE, no en la pantalla: guardada de verdad o no.
     let guardada = false;
     for (let i = 0; i < 24 && !guardada; i++) {
-        await dormir(500);
+        await dormir(250);
         guardada = await laNotaTraeElTexto(nota.id, texto);
     }
     // De vuelta a la conversación, como estaba.
