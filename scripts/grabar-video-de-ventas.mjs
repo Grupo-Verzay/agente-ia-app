@@ -681,6 +681,15 @@ await callar();
 await est("cursor.esconder");
 await capacidad("texto");
 await est("plano", PLANOS.telPanel);
+if (CASO === "tienda") {
+    await decir("anuncio");
+    await espera(p, 1200);
+    await alDecir("le contesta", 150);
+    await llega("M02");
+    await est("cursor.esconder");
+    await alDecir("con fotos", 200);
+    await espera(p, 600);
+} else {
 await decir("texto");
 await espera(p, 1200);
 // Los campos de la cuenta viven en su sección de la ficha, plegada al abrir.
@@ -694,6 +703,7 @@ await est("cursor.esconder");
 await alDecir("su ficha", 100);
 await esperarEn("app", ENCONTRAR.campoDeLaFicha, CASO === "tienda" ? ["Producto", "Urban Run"] : ["Servicio de interés", "Blanqueamiento"], { que: "el servicio en la ficha" });
 await anillos([{ c: await enElCuadro("app", ENCONTRAR.campoDeLaFicha, [CASO === "tienda" ? "Producto" : "Servicio de interés"]), texto: "Se llenó solo" }]);
+}
 await captura("texto");
 await acabar(700);
 
@@ -715,7 +725,7 @@ if (CASO === "tienda") {
     const notaT = await reproducirNota("M05", "clienta");
     await espera(p, notaT + 250);
     await decir("voz");
-    await alDecir("la entiende");
+    await alDecir("La entiende");
     {
         const c = await esperarEn("app", ENCONTRAR.burbuja, ["SONRIE_M05", "calzo"], { ms: 4_000, que: "la nota transcrita en el panel" }).catch(() => null);
         if (c) await anillos([{ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M05"]), texto: "Transcrita al instante" }]);
