@@ -27812,3 +27812,25 @@ Lo prueban `scripts/banco-notas-de-verzy.sh` (la regla y un barrido; `MODO=roto`
 3. **Ruta exacta**: el contexto lleva `REGLA_DE_LA_RUTA_EXACTA` (`lib/pantalla-del-avatar.ts`): la URL es la que el entrenamiento declara para ese tema, tal cual, sin cambiarla por una sección parecida. La navegación sigue decidiéndola solo el prompt.
 
 Lo prueba `scripts/banco-barra-de-la-videollamada.sh` con la sala montada a 1440×900, 1024×768, 768×1024 y 390×844 (la imagen entera, su forma real, encima de la barra); `MODO=roto` contra `60d2a1b` afirma el recorte.
+
+### Y desde el CHAT: el icono de propuestas de la cabecera
+
+La cabecera de una conversación lleva, junto a notas, recordatorio y Google
+Sheets, un icono de propuestas (`ChatPropuestaPanel`, en las dos filas de
+`ChatHeader`). Abre un `PanelLateral` (`PANEL_DE_LA_PROPUESTA`) con el MISMO
+`FormularioDePropuesta` que Panel › Propuestas (`marco="panel"`), con su «Cargar
+plan», y al final un botón verde de ancho completo, «Enviar por WhatsApp».
+
+1. **Lo lee `propuestaDesdeElChatAction(instanceName)` y lo envía
+   `crearYEnviarPropuestaDesdeElChatAction(instanceName, destino, datos)`**: la
+   cuenta es la DUEÑA de la línea de la conversación (`resolveInstanceOwner` +
+   `quienManda`), nunca la de quien mira; otra cuenta o un agente, no.
+2. **El número y la línea los pone el servidor**: el WhatsApp y la línea del
+   formulario se ignoran; va al contacto de ESE chat por ESA línea (que tiene
+   que estar en `lasLineasParaEnviar`). Un `@lid` se manda a su jid.
+3. **Se crea y se envía con las funciones de siempre** (`crearPropuesta`,
+   `enviarLaPropuesta`): queda en Panel › Propuestas como cualquier otra.
+
+Lo prueba `scripts/banco-propuesta-desde-el-chat.sh` (barrido y las acciones
+contra Postgres con el despachador fingido); `MODO=roto` lee `70273b0` y afirma
+que no existía.

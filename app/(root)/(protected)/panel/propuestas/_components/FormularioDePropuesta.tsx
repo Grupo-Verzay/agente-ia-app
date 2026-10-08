@@ -168,6 +168,9 @@ export function FormularioDePropuesta({
     guardando,
     onCerrar,
     onGuardar,
+    marco = "dialogo",
+    cuenta,
+    formId = "formulario-de-propuesta",
 }: {
     abierto: boolean;
     propuesta: Propuesta | null;
@@ -180,7 +183,17 @@ export function FormularioDePropuesta({
     guardando: boolean;
     onCerrar: () => void;
     onGuardar: (b: BorradorDePropuesta) => void;
+    /**
+     * `panel`: solo el formulario, sin diálogo ni pie, para meterlo en un panel
+     * lateral (la conversación de Chats). Ahí no se piden el WhatsApp ni la
+     * línea: son los de la conversación, y los pone el servidor.
+     */
+    marco?: "dialogo" | "panel";
+    /** La cuenta dueña de la propuesta, cuando no es la de quien mira (la de la línea del chat). */
+    cuenta?: string;
+    formId?: string;
 }) {
+    const enPanel = marco === "panel";
     const [b, setB] = useState<BorradorDePropuesta>(() => borradorDe(propuesta));
     // Cargar un plan enlazado pide el plan al servidor: mientras va, el selector
     // se apaga, y lo que vuelve se aplica sobre el borrador de ESE momento.
@@ -250,7 +263,7 @@ export function FormularioDePropuesta({
         setCargandoPlan(true);
         let r: Awaited<ReturnType<typeof cargarPlanEnLaPropuestaAction>>;
         try {
-            r = await cargarPlanEnLaPropuestaAction(plantilla.id);
+            r = await cargarPlanEnLaPropuestaAction(plantilla.id, cuenta);
         } catch (e) {
             console.error("[propuestas] la carga del plan no llegó al servidor", e);
             r = { success: false, message: "No se pudo leer el plan. Revisa la conexión." };
@@ -286,21 +299,13 @@ export function FormularioDePropuesta({
     const cambiarServicio = (i: number, campo: keyof ServicioEnEdicion, valor: string) =>
         setB((x) => ({ ...x, servicios: x.servicios.map((s, j) => (j === i ? { ...s, [campo]: valor } : s)) }));
 
-    return (
-        <Dialog open={abierto} onOpenChange={(o) => !o && !guardando && onCerrar()}>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>{propuesta ? "Editar propuesta" : "Nueva propuesta"}</DialogTitle>
-                    <DialogDescription>
-                        {propuesta
-                            ? "Quien ya tiene el enlace verá la versión nueva."
-                            : "Al crearla se genera su página pública con un enlace propio."}
-                    </DialogDescription>
-                </DialogHeader>
-
+    const formulario = (
                 <form
-                    id="formulario-de-propuesta"
-                    className="space-y-5"
+                    id={formId}
+                    // En el panel lateral el ancho es de una columna: las rejillas
+                    // de dos o tres no caben, así que todas pasan a una.
+                    className={enPanel ? "space-y-5 [&_.grid]:!grid-cols-1" : "space-y-5"}
+                    data-formulario-de-propuesta={marco}
                     onSubmit={(e) => {
                         e.preventDefault();
                         onGuardar(b);
@@ -328,6 +333,7 @@ export function FormularioDePropuesta({
                                 placeholder="Empresa del cliente"
                             />
                         </div>
+                        {enPanel ? null : (
                         <div className="space-y-1.5">
                             <Label htmlFor="propuesta-whatsapp">WhatsApp del cliente (opcional)</Label>
                             <Input
@@ -339,6 +345,7 @@ export function FormularioDePropuesta({
                                 placeholder="+57 300 123 4567"
                             />
                         </div>
+                        )}
                         <div className="space-y-1.5">
                             <Label htmlFor="propuesta-correo">Correo de contacto (opcional)</Label>
                             <Input
@@ -390,6 +397,7 @@ export function FormularioDePropuesta({
                         </div>
                     </div>
 
+                    {enPanel ? null : (
                     <div className="space-y-1.5">
                         <Label htmlFor="propuesta-linea">Línea de WhatsApp desde la que se envía (opcional)</Label>
                         <select
@@ -410,6 +418,7 @@ export function FormularioDePropuesta({
                             <p className="text-xs text-muted-foreground">Esta cuenta no tiene líneas de WhatsApp conectadas.</p>
                         ) : null}
                     </div>
+                    )}
 
                     <div className="space-y-1.5" data-campo-slug>
                         <Label htmlFor="propuesta-slug">Enlace personalizado (opcional)</Label>
@@ -654,13 +663,30 @@ export function FormularioDePropuesta({
                         </div>
                     </div>
                 </form>
+    );
+
+    if (enPanel) return formulario;
+
+    return (
+        <Dialog open={abierto} onOpenChange={(o) => !o && !guardando && onCerrar()}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{propuesta ? "Editar propuesta" : "Nueva propuesta"}</DialogTitle>
+                    <DialogDescription>
+                        {propuesta
+                            ? "Quien ya tiene el enlace verá la versión nueva."
+                            : "Al crearla se genera su página pública con un enlace propio."}
+                    </DialogDescription>
+                </DialogHeader>
+
+                {formulario}
 
                 {/* Los botones son hijos DIRECTOS del pie: es `justify-between`. */}
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={onCerrar} disabled={guardando}>
                         Cancelar
                     </Button>
-                    <Button type="submit" form="formulario-de-propuesta" disabled={guardando}>
+                    <Button type="submit" form={formId} disabled={guardando}>
                         {guardando ? "Guardando…" : propuesta ? "Guardar" : "Crear"}
                     </Button>
                 </DialogFooter>
