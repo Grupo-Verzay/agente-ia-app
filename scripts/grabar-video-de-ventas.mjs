@@ -150,7 +150,8 @@ const voz = Object.fromEntries(
 );
 const NOTAS = {
     clienta: leerWav(wavDeLaCache(NOTAS_DE_VOZ.clienta.texto, CACHE_DE_VENTAS, VOZ_DEL_CLIENTE)),
-    ia: leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_LA_IA)),
+    // La tienda no tiene nota de voz de la IA (texto vacío): no se carga.
+    ia: NOTAS_DE_VOZ.ia.texto ? leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_LA_IA)) : null,
 };
 const AVISO = elAvisoDeMensaje(voz.gancho.audio.frecuencia);
 /**
@@ -314,6 +315,8 @@ async function esperarEn(id, buscar, arg, { ms = 15_000, que } = {}) {
                 await p.screenshot({ path: path.join(CAPTURAS, "fallo.png") }).catch(() => {});
                 const ficha = await f.evaluate(() => [...document.querySelectorAll("[data-ficha-de-contacto] label")].map((l) => `${l.textContent.trim()}=${l.parentElement?.querySelector("input,textarea")?.value ?? ""}`)).catch(() => []);
                 console.log("  · la ficha tenía:", ficha);
+                const dentro = await f.evaluate(() => ({ url: location.href, texto: document.body.innerText.replace(/\s+/g, " ").slice(0, 900) })).catch((e) => ({ error: String(e) }));
+                console.log("  · la capa", id, "tenía:", JSON.stringify(dentro));
             }
             throw new Error(`[video] no apareció en ${id}: ${que ?? buscar.toString().slice(0, 80)}`);
         }
@@ -508,7 +511,7 @@ await clicEn("agenda", ".fc-semanaBtn-button");
 // El embudo, con sus columnas.
 // Por `textContent` y no `innerText`: las columnas van en mayúsculas por CSS,
 // e `innerText` devuelve el texto ya transformado.
-await esperarEn("embudo", () => document.body.textContent.includes(ETAPA_CONFIRMADA), null, { ms: 60_000, que: "el embudo" });
+await esperarEn("embudo", (etapa) => document.body.textContent.includes(etapa), ETAPA_CONFIRMADA, { ms: 60_000, que: "el embudo" });
 // Los reportes, con el de la semana pasada.
 await esperarEn("reportes", () => !!document.querySelector("div.cursor-pointer"), null, { ms: 60_000, que: "los reportes" });
 for (const capa of CAPAS_DEL_PORTATIL) {
