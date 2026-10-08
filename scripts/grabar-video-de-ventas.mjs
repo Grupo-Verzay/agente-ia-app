@@ -699,6 +699,33 @@ await capacidad("voz");
 await presencia("grabando");
 await espera(p, 1300);
 await presencia(null);
+if (CASO === "tienda") {
+    // La nota de voz del cliente: se transcribe, y la IA contesta por texto con su talla.
+    await llega("M05");
+    await espera(p, 250);
+    const notaT = await reproducirNota("M05", "clienta");
+    await espera(p, notaT + 250);
+    await decir("voz");
+    await alDecir("la entiende");
+    {
+        const c = await esperarEn("app", ENCONTRAR.burbuja, ["SONRIE_M05", "calzo"], { ms: 4_000, que: "la nota transcrita en el panel" }).catch(() => null);
+        if (c) await anillos([{ c: await enElCuadro("app", ENCONTRAR.burbuja, ["SONRIE_M05"]), texto: "Transcrita al instante" }]);
+    }
+    await llega("M06");
+    await acabar(200);
+    await anillos([]);
+    await espera(p, 1000);
+    {
+        const talla = await esperarEn("app", ENCONTRAR.campoDeLaFicha, ["Talla", "41"], { ms: 6_000, que: "la talla en la ficha" }).catch(() => null);
+        const marcas = [];
+        if (talla) marcas.push({ c: await enElCuadro("app", ENCONTRAR.campoDeLaFicha, ["Talla"]), texto: "Talla 41, de la nota de voz", abajo: true });
+        const n = await enElCuadro("app", ENCONTRAR.nombreEnLaFicha, CLIENTA.nombre);
+        if (n) marcas.push({ c: n, texto: "Su nombre, de la nota de voz" });
+        await anillos(marcas);
+    }
+    await espera(p, 800);
+    await captura("voz");
+} else {
 await llega("M03");
 await espera(p, 250);
 const nota1 = await reproducirNota("M03", "clienta");
@@ -725,6 +752,7 @@ await espera(p, 1400);
 }
 await espera(p, Math.max(0, nota2 - 1400) + 250);
 await captura("voz");
+}
 
 // 5b. Google Sheets: los datos de Laura, también en la hoja de la clínica.
 await anillos([]);
