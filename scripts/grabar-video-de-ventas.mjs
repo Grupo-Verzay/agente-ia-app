@@ -41,6 +41,7 @@ import {
     ASESORA,
     CACHE_DE_VENTAS,
     CAPACIDADES,
+    CASO,
     CIERRE_DEL_MONTAJE,
     CLIENTA,
     ETAPAS,
@@ -213,8 +214,12 @@ rt = await servirElTiempoReal(ctx);
 // logo y lo que pintan las tarjetas del arranque, `MEDIOS_DEL_MONTAJE`). Con la lista escrita a mano se quedó sirviendo el .mp4 viejo cuando el
 // vídeo pasó a .webm: el estudio pedía un archivo que daba 404 y el vídeo de
 // WhatsApp Web se quedaba en su portada sin decir nada.
+// El logo y la portada del documento son de cada caso: la clínica y la tienda
+// no comparten ninguno de los dos.
+const LOGO_DEL_NEGOCIO = CASO === "tienda" ? "logo-nativa.png" : "logo-sonrie.png";
+const PORTADA_DEL_DOCUMENTO = CASO === "tienda" ? "guia-de-tallas.jpg" : "lista-de-precios.jpg";
 const archivos = Object.fromEntries(
-    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), ...Object.values(MEDIOS_DEL_MONTAJE).map((m) => m.archivo), "lista-de-precios.jpg", "logo-sonrie.png"])].map((f) => [
+    [...new Set([...Object.values(MEDIOS).flatMap((m) => [m.archivo, m.portada].filter(Boolean)), ...Object.values(MEDIOS_DEL_MONTAJE).map((m) => m.archivo), PORTADA_DEL_DOCUMENTO, LOGO_DEL_NEGOCIO])].map((f) => [
         f,
         path.join(MEDIOS_DIR, f),
     ]),
@@ -236,8 +241,8 @@ const datos = {
     otros: OTROS_CHATS.map((c, i) => ({ id: `o${i}`, nombre: c.nombre, iniciales: lasIniciales(c.nombre), hora: horaDe(c.hace * 60_000), prev: c.ultimo.texto, yo: c.ultimo.de !== "cliente" })),
     montaje: losNegociosDelMontaje(NEGOCIOS_DEL_ARRANQUE, { hora: laHora(cal.inicio) }),
     logo: "/__estudio/medios/verzay.png",
-    logoNegocio: "/__estudio/medios/logo-sonrie.png",
-    portadaDoc: "/__estudio/medios/lista-de-precios.jpg",
+    logoNegocio: `/__estudio/medios/${LOGO_DEL_NEGOCIO}`,
+    portadaDoc: `/__estudio/medios/${PORTADA_DEL_DOCUMENTO}`,
     web: LLAMADO.web,
 };
 await servirElEstudio(ctx, { pagina: () => laPaginaDelEstudio(datos), archivos });
@@ -683,8 +688,8 @@ await alDecir("La IA le da");
 await llega("M02");
 await est("cursor.esconder");
 await alDecir("su ficha", 100);
-await esperarEn("app", ENCONTRAR.campoDeLaFicha, ["Servicio de interés", "Blanqueamiento"], { que: "el servicio en la ficha" });
-await anillos([{ c: await enElCuadro("app", ENCONTRAR.campoDeLaFicha, ["Servicio de interés"]), texto: "Se llenó solo" }]);
+await esperarEn("app", ENCONTRAR.campoDeLaFicha, CASO === "tienda" ? ["Producto", "Urban Run"] : ["Servicio de interés", "Blanqueamiento"], { que: "el servicio en la ficha" });
+await anillos([{ c: await enElCuadro("app", ENCONTRAR.campoDeLaFicha, [CASO === "tienda" ? "Producto" : "Servicio de interés"]), texto: "Se llenó solo" }]);
 await captura("texto");
 await acabar(700);
 
