@@ -1156,15 +1156,15 @@ export function laPaginaDelEstudio(datos) {
         )
         .join("");
     const celda = (v) => `<td>${e(v)}</td>`;
-    const letras = ["", "A", "B", "C", "D", "E"].slice(0, LA_HOJA.columnas.length + 1);
+    const letras = ["", "A", "B", "C", "D", "E", "F", "G"].slice(0, LA_HOJA.columnas.length + 1);
     const hojaHtml =
         `<table><tr>${letras.map((l) => `<th>${l}</th>`).join("")}</tr>` +
         `<tr class="titulos"><td class="n">1</td>${LA_HOJA.columnas.map(celda).join("")}</tr>` +
         LA_HOJA.filas.map((f, i) => `<tr><td class="n">${i + 2}</td>${f.map(celda).join("")}</tr>`).join("") +
-        `<tr class="laura"><td class="n">${LA_HOJA.filas.length + 2}</td>${LA_HOJA.laura.map(celda).join("")}</tr>` +
+        `<tr class="laura"><td class="n">${LA_HOJA.filas.length + 2}</td>${(LA_HOJA.laura ?? LA_HOJA.mateo).map(celda).join("")}</tr>` +
         Array.from({ length: 6 }, (_, i) => `<tr><td class="n">${LA_HOJA.filas.length + 3 + i}</td>${LA_HOJA.columnas.map(() => "<td></td>").join("")}</tr>`).join("") +
         `</table>`;
-    const pildoras = CAPACIDADES.map((c, i) => `<div class="pildora"><span class="num">${i + 1}</span><b>${e(c.titulo)}</b></div>`).join("");
+    const pildoras = CAPACIDADES.map((c, i) => `<div class="pildora"><span class="num">${i + 1}</span><b>${e(typeof c === "string" ? c : c.titulo)}</b></div>`).join("");
     const columnas = LINEAS_DEL_EQUIPO.map(
         (l) =>
             `<div class="linea" data-linea="${e(l.id)}"><div class="cabLinea"><span class="wa">${I.chats}</span><b>${e(l.nombre)}</b>` +
@@ -1202,7 +1202,7 @@ export function laPaginaDelEstudio(datos) {
       <div class="botones"><span>${I.mic}</span><span>${I.video}</span><span class="colgar">${I.tel}</span></div></div>
     <div class="isla"></div>
     <div class="estado"><span class="hora">9:41</span><span class="iconos">${I.senal}${I.wifi}${I.bateria}</span></div>
-    <div class="banner"><div class="app">${I.chats}</div><div style="flex:1;min-width:0"><b>Laura<small>ahora</small></b><p></p></div></div>
+    <div class="banner"><div class="app">${I.chats}</div><div style="flex:1;min-width:0"><b>${e(datos.clienta.nombreCorto)}<small>ahora</small></b><p></p></div></div>
     <div class="vista lista">
       <div class="cab"><div class="fila1"><div class="circ">${I.tresPuntos.replace('width="22" height="22"', 'width="18" height="18"')}</div><div style="display:flex;gap:12px"><div class="circ">${I.camara.replace('width="22" height="22"', 'width="17" height="17"')}</div><div class="circ" style="background:#25d366;color:#fff">${I.mas.replace('width="24" height="24"', 'width="18" height="18"')}</div></div></div>
         <div class="titulo">Chats</div><div class="busca">${I.buscar} Preguntar a Meta AI o buscar</div></div>
@@ -1249,7 +1249,7 @@ export function laPaginaDelEstudio(datos) {
   <div id="sheets" class="pantalla"><div class="barra"><i></i><i></i><i></i><div class="dir">docs.google.com/spreadsheets</div></div>
     <div class="cabHoja"><div class="logoHoja"></div><div><b>${e(LA_HOJA.titulo)}</b><small>Sincronizada con Verzay</small></div></div>
     <div class="menus"><span>Archivo</span><span>Editar</span><span>Ver</span><span>Insertar</span><span>Formato</span><span>Datos</span></div>
-    <div class="herr"></div>${hojaHtml}<div class="pestanas"><span>Pacientes</span></div></div>
+    <div class="herr"></div>${hojaHtml}<div class="pestanas">${(LA_HOJA.pestanas ?? ["Pacientes"]).map((p, i) => `<span${i === (LA_HOJA.pestanas?.length ?? 1) - 1 ? ' class="on"' : ""}>${e(p)}</span>`).join("")}</div></div>
 
   <div id="resumen" class="tarjeta"><div class="titulo">Todo esto, <span>en una sola plataforma</span></div><div class="pildoras">${pildoras}</div></div>
   <div id="lineas" class="tarjeta"><div class="columnas">${columnas}</div></div>

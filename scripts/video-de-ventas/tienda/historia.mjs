@@ -269,7 +269,33 @@ export const LA_HOJA = Object.freeze({
 
 /** Las líneas del equipo de la tienda. */
 export const LINEAS_DEL_EQUIPO = Object.freeze([
-    { nombre: "Ventas", asesores: 4 },
-    { nombre: "Soporte", asesores: 2 },
-    { nombre: "Despachos", asesores: 2 },
+    {
+        id: "ventas",
+        nombre: "Ventas",
+        color: "#3B82F6",
+        asesores: [
+            { nombre: "Andrea Rojas", chats: 5 },
+            { nombre: "Felipe Gómez", chats: 4 },
+            { nombre: "Valeria Díaz", chats: 6 },
+            { nombre: "Santiago Peña", chats: 3 },
+        ],
+    },
+    {
+        id: "soporte",
+        nombre: "Soporte",
+        color: "#8B5CF6",
+        asesores: [
+            { nombre: "Lucía Herrera", chats: 3 },
+            { nombre: "Tomás Rincón", chats: 2 },
+        ],
+    },
+    {
+        id: "despachos",
+        nombre: "Despachos",
+        color: "#10B981",
+        asesores: [
+            { nombre: "Natalia Silva", chats: 4 },
+            { nombre: "Esteban Cruz", chats: 2 },
+        ],
+    },
 ]);
