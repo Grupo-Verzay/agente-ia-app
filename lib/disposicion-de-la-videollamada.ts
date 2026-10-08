@@ -61,12 +61,26 @@ export function laDisposicion(e: EntradaDeLaDisposicion): Disposicion {
 }
 
 /**
- * Dónde acaba lo grande de la sala: SIEMPRE encima de la barra de abajo
- * (80 px), donde viven los mandos y la miniatura de Verzy. Con `bottom-0`
- * la última franja de la pantalla compartida —la barra de escribir de un
- * chat, sus emojis— quedaba debajo de ellos.
+ * Dónde acaba lo grande de la sala con los mandos A LA VISTA: encima de la
+ * barra de abajo (80 px), donde viven los mandos y la miniatura. Con los mandos
+ * a la vista y `bottom-0`, la última franja de la pantalla compartida —la barra
+ * de escribir de un chat, sus emojis— quedaría debajo de ellos. Con los mandos
+ * escondidos, ver `elAbajoDeLoGrande`.
  */
 export const ABAJO_DE_LO_GRANDE = "bottom-20";
+
+/**
+ * Dónde acaba lo grande según los mandos: con los mandos ESCONDIDOS (se
+ * apartan solos con una pantalla compartida) el video baja hasta el borde y
+ * ocupa el hueco que dejaron; al volver los mandos, sube otra vez encima de
+ * ellos, con la misma transición. Clases literales: Tailwind no genera nada
+ * compuesto en tiempo de ejecución.
+ */
+export function elAbajoDeLoGrande(mandosOcultos: boolean): string {
+    return mandosOcultos
+        ? "bottom-0 transition-[bottom] duration-300 ease-out"
+        : "bottom-20 transition-[bottom] duration-300 ease-out";
+}
 
 /**
  * Cómo se encaja la pantalla de Verzy en su caja: ENTERA y con su forma real
