@@ -17,6 +17,7 @@ import { sembrarElMarco } from "../sembrar-marco-de-la-guia.mjs";
 import { laHoraDeLaPosicion } from "./backend.mjs";
 import {
     ASESORA,
+    CASO,
     CALIFICACION,
     CAMPOS_DE_LA_FICHA,
     SECCION_DE_LA_FICHA,
@@ -94,16 +95,20 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         etiquetas[e.nombre] = await db.tag.create({ data: { userId: dueno.id, name: e.nombre, slug, color: e.color, order: i } });
     }
 
-    const servicio = await db.service.create({
-        data: { userId: dueno.id, name: "Valoración gratuita", messageText: "Valoración odontológica", order: 0 },
-    });
+    // La tienda no agenda valoraciones: su servicio y sus citas son de la clínica.
+    const enLaTienda = CASO === "tienda";
+    const servicio = enLaTienda
+        ? null
+        : await db.service.create({
+              data: { userId: dueno.id, name: "Valoración gratuita", messageText: "Valoración odontológica", order: 0 },
+          });
 
     // El embudo de la clínica: el que nace con la cuenta, con sus etapas
     // renombradas a las de una clínica. Las tres del sistema se quedan en su
     // sitio (`guardarEtapas` las respeta).
     // Sembrar dos veces no deja dos embudos: se empieza sin ninguno.
     for (const e of await embudos.losEmbudosDe(dueno.id)) await embudos.borrarEmbudo(dueno.id, e.id);
-    const embudoId = await embudos.crearEmbudo({ cuentaId: dueno.id, nombre: "Pacientes", creadoPorId: dueno.id });
+    const embudoId = await embudos.crearEmbudo({ cuentaId: dueno.id, nombre: enLaTienda ? "Pedidos" : "Pacientes", creadoPorId: dueno.id });
     const iniciales = await embudos.lasEtapasDe([embudoId]);
     const deSistema = (s) => iniciales.find((e) => e.sistema === s);
     const pedidas = ETAPAS.map((e) =>
@@ -154,7 +159,9 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
                 updatedAt: new Date(ultimo),
             },
         });
-        await db.sessionTag.create({ data: { sessionId: sesion.id, tagId: etiquetas[c.etiqueta].id } });
+        if (c.etiqueta && etiquetas[c.etiqueta]) {
+            await db.sessionTag.create({ data: { sessionId: sesion.id, tagId: etiquetas[c.etiqueta].id } });
+        }
         await embudos.moverConversacion({ sessionId: sesion.id, embudoId, etapaId: etapas[c.etapa], movidoPorId: dueno.id });
         await laHoraDeLaPosicion(db, sesion.id, ultimo);
         // Dos mensajes por chat: lo que escribió el paciente y lo último.
@@ -213,7 +220,7 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
     const sesionDe = async (nombre) =>
         db.session.findFirstOrThrow({ where: { userId: dueno.id, customName: nombre } });
     const DIA = 86_400_000;
-    const citas = [
+    const citas = enLaTienda ? [] : [
         { quien: "Carlos Ramírez", inicio: cal.inicio - DIA + 4.33 * 3_600_000, estado: "ATENDIDA" },
         { quien: "Pedro Castaño", inicio: cal.inicio + DIA + 6.33 * 3_600_000, estado: "PENDIENTE" },
         { quien: "Julián Torres", inicio: cal.cita - 1.5 * 3_600_000, estado: "CONFIRMADA" },
@@ -255,14 +262,21 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         leadsByStatus: { CALIENTE: 21, TIBIO: 34, FRIO: 27, FINALIZADO: 12 },
         leadsByScore: { sinScore: 18, bajo: 22, medio: 41, moderado: 29, alto: 20, listo: 12 },
         avgScore: 64,
-        topLeads: [
-            { name: "Pedro Castaño", score: 92, status: "CALIENTE", phone: "573114554410" },
-            { name: "Daniela Mejía", score: 88, status: "CALIENTE", phone: "573207787781" },
-        ],
+        topLeads: enLaTienda
+            ? [
+                  { name: "Valeria Cruz", score: 91, status: "CALIENTE", phone: "573112048801" },
+                  { name: "Andrés Pinto", score: 87, status: "CALIENTE", phone: "573202048802" },
+              ]
+            : [
+                  { name: "Pedro Castaño", score: 92, status: "CALIENTE", phone: "573114554410" },
+                  { name: "Daniela Mejía", score: 88, status: "CALIENTE", phone: "573207787781" },
+              ],
         followUpsSent: 57,
         followUpsPending: 9,
         conversions: 14,
-        registrosByTipo: { RESERVA: 16, SOLICITUD: 9, PEDIDO: 4, RECLAMO: 1 },
+        registrosByTipo: enLaTienda
+            ? { PEDIDO: 31, SOLICITUD: 7, RECLAMO: 2 }
+            : { RESERVA: 16, SOLICITUD: 9, PEDIDO: 4, RECLAMO: 1 },
         calidad: {
             conversaciones: 48,
             puntajePromedio: 92,
@@ -277,14 +291,18 @@ export async function sembrarLaClinica({ db, embudos, ahora = Date.now() }) {
         dueno.id,
         new Date(inicioDeSemana),
         new Date(finDeSemana),
-        "Semana muy productiva: entraron 38 leads nuevos y la IA atendió todas las conversaciones al instante. " +
-            "14 pacientes agendaron su valoración y 21 quedaron calientes para cerrar esta semana. " +
-            "El blanqueamiento y la ortodoncia fueron lo más consultado.",
+        enLaTienda
+            ? "Semana muy productiva: entraron 38 clientes nuevos y la IA atendió todas las conversaciones al instante. " +
+                  "Se cerraron 31 pedidos y se recuperaron 7 carritos abandonados. " +
+                  "Los tenis Urban Run y la guía de tallas fueron lo más consultado."
+            : "Semana muy productiva: entraron 38 leads nuevos y la IA atendió todas las conversaciones al instante. " +
+                  "14 pacientes agendaron su valoración y 21 quedaron calientes para cerrar esta semana. " +
+                  "El blanqueamiento y la ortodoncia fueron lo más consultado.",
         JSON.stringify(metricas),
         new Date(finDeSemana + 8 * 3_600_000),
     );
 
-    return { cuenta: dueno.id, asesor: asesora.id, embudoId, etapas, etiquetas: Object.fromEntries(Object.entries(etiquetas).map(([k, v]) => [k, v.id])), servicio: servicio.id, calendario: cal };
+    return { cuenta: dueno.id, asesor: asesora.id, embudoId, etapas, etiquetas: Object.fromEntries(Object.entries(etiquetas).map(([k, v]) => [k, v.id])), servicio: servicio?.id ?? null, calendario: cal };
 }
 
 // Como script suelto: `node scripts/video-de-ventas/sembrar.mjs` con
