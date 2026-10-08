@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Mail, MessageCircle } from "lucide-react";
+import { Home, Mail, MessageCircle } from "lucide-react";
 import { useModuleStore } from "@/stores/modules/useModuleStore";
 import {
     BANDEJAS,
@@ -18,6 +18,7 @@ import { useChatsQueEsperan } from "@/stores/useChatUnreadStore";
 import { useCorreosSinLeerStore } from "@/stores/useCorreosSinLeerStore";
 import { CADA_CUANTO_SE_CUENTA_EL_CORREO_MS } from "@/hooks/usePendientesDelMenu";
 import { MARCA_DE_LA_COLUMNA } from "@/hooks/usePanelFlotante";
+import { esVarianteDePanel } from "@/lib/sidebar-modules";
 import { cn } from "@/lib/utils";
 
 const ICONO = { chats: MessageCircle, correo: Mail } as const;
@@ -25,6 +26,8 @@ const ICONO = { chats: MessageCircle, correo: Mail } as const;
 /** Hueco entre el selector y lo que tiene a cada lado: el MISMO que hay
  *  entre los botones de la derecha (`gap-2` en la barra). */
 const HUECO_PX = HUECO_DE_LA_BARRA_PX;
+/** La casita del Panel: un cuadrado del alto de la barra, como los de la derecha. */
+const CASITA_PX = 36;
 
 /**
  * El selector de la barra de arriba para pasar de Chats a Correos y de vuelta.
@@ -47,6 +50,13 @@ const HUECO_PX = HUECO_DE_LA_BARRA_PX;
  *
  * Es `absolute` dentro de la barra (que es `relative`): así no empuja nada y el
  * menú no se mueve.
+ *
+ * Y a su derecha, a un hueco, va la CASITA que lleva al Panel (el que le toque
+ * a la persona: `esVarianteDePanel`). Su sitio se le RESERVA al selector antes
+ * de medirlo (se le quita a `maximo`), así Chats y Correos siguen en su
+ * posición y con su ancho, centrados en la columna; solo donde no cabe (un
+ * teléfono) el selector cede, como ya cedía. Va aquí y no como un botón más de
+ * la barra: es parte del mismo grupo de accesos.
  */
 export function useSeVeLaBarritaDeBandejas(): boolean {
     const modules = useModuleStore((s) => s.modules);
@@ -98,16 +108,22 @@ export function AlternarBandeja({
 }) {
     const pathname = usePathname();
     const seVe = useSeVeLaBarritaDeBandejas();
+    const panel = useModuleStore((s) => s.modules.find((m) => esVarianteDePanel(m.route)) ?? null);
+    const conCasita = !!panel;
+    const activo = seVe || conCasita;
     const activa = laBandejaActiva(pathname);
     const sinLeer = useSinLeerDeLasBandejas(seVe);
     const sonda = useRef<HTMLDivElement>(null);
     const [sitio, setSitio] = useState<{ izquierda: number; ancho: number; compacto: boolean } | null>(null);
+    const [inicio, setInicio] = useState<number | null>(null);
 
     const medir = useCallback(() => {
         const b = barra.current?.getBoundingClientRect();
         const i = izquierda.current?.getBoundingClientRect();
         const d = derecha.current?.getBoundingClientRect();
         if (!b || !i || !d || b.width === 0) return;
+        const minimo = i.right - b.left + HUECO_PX;
+        setInicio((antes) => (antes === Math.round(minimo) ? antes : Math.round(minimo)));
 
         let columna = laColumnaVisible();
         if (!columna) {
@@ -123,8 +139,9 @@ export function AlternarBandeja({
         }
         const siguiente = dondeVaElSelector({
             columna: { izquierda: columna.left - b.left, ancho: columna.width },
-            minimo: i.right - b.left + HUECO_PX,
-            maximo: d.left - b.left - HUECO_PX,
+            minimo,
+            // El sitio de la casita, reservado: así no pisa nada.
+            maximo: d.left - b.left - HUECO_PX - (conCasita ? CASITA_PX + HUECO_PX : 0),
         });
         setSitio((antes) =>
             antes &&
@@ -134,14 +151,14 @@ export function AlternarBandeja({
                 ? antes
                 : { izquierda: siguiente.izquierda, ancho: siguiente.ancho, compacto: siguiente.compacto },
         );
-    }, [barra, izquierda, derecha]);
+    }, [barra, izquierda, derecha, conCasita]);
 
     useLayoutEffect(() => {
-        if (seVe) medir();
-    }, [seVe, pathname, medir]);
+        if (activo) medir();
+    }, [activo, pathname, medir]);
 
     useEffect(() => {
-        if (!seVe) return;
+        if (!activo) return;
         let cuadro = 0;
         const pedir = () => {
             cancelAnimationFrame(cuadro);
@@ -160,16 +177,37 @@ export function AlternarBandeja({
             ro?.disconnect();
             window.removeEventListener("resize", pedir);
         };
-    }, [seVe, pathname, medir, barra, izquierda, derecha]);
+    }, [activo, pathname, medir, barra, izquierda, derecha]);
 
-    if (!seVe) return null;
+    if (!activo) return null;
     const compacto = sitio?.compacto ?? true;
+    const enElPanel = !!panel && (pathname === panel.route || !!pathname?.startsWith(panel.route + "/"));
+    const izquierdaDeLaCasita = seVe ? (sitio ? sitio.izquierda + sitio.ancho + HUECO_PX : null) : inicio;
 
     return (
         <>
+            {panel && (
+                <Link
+                    href={panel.route}
+                    data-boton-del-panel
+                    title="Panel"
+                    aria-label="Ir al Panel"
+                    aria-current={enElPanel ? "page" : undefined}
+                    style={{
+                        left: izquierdaDeLaCasita ?? 0,
+                        visibility: izquierdaDeLaCasita === null ? "hidden" : "visible",
+                    }}
+                    className={cn(
+                        "absolute top-1/2 flex h-9 w-9 shrink-0 -translate-y-1/2 items-center justify-center rounded-md border border-border bg-background shadow-sm transition-colors",
+                        enElPanel ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                    )}
+                >
+                    <Home className="h-4 w-4" />
+                </Link>
+            )}
             {/* La columna que habría: `--ancho-lateral`, invisible. */}
             <div ref={sonda} aria-hidden className="pointer-events-none invisible absolute h-0 w-[var(--ancho-lateral)]" />
-            <nav
+            {seVe && (<nav
                 data-alternar-bandeja
                 data-compacto={compacto ? "" : undefined}
                 aria-label="Cambiar entre Chats y Correos"
@@ -210,7 +248,7 @@ export function AlternarBandeja({
                         </Link>
                     );
                 })}
-            </nav>
+            </nav>)}
         </>
     );
 }

@@ -22,7 +22,7 @@ w.maquetaBarra = (ruta: string, rutas: string[]) => {
     useChatUnreadStore.setState({ sinLeer: sinLeer.chats });
     useCorreosSinLeerStore.setState({ sinLeer: sinLeer.correo, pedidoEn: Date.now() });
     useModuleStore.setState({
-        modules: [{ id: "m1", label: "Bandeja", route: "/bandeja", moduleItems: rutas.map((r, i) => ({ id: `i${i}`, url: r })) }] as any,
+        modules: [{ id: "m0", label: "Panel", route: "/panel", moduleItems: [] }, { id: "m1", label: "Bandeja", route: "/bandeja", moduleItems: rutas.map((r, i) => ({ id: `i${i}`, url: r })) }] as any,
     });
     w.navegar(ruta);
     const conColumna = ruta.startsWith("/chats") || ruta.startsWith("/correo");
