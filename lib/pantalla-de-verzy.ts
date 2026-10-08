@@ -105,28 +105,72 @@ export type OrdenDeLaPantalla =
 // los lados. Así que la sala dice cuánto mide su hueco y la ventana del
 // servidor toma ESE formato: el video llena la sala de lado a lado.
 
-export type TamanoDeLaPantalla = { ancho: number; alto: number };
+export type Dispositivo = "movil" | "tablet" | "pc";
+export const DISPOSITIVOS: readonly Dispositivo[] = ["movil", "tablet", "pc"];
+
+/**
+ * El dispositivo del CLIENTE, por el ancho de su ventana: los mismos cortes con
+ * los que la plataforma cambia de vista (`sm` 640 y `lg` 1024). Lo que no es un
+ * número cae en "pc", que es como se veía antes.
+ */
+export function elDispositivo(anchoDeLaVentana: unknown): Dispositivo {
+    const a = Number(anchoDeLaVentana);
+    if (!Number.isFinite(a) || a <= 0) return "pc";
+    if (a < 640) return "movil";
+    if (a < 1024) return "tablet";
+    return "pc";
+}
+
+export function comoDispositivo(v: unknown): Dispositivo {
+    return DISPOSITIVOS.includes(v as Dispositivo) ? (v as Dispositivo) : "pc";
+}
+
+export type TamanoDeLaPantalla = { ancho: number; alto: number; dispositivo?: Dispositivo };
 
 /** Con el que nace la ventana, antes de que la sala diga lo suyo. */
-export const TAMANO_DE_FABRICA: TamanoDeLaPantalla = { ancho: 1280, alto: 800 };
+export const TAMANO_DE_FABRICA: TamanoDeLaPantalla = { ancho: 1280, alto: 800, dispositivo: "pc" };
 /** El lado corto de la ventana: la plataforma se ve como en un portátil, ni más grande ni más chica. */
 export const LADO_CORTO = 800;
 /** Topes del lado largo: una sala absurda no puede pedir una ventana absurda. */
 export const LADO_LARGO_MAXIMO = 2400;
 /** Por debajo de este ancho la plataforma se parte en su vista de teléfono. */
 export const ANCHO_MINIMO = 1024;
+/** Los anchos (CSS) que se respetan para cada dispositivo que no es un PC. */
+export const ANCHOS_DEL_DISPOSITIVO: Record<Exclude<Dispositivo, "pc">, { min: number; max: number }> = {
+    movil: { min: 320, max: 639 },
+    tablet: { min: 640, max: 1023 },
+};
+/** Alto mínimo de la ventana de un teléfono o una tableta. */
+export const ALTO_MINIMO_DEL_DISPOSITIVO = 400;
 
 /**
- * La ventana del servidor para un hueco de `ancho`×`alto` en la sala: el MISMO
- * formato, con la plataforma a tamaño de portátil. Sala ancha: 800 de alto y
- * el ancho que pida su formato. Sala estrecha (un teléfono): 1024 de ancho y
- * el alto que pida, así el video ocupa todo el ancho sin franjas a los lados.
+ * La ventana del servidor para un hueco de `ancho`×`alto` en la sala, en el
+ * dispositivo del cliente.
+ *
+ * - **PC**: el MISMO formato, con la plataforma a tamaño de portátil. Sala
+ *   ancha: 800 de alto y el ancho que pida; estrecha: 1024 de ancho.
+ * - **Teléfono y tableta**: el tamaño CSS del hueco tal cual (acotado a los
+ *   anchos de ese dispositivo), así la plataforma se pinta en SU vista
+ *   responsive, la misma que vería el cliente abriéndola desde su aparato.
+ *
  * Lo que no es un tamaño de verdad devuelve null.
  */
-export function elTamanoDeLaPantalla(ancho: unknown, alto: unknown): TamanoDeLaPantalla | null {
+export function elTamanoDeLaPantalla(ancho: unknown, alto: unknown, dispositivo?: unknown): TamanoDeLaPantalla | null {
     const a = Number(ancho);
     const h = Number(alto);
     if (!Number.isFinite(a) || !Number.isFinite(h) || a < 50 || h < 50) return null;
+    const d = comoDispositivo(dispositivo);
+    if (d !== "pc") {
+        const { min, max } = ANCHOS_DEL_DISPOSITIVO[d];
+        const ventanaAncho = Math.min(max, Math.max(min, Math.round(a)));
+        // El alto conserva el formato del hueco: así no sobran franjas.
+        const ventanaAlto = Math.round(ventanaAncho * (h / a));
+        return {
+            ancho: ventanaAncho,
+            alto: Math.min(LADO_LARGO_MAXIMO, Math.max(ALTO_MINIMO_DEL_DISPOSITIVO, ventanaAlto)),
+            dispositivo: d,
+        };
+    }
     const formato = a / h;
     const tamano =
         formato >= ANCHO_MINIMO / LADO_CORTO
@@ -135,7 +179,26 @@ export function elTamanoDeLaPantalla(ancho: unknown, alto: unknown): TamanoDeLaP
     return {
         ancho: Math.min(LADO_LARGO_MAXIMO, Math.max(ANCHO_MINIMO, tamano.ancho)),
         alto: Math.min(LADO_LARGO_MAXIMO, Math.max(LADO_CORTO / 2, tamano.alto)),
+        dispositivo: "pc",
     };
+}
+
+/** El agente de usuario que se le pone a la ventana para cada dispositivo (los sitios que miran el UA). */
+export const AGENTE_DEL_DISPOSITIVO: Record<Dispositivo, string> = {
+    movil: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
+    tablet: "Mozilla/5.0 (Linux; Android 14; Pixel Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    pc: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+};
+
+/** ¿Este tamaño es el mismo que el puesto? Mismo ancho, alto y dispositivo. */
+export function esElMismoTamano(a: TamanoDeLaPantalla, b: TamanoDeLaPantalla): boolean {
+    return a.ancho === b.ancho && a.alto === b.alto && (a.dispositivo ?? "pc") === (b.dispositivo ?? "pc");
+}
+
+/** Una página de error de Chromium (no carga, conexión rechazada): nunca se le enseña al cliente. */
+export function esUnaPaginaDeError(url: unknown): boolean {
+    const u = String(url ?? "");
+    return u.startsWith("chrome-error://") || u.startsWith("chrome://") || u === "about:neterror";
 }
 
 export type ResultadoDeLaOrden = { ok: true; aviso?: string } | { ok: false; motivo: string };
@@ -153,8 +216,8 @@ export function laOrdenPedida(cuerpo: unknown): OrdenDeLaPantalla | null {
         return texto ? { tipo: "nota", datos: { texto } } : null;
     }
     if (c.tipo === "tamano") {
-        const t = cuerpo as { ancho?: unknown; alto?: unknown };
-        const tamano = elTamanoDeLaPantalla(t.ancho, t.alto);
+        const t = cuerpo as { ancho?: unknown; alto?: unknown; dispositivo?: unknown };
+        const tamano = elTamanoDeLaPantalla(t.ancho, t.alto, t.dispositivo);
         return tamano ? { tipo: "tamano", datos: tamano } : null;
     }
     return null;
