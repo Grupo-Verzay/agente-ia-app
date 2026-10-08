@@ -7,8 +7,15 @@ cd "$(dirname "$0")/.."
 MODO="${MODO:-bueno}"; export MODO
 # bf1a4af — antes de esto: el avatar se quedaba en grande y no había límite.
 # 4c84c02 — antes del BUG 5: la miniatura bajaba encima de los mandos (`MODO=roto-mini`).
-if [ "$MODO" = roto-mini ]; then ANTES_REF="${ANTES_REF:-4c84c02}"; else ANTES_REF="${ANTES_REF:-bf1a4af}"; fi
-if [ "$MODO" = roto ] || [ "$MODO" = roto-mini ]; then
+# 47824de — antes de esto: si la pantalla que pedía Verzy fallaba o la ocultaba,
+# Verzy volvía a pantalla grande. `MODO=roto-miniatura` lo afirma.
+ANTES_MINIATURA_REF="${ANTES_MINIATURA_REF:-47824de}"
+case "$MODO" in
+  roto-mini) ANTES_REF="${ANTES_REF:-4c84c02}" ;;
+  roto-miniatura) ANTES_REF="$ANTES_MINIATURA_REF" ;;
+  *) ANTES_REF="${ANTES_REF:-bf1a4af}" ;;
+esac
+if [ "$MODO" = roto ] || [ "$MODO" = roto-mini ] || [ "$MODO" = roto-miniatura ]; then
   ARBOL="$(mktemp -d)/sala"
   git worktree add --detach -q "$ARBOL" "$ANTES_REF"
   trap 'git worktree remove --force "$ARBOL" 2>/dev/null || true' EXIT

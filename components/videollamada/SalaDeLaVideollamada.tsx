@@ -26,7 +26,7 @@ import {
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
-import { laDisposicion, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
+import { ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
@@ -222,6 +222,9 @@ export default function SalaDeLaVideollamada({
     // pantalla, el avatar se queda en miniatura el resto de la reunión: aunque
     // la oculte o una orden falle, se sigue viendo la última.
     const [pantallaFija, setPantallaFija] = useState<LugarDeVerzy | null>(null);
+    // Fijo: en cuanto Verzy pide compartir una pantalla, la presentación acabó
+    // para siempre, salga bien o mal esa pantalla (regla 5 de la disposición).
+    const [yaSeCompartio, setYaSeCompartio] = useState(false);
     const [video, setVideo] = useState(0);
     const consulta = `c=${encodeURIComponent(citaId)}&f=${encodeURIComponent(firma)}`;
     const verzyHablo = useRef(false);
@@ -229,6 +232,7 @@ export default function SalaDeLaVideollamada({
     const [estado, setEstado] = useState<Estado>("entrando");
     const [pistas, setPistas] = useState<Pistas>(SIN_PISTAS);
     const [camOn, setCamOn] = useState(true);
+    const [micOn, setMicOn] = useState(true);
     const [pantallaOn, setPantallaOn] = useState(false);
     const [sinSonido, setSinSonido] = useState(false);
     // Compartir pantalla solo se ofrece donde el navegador lo deja (un iPhone no).
@@ -346,6 +350,39 @@ export default function SalaDeLaVideollamada({
         window.setTimeout(() => setVideo((v) => v + 1), Math.min(REABRIR_EL_VIDEO_MS * n, 10_000));
     };
 
+    // El navegador del servidor pinta la pantalla con el FORMATO del hueco
+    // donde se ve aquí: si no, el video (1280×800) deja franjas a los lados.
+    const [cajaDeLaPantalla, setCajaDeLaPantalla] = useState<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const caja = cajaDeLaPantalla;
+        if (!caja || typeof ResizeObserver === "undefined") return;
+        let espera: number | undefined;
+        let ultimo = "";
+        const avisar = () => {
+            const { width, height } = caja.getBoundingClientRect();
+            const ancho = Math.round(width), alto = Math.round(height);
+            if (ancho < 50 || alto < 50) return;
+            const llave = `${ancho}x${alto}`;
+            if (llave === ultimo) return;
+            ultimo = llave;
+            fetch(`/api/videollamada/pantalla?${consulta}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ tipo: "tamano", ancho, alto }),
+            })
+                .then((r) => r.json())
+                .then((r) => { if (!r?.ok) console.warn("[videollamada] la pantalla no cambió de tamaño", r?.motivo); })
+                .catch((e) => console.warn("[videollamada] no se pudo ajustar el tamaño de la pantalla", e));
+        };
+        const ro = new ResizeObserver(() => {
+            window.clearTimeout(espera);
+            espera = window.setTimeout(avisar, 250);
+        });
+        ro.observe(caja);
+        avisar();
+        return () => { ro.disconnect(); window.clearTimeout(espera); };
+    }, [cajaDeLaPantalla]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Una orden de Verzy (ir a un destino o apuntar una nota) va al servidor,
     // y lo que de verdad pasó se le cuenta a Verzy: nunca dice algo que no pasó.
     const pedirALaPantalla = (orden: OrdenDeLaPantalla) => {
@@ -358,6 +395,8 @@ export default function SalaDeLaVideollamada({
         if (!cuerpo) return;
         if (orden.tipo === "ir") {
             setDestino(orden.datos.lugar);
+            setYaSeCompartio(true);
+            setPresentacionAcabo(true);
         }
         fetch(`/api/videollamada/pantalla?${consulta}`, {
             method: "POST",
@@ -432,6 +471,7 @@ export default function SalaDeLaVideollamada({
         const refrescar = () => {
             setPistas(lasPistas(llamada, esAsesor));
             setCamOn(!!llamada.participants().local?.video);
+            setMicOn(!!llamada.participants().local?.audio);
         };
         // Se cayó: se vuelve a pedir la sala al servidor (misma conversación
         // si sigue viva) y se entra otra vez, con esperas crecientes.
@@ -631,6 +671,7 @@ export default function SalaDeLaVideollamada({
     // asesor al mando, una reentrada o el tope de tiempo.
     const disp = laDisposicion({
         presentacionTerminada: presentacionAcabo || conexion.reentrada || !!pantallaFija,
+        yaSeCompartio,
         pantallaVerzy: !!pantallaQueSeVe,
         asesorAlMando,
         asesor: { camara: !!pistas.asesorCamara, pantalla: !!pistas.asesorPantalla },
@@ -652,8 +693,17 @@ export default function SalaDeLaVideollamada({
             className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
         >
             {disp.grande === "portada" && (
-                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-slate-950 px-6 text-center">
-                    <p className="text-2xl font-semibold text-slate-100 sm:text-4xl">{TEXTO_DE_LA_PORTADA}</p>
+                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 pb-36 text-center sm:pb-0">
+                    <div aria-label={TEXTO_DE_LA_PORTADA} className="flex max-w-3xl flex-col items-center gap-3 sm:gap-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img data-zona="logo-de-la-portada" src={LOGO_DE_LA_PORTADA} alt="" className="h-20 w-20 drop-shadow-[0_16px_40px_rgba(31,123,255,0.45)] sm:h-32 sm:w-32" />
+                        <h2 data-zona="nombre-de-la-portada" className="bg-gradient-to-r from-white from-30% to-sky-300 bg-clip-text text-5xl font-extrabold leading-tight tracking-tight text-transparent sm:text-7xl">
+                            {NOMBRE_DE_LA_PORTADA}
+                        </h2>
+                        <p data-zona="eslogan-de-la-portada" className="bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-lg font-semibold text-transparent sm:text-3xl">
+                            {ESLOGAN_DE_LA_PORTADA}
+                        </p>
+                    </div>
                 </section>
             )}
             {(disp.grande === "asesor-camara" || disp.mini === "asesor-camara") && (
@@ -676,7 +726,7 @@ export default function SalaDeLaVideollamada({
                         <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
                         Verzy te está mostrando: <strong className="text-slate-100">{pantallaQueSeVe}</strong>
                     </header>
-                    <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
+                    <div ref={setCajaDeLaPantalla} data-zona="caja-de-la-pantalla" className="flex min-h-0 flex-1 items-center justify-center bg-slate-900">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             data-zona="video-de-la-pantalla"
@@ -684,7 +734,7 @@ export default function SalaDeLaVideollamada({
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}
-                            className="max-h-full max-w-full object-contain"
+                            className="h-full w-full object-contain"
                         />
                     </div>
                 </section>
@@ -742,14 +792,23 @@ export default function SalaDeLaVideollamada({
                     Toca aquí para escuchar a Verzy
                 </button>
             )}
-            <div data-zona="mandos" className="absolute inset-x-0 bottom-0 z-10 flex h-16 items-center justify-center gap-2 px-2">
+            <div data-zona="mandos" className="absolute inset-x-0 bottom-0 z-10 flex min-h-16 flex-wrap items-center justify-center gap-2 px-2 py-3">
                 {estado === "dentro" && (
                     <>
                         <button
                             type="button"
+                            data-mando="microfono"
+                            aria-pressed={!micOn}
+                            onClick={() => llamadaRef.current?.setLocalAudio(!micOn)}
+                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${micOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                        >
+                            {micOn ? "Silenciar" : "Activar micrófono"}
+                        </button>
+                        <button
+                            type="button"
                             data-mando="camara"
                             onClick={() => llamadaRef.current?.setLocalVideo(!camOn)}
-                            className={`rounded-full px-4 py-2 text-sm font-medium ${camOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
+                            className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${camOn ? "bg-slate-800 text-white" : "bg-red-600 text-white"}`}
                         >
                             {camOn ? "Apagar cámara" : "Encender cámara"}
                         </button>
@@ -758,7 +817,7 @@ export default function SalaDeLaVideollamada({
                                 type="button"
                                 data-mando="pantalla"
                                 onClick={alternarPantalla}
-                                className={`rounded-full px-4 py-2 text-sm font-medium ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
+                                className={`rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm ${pantallaOn ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}
                             >
                                 {pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
                             </button>
