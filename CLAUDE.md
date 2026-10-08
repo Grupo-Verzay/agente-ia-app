@@ -27729,7 +27729,9 @@ Qué va en grande y qué en miniatura lo decide `laDisposicion` (`lib/disposicio
 2. **La cámara del CLIENTE no se pinta nunca.** El asesor entra marcado (`userData: {humano, asesor}`, prop `esAsesor`).
 3. **La llamada tiene límite**: `limiteMinutos` de la cuenta (fábrica `LIMITE_DE_FABRICA_MIN` 30, entre 5 y 240), contado desde que EMPEZÓ (`empezoEn`, no desde que abrió esta pestaña: recargar no lo reinicia). Lo decide `elCierreDeLaSala`; al cumplirse la sala cuelga sola (`colgar("limite")`).
 
-Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (portada, miniatura, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
+**La portada es una PIZARRA de la marca**, no una línea suelta: fondo de la marca (el degradado del vídeo de ventas), el logo, «Verzay» en grande y el eslogan aparte (`NOMBRE_DE_LA_PORTADA`, `ESLOGAN_DE_LA_PORTADA`, `LOGO_DE_LA_PORTADA`), con `pb-36` en el teléfono para que la miniatura de Verzy no tape el texto.
+
+Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (la pizarra con logo, nombre y eslogan sin que la miniatura los tape, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite, y lee la de `4c84c02` y afirma que la pizarra era una línea suelta, sin logo ni eslogan aparte. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
 
 ## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 

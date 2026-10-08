@@ -26,7 +26,7 @@ import {
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
-import { laDisposicion, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
+import { ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
@@ -650,8 +650,17 @@ export default function SalaDeLaVideollamada({
             className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
         >
             {disp.grande === "portada" && (
-                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-slate-950 px-6 text-center">
-                    <p className="text-2xl font-semibold text-slate-100 sm:text-4xl">{TEXTO_DE_LA_PORTADA}</p>
+                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-16 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 pb-36 text-center sm:pb-0">
+                    <div aria-label={TEXTO_DE_LA_PORTADA} className="flex max-w-3xl flex-col items-center gap-3 sm:gap-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img data-zona="logo-de-la-portada" src={LOGO_DE_LA_PORTADA} alt="" className="h-20 w-20 drop-shadow-[0_16px_40px_rgba(31,123,255,0.45)] sm:h-32 sm:w-32" />
+                        <h2 data-zona="nombre-de-la-portada" className="bg-gradient-to-r from-white from-30% to-sky-300 bg-clip-text text-5xl font-extrabold leading-tight tracking-tight text-transparent sm:text-7xl">
+                            {NOMBRE_DE_LA_PORTADA}
+                        </h2>
+                        <p data-zona="eslogan-de-la-portada" className="bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-lg font-semibold text-transparent sm:text-3xl">
+                            {ESLOGAN_DE_LA_PORTADA}
+                        </p>
+                    </div>
                 </section>
             )}
             {(disp.grande === "asesor-camara" || disp.mini === "asesor-camara") && (
