@@ -15,6 +15,7 @@ import {
     type OrdenDeEnvio,
 } from "@/lib/pantalla-del-avatar";
 import {
+    elDispositivo,
     loQueSeLeCuentaAVerzy,
     type LugarDeVerzy,
     type OrdenDeLaPantalla,
@@ -29,7 +30,7 @@ import {
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
 } from "@/lib/fin-de-la-videollamada";
-import { ABAJO_DE_LO_GRANDE, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
+import { elAbajoDeLoGrande, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
@@ -130,15 +131,26 @@ function lasPistas(llamada: DailyCall, soyAsesor: boolean): Pistas {
     };
 }
 
-/** La voz de otra persona de la sala: un `<audio>` por persona. */
-function VideoDePista({ pista, cubrir }: { pista: MediaStreamTrack | null; cubrir: boolean }) {
+/** ¿Un video viene de pie (cámara de un teléfono en vertical)? */
+export function esVertical(ancho: number, alto: number): boolean {
+    return alto > ancho;
+}
+
+/** Un video de la sala; avisa si viene de pie para darle una miniatura vertical. */
+function VideoDePista({ pista, cubrir, onVertical }: { pista: MediaStreamTrack | null; cubrir: boolean; onVertical?: (v: boolean) => void }) {
     const ref = usarPista(pista);
+    const medir = (e: { currentTarget: HTMLVideoElement }) => {
+        const v = e.currentTarget;
+        if (v.videoWidth > 0 && v.videoHeight > 0) onVertical?.(esVertical(v.videoWidth, v.videoHeight));
+    };
     return (
         <video
             ref={ref}
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={medir}
+            onResize={medir}
             className={`h-full w-full bg-black ${cubrir ? "object-cover" : "object-contain"}`}
         />
     );
@@ -240,6 +252,9 @@ export default function SalaDeLaVideollamada({
     const [sinSonido, setSinSonido] = useState(false);
     // Compartir pantalla solo se ofrece donde el navegador lo deja (un iPhone no).
     const [hayCompartir, setHayCompartir] = useState(false);
+    // ¿La cámara del avatar o la del asesor llega VERTICAL (un teléfono de pie)?
+    const [avatarVertical, setAvatarVertical] = useState(false);
+    const [asesorVertical, setAsesorVertical] = useState(false);
     useEffect(() => {
         setHayCompartir(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia);
     }, []);
@@ -356,6 +371,9 @@ export default function SalaDeLaVideollamada({
     // El navegador del servidor pinta la pantalla con el FORMATO del hueco
     // donde se ve aquí: si no, el video (1280×800) deja franjas a los lados.
     const [cajaDeLaPantalla, setCajaDeLaPantalla] = useState<HTMLDivElement | null>(null);
+    // Con los mandos escondidos la caja baja hasta el borde (80 px más): se
+    // descuentan, o cada vez que se apartan el servidor cambiaría de tamaño.
+    const mandosOcultosRef = useRef(false);
     useEffect(() => {
         const caja = cajaDeLaPantalla;
         if (!caja || typeof ResizeObserver === "undefined") return;
@@ -363,15 +381,19 @@ export default function SalaDeLaVideollamada({
         let ultimo = "";
         const avisar = () => {
             const { width, height } = caja.getBoundingClientRect();
-            const ancho = Math.round(width), alto = Math.round(height);
+            const ancho = Math.round(width);
+            const alto = Math.round(height) - (mandosOcultosRef.current ? 80 : 0);
             if (ancho < 50 || alto < 50) return;
-            const llave = `${ancho}x${alto}`;
+            // El servidor emula el DISPOSITIVO del cliente (móvil, tableta o
+            // PC), no solo la forma del hueco.
+            const dispositivo = elDispositivo(window.innerWidth);
+            const llave = `${ancho}x${alto}x${dispositivo}`;
             if (llave === ultimo) return;
             ultimo = llave;
             fetch(`/api/videollamada/pantalla?${consulta}`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ tipo: "tamano", ancho, alto }),
+                body: JSON.stringify({ tipo: "tamano", ancho, alto, dispositivo }),
             })
                 .then((r) => r.json())
                 .then((r) => { if (!r?.ok) console.warn("[videollamada] la pantalla no cambió de tamaño", r?.motivo); })
@@ -664,6 +686,13 @@ export default function SalaDeLaVideollamada({
     const alternarPantalla = () => {
         const llamada = llamadaRef.current;
         if (!llamada) return;
+        // El botón sale siempre (los cuatro mandos en todas las anchuras); un
+        // navegador sin `getDisplayMedia` (iPhone) lo dice en vez de no hacer nada.
+        if (!pantallaOn && !hayCompartir) {
+            setError("Tu dispositivo no permite compartir pantalla.");
+            window.setTimeout(() => setError(null), 4000);
+            return;
+        }
         if (pantallaOn) llamada.stopScreenShare();
         else llamada.startScreenShare();
     };
@@ -690,17 +719,20 @@ export default function SalaDeLaVideollamada({
     const mandosFlotan = estado === "dentro" && hayPantallaCompartida;
     const mandos = useMandosQueSeEsconden({ activo: mandosFlotan });
     const mandosOcultos = mandosFlotan && !mandos.seVen;
+    mandosOcultosRef.current = mandosOcultos;
     // La miniatura va encima de la barra de mandos y a 8 px de los bordes, en
     // todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos.
     // La miniatura vive EN la barra de abajo, centrada con los botones
     // (BARRA_DE_ABAJO mide 80 px; la miniatura 64, a 8 de cada borde).
-    const MINI = "absolute bottom-2 right-2 z-20 h-16 w-28 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg";
-    // Lo grande acaba SIEMPRE encima de la barra de abajo (80 px): ahí viven
-    // los mandos y la miniatura de Verzy, y una pantalla que bajara hasta el
-    // borde perdería su última franja (la barra de escribir, los emojis)
-    // debajo de ellos. Lo decide `ABAJO_DE_LO_GRANDE` y no los mandos: que
-    // se aparten solos no puede cambiar qué parte de la pantalla se ve.
-    const ABAJO = ABAJO_DE_LO_GRANDE;
+    // Una cámara VERTICAL (un teléfono de pie) va en una miniatura vertical,
+    // recortando los lados; una horizontal, en la de siempre.
+    const MINI_BASE = "absolute bottom-2 right-2 z-20 overflow-hidden rounded-lg border border-slate-700 bg-black shadow-lg";
+    const miniDe = (vertical: boolean) => `${MINI_BASE} ${vertical ? "h-16 w-10" : "h-16 w-20 sm:w-28"}`;
+    const MINI = miniDe(avatarVertical);
+    // Lo grande acaba encima de la barra de abajo (80 px) mientras los mandos
+    // se ven, y baja hasta el borde cuando se apartan (con transición): lo
+    // decide `elAbajoDeLoGrande`.
+    const ABAJO = elAbajoDeLoGrande(mandosOcultos);
     const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
     return (
@@ -711,7 +743,7 @@ export default function SalaDeLaVideollamada({
             className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
         >
             {disp.grande === "portada" && (
-                <section data-zona="portada" className="absolute inset-x-0 top-0 bottom-20 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 text-center">
+                <section data-zona="portada" className={`absolute inset-x-0 top-0 ${ABAJO} flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,#10305f_0%,#071224_62%)] px-6 text-center`}>
                     <div aria-label={TEXTO_DE_LA_PORTADA} className="flex max-w-3xl flex-col items-center gap-3 sm:gap-4">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img data-zona="logo-de-la-portada" src={LOGO_DE_LA_PORTADA} alt="" className="h-20 w-20 drop-shadow-[0_16px_40px_rgba(31,123,255,0.45)] sm:h-32 sm:w-32" />
@@ -725,8 +757,8 @@ export default function SalaDeLaVideollamada({
                 </section>
             )}
             {(disp.grande === "asesor-camara" || disp.mini === "asesor-camara") && (
-                <div data-zona="camara-del-asesor" className={disp.grande === "asesor-camara" ? GRANDE : MINI}>
-                    <VideoDePista pista={pistas.asesorCamara} cubrir={disp.mini === "asesor-camara"} />
+                <div data-zona="camara-del-asesor" className={disp.grande === "asesor-camara" ? GRANDE : miniDe(asesorVertical)}>
+                    <VideoDePista pista={pistas.asesorCamara} cubrir={disp.mini === "asesor-camara"} onVertical={setAsesorVertical} />
                 </div>
             )}
             {disp.grande === "asesor-pantalla" && (
@@ -769,6 +801,8 @@ export default function SalaDeLaVideollamada({
                 <video
                     ref={videoAvatar}
                     data-zona="video-del-avatar"
+                    onLoadedMetadata={(e) => setAvatarVertical(esVertical(e.currentTarget.videoWidth, e.currentTarget.videoHeight))}
+                    onResize={(e) => setAvatarVertical(esVertical(e.currentTarget.videoWidth, e.currentTarget.videoHeight))}
                     autoPlay
                     playsInline
                     muted
@@ -821,7 +855,7 @@ export default function SalaDeLaVideollamada({
                 onFocus={() => mandos.mostrar()}
                 // Escondidos NO se pueden pulsar: un «Salir» invisible que
                 // responde al clic es colgar sin querer.
-                className={`absolute inset-x-0 bottom-0 z-10 flex h-20 flex-nowrap items-center justify-center gap-2 pl-2 pr-32 transition-opacity duration-300 sm:px-32 ${
+                className={`absolute inset-x-0 bottom-0 z-10 flex h-20 flex-nowrap items-center justify-center gap-1.5 px-28 transition-opacity duration-300 sm:gap-2 sm:px-32 ${
                     mandosFlotan ? "bg-gradient-to-t from-slate-950/80 to-transparent" : ""
                 } ${mandosOcultos ? "pointer-events-none opacity-0" : "opacity-100"}`}
             >
@@ -833,7 +867,7 @@ export default function SalaDeLaVideollamada({
                             aria-pressed={!micOn}
                             onClick={() => llamadaRef.current?.setLocalAudio(!micOn)}
                             title={micOn ? "Silenciar" : "Activar micrófono"}
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${micOn ? "bg-slate-800" : "bg-red-600"}`}
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white sm:h-10 sm:w-10 lg:w-auto lg:px-4 ${micOn ? "bg-slate-800" : "bg-red-600"}`}
                         >
                             {micOn ? <Mic className="h-4 w-4" aria-hidden /> : <MicOff className="h-4 w-4" aria-hidden />}
                             <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{micOn ? "Silenciar" : "Activar micrófono"}</span>
@@ -843,29 +877,27 @@ export default function SalaDeLaVideollamada({
                             data-mando="camara"
                             onClick={() => llamadaRef.current?.setLocalVideo(!camOn)}
                             title={camOn ? "Apagar cámara" : "Encender cámara"}
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${camOn ? "bg-slate-800" : "bg-red-600"}`}
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white sm:h-10 sm:w-10 lg:w-auto lg:px-4 ${camOn ? "bg-slate-800" : "bg-red-600"}`}
                         >
                             {camOn ? <Video className="h-4 w-4" aria-hidden /> : <VideoOff className="h-4 w-4" aria-hidden />}
                             <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{camOn ? "Apagar cámara" : "Encender cámara"}</span>
                         </button>
-                        {hayCompartir && (
-                            <button
-                                type="button"
-                                data-mando="pantalla"
-                                onClick={alternarPantalla}
-                                title={pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
-                                className={`flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 ${pantallaOn ? "bg-emerald-600" : "bg-slate-800"}`}
-                            >
-                                {pantallaOn ? <MonitorOff className="h-4 w-4" aria-hidden /> : <MonitorUp className="h-4 w-4" aria-hidden />}
-                                <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}</span>
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            data-mando="pantalla"
+                            onClick={alternarPantalla}
+                            title={pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white sm:h-10 sm:w-10 lg:w-auto lg:px-4 ${pantallaOn ? "bg-emerald-600" : "bg-slate-800"}`}
+                        >
+                            {pantallaOn ? <MonitorOff className="h-4 w-4" aria-hidden /> : <MonitorUp className="h-4 w-4" aria-hidden />}
+                            <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{pantallaOn ? "Dejar de compartir" : "Compartir pantalla"}</span>
+                        </button>
                         <button
                             type="button"
                             data-mando="salir"
                             onClick={() => colgarRef.current()}
                             title="Salir"
-                            className="flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white lg:w-auto lg:px-4 bg-red-600"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium text-white sm:h-10 sm:w-10 lg:w-auto lg:px-4 bg-red-600"
                         >
                             <PhoneOff className="h-4 w-4" aria-hidden />
                             <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">Salir</span>

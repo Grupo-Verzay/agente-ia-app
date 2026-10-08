@@ -11,7 +11,7 @@ import {
     laRutaYElAnclaDeVerzy, comoRutaDeVerzy, laUrlDeLaConversacion, elTituloDeLaNotaDeLaLlamada,
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
     elRecorridoDelRaton, loQueSeBusca, elDestinoQueSeRetoma,
-    TAMANO_DE_FABRICA,
+    TAMANO_DE_FABRICA, esUnaPaginaDeError, esElMismoTamano, AGENTE_DEL_DISPOSITIVO,
     type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden, type TamanoDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
@@ -55,7 +55,7 @@ const ESPERA_DE_LA_ORDEN_MS = 30_000;
 /** Cada cuánto mira la sala si su orden ya salió. La réplica dueña además la avisa al momento. */
 const MIRAR_LA_ORDEN_MS = 100;
 /** Lo que se espera a que la red se calme tras cargar. Más es pantalla quieta. */
-const CALMA_DE_LA_RED_MS = 600;
+const CALMA_DE_LA_RED_MS = 400;
 
 const REPLICA = randomBytes(6).toString("hex");
 
@@ -360,6 +360,10 @@ async function empezarElScreencast(viva: Viva): Promise<void> {
     cdp.on("Page.screencastFrame", (f: { data: string; sessionId: number }) => {
         cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {});
         if (viva.congelada) return;
+        // Una página de error de Chromium («127.0.0.1 rechazó la conexión»)
+        // nunca llega a la sala: el ciclo la recupera y mientras tanto se
+        // queda el último fotograma bueno.
+        if (esUnaPaginaDeError(viva.pagina.url())) return;
         const jpeg = Buffer.from(f.data, "base64");
         viva.ultimo = jpeg;
         viva.ultimoEn = Date.now();
@@ -382,15 +386,31 @@ async function arrancarElScreencast(viva: Viva): Promise<void> {
 
 /** La ventana toma el formato del hueco de la sala. Mismo tamaño: no se toca nada. */
 async function cambiarElTamano(viva: Viva, tamano: TamanoDeLaPantalla): Promise<ResultadoDeLaOrden> {
-    if (viva.tamano.ancho === tamano.ancho && viva.tamano.alto === tamano.alto) return { ok: true };
+    if (esElMismoTamano(viva.tamano, tamano)) return { ok: true };
+    const antes = viva.tamano.dispositivo ?? "pc";
+    const dispositivo = tamano.dispositivo ?? "pc";
     await viva.pagina.setViewportSize({ width: tamano.ancho, height: tamano.alto });
-    viva.tamano = tamano;
+    // El dispositivo del CLIENTE: un teléfono ve la plataforma como en su
+    // teléfono (vista móvil, táctil y su agente), no un escritorio encogido.
+    const tactil = dispositivo !== "pc";
+    await viva.cdp?.send("Emulation.setDeviceMetricsOverride", {
+        width: tamano.ancho, height: tamano.alto, deviceScaleFactor: tactil ? 2 : 1, mobile: tactil,
+    }).catch((error) => console.warn("[verzy] no se pudo emular el dispositivo", { cita: viva.citaId, dispositivo, motivo: error instanceof Error ? error.message : String(error) }));
+    await viva.cdp?.send("Emulation.setUserAgentOverride", { userAgent: AGENTE_DEL_DISPOSITIVO[dispositivo] }).catch(() => {});
+    await viva.cdp?.send("Emulation.setTouchEmulationEnabled", { enabled: tactil, maxTouchPoints: tactil ? 5 : 0 }).catch(() => {});
+    viva.tamano = { ...tamano, dispositivo };
     viva.raton = {
         x: Math.min(viva.raton.x, tamano.ancho - 1),
         y: Math.min(viva.raton.y, tamano.alto - 1),
     };
     await viva.cdp?.send("Page.stopScreencast").catch(() => {});
     await arrancarElScreencast(viva);
+    // Otro dispositivo: la página se vuelve a pedir (congelada) para que la
+    // plataforma decida su vista con el agente nuevo.
+    if (antes !== dispositivo && viva.pagina.url().startsWith(BASE_LOCAL)) {
+        const u = new URL(viva.pagina.url());
+        await cargarSinEnsenarElFallo(viva, `${u.pathname}${u.search}${u.hash}`);
+    }
     return { ok: true };
 }
 
@@ -417,6 +437,15 @@ async function elCiclo(viva: Viva): Promise<void> {
                 if (!filas.length) break; // otra réplica tomó el turno
                 if (Date.now() - new Date(filas[0].pedidaEn).getTime() > SIN_MIRAR_MS) break;
                 if (sesion) sesion.usadaEn = Date.now();
+            }
+
+            // La página quedó en un error de Chromium (la plataforma reinició,
+            // se cortó la red): se vuelve al último destino, sin enseñarlo.
+            if (!viva.congelada && esUnaPaginaDeError(viva.pagina.url())) {
+                const ruta = viva.destino ? laRutaYElAnclaDeVerzy(viva.destino).camino : "";
+                console.warn("[verzy] la pantalla quedó en una página de error; se recupera", { cita: citaId, url: viva.pagina.url(), ruta });
+                if (ruta) await cargarSinEnsenarElFallo(viva, ruta).catch(() => {});
+                else await viva.pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
             }
 
             const ordenes = await db.$queryRaw<{ id: bigint; tipo: string; datos: unknown }[]>`
@@ -496,18 +525,18 @@ async function clicEn(viva: Viva, l: Localizador): Promise<boolean> {
     const caja = await l.boundingBox().catch(() => null);
     if (!caja) return false;
     await moverA(viva, caja.x + caja.width / 2, caja.y + Math.min(caja.height / 2, 18));
-    await dormir(50);
+    await dormir(30);
     await viva.pagina.mouse.down();
-    await dormir(40);
+    await dormir(20);
     await viva.pagina.mouse.up();
     return true;
 }
 
 async function recorrerConLaRueda(viva: Viva): Promise<void> {
     await moverA(viva, viva.tamano.ancho * 0.6, viva.tamano.alto * 0.55);
-    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, 120); await dormir(40); }
-    await dormir(250);
-    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, -120); await dormir(40); }
+    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, 120); await dormir(30); }
+    await dormir(150);
+    for (let i = 0; i < 4; i++) { await viva.pagina.mouse.wheel(0, -120); await dormir(30); }
 }
 
 // ---------------------------------------------------------------- las órdenes
@@ -522,6 +551,7 @@ async function cargar(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
             return { ok: false, motivo: "La sesión de Verzay Ventas no se pudo abrir" };
         }
     }
+    if (esUnaPaginaDeError(viva.pagina.url())) return { ok: false, motivo: "La plataforma no contestó" };
     if (res && res.status() === 404) return { ok: false, motivo: "Esa página no existe en la plataforma" };
     if (res && res.status() >= 500) return { ok: false, motivo: `La plataforma contestó ${res.status()}` };
     // Corto: Chats y otras pantallas preguntan siempre y nunca quedan «sin red»,
@@ -570,7 +600,11 @@ async function irA(viva: Viva, destino: LugarDeVerzy): Promise<ResultadoDeLaOrde
  * nunca ve el error. Nunca deja el video congelado.
  */
 async function cargarSinEnsenarElFallo(viva: Viva, ruta: string): Promise<ResultadoDeLaOrden> {
-    const antes = viva.pagina.url();
+    const aqui = viva.pagina.url();
+    // Volver a una página de error sería enseñarla: se vuelve al último destino.
+    const antes = esUnaPaginaDeError(aqui)
+        ? (viva.destino ? `${BASE_LOCAL}${laRutaYElAnclaDeVerzy(viva.destino).camino}` : "")
+        : aqui;
     viva.congelada = true;
     try {
         let r: ResultadoDeLaOrden;
@@ -594,9 +628,10 @@ async function cargarSinEnsenarElFallo(viva: Viva, ruta: string): Promise<Result
 }
 
 async function volverA(viva: Viva, url: string): Promise<void> {
-    const deLaPlataforma = url.startsWith(BASE_LOCAL);
+    const deLaPlataforma = url.startsWith(BASE_LOCAL) && !esUnaPaginaDeError(url);
     const ok = deLaPlataforma
-        ? await viva.pagina.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 }).then((res) => !res || res.status() < 400, () => false)
+        ? await viva.pagina.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 })
+            .then((res) => (!res || res.status() < 400) && !esUnaPaginaDeError(viva.pagina.url()), () => false)
         : false;
     if (!ok || await laPaginaDiceQueNoExiste(viva)) {
         await viva.pagina.setContent(PANTALLA_DE_ESPERA).catch((error) => {
@@ -627,7 +662,7 @@ async function bajarA(viva: Viva, destino: Localizador): Promise<void> {
     await destino.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "start" })).catch(() => {});
     // Hasta que la sección queda arriba (o un tope): el desplazamiento suave
     // dura según lo lejos que esté, y esperar de más es pantalla quieta.
-    const hasta = Date.now() + 1_500;
+    const hasta = Date.now() + 1_000;
     while (Date.now() < hasta) {
         await dormir(100);
         const arriba = await destino.evaluate((el) => Math.abs(el.getBoundingClientRect().top)).catch(() => 0);
@@ -673,7 +708,7 @@ async function abrirElChat(viva: Viva): Promise<ResultadoDeLaOrden> {
         await pagina.keyboard.press("Control+A").catch(() => {});
         await pagina.keyboard.press("Backspace").catch(() => {});
         await buscador.pressSequentially(busqueda, { delay: PAUSA_ENTRE_LETRAS_MS });
-        await dormir(200);
+        await dormir(100);
     }
     if (await fila.waitFor({ state: "visible", timeout: 6_000 }).then(() => true, () => false)) {
         const botones = fila.locator("button");
