@@ -1038,8 +1038,18 @@ await (await laCapa("embudo")).evaluate((numero) => {
     const t = document.querySelector(`a[href*="${numero}"]`)?.closest(".rounded-lg.border");
     t?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
 }, NUMERO);
+// scrollIntoView también desplaza la página del estudio (los ancestros del marco):
+// se devuelve a su sitio o el aro, que cuelga de ella, cae corrido.
+await p.evaluate(() => {
+    for (const e of [document.scrollingElement, document.body, ...document.querySelectorAll("*")]) {
+        if (e && (e.scrollLeft || e.scrollTop)) { e.scrollLeft = 0; e.scrollTop = 0; }
+    }
+});
 await espera(p, 1200);
-await anillos([{ c: await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]), texto: `${NOMBRE_CORTO}, en ${ETAPA_EN_EL_EMBUDO}`, abajo: true }]);
+{
+    const b = await enElCuadro("embudo", ENCONTRAR.tarjetaDelCliente, [NUMERO]);
+    await anillos([{ c: b, texto: `${NOMBRE_CORTO}, en ${ETAPA_EN_EL_EMBUDO}`, abajo: true }]);
+}
 await espera(p, 700);
 await captura("embudo");
 await alDecir(CASO === "tienda" ? "avanza solo" : "con toda su historia", 400);
