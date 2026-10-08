@@ -26,9 +26,14 @@ interface Props {
   onChanged?: (status: boolean) => void;
   /** Version corta (h-5 w-9) para ir junto al nombre. Sin ella, la de siempre. */
   compact?: boolean;
+  /**
+   * La pastilla ES el interruptor: un solo elemento que dice «Activa» (verde) o
+   * «Pausada» (gris) y se pulsa para cambiar. Sin control al lado.
+   */
+  pastilla?: boolean;
 }
 
-export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged, compact }: Props) => {
+export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged, compact, pastilla }: Props) => {
   const [localChecked, setLocalChecked] = useState(checked);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -66,6 +71,28 @@ export const SwitchStatus = ({ sessionId, checked, mutateSessions, onChanged, co
 
     setIsLoading(false);
   };
+
+  if (pastilla) {
+    return (
+      <SwitchPrimitive.Root
+        checked={localChecked}
+        disabled={isLoading}
+        onCheckedChange={handleUpdateClientStatus}
+        aria-label={localChecked ? 'Pausar la sesión del cliente' : 'Activar la sesión del cliente'}
+        data-estado-de-sesion
+        className={cn(
+          'inline-flex shrink-0 cursor-pointer items-center rounded-md border px-2 py-0.5 text-xs font-semibold transition-colors duration-300',
+          'border-slate-300 bg-slate-200 text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200',
+          'data-[state=checked]:border-emerald-300 data-[state=checked]:bg-emerald-100 data-[state=checked]:text-emerald-800',
+          'dark:data-[state=checked]:border-emerald-700 dark:data-[state=checked]:bg-emerald-950 dark:data-[state=checked]:text-emerald-300',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+        )}
+      >
+        {localChecked ? 'Activa' : 'Pausada'}
+      </SwitchPrimitive.Root>
+    );
+  }
 
   return (
     <SwitchPrimitive.Root
