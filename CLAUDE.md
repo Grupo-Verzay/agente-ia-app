@@ -27745,6 +27745,8 @@ Qué va en grande y qué en miniatura lo decide `laDisposicion` (`lib/disposicio
 
 Lo prueba `scripts/banco-disposicion-videollamada.sh`: la regla y la sala MONTADA en Chromium con el CSS real a 1440 y 390 (la pizarra con logo, nombre y eslogan sin que la miniatura los tape, cámara del cliente ausente, cuelgue por límite); `MODO=roto` monta la sala de `bf1a4af` y afirma que no había portada ni límite, y lee la de `4c84c02` y afirma que la pizarra era una línea suelta, sin logo ni eslogan aparte. `MODO=roto-miniatura` monta la de `47824de` y afirma que, con la pantalla fallando, Verzy volvía a grande. Contra Tavus y Daily de verdad no se puede probar desde este entorno.
 
+**La miniatura va DENTRO del área de contenido** (que acaba en `bottom-16`, encima de la barra de mandos), a 8 px de su borde derecho y de su borde de abajo, en todas las anchuras: con `sm:bottom-2` bajaba encima de los mandos en escritorio. Lo mide el mismo banco a 1440/1024/390; `MODO=roto-mini` monta la de `4c84c02` y afirma el fallo.
+
 ## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
 Un `agente` ve los números de los clientes con los cuatro últimos dígitos
