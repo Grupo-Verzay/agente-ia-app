@@ -37,26 +37,32 @@ import { CORTES_DE_LAS_NOTAS, elAvisoDeMensaje, elTonoDeLlamada, mezclarLaBanda,
 import { CAPAS_DEL_PORTATIL, PLANOS, PORTATIL, elMensajeDelEstudio, laPaginaDelEstudio, losNegociosDelMontaje } from "./video-de-ventas/estudio.mjs";
 import { servirElEstudio } from "./video-de-ventas/estudio-servido.mjs";
 import {
+    ARCHIVOS_DEL_VIDEO,
     ASESORA,
+    CACHE_DE_VENTAS,
     CAPACIDADES,
-    LA_LLAMADA,
     CIERRE_DEL_MONTAJE,
     CLIENTA,
+    LA_LLAMADA,
+    LA_VOZ_EN_LA_LLAMADA,
     LLAMADO,
     MEDIOS,
     MEDIOS_DEL_MONTAJE,
+    NARRACION,
     NEGOCIO,
     NEGOCIOS_DEL_ARRANQUE,
     NOTAS_DE_VOZ,
     OTROS_CHATS,
     SECCION_DE_LA_FICHA,
+    VOZ_DE_LA_IA,
+    VOZ_DE_VENTAS,
+    VOZ_DEL_CLIENTE,
     ZONA,
     elDia,
+    generarLosMedios,
     laHora,
     lasIniciales,
-} from "./video-de-ventas/historia.mjs";
-import { generarLosMedios } from "./video-de-ventas/medios.mjs";
-import { CACHE_DE_VENTAS, LA_VOZ_EN_LA_LLAMADA, NARRACION, VOZ_DE_LA_CLIENTA, VOZ_DE_SOFIA, VOZ_DE_VENTAS } from "./video-de-ventas/narracion.mjs";
+} from "./video-de-ventas/caso.mjs";
 import { sembrarLaClinica } from "./video-de-ventas/sembrar.mjs";
 import { servirElTiempoReal } from "./video-de-ventas/tiempo-real.mjs";
 
@@ -72,8 +78,7 @@ const SALIDA = ENSAYO ? TRABAJO : path.join(RAIZ, "public", "demo");
 const MEDIOS_DIR = path.join(TRABAJO, "medios");
 const CAPTURAS = path.join(TRABAJO, "ensayo");
 
-/** El vídeo que se publica, su portada y lo que el banco mide de él. */
-export const ARCHIVOS_DEL_VIDEO = Object.freeze({ video: "verzay-demo.mp4", portada: "verzay-demo.jpg", datos: "verzay-demo.json" });
+export { ARCHIVOS_DEL_VIDEO };
 
 /** Entre una frase y la siguiente, lo que respira una persona hablando (el de las guías). */
 const RESPIRO_ENTRE_FRASES_MS = 250;
@@ -139,8 +144,8 @@ const voz = Object.fromEntries(
     Object.entries(NARRACION).map(([id, n]) => [id, { texto: n.texto, rotulo: n.texto, audio: acortarLasPausas(leerWav(wavDeLaCache(n.texto, CACHE_DE_VENTAS, VOZ_DE_VENTAS))) }]),
 );
 const NOTAS = {
-    clienta: leerWav(wavDeLaCache(NOTAS_DE_VOZ.clienta.texto, CACHE_DE_VENTAS, VOZ_DE_LA_CLIENTA)),
-    ia: leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_SOFIA)),
+    clienta: leerWav(wavDeLaCache(NOTAS_DE_VOZ.clienta.texto, CACHE_DE_VENTAS, VOZ_DEL_CLIENTE)),
+    ia: leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_LA_IA)),
 };
 const AVISO = elAvisoDeMensaje(voz.gancho.audio.frecuencia);
 /**
