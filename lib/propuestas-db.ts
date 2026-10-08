@@ -8,6 +8,7 @@ import { comoCaracteristicas, ordenarPlantillas, type DatosDePlantilla, type Pla
 import { comoListaDeRefs, comoRefDePlan } from "@/lib/plan-de-la-propuesta";
 import {
     comoEslogan,
+    comoSaludo,
     comoMoneda,
     comoTipoDeItems,
     comoVisibilidadDeNota,
@@ -152,6 +153,10 @@ function asegurarLasTablas(): Promise<void> {
                 "eslogan" TEXT NOT NULL DEFAULT '',
                 "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
+        `);
+        // El saludo del envío por WhatsApp también es de la cuenta (la tabla ya existe en producción).
+        await ddl(() => db.$executeRaw`
+            ALTER TABLE "propuestas_ajustes" ADD COLUMN IF NOT EXISTS "saludo" TEXT NOT NULL DEFAULT ''
         `);
     })().catch((error) => {
         tablasListas = null;
@@ -509,21 +514,48 @@ export async function elEsloganDe(cuentaId: string): Promise<string> {
     });
 }
 
-/** Guarda el eslogan; vacío BORRA la fila, para que «sin fila» signifique una sola cosa. */
-export async function ponerElEslogan(cuentaId: string, eslogan: string): Promise<string> {
-    const limpio = comoEslogan(eslogan);
+/** El saludo propio de la cuenta para el envío por WhatsApp; vacío = el de fábrica. */
+export async function elSaludoDe(cuentaId: string): Promise<string> {
     return conLasTablas(async () => {
-        if (!limpio) {
+        const filas = await db.$queryRaw<{ saludo: string }[]>`
+            SELECT "saludo" FROM "propuestas_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
+        `;
+        return comoSaludo(filas[0]?.saludo ?? "");
+    });
+}
+
+/**
+ * Guarda los ajustes de la cuenta. Cada uno toca SOLO su columna: guardar el
+ * eslogan no borra el saludo ni al revés. La fila se borra cuando ambos quedan
+ * vacíos, para que «sin fila» signifique una sola cosa.
+ */
+export async function ponerLosAjustes(
+    cuentaId: string,
+    ajustes: { eslogan?: string; saludo?: string },
+): Promise<{ eslogan: string; saludo: string }> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ eslogan: string; saludo: string }[]>`
+            SELECT "eslogan", "saludo" FROM "propuestas_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
+        `;
+        const eslogan = ajustes.eslogan !== undefined ? comoEslogan(ajustes.eslogan) : comoEslogan(filas[0]?.eslogan ?? "");
+        const saludo = ajustes.saludo !== undefined ? comoSaludo(ajustes.saludo) : comoSaludo(filas[0]?.saludo ?? "");
+        if (!eslogan && !saludo) {
             await db.$executeRaw`DELETE FROM "propuestas_ajustes" WHERE "cuentaId" = ${cuentaId}`;
-            return "";
+            return { eslogan: "", saludo: "" };
         }
         await db.$executeRaw`
-            INSERT INTO "propuestas_ajustes" ("cuentaId", "eslogan", "actualizadoEn")
-            VALUES (${cuentaId}, ${limpio}, CURRENT_TIMESTAMP)
-            ON CONFLICT ("cuentaId") DO UPDATE SET "eslogan" = EXCLUDED."eslogan", "actualizadoEn" = CURRENT_TIMESTAMP
+            INSERT INTO "propuestas_ajustes" ("cuentaId", "eslogan", "saludo", "actualizadoEn")
+            VALUES (${cuentaId}, ${eslogan}, ${saludo}, CURRENT_TIMESTAMP)
+            ON CONFLICT ("cuentaId") DO UPDATE
+            SET "eslogan" = EXCLUDED."eslogan", "saludo" = EXCLUDED."saludo", "actualizadoEn" = CURRENT_TIMESTAMP
         `;
-        return limpio;
+        return { eslogan, saludo };
     });
+}
+
+/** Guarda el eslogan (conserva el saludo). */
+export async function ponerElEslogan(cuentaId: string, eslogan: string): Promise<string> {
+    return (await ponerLosAjustes(cuentaId, { eslogan })).eslogan;
 }
 
 export type LineaParaEnviar = { instanceName: string; nombre: string; tipo: string };
