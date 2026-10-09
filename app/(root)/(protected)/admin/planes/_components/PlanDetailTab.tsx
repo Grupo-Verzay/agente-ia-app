@@ -748,9 +748,9 @@ export function PlanDetailTab({
       titulo: "Todo incluido, sin sorpresas",
       ayuda: (
         <>
-          Lo que este plan trae sin costo adicional. Sale entero y a la vista, sin desplegar nada, entre las preguntas
-          frecuentes y el precio; es aparte de «Qué incluye», que lista las funciones. Sin texto no sale. Puedes
-          escribir {datosQueSePuedenUsar} y salen con el dato de hoy.
+          Lo que este plan trae sin costo adicional. Cada línea sale como una tarjeta, entera y a la vista, sin
+          desplegar nada, entre las preguntas frecuentes y el precio; es aparte de «Qué incluye», que lista las
+          funciones. Sin texto no sale. Puedes escribir {datosQueSePuedenUsar} y salen con el dato de hoy.
         </>
       ),
       cuerpo: (
@@ -773,13 +773,13 @@ export function PlanDetailTab({
             />
           </div>
           <div className="space-y-1">
-            <Label>Qué incluye sin costo adicional</Label>
+            <Label>Qué incluye sin costo adicional (una línea por tarjeta)</Label>
             <Textarea
               rows={6}
               maxLength={TOPE_DEL_TEXTO_DEL_TODO_INCLUIDO}
               value={todoIncluido.texto}
               onChange={(e) => setTodoIncluido((t) => ({ ...t, texto: e.target.value }))}
-              placeholder={"Instalación y configuración inicial, capacitación de tu equipo, soporte por WhatsApp y actualizaciones, sin pagos extra."}
+              placeholder={"Instalación y configuración inicial\nImplementación sin pagos extra ocultos\nCapacitación de tu equipo en sesión en vivo\nSoporte por WhatsApp y actualizaciones"}
               data-campo-del-detalle="todoIncluidoTexto"
             />
             <Avisos

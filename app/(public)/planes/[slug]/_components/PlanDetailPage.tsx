@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import {
   cuantoBajarParaVerLaGuia,
   elRepartoDeLasFunciones,
+  lasTarjetasDelTodoIncluido,
   seVeLaFuncion,
   type BloqueDeLaPagina,
   type BotonDelPlan,
@@ -581,22 +582,38 @@ export function BloqueQueIncluye({
 
 /**
  * «Todo incluido, sin sorpresas»: el título centrado, como el de las preguntas,
- * y debajo el texto libre del panel ENTERO, con sus saltos de línea, en una
- * caja que no se abre ni se cierra: lo que el plan trae sin costo adicional
- * se lee sin pulsar nada. Lo pinta la página del plan y, tal cual, la
- * propuesta que lleva ese plan dentro.
+ * y debajo el texto del panel partido en TARJETAS, una por línea, con el mismo
+ * aspecto que los recuadros de capacidad (créditos, catálogo, agenda…). Dos
+ * columnas desde `sm` (computador y tablet) y una en el móvil, apiladas. Si
+ * son impares la última ocupa las dos columnas: nunca una fila con una suelta.
+ * No se abre ni se cierra nada: lo que el plan trae sin costo adicional se
+ * lee sin pulsar. Lo pinta la página del plan y, tal cual, la propuesta que
+ * lleva ese plan dentro.
  */
 export function BloqueTodoIncluido({ todoIncluido }: { todoIncluido: TodoIncluidoDelPlan }) {
+  const tarjetas = lasTarjetasDelTodoIncluido(todoIncluido.texto);
+  const enDosColumnas = tarjetas.length > 1;
+  const quedaUnaSuelta = enDosColumnas && tarjetas.length % 2 === 1;
   return (
     <div data-todo-incluido>
       <h2 className="mb-8 text-center text-2xl font-bold text-plan-tinta sm:text-3xl" data-titulo-del-todo-incluido>
         {todoIncluido.titulo}
       </h2>
-      <div className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5 sm:p-6">
-        <p className="whitespace-pre-line text-base leading-relaxed text-plan-tinta/90" data-texto-del-todo-incluido>
-          {todoIncluido.texto}
-        </p>
-      </div>
+      <ul className={cn("grid gap-4", enDosColumnas ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} data-tarjetas-del-todo-incluido>
+        {tarjetas.map((texto, i) => (
+          <li
+            key={`${i}-${texto}`}
+            className={cn(
+              "flex items-start gap-3 rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5",
+              quedaUnaSuelta && i === tarjetas.length - 1 && "sm:col-span-2",
+            )}
+            data-tarjeta-del-todo-incluido
+          >
+            <Check className="mt-1 h-4 w-4 shrink-0 text-plan-suave" aria-hidden="true" />
+            <p className="text-base font-medium leading-relaxed text-plan-tinta">{texto}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
