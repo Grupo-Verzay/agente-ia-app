@@ -1,0 +1,26 @@
+#!/bin/sh
+# Barreras contra la recaída del CLAUDE.md gigante (2026-10-09).
+# Se activa con `git config core.hooksPath .githooks` (las sesiones de Claude
+# Code lo hacen solas al arrancar, ver .claude/settings.json).
+#
+# 1. Ningún CLAUDE.md del commit pasa de 2.000 tokens.
+# 2. Dentro de Claude Code (CLAUDECODE=1) un commit no puede crear ni cambiar
+#    un CLAUDE.md: los agentes escriben en docs/reglas/.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+if [ "${CLAUDECODE:-}" = "1" ]; then
+  tocados=$(git diff --cached --name-only --diff-filter=ACMR | grep -iE '(^|/)claude(\.local)?\.md$' || true)
+  if [ -n "$tocados" ]; then
+    echo "pre-commit: un agente no puede escribir en un CLAUDE.md:" >&2
+    echo "$tocados" | sed 's/^/  /' >&2
+    echo "Pon el aprendizaje en docs/reglas/<tema>.md (índice: docs/reglas/README.md)." >&2
+    exit 1
+  fi
+fi
+
+node scripts/comprobar-claude-md.mjs --staged >/dev/null 2>&1 || {
+  node scripts/comprobar-claude-md.mjs --staged >&2 || true
+  echo "pre-commit: commit rechazado." >&2
+  exit 1
+}

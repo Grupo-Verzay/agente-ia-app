@@ -40,8 +40,11 @@ next-env.d.ts
 
 # prisma migrations should be versioned with schema changes
 
-# Claude Code local config
-.claude/
+# Claude Code local config (lo compartido sí se versiona: las barreras que
+# impiden a los agentes escribir en un CLAUDE.md)
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Carpetas de referencia externa (no pertenecen al proyecto)
 /forms/

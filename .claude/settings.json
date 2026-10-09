@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(CLAUDE.md)",
+      "Edit(**/CLAUDE.md)",
+      "Write(CLAUDE.md)",
+      "Write(**/CLAUDE.md)",
+      "Edit(**/CLAUDE.local.md)",
+      "Write(**/CLAUDE.local.md)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__github__create_or_update_file|mcp__github__push_files|mcp__github__delete_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bloquear-claude-md.mjs\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && git config core.hooksPath .githooks >/dev/null 2>&1; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
