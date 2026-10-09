@@ -1,4 +1,8 @@
-FROM node:22-bookworm-slim AS base
+# La imagen base sale de la copia de Docker Hub que mantiene Google
+# (`mirror.gcr.io`): es la MISMA imagen, pero sin el límite de descargas de
+# Docker Hub, que con los ejecutores compartidos de GitHub devolvía
+# «429 Too Many Requests» y dejaba el despliegue sin hacer (2026-10-09).
+FROM mirror.gcr.io/library/node:22-bookworm-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -31,7 +35,7 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runner
+FROM mirror.gcr.io/library/node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

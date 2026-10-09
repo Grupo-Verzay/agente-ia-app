@@ -1484,3 +1484,15 @@ aliviaba unos minutos.
 Lo prueba `scripts/banco-ddl-sin-bloquear.sh` contra Postgres con la tabla
 cogida; `MODO=roto` corre el ALTER a pelo y afirma que las lecturas se quedaban
 en cola.
+
+## La imagen base se baja de `mirror.gcr.io`, no de Docker Hub
+
+El 2026-10-09 el despliegue falló dos veces seguidas en un segundo:
+`429 Too Many Requests` al pedir `node:22-bookworm-slim` a Docker Hub. Los
+ejecutores de GitHub comparten IP y Docker Hub limita las descargas sin
+cuenta: el código estaba fusionado y producción se quedó atrás.
+
+El `Dockerfile` pide `mirror.gcr.io/library/node:22-bookworm-slim`, la copia
+de Docker Hub que mantiene Google: la misma imagen, sin ese límite. No volver a
+`node:…` a secas. Si un despliegue vuelve a salir rojo con un 429, es el
+registro, no el código: no se arregla relanzando.

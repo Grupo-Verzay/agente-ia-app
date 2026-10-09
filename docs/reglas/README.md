@@ -13,7 +13,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - El entorno de los agentes NO es un contenedor de Portainer
 - Cómo reportar al terminar
 
-## [Infraestructura, build y despliegue](infraestructura-y-despliegue.md) — 21 reglas, 76 KB
+## [Infraestructura, build y despliegue](infraestructura-y-despliegue.md) — 22 reglas, 76 KB
 
 - El build borraba los avisos: `removeConsole`
 - Muchas peticiones pequeñas son turno, no trabajo
@@ -36,6 +36,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Una cadena de tres servicios sin red debajo se cae con cualquier redespliegue
 - Un `fetch` SIGUE las redirecciones, así que el middleware puede tragarse un aviso entero
 - El DDL de arranque mira el catálogo primero y nunca espera un candado
+- La imagen base se baja de `mirror.gcr.io`, no de Docker Hub
 
 ## [Seguridad, permisos y alcance entre cuentas](seguridad-y-permisos.md) — 23 reglas, 113 KB
 
