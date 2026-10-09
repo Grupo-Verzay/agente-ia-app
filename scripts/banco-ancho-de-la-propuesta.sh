@@ -16,7 +16,7 @@ export PATH="/opt/node22/bin:$PATH"
 export NODE_PATH="${NODE_PATH:-}:/opt/node22/lib/node_modules"
 export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)}"
 export MODO="${MODO:-bueno}"
-ANTES_REF="${ANTES_REF:-f8057cb}"
+ANTES_REF="${ANTES_REF:-3d2ff75}"
 
 if [ ! -d ".next/static/css" ]; then
   echo "falta el CSS del build (.next/static/css): corre 'npm run build' antes" >&2
