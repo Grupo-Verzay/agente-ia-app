@@ -2,6 +2,7 @@
 
 import {
     BloqueQueIncluye,
+    BloqueTodoIncluido,
     COLOR_DEL_PLAN,
     COLUMNAS_DE_CAPACIDAD,
     MarcoDelVideo,
@@ -17,8 +18,9 @@ import { cn } from "@/lib/utils";
 /**
  * Un plan del panel de Planes DENTRO de una propuesta, con las MISMAS piezas
  * de su página pública (`PlanDetailPage`): el video con su título, los
- * recuadros de capacidad, «Qué incluye este plan» con su acordeón entero y,
- * al final, el precio con el botón «Comenzar con el plan».
+ * recuadros de capacidad, «Qué incluye este plan» con su acordeón entero,
+ * «Todo incluido, sin sorpresas» (lo que trae sin costo adicional, a la vista)
+ * y, al final, el precio con el botón «Comenzar con el plan».
  *
  * Lo que NO entra, a propósito: «Para quién es», «Un caso típico», las
  * preguntas frecuentes y la línea hacia el plan superior. Y nada saca al
@@ -57,6 +59,8 @@ export function PlanEnLaPropuesta({ plan }: { plan: PlanDeLaPropuesta }) {
             ) : null}
 
             {funciones.length > 0 ? <BloqueQueIncluye funciones={funciones} enLaPropuesta /> : null}
+
+            {plan.todoIncluido ? <BloqueTodoIncluido todoIncluido={plan.todoIncluido} /> : null}
 
             {plan.precio ? (
                 <div data-comenzar-el-plan className="text-center">

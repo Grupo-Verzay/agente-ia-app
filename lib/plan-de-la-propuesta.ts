@@ -11,8 +11,9 @@
  * modalidad (`RefDePlan`), que son lo que identifica un plan en el panel y no
  * cambian nunca— y todo lo demás se lee EN VIVO al cargarla
  * (`lib/plan-de-la-propuesta.server.ts`): nombre, precio, recuadros de
- * capacidad (créditos, catálogo, asistencia…) y la lista de «Qué incluye este
- * plan», con los MISMOS ítems y en el MISMO orden que su página pública.
+ * capacidad (créditos, catálogo, asistencia…), la lista de «Qué incluye este
+ * plan», con los MISMOS ítems y en el MISMO orden que su página pública, y
+ * «Todo incluido, sin sorpresas» (lo que trae sin costo adicional).
  *
  * Y la propuesta guarda la misma referencia (`planes`), no una copia del video
  * ni del enlace: la página pública de la propuesta los resuelve al abrirse, así
@@ -22,7 +23,7 @@
  */
 
 import { comoAsistencia, elNivelDelSlug, NIVELES_DE_PLAN, type Asistencia, type NivelDePlan } from "@/lib/enlaces-de-planes";
-import type { BotonDelPlan, FuncionQueSeEnsena, TarjetaDeCapacidad, VideoDelPlan } from "@/lib/pagina-de-plan";
+import type { BotonDelPlan, FuncionQueSeEnsena, TarjetaDeCapacidad, TodoIncluidoDelPlan, VideoDelPlan } from "@/lib/pagina-de-plan";
 
 export type RefDePlan = { nivel: NivelDePlan; asistencia: Asistencia };
 
@@ -110,6 +111,8 @@ export type PlanParaCargar = {
     capacidad: { titulo: string; valor: string }[];
     /** «Qué incluye este plan»: los mismos ítems y en el mismo orden que su página pública. */
     funciones: string[];
+    /** «Todo incluido, sin sorpresas», como sale en su página; `null` = no tiene. */
+    todoIncluido?: TodoIncluidoDelPlan | null;
     /** ¿Tiene video principal en el panel? Sale en la propuesta. */
     video: boolean;
     /** La dirección de su página pública; `null` si no tiene (el plan está apagado). */
@@ -120,10 +123,30 @@ const ENCABEZADO_DE_LO_QUE_INCLUYE = "Qué incluye este plan:";
 
 /**
  * El alcance del servicio que sale de un plan: los recuadros de capacidad, una
- * línea cada uno, y debajo la lista de lo que incluye. Topado al tope del campo:
- * lo que no cabe se dice («…y N más»), no se corta a media palabra.
+ * línea cada uno, debajo la lista de lo que incluye y, al final, «Todo
+ * incluido, sin sorpresas» con su texto. Topado al tope del campo: lo que no
+ * cabe se dice («…y N más»), no se corta a media palabra. El bloque de «Todo
+ * incluido» tiene su sitio APARTADO (hasta la mitad del campo): una lista
+ * larga de funciones no lo deja fuera.
  */
-export function elAlcanceDelPlan(p: Pick<PlanParaCargar, "capacidad" | "funciones">, tope: number): string {
+export function elAlcanceDelPlan(
+    p: Pick<PlanParaCargar, "capacidad" | "funciones"> & { todoIncluido?: TodoIncluidoDelPlan | null },
+    tope: number,
+): string {
+    const incluido = p.todoIncluido && p.todoIncluido.texto.trim()
+        ? `${p.todoIncluido.titulo.trim().replace(/:$/, "")}:\n${p.todoIncluido.texto.trim()}`
+        : "";
+    const reserva = incluido ? Math.min(incluido.length + 2, Math.floor(tope / 2)) : 0;
+    const cuerpo = elCuerpoDelAlcance(p, tope - reserva);
+    if (!incluido) return cuerpo;
+    const hueco = tope - cuerpo.length - (cuerpo ? 2 : 0);
+    if (hueco <= 1) return cuerpo;
+    const cola = incluido.length <= hueco ? incluido : `${incluido.slice(0, hueco - 1).replace(/\s+\S*$/, "")}…`;
+    return (cuerpo ? `${cuerpo}\n\n${cola}` : cola).slice(0, tope);
+}
+
+/** Los recuadros y la lista de lo que incluye, topados a `tope`. */
+function elCuerpoDelAlcance(p: Pick<PlanParaCargar, "capacidad" | "funciones">, tope: number): string {
     const capacidad = p.capacidad
         .map((c) => `${c.titulo.trim()}: ${c.valor.trim()}`)
         .filter((l) => l.length > 2);
@@ -180,8 +203,8 @@ export function elTextoDelEnlace(href: string): string {
 /**
  * Lo que la página pública de una propuesta enseña de cada plan, resuelto EN
  * VIVO al abrirla, con las MISMAS funciones que la página pública del plan: el
- * video con su título, los recuadros de capacidad, «Qué incluye este plan» y el
- * precio con su botón. Lo demás de esa página («para quién es», el caso típico,
+ * video con su título, los recuadros de capacidad, «Qué incluye este plan»,
+ * «Todo incluido, sin sorpresas» y el precio con su botón. Lo demás de esa página («para quién es», el caso típico,
  * las preguntas y el plan superior) no entra en una propuesta.
  */
 export type PlanDeLaPropuesta = {
@@ -199,18 +222,20 @@ export type PlanDeLaPropuesta = {
     capacidad?: TarjetaDeCapacidad[];
     /** «Qué incluye este plan»: las mismas tarjetas y en el mismo orden que su página. */
     funciones?: FuncionQueSeEnsena[];
+    /** «Todo incluido, sin sorpresas», como en su página; `null` = no tiene. */
+    todoIncluido?: TodoIncluidoDelPlan | null;
     precio?: { texto: string; aConsultar: boolean };
     /** El botón de comenzar de su página; `null` = el plan está apagado. */
     boton?: BotonDelPlan | null;
 };
 
 /** ¿Tiene algo que pintar? Un plan sin nada no deja un recuadro vacío. */
-function tieneQuePintar(p: Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones">): boolean {
-    return Boolean(p.video || p.enlace || (p.capacidad?.length ?? 0) > 0 || (p.funciones?.length ?? 0) > 0);
+function tieneQuePintar(p: Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones" | "todoIncluido">): boolean {
+    return Boolean(p.video || p.enlace || (p.capacidad?.length ?? 0) > 0 || (p.funciones?.length ?? 0) > 0 || p.todoIncluido);
 }
 
 /** Lo que de verdad se pinta: un plan sin nada que enseñar no deja un recuadro vacío. */
-export function losPlanesQueSeEnsenan<T extends Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones">>(
+export function losPlanesQueSeEnsenan<T extends Pick<PlanDeLaPropuesta, "video" | "enlace" | "capacidad" | "funciones" | "todoIncluido">>(
     planes: readonly T[],
 ): T[] {
     return planes.filter(tieneQuePintar);

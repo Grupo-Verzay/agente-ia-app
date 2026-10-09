@@ -9,6 +9,7 @@ import {
     elNombreDelPlan,
     elPrecioQueSeEnsena,
     elTituloDelVideo,
+    elTodoIncluidoQueSale,
     elVideoDelPlan,
     laCapacidadDelPlan,
     lasFuncionesDelPlan,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/plan-de-la-propuesta";
 import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
 import { laPaginaGuardada } from "@/lib/plan-pagina-db";
+import { elTodoIncluidoGuardado, losTodoIncluidoGuardados } from "@/lib/plan-todo-incluido-db";
 import { convertirAMonedaDeCobro, precioEnPesosEscrito } from "@/lib/plan-pricing";
 import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 
@@ -106,7 +108,7 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
         const fila = planes.find((p) => p.plan === ref.nivel && (p.assistanceType === "HUMANO" ? "HUMANO" : "IA") === ref.asistencia);
         if (!fila) return null;
 
-        const [guardadas, pagina, detalle, precios] = await Promise.all([
+        const [guardadas, pagina, detalle, todoIncluido, precios] = await Promise.all([
             lasFuncionesGuardadas([fila.id]).catch((e) => {
                 console.error("[propuestas] no se pudieron leer las funciones guardadas del plan; se deducen", { plan: fila.id, e });
                 return new Map<string, unknown>();
@@ -117,6 +119,10 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
             }),
             db.planDetail.findUnique({ where: { subscriptionPlanId: fila.id }, select: { videoUrl: true } }).catch((e) => {
                 console.error("[propuestas] no se pudo leer el video del plan", { plan: fila.id, e });
+                return null;
+            }),
+            elTodoIncluidoGuardado(fila.id).catch((e) => {
+                console.error("[propuestas] no se pudo leer «Todo incluido, sin sorpresas» del plan; se carga sin él", { plan: fila.id, e });
                 return null;
             }),
             losPreciosDelPlan(fila),
@@ -135,6 +141,7 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
             precios,
             capacidad: laCapacidadDelPlan(datos, pagina?.recuadros).map((c) => ({ titulo: c.titulo, valor: c.valor })),
             funciones: funciones.map((f) => f.nombre),
+            todoIncluido: elTodoIncluidoQueSale(todoIncluido, datos),
             video: Boolean(elVideoDelPlan(detalle?.videoUrl)),
             enlace: fila.isActive ? `${origen}${elEnlaceDeLaPaginaDelPlan(ref.nivel, ref.asistencia)}` : null,
         };
@@ -146,7 +153,8 @@ export async function elPlanParaCargar(ref: RefDePlan, origen: string): Promise<
 
 /**
  * Lo que la página pública de una propuesta enseña de cada plan: su video, sus
- * recuadros, «Qué incluye» y el precio con su botón, leídos como su página.
+ * recuadros, «Qué incluye», «Todo incluido, sin sorpresas» y el precio con
+ * su botón, leídos como su página.
  */
 export type { PlanDeLaPropuesta };
 
@@ -164,7 +172,7 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
         if (filas.length === 0) return [];
 
         const ids = filas.map((x) => x.fila.id);
-        const [detalles, guardadas, paginas, sitio] = await Promise.all([
+        const [detalles, guardadas, paginas, todoIncluidos, sitio] = await Promise.all([
             db.planDetail.findMany({ where: { subscriptionPlanId: { in: ids } } }).catch((e) => {
                 console.error("[propuestas] no se pudo leer el detalle de los planes de la propuesta; salen sin video", e);
                 return [];
@@ -181,6 +189,10 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
                     }),
                 ),
             ),
+            losTodoIncluidoGuardados(ids).catch((e) => {
+                console.error("[propuestas] no se pudo leer «Todo incluido, sin sorpresas» de los planes; salen sin él", e);
+                return new Map<string, unknown>();
+            }),
             getSiteConfig().catch((e) => {
                 console.error("[propuestas] no se pudo leer la configuración del sitio; el botón sale con el registro", e);
                 return {} as { whatsappNumber?: string | null };
@@ -209,6 +221,7 @@ export async function losPlanesDeLaPropuesta(refs: readonly RefDePlan[], origen:
                     datos,
                     GUIAS_EN_LA_PROPUESTA,
                 ),
+                todoIncluido: elTodoIncluidoQueSale(todoIncluidos.get(fila.id), datos),
                 precio: elPrecioQueSeEnsena(datos),
                 boton: fila.isActive ? losBotonesDelPlan(detalle ?? null, datos, sitio).principal : null,
             };

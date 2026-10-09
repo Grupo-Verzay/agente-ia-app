@@ -23,7 +23,9 @@
  *   4. las funciones ENCENDIDAS, una tarjeta por función y en el orden del
  *      editor (sin agrupar por categoría), con su tutorial;
  *   5. las preguntas frecuentes de ese plan;
- *   6. el botón de comenzar, UNA vez, con una línea discreta al plan
+ *   6. «Todo incluido, sin sorpresas»: lo que trae sin costo adicional, un
+ *      título y un texto libre escritos por plan, ENTEROS y a la vista;
+ *   7. el botón de comenzar, UNA vez, con una línea discreta al plan
  *      inmediato superior, si existe.
  *
  * Ese es el orden de FÁBRICA: el panel puede arrastrar los bloques
@@ -1050,7 +1052,7 @@ export function cuantoBajarParaVerLaGuia({
 
 /* ─── El orden de los bloques de la página ─────────────────────────────── */
 
-export type BloqueDeLaPagina = "video" | "paraquien" | "capacidad" | "funciones" | "preguntas" | "comenzar";
+export type BloqueDeLaPagina = "video" | "paraquien" | "capacidad" | "funciones" | "preguntas" | "incluido" | "comenzar";
 
 /** Todos los bloques, en el orden de fábrica. El panel los arrastra; la página los pinta así. */
 export const BLOQUES_DE_LA_PAGINA: readonly { clave: BloqueDeLaPagina; nombre: string; ayuda: string }[] = [
@@ -1059,6 +1061,7 @@ export const BLOQUES_DE_LA_PAGINA: readonly { clave: BloqueDeLaPagina; nombre: s
     { clave: "capacidad", nombre: "Resumen de capacidad", ayuda: "Los recuadros que decidas, con su dato." },
     { clave: "funciones", nombre: "Qué incluye", ayuda: "Una tarjeta por función encendida." },
     { clave: "preguntas", nombre: "Preguntas frecuentes", ayuda: "Sale si el plan tiene preguntas." },
+    { clave: "incluido", nombre: "Todo incluido, sin sorpresas", ayuda: "Lo que trae sin costo adicional, a la vista." },
     { clave: "comenzar", nombre: "Comenzar", ayuda: "El precio, los botones y el plan siguiente." },
 ];
 
@@ -1406,6 +1409,77 @@ export function elParaQuienQueSale(raw: unknown, datos: DatosDelPlan): ParaQuien
     return {
         paraQuien: g.paraQuien && avisos.paraQuien.length === 0 ? conLosDatosDelPlan(g.paraQuien, datos) : fabrica.paraQuien,
         caso: g.caso && avisos.caso.length === 0 ? conLosDatosDelPlan(g.caso, datos) : fabrica.caso,
+    };
+}
+
+/* ─── Todo incluido, sin sorpresas ─────────────────────────────────────── */
+
+/**
+ * Lo que el plan trae SIN COSTO ADICIONAL, escrito a mano por plan en el panel:
+ * un título (de fábrica «Todo incluido, sin sorpresas») y un texto libre que
+ * sale ENTERO y a la vista —sin desplegar nada— entre las preguntas y el
+ * precio. Es aparte de «Qué incluye este plan», que lista las FUNCIONES.
+ *
+ * Vive en `plan_todo_incluido` (`lib/plan-todo-incluido-db.ts`). Sin texto, el
+ * bloque no sale: el título solo no dice nada.
+ */
+export type TodoIncluidoDelPlan = {
+    /** El título del bloque; vacío = el de fábrica. */
+    titulo: string;
+    /** El texto libre, con sus saltos de línea. */
+    texto: string;
+};
+
+export const TITULO_DEL_TODO_INCLUIDO = "Todo incluido, sin sorpresas";
+export const TOPE_DEL_TITULO_DEL_TODO_INCLUIDO = 120;
+export const TOPE_DEL_TEXTO_DEL_TODO_INCLUIDO = 4000;
+
+/** Lo que llega del panel o de la base, saneado. Nunca lanza. */
+export function comoTodoIncluido(raw: unknown): TodoIncluidoDelPlan {
+    const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const titulo = typeof o.titulo === "string" ? o.titulo.replace(/\s+/g, " ").trim().slice(0, TOPE_DEL_TITULO_DEL_TODO_INCLUIDO) : "";
+    // El texto conserva sus saltos de línea (es lo que lo hace legible): solo
+    // se recortan los espacios de cada línea y las líneas vacías de más.
+    const texto =
+        typeof o.texto === "string"
+            ? o.texto
+                  .replace(/\r\n?/g, "\n")
+                  .split("\n")
+                  .map((l) => l.replace(/[ \t]+/g, " ").trim())
+                  .join("\n")
+                  .replace(/\n{3,}/g, "\n\n")
+                  .trim()
+                  .slice(0, TOPE_DEL_TEXTO_DEL_TODO_INCLUIDO)
+            : "";
+    return { titulo, texto };
+}
+
+/** Por qué lo escrito no sale en la página, campo por campo. Para el panel. */
+export function losAvisosDelTodoIncluido(raw: unknown, datos: DatosDelPlan): { titulo: string[]; texto: string[] } {
+    const g = comoTodoIncluido(raw);
+    // El título es corto, como un botón: no puede nombrar otro plan. El texto
+    // es largo, como una respuesta: puede comparar con otro plan, y solo se
+    // mira que no diga otros créditos ni llame al plan por un nombre viejo.
+    return {
+        titulo: g.titulo ? [...new Set([...losAvisosDelTexto(g.titulo, datos), ...losAvisosDelBoton(g.titulo, datos)])] : [],
+        texto: g.texto ? losAvisosDelTexto(g.texto, datos) : [],
+    };
+}
+
+/**
+ * Lo que sale en la página (y en la propuesta que lleva el plan): `null` si no
+ * hay texto, o si el texto contradice al plan (otros créditos, un nombre
+ * viejo) — eso se avisa en el panel. Un título que contradice al plan se cambia
+ * por el de fábrica; el texto sigue saliendo.
+ */
+export function elTodoIncluidoQueSale(raw: unknown, datos: DatosDelPlan): TodoIncluidoDelPlan | null {
+    const g = comoTodoIncluido(raw);
+    if (!g.texto) return null;
+    const avisos = losAvisosDelTodoIncluido(g, datos);
+    if (avisos.texto.length > 0) return null;
+    return {
+        titulo: g.titulo && avisos.titulo.length === 0 ? conLosDatosDelPlan(g.titulo, datos) : TITULO_DEL_TODO_INCLUIDO,
+        texto: conLosDatosDelPlan(g.texto, datos),
     };
 }
 

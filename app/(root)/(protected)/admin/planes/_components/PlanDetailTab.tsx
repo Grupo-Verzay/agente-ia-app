@@ -61,6 +61,9 @@ import {
   TOPE_DE_RECUADROS,
   TOPE_DEL_CASO,
   TOPE_DEL_PARA_QUIEN,
+  TITULO_DEL_TODO_INCLUIDO,
+  TOPE_DEL_TEXTO_DEL_TODO_INCLUIDO,
+  TOPE_DEL_TITULO_DEL_TODO_INCLUIDO,
   comoEnlaceDelBoton,
   comoOrdenDeBloques,
   elVideoDelPlan,
@@ -68,6 +71,7 @@ import {
   laListaDeRecuadros,
   losAvisosDelBoton,
   losAvisosDelParaQuien,
+  losAvisosDelTodoIncluido,
   losAvisosDelTexto,
   elTextoDelBotonDelPlan,
   losRecuadrosDeFabrica,
@@ -80,14 +84,16 @@ import {
   type ParaQuienDelPlan,
   type RecuadroDeCapacidad,
   type TarjetaDeCapacidad,
+  type TodoIncluidoDelPlan,
 } from "@/lib/pagina-de-plan";
 
 /**
  * Lo que es SOLO de un plan en su página pública: el ORDEN de sus bloques, el
  * video (enlace o archivo subido), «para quién es este plan» con su caso
  * típico, los recuadros del resumen de capacidad (cuántos, en qué orden y qué
- * dato destaca cada uno), sus preguntas frecuentes, los botones de comenzar y
- * el título de la pestaña.
+ * dato destaca cada uno), sus preguntas frecuentes, «Todo incluido, sin
+ * sorpresas» (título y texto libre de lo que trae sin costo adicional), los
+ * botones de comenzar y el título de la pestaña.
  *
  * **Los bloques del formulario van en el MISMO orden que la página**, y cada
  * uno se arrastra entero por su asa (o se sube y se baja): moverlo aquí es
@@ -249,6 +255,7 @@ export function PlanDetailTab({
 }) {
   const [form, setForm] = useState<Detalle>(VACIO);
   const [paraQuien, setParaQuien] = useState<ParaQuienDelPlan>({ paraQuien: "", caso: "" });
+  const [todoIncluido, setTodoIncluido] = useState<TodoIncluidoDelPlan>({ titulo: "", texto: "" });
   const [orden, setOrden] = useState<BloqueDeLaPagina[]>(() => comoOrdenDeBloques(null));
   /**
    * Los recuadros tal cual llegaron de la base (`null`: sin tocar) y, aparte,
@@ -298,6 +305,7 @@ export function PlanDetailTab({
           ogImageUrl: texto(d?.ogImageUrl),
         });
         setParaQuien({ paraQuien: res.paraQuien?.paraQuien ?? "", caso: res.paraQuien?.caso ?? "" });
+        setTodoIncluido({ titulo: res.todoIncluido?.titulo ?? "", texto: res.todoIncluido?.texto ?? "" });
         setOrden(comoOrdenDeBloques(res.orden));
         setRecuadrosGuardados(res.recuadros ?? null);
         setRecuadrosEscritos(null);
@@ -447,6 +455,8 @@ export function PlanDetailTab({
       ...form,
       paraQuien: paraQuien.paraQuien,
       caso: paraQuien.caso,
+      todoIncluidoTitulo: todoIncluido.titulo,
+      todoIncluidoTexto: todoIncluido.texto,
       orden,
       // Solo si se tocaron: sin tocar, la página sigue armándolos con el plan.
       ...(recuadrosEscritos ? { recuadros: recuadrosEscritos } : {}),
@@ -486,6 +496,7 @@ export function PlanDetailTab({
   const deFabrica =
     (PARA_QUIEN_DE_FABRICA as Record<string, ParaQuienDelPlan>)[datos.plan] ?? PARA_QUIEN_DE_FABRICA.personalizado;
   const avisosDelParaQuien = losAvisosDelParaQuien(paraQuien, datos);
+  const avisosDelTodoIncluido = losAvisosDelTodoIncluido(todoIncluido, datos);
   const aviso = (lista: string[]) => (lista.length ? [`No sale en la página (sale el de fábrica): ${lista.join(" ")}`] : []);
   const revisados = revisarLosRecuadros(recuadros, datos);
   const cuantosSalen = revisados.filter((r) => r.comoSale).length;
@@ -499,6 +510,11 @@ export function PlanDetailTab({
       ? { funciones: "Sin funciones encendidas que listar: no sale." }
       : {}),
     ...(preguntas.some((p) => p.question.trim() && p.answer.trim()) ? {} : { preguntas: "Sin preguntas: no sale." }),
+    ...(!todoIncluido.texto.trim()
+      ? { incluido: "Sin texto: no sale." }
+      : avisosDelTodoIncluido.texto.length > 0
+        ? { incluido: "El texto contradice al plan: no sale." }
+        : {}),
   };
   const marca = laMarcaDeLaCaida(orden, arrastrado, sobre);
 
@@ -725,6 +741,55 @@ export function PlanDetailTab({
           >
             <Plus className="h-3.5 w-3.5" /> Agregar pregunta
           </Button>
+        </>
+      ),
+    },
+    incluido: {
+      titulo: "Todo incluido, sin sorpresas",
+      ayuda: (
+        <>
+          Lo que este plan trae sin costo adicional. Sale entero y a la vista, sin desplegar nada, entre las preguntas
+          frecuentes y el precio; es aparte de «Qué incluye», que lista las funciones. Sin texto no sale. Puedes
+          escribir {datosQueSePuedenUsar} y salen con el dato de hoy.
+        </>
+      ),
+      cuerpo: (
+        <>
+          <div className="space-y-1">
+            <Label>Título</Label>
+            <Input
+              maxLength={TOPE_DEL_TITULO_DEL_TODO_INCLUIDO}
+              value={todoIncluido.titulo}
+              onChange={(e) => setTodoIncluido((t) => ({ ...t, titulo: e.target.value }))}
+              placeholder={TITULO_DEL_TODO_INCLUIDO}
+              data-campo-del-detalle="todoIncluidoTitulo"
+            />
+            <Avisos
+              avisos={
+                avisosDelTodoIncluido.titulo.length
+                  ? [`No sale en la página (sale «${TITULO_DEL_TODO_INCLUIDO}»): ${avisosDelTodoIncluido.titulo.join(" ")}`]
+                  : []
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Qué incluye sin costo adicional</Label>
+            <Textarea
+              rows={6}
+              maxLength={TOPE_DEL_TEXTO_DEL_TODO_INCLUIDO}
+              value={todoIncluido.texto}
+              onChange={(e) => setTodoIncluido((t) => ({ ...t, texto: e.target.value }))}
+              placeholder={"Instalación y configuración inicial, capacitación de tu equipo, soporte por WhatsApp y actualizaciones, sin pagos extra."}
+              data-campo-del-detalle="todoIncluidoTexto"
+            />
+            <Avisos
+              avisos={
+                avisosDelTodoIncluido.texto.length
+                  ? [`No sale en la página: ${avisosDelTodoIncluido.texto.join(" ")}`]
+                  : []
+              }
+            />
+          </div>
         </>
       ),
     },

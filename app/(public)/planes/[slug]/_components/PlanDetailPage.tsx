@@ -28,6 +28,7 @@ import {
   type BotonDelPlan,
   type FuncionQueSeEnsena,
   type PreguntaDelPlan,
+  type TodoIncluidoDelPlan,
   type TutorialDeLaFuncion,
 } from "@/lib/pagina-de-plan";
 import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
@@ -60,7 +61,10 @@ import { estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
  *      la página; «Ocultar guía» la recoge. Nada saca a nadie de la página ni
  *      abre otra pestaña;
  *   5. las preguntas frecuentes de ese plan, si tiene;
- *   6. el cierre: SIN título, solo el precio en blanco destacado y debajo el
+ *   6. «Todo incluido, sin sorpresas» (o el título que le haya puesto el
+ *      panel): lo que el plan trae sin costo adicional, en texto libre, ENTERO
+ *      y a la vista —sin desplegar nada—. Sin texto, no sale;
+ *   7. el cierre: SIN título, solo el precio en blanco destacado y debajo el
  *      botón verde «Comenzar con el plan <nombre>» (`elTextoDelBotonDelPlan`),
  *      UNA sola vez, con la línea discreta al plan inmediato superior.
  *
@@ -576,6 +580,28 @@ export function BloqueQueIncluye({
 }
 
 /**
+ * «Todo incluido, sin sorpresas»: el título centrado, como el de las preguntas,
+ * y debajo el texto libre del panel ENTERO, con sus saltos de línea, en una
+ * caja que no se abre ni se cierra: lo que el plan trae sin costo adicional
+ * se lee sin pulsar nada. Lo pinta la página del plan y, tal cual, la
+ * propuesta que lleva ese plan dentro.
+ */
+export function BloqueTodoIncluido({ todoIncluido }: { todoIncluido: TodoIncluidoDelPlan }) {
+  return (
+    <div data-todo-incluido>
+      <h2 className="mb-8 text-center text-2xl font-bold text-plan-tinta sm:text-3xl" data-titulo-del-todo-incluido>
+        {todoIncluido.titulo}
+      </h2>
+      <div className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5 sm:p-6">
+        <p className="whitespace-pre-line text-base leading-relaxed text-plan-tinta/90" data-texto-del-todo-incluido>
+          {todoIncluido.texto}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Cuántas columnas lleva el resumen según cuántos recuadros haya (de uno a
  * `TOPE_DE_RECUADROS`): filas llenas, nunca una última fila con uno suelto.
  * Uno solo ocupa el ancho del bloque, como todos: nada más angosto.
@@ -695,6 +721,15 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
               <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes</h2>
               <Preguntas preguntas={pagina.preguntas} />
+            </div>
+          </section>
+        ) : null;
+
+      case "incluido":
+        return pagina.todoIncluido ? (
+          <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="incluido">
+            <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
+              <BloqueTodoIncluido todoIncluido={pagina.todoIncluido} />
             </div>
           </section>
         ) : null;

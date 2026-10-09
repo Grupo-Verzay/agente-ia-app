@@ -1966,3 +1966,30 @@ pantallas que transcriben (Chats, chat de equipo y reuniones) pasan por ahí.
 Lo prueba `scripts/banco-clave-propia-transcripcion.sh` con OpenAI fingido;
 `MODO=roto` empaqueta `7c1db1f` y afirma que se elegía la clave de Google y se
 tragaba el error.
+
+## La página de un plan: «Todo incluido, sin sorpresas» va a la vista, entre las preguntas y el precio
+
+Cada plan tiene, aparte de «Qué incluye este plan» (las FUNCIONES), un bloque
+con lo que trae **sin costo adicional**: un título (de fábrica «Todo incluido,
+sin sorpresas») y un texto libre, escritos por plan en Planes › Página de
+detalle. Reglas:
+
+- **Sale entero y a la vista**: ni acordeón ni «Ver más». El texto conserva sus
+  saltos de línea (`comoTodoIncluido`). Sin texto no sale; el título solo no
+  dice nada.
+- **Su sitio es después de «Preguntas frecuentes» y antes de «Comenzar»**
+  (`ORDEN_DE_FABRICA`). Un orden guardado de antes lo recibe ahí solo
+  (`comoOrdenDeBloques` mete lo que falta detrás de su vecino de fábrica).
+- **Vive en `plan_todo_incluido`**, tabla de la App sin clave foránea (como
+  `plan_para_quien`): nunca una columna en `plan_details`, que es del backend.
+  Vaciar los dos campos borra la fila.
+- **Lo que contradice al plan no sale**, como las preguntas: un texto con
+  otros créditos o un nombre viejo no se enseña y el panel dice por qué; un
+  título que nombra otro plan sale como el de fábrica.
+- **Una propuesta que carga el plan lo hereda**: va al final del alcance de la
+  fila (`elAlcanceDelPlan`, con su sitio apartado para que una lista larga de
+  funciones no lo deje fuera) y la página pública de la propuesta lo pinta en
+  vivo con el MISMO componente (`BloqueTodoIncluido`).
+
+Lo prueba `scripts/banco-plan-todo-incluido.sh` (regla, Postgres y Chromium);
+`MODO=roto` lee `8302e3e` y afirma que no existía.
