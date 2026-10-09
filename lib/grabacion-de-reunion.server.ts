@@ -9,6 +9,8 @@ import {
     llaveDeLaGrabacion,
     llaveDeLaParte,
     loQueSeLeManda,
+    type ExtensionDeGrabacion,
+    type ModuloQueGraba,
 } from "@/lib/grabacion-de-reunion";
 
 /**
@@ -152,6 +154,8 @@ export async function juntarLasPartes(input: {
     grabacionId: string;
     cual: "audio" | "video";
     partes: number;
+    modulo?: ModuloQueGraba;
+    extension?: ExtensionDeGrabacion;
 }): Promise<string | null> {
     if (input.partes <= 0) return null;
 
@@ -161,6 +165,8 @@ export async function juntarLasPartes(input: {
         cuentaId: input.cuentaId,
         grabacionId: input.grabacionId,
         cual: input.cual,
+        modulo: input.modulo,
+        extension: input.extension,
     });
     const llaves = Array.from({ length: input.partes }, (_, i) =>
         llaveDeLaParte({
@@ -168,6 +174,8 @@ export async function juntarLasPartes(input: {
             grabacionId: input.grabacionId,
             cual: input.cual,
             numero: i + 1,
+            modulo: input.modulo,
+            extension: input.extension,
         }),
     );
 

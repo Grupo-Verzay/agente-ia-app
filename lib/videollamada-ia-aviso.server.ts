@@ -10,9 +10,11 @@ import { SUMMARY_SYSTEM } from "@/lib/grabacion-de-llamada.server";
 import { conElNombreDeLaMarca } from "@/lib/nombres-de-la-marca";
 import { laLineaDeWhatsappDeLaCuenta } from "@/lib/linea-de-whatsapp";
 import { laTranscripcionDeTavus, queHaceElAvisoDeTavus } from "@/lib/videollamada-ia";
+import { elMensajeDeLaVideollamada } from "@/lib/grabacion-de-videollamada";
 import {
     apuntarElMensaje,
     apuntarLaGrabacion,
+    copiarLaGrabacionAlCrm,
     guardarLaTranscripcion,
     laVideollamada,
     marcarFinalizada,
@@ -129,7 +131,7 @@ async function anotarEnElCrm(citaId: string, transcripcion: string, resumen: str
     `.catch(() => [] as { grabacionUrl: string | null }[]);
     const recordingUrl = grabacion[0]?.grabacionUrl ?? null;
 
-    const messageId = `tavus_${citaId}`;
+    const messageId = elMensajeDeLaVideollamada(citaId);
     await persistChatMessage({
         userId: cita.userId,
         instanceName,
@@ -155,6 +157,16 @@ async function anotarEnElCrm(citaId: string, transcripcion: string, resumen: str
         },
         messageTimestamp: new Date(),
     });
-    console.info("[videollamada] anotada en el CRM", { cita: citaId, cuenta: cita.userId, instanceName });
+    // La grabación la sube la sala del cliente y puede haberse cerrado ANTES
+    // de que existiera esta fila: se copia ahora. Si se cierra después, la
+    // copia el cierre (`cerrarYJuntarLaGrabacionDeLaSala`).
+    const conGrabacion = await copiarLaGrabacionAlCrm(citaId).catch((error) => {
+        console.warn("[videollamada] no se pudo copiar la grabación a la fila del CRM", {
+            cita: citaId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return false;
+    });
+    console.info("[videollamada] anotada en el CRM", { cita: citaId, cuenta: cita.userId, instanceName, conGrabacion });
     return messageId;
 }

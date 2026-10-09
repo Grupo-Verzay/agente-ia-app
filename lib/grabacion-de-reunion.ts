@@ -128,9 +128,13 @@ export function llaveDeLaParte(input: {
     grabacionId: string;
     cual: "audio" | "video";
     numero: number;
+    /** La carpeta del módulo que graba: Reuniones o la videollamada con IA. */
+    modulo?: ModuloQueGraba;
+    /** Safari graba mp4; los demás, webm. */
+    extension?: ExtensionDeGrabacion;
 }): string {
     const n = String(Math.max(1, Math.floor(input.numero))).padStart(5, "0");
-    return `${input.cuentaId}/reuniones/${input.grabacionId}/partes-${input.cual}/${n}.webm`;
+    return `${input.cuentaId}/${input.modulo ?? "reuniones"}/${input.grabacionId}/partes-${input.cual}/${n}.${input.extension ?? "webm"}`;
 }
 
 /** Dónde queda el fichero ya junto. */
@@ -138,9 +142,19 @@ export function llaveDeLaGrabacion(input: {
     cuentaId: string;
     grabacionId: string;
     cual: "audio" | "video";
+    modulo?: ModuloQueGraba;
+    extension?: ExtensionDeGrabacion;
 }): string {
-    return `${input.cuentaId}/reuniones/${input.grabacionId}/${input.cual}.webm`;
+    return `${input.cuentaId}/${input.modulo ?? "reuniones"}/${input.grabacionId}/${input.cual}.${input.extension ?? "webm"}`;
 }
+
+/**
+ * Quién graba con estas piezas: Reuniones y la videollamada con IA (Tavus).
+ * Las dos suben igual —partes de 8 MiB que se juntan con `composeObject`—, y
+ * cada una en su carpeta del bucket, para que nunca se pisen.
+ */
+export type ModuloQueGraba = "reuniones" | "videollamadas";
+export type ExtensionDeGrabacion = "webm" | "mp4";
 
 // ── El cupo de la cuenta ────────────────────────────────────────────────────
 
@@ -458,4 +472,19 @@ export function comoEntraElVideo(input: {
     }
     const sh = Math.round(vw / deseada);
     return { sx: 0, sy: Math.round((vh - sh) / 2), sw: vw, sh };
+}
+
+/**
+ * El primer formato que este navegador sepa grabar.
+ *
+ * No se da ninguno por hecho: Safari no tiene webm y sin esto `MediaRecorder`
+ * lanza al construirse, o sea que el botón de grabar reventaría en vez de
+ * decir que no se puede. Con la lista vacía se deja elegir al navegador.
+ */
+export function elFormato(candidatos: string[]): string | undefined {
+    if (typeof MediaRecorder === "undefined") return undefined;
+    for (const c of candidatos) {
+        if (MediaRecorder.isTypeSupported?.(c)) return c;
+    }
+    return undefined;
 }

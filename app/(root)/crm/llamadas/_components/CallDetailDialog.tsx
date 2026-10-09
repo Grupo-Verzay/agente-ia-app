@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, FileText, AudioWaveform, Loader2, PhoneOutgoing, PhoneMissed, Bot, User, AlertTriangle, RotateCw } from "lucide-react";
+import { Sparkles, FileText, AudioWaveform, Loader2, PhoneOutgoing, PhoneMissed, Bot, User, AlertTriangle, RotateCw, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -120,6 +120,12 @@ export function CallDetailDialog({
 
   const isOut = call.direction === "outgoing";
   const url = recordingUrl ?? call.recordingUrl;
+  // La videollamada con IA trae su video (lo graba la sala del cliente); sin
+  // él, su audio va en la nota de voz como cualquier llamada.
+  const videoUrl = call.isVideo ? call.videoUrl : null;
+  // El «Reintentar» es de AstraCalls: en una videollamada la transcripción la
+  // entrega Tavus y reintentar aquí no la traería.
+  const esVideollamada = call.isVideo || call.provider === "tavus";
   // Qué se enseña lo decide una función PURA (`loQueSeEnsenaDeLaLlamada`), no
   // un `hasRecording && !transcript` escrito aquí: de esa condición solo sale
   // «Procesando…», también cuando el proceso abandonó hace media hora. Ver el
@@ -157,7 +163,7 @@ export function CallDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] overflow-y-auto" data-detalle-de-llamada>
         <DialogHeader>
-          <DialogTitle>Detalle de la llamada</DialogTitle>
+          <DialogTitle>{call.isVideo ? "Detalle de la videollamada" : "Detalle de la llamada"}</DialogTitle>
         </DialogHeader>
 
         {/* Cabecera del contacto */}
@@ -178,8 +184,22 @@ export function CallDetailDialog({
           </span>
         </div>
 
-        {/* Grabación */}
-        {url && (
+        {/* Grabación: el video de la videollamada, o la nota de voz */}
+        {videoUrl ? (
+          <div data-bloque="video">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Video className="h-3.5 w-3.5" /> Grabación
+            </div>
+            <video
+              src={videoUrl}
+              controls
+              preload="metadata"
+              playsInline
+              className="aspect-video w-full rounded-md bg-black"
+              data-video-de-la-llamada
+            />
+          </div>
+        ) : url && (
           <div>
             {/* Onda de sonido y no micrófono: la nota ya lleva el suyo dentro. */}
             <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -229,7 +249,7 @@ export function CallDetailDialog({
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{queSeEnsena.texto}</span>
               </p>
-              {queSeEnsena.sePuedeReintentar && (
+              {queSeEnsena.sePuedeReintentar && !esVideollamada && (
                 <Button
                   size="sm"
                   variant="outline"

@@ -12,6 +12,7 @@ import {
     TOPE_DE_UNA_GRABACION_MS,
     VIDEO_BPS,
     comoEntraElVideo,
+    elFormato,
     lasCasillasDelLienzo,
     sePuedeMandarLaParte,
     type ModoDeGrabacion,
@@ -532,19 +533,4 @@ export function useGrabacionDeLaReunion(input: {
     }, []);
 
     return { ...estado, empezar, terminar };
-}
-
-/**
- * El primer formato que este navegador sepa grabar.
- *
- * No se da ninguno por hecho: Safari no tiene webm y sin esto `MediaRecorder`
- * lanza al construirse, o sea que el botón de grabar reventaría en vez de
- * decir que no se puede. Con la lista vacía se deja elegir al navegador.
- */
-function elFormato(candidatos: string[]): string | undefined {
-    if (typeof MediaRecorder === "undefined") return undefined;
-    for (const c of candidatos) {
-        if (MediaRecorder.isTypeSupported?.(c)) return c;
-    }
-    return undefined;
 }

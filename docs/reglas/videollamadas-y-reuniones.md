@@ -2367,3 +2367,85 @@ plan», y al final un botón verde de ancho completo, «Enviar por WhatsApp».
 Lo prueba `scripts/banco-propuesta-desde-el-chat.sh` (barrido y las acciones
 contra Postgres con el despachador fingido); `MODO=roto` lee `70273b0` y afirma
 que no existía.
+
+## Videollamada: la GRABA la sala del cliente, y llega al detalle de CRM › Llamadas
+
+El detalle de una videollamada con Verzy no enseñaba ni video, ni audio, ni
+(a veces) transcripción. Cuatro causas, con el código delante:
+
+| | qué pasaba | ahora |
+| --- | --- | --- |
+| a | Tavus no grababa: no se le pedía, y **solo graba en Amazon S3, GCS o Azure** (no acepta un endpoint propio: no puede escribir en MinIO) | graba la **sala del navegador** (`hooks/useGrabacionDeLaVideollamada.ts`) |
+| b | el aviso `recording_ready` de Tavus trae `s3_key`, no una URL | ya no hace falta: la grabación no sale de Tavus |
+| c | una grabación que llegaba después de la transcripción no tocaba la fila del CRM | `copiarLaGrabacionAlCrm` la mezcla en `raw.call`, llegue antes o después |
+| d | `CallDetailDialog` solo pintaba audio de AstraCalls | con `isVideo` y `videoUrl`: «Detalle de la videollamada» y `<video controls preload="metadata">` |
+
+La transcripción y el resumen siguen saliendo de Tavus (`callback_url` →
+`lib/videollamada-ia-aviso.server.ts`), con turnos «Asistente:» / «Cliente:»
+que `losTurnos` reconoce.
+
+1. **Graba la pestaña del CLIENTE, nunca la de un asesor** (`laSalaGraba`):
+   el cliente está siempre; si grabaran los dos habría dos ficheros de la
+   misma llamada. Empieza sola al entrar, **sigue a través de las
+   reconexiones** (la sala no se desmonta; el mezclador vuelve a enchufar las
+   pistas por su id) y una recarga («Volver a entrar») abre otra grabación. De
+   varias, al CRM va la más larga.
+2. **Lo que se graba es lo que se ve**: el lienzo (1280×720, 10 fps, 900 kbps)
+   pinta lo grande ENTERO (`comoCabeEntero`) —el avatar, la pantalla de Verzy
+   (el `<img>` MJPEG), o la cámara/pantalla del asesor— y la miniatura abajo a
+   la derecha. La cámara del cliente NO (la sala tampoco la pinta); su voz sí:
+   el micrófono entra en la mezcla (`miMicro`), con la del avatar y las demás
+   personas. El audio va además en su propio fichero a `AUDIO_BPS`, como en
+   Reuniones. Video a menos bitrate que Reuniones a propósito: sube el
+   cliente, a menudo por el móvil y mientras manda su cámara a la llamada.
+3. **Trozos de 10 s, no partes de 8 MiB** (`TROZO_CADA_MS`). El cliente casi
+   nunca pulsa «Salir»: **cierra la pestaña**, y lo que no se subió se pierde.
+   Con las partes de Reuniones eso era la llamada ENTERA (el audio tarda media
+   hora en juntar 8 MiB). Al cerrar, el servidor pega los trozos EN ORDEN en
+   partes de ≥5 MiB (memoria acotada a una parte) y las junta con
+   `juntarLasPartes` (el de Reuniones, con `modulo: "videollamadas"`). Un
+   trozo perdido se salta y se dice; sin ningún trozo, la grabación queda
+   `fallida`, nunca en `grabando`.
+4. **Safari graba mp4**: el formato sale del `MediaRecorder`
+   (`elFormatoDeLaGrabacion`) y decide extensión y tipo. Un mp4 guardado como
+   `.webm` no lo abre bien nadie.
+5. **Se dice que se graba**: una pastilla «● Grabando» en la sala del cliente
+   (la regla de Reuniones: grabar a alguien sin que se note no es una
+   función).
+6. **La ruta es pública con la firma de la cita** (`/api/videollamada/grabacion`,
+   `a=empezar|trozo|cerrar`, todo `POST` porque `sendBeacon` solo sabe
+   `POST`). Sin sesión, sus techos son lo único que impide llenar el bucket:
+   la grabación tiene que ser DE esa cita, 8 MiB por trozo, 2 GiB por
+   grabación, 20 grabaciones por cita. El middleware ya deja pasar
+   `/api/videollamada`; el banco prueba que se ALCANZA (401 de la firma, no
+   un `/login`).
+7. **Tres caminos cierran, uno junta**: colgar, `pagehide` (`sendBeacon`) y el
+   barrido diario de `/api/cron/billing` (`recogerLasGrabacionesDeLaSala`,
+   las que llevan `HORAS_SIN_CERRAR` sin un trozo nuevo, en su propio `try` y
+   el último). `reclamarElCierreDeLaSala` pasa `grabando → juntando` y solo
+   uno gana.
+8. **La fila del CRM, en los dos órdenes**: el cierre escribe la grabación y
+   LUEGO la copia a la fila `tavus_<cita>`; `anotarEnElCrm` escribe la fila y
+   LUEGO copia la grabación. El último de los dos siempre ve lo del otro. La
+   copia es un merge de JSONB en `raw.call` con solo las llaves con valor
+   (`laGrabacionParaElCrm`): un `null` pisaría una dirección buena.
+9. **Tabla de la App** `videollamada_grabaciones` (`CREATE TABLE IF NOT
+   EXISTS` en `lib/videollamada-ia-db.ts`, como las demás de la videollamada).
+   En SQL crudo, los números que van a `make_interval` o `LIMIT` llevan
+   `::int`: Prisma los manda como `bigint` y `make_interval(hours => bigint)`
+   no existe (lo cazó el banco).
+10. **En el detalle**: sin el «Reintentar» de AstraCalls en una videollamada
+    (reintentar allí no traería la transcripción de Tavus). Sin grabación, la
+    transcripción y el resumen se ven igual.
+
+Lo prueba `scripts/banco-detalle-de-videollamada.sh`: las reglas puras, la
+ruta y el cierre contra Postgres con un bucket fingido, la sala montada en
+Chromium con un Daily de mentira con pistas de verdad (mide que el video
+junto se ve a 1280×720 y que el audio lleva las dos voces), el diálogo
+pintado, y la ruta alcanzada con el build. `MODO=roto` monta la sala y el
+diálogo de `5983031` y afirma que no se subía ni un byte y que el detalle
+salía «de la llamada» sin video.
+
+**Lo que no se pudo ejercer aquí**: MinIO de verdad y un teléfono de verdad.
+Si en producción algo falla, mirar primero la unión (`composeObject`) y un
+cliente en iPhone (mp4).

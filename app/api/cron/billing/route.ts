@@ -5,6 +5,7 @@ import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-clean
 import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
+import { recogerLasGrabacionesDeLaSala } from "@/lib/grabacion-de-videollamada.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
@@ -176,6 +177,16 @@ export async function POST(request: Request) {
   // pedido («Evaluar ahora») y en el corte semanal del reporte
   // (`runWeeklyReportForAllUsers`).
 
+  // Las grabaciones de videollamada cuya pestaña murió sin avisar: se juntan
+  // con lo que subieron. En su propio `try`, como los demás, y
+  // la ÚLTIMA: juntar trozos tarda, y no puede comerse el plazo de las de arriba.
+  let grabacionesDeVideollamada: unknown = null;
+  try {
+    grabacionesDeVideollamada = await recogerLasGrabacionesDeLaSala();
+  } catch (e) {
+    grabacionesDeVideollamada = { error: e instanceof Error ? e.message : String(e) };
+  }
+
   return NextResponse.json(
     {
       ...result,
@@ -185,6 +196,7 @@ export async function POST(request: Request) {
       cobros,
       vencimientos,
       grabaciones,
+      grabacionesDeVideollamada,
       llamadas,
       papeleraDeEmbudos,
       purgaDeChats,

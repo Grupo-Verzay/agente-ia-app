@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useGrabacionDeLaVideollamada, type LoQueSeVe } from "@/hooks/useGrabacionDeLaVideollamada";
 import { useMandosQueSeEsconden } from "@/hooks/useMandosQueSeEsconden";
 import DailyIframe, { type DailyCall } from "@daily-co/daily-js";
 import { Mic, MicOff, MonitorOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/fin-de-la-videollamada";
 import { elAbajoDeLoGrande, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
+import { laSalaGraba } from "@/lib/grabacion-de-videollamada";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
 export const REABRIR_EL_VIDEO_MS = 1_500;
@@ -81,8 +83,10 @@ type Pistas = {
     /** La cámara y la pantalla del ASESOR (quien entra marcado como del equipo). La del cliente no se pinta nunca. */
     asesorCamara: MediaStreamTrack | null;
     asesorPantalla: MediaStreamTrack | null;
+    /** Mi micrófono: no se pinta (nadie se oye a sí mismo), solo entra en la grabación. */
+    miMicro: MediaStreamTrack | null;
 };
-const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [], asesorCamara: null, asesorPantalla: null };
+const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [], asesorCamara: null, asesorPantalla: null, miMicro: null };
 
 /** Cada persona entra marcada (`userData.humano`): así se distingue del avatar
  * de Tavus, que es el único remoto SIN la marca. */
@@ -128,6 +132,7 @@ function lasPistas(llamada: DailyCall, soyAsesor: boolean): Pistas {
         humanos,
         asesorCamara: pista(asesor, "video"),
         asesorPantalla: pista(asesor, "screenVideo"),
+        miMicro: pista(todos.local as Remoto | undefined, "audio"),
     };
 }
 
@@ -735,9 +740,42 @@ export default function SalaDeLaVideollamada({
     const ABAJO = elAbajoDeLoGrande(mandosOcultos);
     const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
+    // La grabación (la del cliente; ver `lib/grabacion-de-videollamada.ts`):
+    // las voces de todos y, en el lienzo, lo mismo que se ve aquí.
+    const salaRef = useRef<HTMLElement>(null);
+    const dispRef = useRef(disp);
+    dispRef.current = disp;
+    const voces = useMemo(
+        () => [pistas.avatarAudio, ...pistas.humanos.map((h) => h.audio), pistas.miMicro].filter((p): p is MediaStreamTrack => !!p),
+        [pistas],
+    );
+    const queSeVe = (): LoQueSeVe => {
+        const sala = salaRef.current;
+        const d = dispRef.current;
+        const video = (zona: string) => sala?.querySelector<HTMLVideoElement>(`[data-zona="${zona}"] video, video[data-zona="${zona}"]`) ?? null;
+        const grande =
+            d.grande === "avatar" ? video("video-del-avatar")
+            : d.grande === "pantalla-verzy" ? sala?.querySelector<HTMLImageElement>('img[data-zona="video-de-la-pantalla"]') ?? null
+            : d.grande === "asesor-camara" ? video("camara-del-asesor")
+            : d.grande === "asesor-pantalla" ? video("pantalla-del-asesor")
+            : sala?.querySelector<HTMLImageElement>('img[data-zona="logo-de-la-portada"]') ?? null;
+        const mini = d.mini === "avatar" ? video("video-del-avatar") : d.mini === "asesor-camara" ? video("camara-del-asesor") : null;
+        return { grande, mini };
+    };
+    const grabacion = useGrabacionDeLaVideollamada({
+        graba: laSalaGraba({ esAsesor }),
+        dentro: estado === "dentro",
+        terminada: estado === "terminada" || estado === "sin_conexion",
+        consulta,
+        voces,
+        queSeVe,
+    });
+
     return (
         <main
+            ref={salaRef}
             data-zona="sala"
+            data-grabando={grabacion.grabando ? "si" : "no"}
             data-grande={disp.grande}
             data-mini={disp.mini ?? "ninguna"}
             className="relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-slate-100"
@@ -905,6 +943,17 @@ export default function SalaDeLaVideollamada({
                     </>
                 )}
             </div>
+            {/* Se dice que se graba: grabar la voz y la cara de alguien sin que
+                se note no es una función (regla de Reuniones). */}
+            {grabacion.grabando && estado === "dentro" && (
+                <p
+                    data-zona="aviso-de-grabacion"
+                    className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full bg-slate-950/60 px-2 py-0.5 text-[11px] font-medium text-slate-200"
+                >
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
+                    Grabando
+                </p>
+            )}
             {error && (
                 <p role="alert" className="absolute inset-x-4 top-4 z-30 rounded-lg bg-red-600/90 px-3 py-2 text-sm">
                     {error}
