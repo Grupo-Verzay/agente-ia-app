@@ -21,7 +21,12 @@ import { TutorialesDeLaLanding } from "@/components/ayuda/TutorialesDeLaLanding"
 import type { GuiaDeAyuda } from "@/lib/centro-de-ayuda";
 import { ANCLA_DEL_INICIO } from "@/lib/tutoriales-de-la-landing";
 import { elEnlaceDeLaPaginaDelPlan, elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
-import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import {
+  ANCHO_DE_LA_LANDING,
+  ANCHO_DE_LA_LANDING_CON_SANGRIA,
+  BLOQUE_A_BORDE,
+  SANGRIA_DEL_TEXTO,
+} from "@/lib/ancho-de-la-landing";
 import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
 import { AIRE_ENCIMA_DEL_PIE } from "@/lib/pie-de-las-publicas";
 
@@ -297,7 +302,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════ */}
       {!embed && (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
+        <div className={`flex items-center justify-between py-3 ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <a
             href={`#${ANCLA_DEL_INICIO}`}
             onClick={volverAlInicio}
@@ -367,7 +372,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
                style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
-        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
+        <div className={`relative ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda */}
@@ -451,7 +456,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
+            <div className={`grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4 ${BLOQUE_A_BORDE}`}>
               {[
                 { to: 500, suffix: "+", label: "Negocios activos" },
                 { to: 1,   suffix: "M+", label: "Mensajes respondidos" },
@@ -474,7 +479,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
         <div className={ANCHO_DE_LA_LANDING}>
-          <div className="relative overflow-hidden rounded-xl"
+          <div className={`relative overflow-hidden rounded-xl ${BLOQUE_A_BORDE}`}
             style={{
               maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
               WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
@@ -494,16 +499,16 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
+            <p className={`mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500 ${SANGRIA_DEL_TEXTO}`}>¿Te suena familiar?</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {PAIN_POINTS.map((pain) => (
-                <div key={pain} className="flex items-start gap-3 rounded-xl border border-red-500/10 bg-red-500/5 px-4 py-3">
+                <div key={pain} className={`flex items-start gap-3 rounded-xl border border-red-500/10 bg-red-500/5 px-4 py-3 ${BLOQUE_A_BORDE}`}>
                   <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
                   <span className="text-sm text-slate-300">{pain}</span>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-center text-sm text-slate-400">
+            <p className={`mt-4 text-center text-sm text-slate-400 ${SANGRIA_DEL_TEXTO}`}>
               <span className="font-medium text-blue-400">Agente IA resuelve todo esto</span> — automáticamente.
             </p>
           </FadeIn>
@@ -514,9 +519,9 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <h2 className="mb-5 text-center text-2xl font-bold text-white sm:text-3xl">¿Qué cambia con Agente IA?</h2>
+            <h2 className={`mb-5 text-center text-2xl font-bold text-white sm:text-3xl ${SANGRIA_DEL_TEXTO}`}>¿Qué cambia con Agente IA?</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+              <div className={`rounded-2xl border border-red-500/20 bg-red-500/5 p-5 ${BLOQUE_A_BORDE}`}>
                 <div className="mb-4 flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-400" />
                   <span className="font-semibold text-red-400">Sin Agente IA</span>
@@ -529,7 +534,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                   ))}
                 </ul>
               </div>
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+              <div className={`rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 ${BLOQUE_A_BORDE}`}>
                 <div className="mb-4 flex items-center gap-2">
                   <Check className="h-5 w-5 text-blue-400" />
                   <span className="font-semibold text-blue-400">Con Agente IA</span>
@@ -551,14 +556,14 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Funciona para tu tipo de negocio</h2>
               <p className="mt-2 text-slate-400">Adaptado a las necesidades de cada industria, desde el primer día.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {INDUSTRIES.map((ind, i) => (
                 <FadeIn key={ind.name} delay={i * 60}>
-                  <div className="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <div className={`flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07] ${BLOQUE_A_BORDE}`}>
                     <span className="text-2xl">{ind.emoji}</span>
                     <div>
                       <h3 className="font-semibold text-white">{ind.name}</h3>
@@ -576,7 +581,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section id="how" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Tu agente listo en 3 pasos</h2>
               <p className="mt-2 text-slate-400">Sin programación. Sin conocimientos técnicos. Solo configura y funciona.</p>
             </div>
@@ -604,14 +609,14 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section id="features" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Todo lo que hace por ti</h2>
               <p className="mt-2 text-slate-400">Un agente que trabaja solo, aprende de tu negocio y nunca descansa.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((f, i) => (
                 <FadeIn key={f.title} delay={i * 60}>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <div className={`rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07] ${BLOQUE_A_BORDE}`}>
                     <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
                       <f.icon className="h-4 w-4 text-blue-400" />
                     </div>
@@ -629,7 +634,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros clientes</h2>
               <p className="mt-2 text-slate-400">Negocios reales que ya automatizaron su atención al cliente.</p>
             </div>
@@ -646,7 +651,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {activeTestimonials.map((t, i) => (
                     <FadeIn key={i} delay={i * 80}>
-                      <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+                      <div className={`flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5 ${BLOQUE_A_BORDE}`}>
                         <div className="flex items-start justify-between">
                           <Quote className="h-5 w-5 text-blue-400/50" />
                           <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Verificado</span>
@@ -677,11 +682,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       {guiasDeAyuda && (
       <section id="tutoriales" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
-          <div className="mb-6 text-center">
+          <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
             <h2 className="text-2xl font-bold text-white sm:text-3xl">Tutoriales</h2>
             <p className="mt-2 text-slate-400">Guías paso a paso de la plataforma, con su vídeo.</p>
           </div>
-          <TutorialesDeLaLanding guias={guiasDeAyuda} />
+          <div className={SANGRIA_DEL_TEXTO}>
+            <TutorialesDeLaLanding guias={guiasDeAyuda} />
+          </div>
         </div>
       </section>
       )}
@@ -691,13 +698,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section id="pricing" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Sin contratos. Cancela cuando quieras.</p>
 
               {/* Billing period toggle — solo si hay más de un periodo habilitado */}
               {showBillingToggle && (
-              <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+              <div className="mt-4 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 max-sm:rounded-3xl">
                 {([
                   { value: "monthly",   label: "Mensual",    badge: null      },
                   { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
@@ -709,7 +716,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                     key={opt.value}
                     onClick={() => setBillingPeriod(opt.value)}
                     className={cn(
-                      "flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                      "flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm font-medium transition-all sm:px-4",
                       billingPeriod === opt.value ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                     )}
                   >
@@ -731,7 +738,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
               {/* Assistance toggle — solo visible si ambos tipos tienen planes activos */}
               {showIA && showHUMANO && (
-                <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                <div className="mt-3 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 max-sm:rounded-3xl">
                   <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
                     <Zap className="h-3.5 w-3.5" /> Asistencia IA
                   </button>
@@ -779,13 +786,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       <section id="faq" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
               <p className="mt-2 text-slate-400">Todo lo que necesitas saber antes de empezar.</p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {FAQS.map((faq, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                <div key={i} className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 ${BLOQUE_A_BORDE}`}>
                   <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between px-5 py-4 text-left">
                     <span className="pr-4 text-sm font-medium text-white">{faq.q}</span>
                     {openFaq === i ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
@@ -808,7 +815,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div
-              className={cn("rounded-2xl border px-10 py-8 text-center", !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
+              className={cn("rounded-2xl border px-10 py-8 text-center", BLOQUE_A_BORDE, !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
               style={brand || bg
                 ? { borderColor: brand ? `${brand}55` : "#3b82f620", background: `linear-gradient(to bottom right, #1e293b, ${bg ?? "#0f172a"})` }
                 : undefined
@@ -921,7 +928,7 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
     violet: { border: "border-violet-500/20", from: "from-violet-600/10", label: "text-violet-400", bg: "bg-violet-600/20" },
   }[accent]!;
   return (
-    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", s.border, s.from)}>
+    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", BLOQUE_A_BORDE, s.border, s.from)}>
       <div className="flex items-center gap-3">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", s.bg)}>{icon}</div>
         <span className={cn("text-xs font-semibold uppercase tracking-widest", s.label)}>Paso {step}</span>
@@ -956,7 +963,7 @@ export function VideoDeLaLanding({ valor }: { valor: string }) {
   const video = elVideoDelPlan(valor);
   if (video?.tipo === "archivo") {
     return (
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black" style={{ aspectRatio: "16/9" }}>
+      <div className={`overflow-hidden rounded-2xl border border-white/10 bg-black ${BLOQUE_A_BORDE}`} style={{ aspectRatio: "16/9" }}>
         <video
           src={video.url}
           controls
@@ -977,7 +984,7 @@ export function VideoDeLaLanding({ valor }: { valor: string }) {
     ? `https://www.youtube.com/embed/${valor.split("youtu.be/")[1].split("?")[0]}`
     : valor;
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+    <div className={`overflow-hidden rounded-2xl border border-white/10 ${BLOQUE_A_BORDE}`} style={{ aspectRatio: "16/9" }}>
       <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" data-video-de-la-landing="enlace" />
     </div>
   );
@@ -990,7 +997,7 @@ export function VideoDeLaLanding({ valor }: { valor: string }) {
  */
 export function BloqueDeAgencias({ whatsappNumber }: { whatsappNumber?: string | null }) {
   return (
-      <div className="flex flex-col items-stretch gap-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-8 sm:px-8 md:flex-row md:items-center md:justify-between" data-bloque-de-agencias>
+      <div className={`flex flex-col items-stretch gap-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-8 sm:px-8 md:flex-row md:items-center md:justify-between ${BLOQUE_A_BORDE}`} data-bloque-de-agencias>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-4" data-zona="titulo-de-agencias">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
@@ -1062,7 +1069,7 @@ export function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, 
     : `Facturado $${(price * 12).toFixed(0)} al año`;
 
   return (
-    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
+    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]", BLOQUE_A_BORDE,
       plan.isPopular ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : "border-white/10 bg-white/5")}>
       {plan.isPopular && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">

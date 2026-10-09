@@ -32,7 +32,12 @@ import {
   type TodoIncluidoDelPlan,
   type TutorialDeLaFuncion,
 } from "@/lib/pagina-de-plan";
-import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import {
+  ANCHO_DE_LA_LANDING,
+  ANCHO_DE_LA_LANDING_CON_SANGRIA,
+  BLOQUE_A_BORDE,
+  SANGRIA_DEL_TEXTO,
+} from "@/lib/ancho-de-la-landing";
 import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
 import { AIRE_ENCIMA_DEL_PIE } from "@/lib/pie-de-las-publicas";
 import type { PaginaDelPlan } from "@/lib/pagina-de-plan.server";
@@ -158,15 +163,21 @@ function BotonSecundario({ boton }: { boton: BotonDelPlan }) {
 export function MarcoDelVideo({
   titulo,
   gradiente,
+  aBorde = false,
   children,
 }: {
   titulo: string;
   gradiente: string;
+  /** Pegado al borde de la pantalla en el teléfono (la página del plan): sin esquinas ni raya a los lados. */
+  aBorde?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("rounded-2xl bg-gradient-to-br p-px shadow-2xl shadow-black/60", gradiente)} data-marco-del-video>
-      <div className="rounded-[15px] bg-plan-marco/95 p-2 sm:p-3">
+    <div
+      className={cn("rounded-2xl bg-gradient-to-br p-px shadow-2xl shadow-black/60", aBorde && `${BLOQUE_A_BORDE} max-sm:px-0`, gradiente)}
+      data-marco-del-video
+    >
+      <div className={cn("rounded-[15px] bg-plan-marco/95 p-2 sm:p-3", aBorde && "max-sm:rounded-none")}>
         <div className="flex items-center gap-2.5 px-1 pb-2 sm:pb-3" data-cabecera-del-video>
           <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br", gradiente)}>
             <Play className="h-3.5 w-3.5 fill-white text-white" />
@@ -205,7 +216,7 @@ function Preguntas({ preguntas }: { preguntas: PreguntaDelPlan[] }) {
   return (
     <div className="space-y-2">
       {preguntas.map((p, i) => (
-        <div key={i} className="overflow-hidden rounded-lg border border-plan-tinta/10" data-pregunta>
+        <div key={i} className={cn("overflow-hidden rounded-lg border border-plan-tinta/10", BLOQUE_A_BORDE)} data-pregunta>
           <button
             type="button"
             onClick={() => setAbierta(abierta === i ? null : i)}
@@ -434,6 +445,7 @@ function QueIncluye({
   abierta,
   alAbrir,
   enLaPropuesta = false,
+  aBorde = false,
 }: {
   id: string;
   funciones: FuncionQueSeEnsena[];
@@ -441,6 +453,7 @@ function QueIncluye({
   abierta: string | null;
   alAbrir: (id: string | null) => void;
   enLaPropuesta?: boolean;
+  aBorde?: boolean;
 }) {
   const prefijo = useId();
   return (
@@ -472,7 +485,7 @@ function QueIncluye({
         return (
           <li
             key={f.id}
-            className="overflow-hidden rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03]"
+            className={cn("overflow-hidden rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03]", aBorde && BLOQUE_A_BORDE)}
             hidden={!seVeLaFuncion(f, todas)}
             data-funcion={f.id}
             data-destacada={f.destacada ? "si" : "no"}
@@ -526,10 +539,13 @@ function QueIncluye({
 export function BloqueQueIncluye({
   funciones,
   enLaPropuesta = false,
+  aBorde = false,
 }: {
   funciones: FuncionQueSeEnsena[];
   /** Dentro de una propuesta (`PlanEnLaPropuesta`). */
   enLaPropuesta?: boolean;
+  /** Pegado al borde de la pantalla en el teléfono (la página del plan): sus filas sin esquinas ni raya a los lados. */
+  aBorde?: boolean;
 }) {
   const { deEntrada, resto } = elRepartoDeLasFunciones(funciones);
   const [todas, setTodas] = useState(false);
@@ -548,7 +564,7 @@ export function BloqueQueIncluye({
 
   return (
     <div data-que-incluye={resto.length === 0 || todas ? "todas" : "destacadas"}>
-      <div className="mb-8 text-center">
+      <div className={cn("mb-8 text-center", aBorde && SANGRIA_DEL_TEXTO)}>
         <h2 className="text-2xl font-bold sm:text-3xl" data-titulo-del-bloque>Qué incluye este plan</h2>
         <p className="mt-2 text-sm text-plan-suave" data-cuantas-funciones>
           {funciones.length === 1 ? "1 función" : `${funciones.length} funciones`}
@@ -556,7 +572,7 @@ export function BloqueQueIncluye({
       </div>
       {/* Sin ninguna destacada no hay nada que enseñar de entrada: la lista
           entera está escondida y la abre el botón. */}
-      <QueIncluye enLaPropuesta={enLaPropuesta} id={idDeLaLista} funciones={funciones} todas={todas} abierta={abierta} alAbrir={setAbierta} />
+      <QueIncluye enLaPropuesta={enLaPropuesta} aBorde={aBorde} id={idDeLaLista} funciones={funciones} todas={todas} abierta={abierta} alAbrir={setAbierta} />
       {resto.length > 0 && (
         <div className="mt-6 flex justify-center">
           <button
@@ -590,13 +606,20 @@ export function BloqueQueIncluye({
  * lee sin pulsar. Lo pinta la página del plan y, tal cual, la propuesta que
  * lleva ese plan dentro.
  */
-export function BloqueTodoIncluido({ todoIncluido }: { todoIncluido: TodoIncluidoDelPlan }) {
+export function BloqueTodoIncluido({
+  todoIncluido,
+  aBorde = false,
+}: {
+  todoIncluido: TodoIncluidoDelPlan;
+  /** Pegado al borde de la pantalla en el teléfono (la página del plan): sus tarjetas sin esquinas ni raya a los lados. */
+  aBorde?: boolean;
+}) {
   const tarjetas = lasTarjetasDelTodoIncluido(todoIncluido.texto);
   const enDosColumnas = tarjetas.length > 1;
   const quedaUnaSuelta = enDosColumnas && tarjetas.length % 2 === 1;
   return (
     <div data-todo-incluido>
-      <h2 className="mb-8 text-center text-2xl font-bold text-plan-tinta sm:text-3xl" data-titulo-del-todo-incluido>
+      <h2 className={cn("mb-8 text-center text-2xl font-bold text-plan-tinta sm:text-3xl", aBorde && SANGRIA_DEL_TEXTO)} data-titulo-del-todo-incluido>
         {todoIncluido.titulo}
       </h2>
       <ul className={cn("grid gap-4", enDosColumnas ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} data-tarjetas-del-todo-incluido>
@@ -605,6 +628,7 @@ export function BloqueTodoIncluido({ todoIncluido }: { todoIncluido: TodoIncluid
             key={`${i}-${texto}`}
             className={cn(
               "flex items-start gap-3 rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5",
+              aBorde && BLOQUE_A_BORDE,
               quedaUnaSuelta && i === tarjetas.length - 1 && "sm:col-span-2",
             )}
             data-tarjeta-del-todo-incluido
@@ -637,7 +661,14 @@ export const TAMANO_DEL_VALOR = "text-[length:clamp(1.125rem,8.25cqw,1.5rem)]";
  * Los recuadros de capacidad (créditos, catálogo, asistencia…). Los pinta la
  * página del plan y, tal cual, la propuesta que lleva ese plan dentro.
  */
-export function RecuadrosDeCapacidad({ capacidad }: { capacidad: PaginaDelPlan["capacidad"] }) {
+export function RecuadrosDeCapacidad({
+  capacidad,
+  aBorde = false,
+}: {
+  capacidad: PaginaDelPlan["capacidad"];
+  /** Pegado al borde de la pantalla en el teléfono (la página del plan): sin esquinas ni raya a los lados. */
+  aBorde?: boolean;
+}) {
   return (
     <>
     {capacidad.map((t) => {
@@ -645,7 +676,7 @@ export function RecuadrosDeCapacidad({ capacidad }: { capacidad: PaginaDelPlan["
       return (
         <div
           key={t.id}
-          className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5 [container-type:inline-size]"
+          className={cn("rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5 [container-type:inline-size]", aBorde && BLOQUE_A_BORDE)}
           data-capacidad={t.id}
           data-icono={t.icono}
         >
@@ -693,7 +724,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.video ? (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="video">
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
-              <MarcoDelVideo titulo={pagina.video.titulo} gradiente={gradiente}>
+              <MarcoDelVideo titulo={pagina.video.titulo} gradiente={gradiente} aBorde>
                 <VideoDelPlan video={pagina.video} />
               </MarcoDelVideo>
             </div>
@@ -704,13 +735,13 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="paraquien">
             <div className={cn(ANCHO_DE_LA_LANDING, "grid gap-4 md:grid-cols-2")} data-ancho-del-bloque>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-para-quien>
+              <div className={cn("rounded-xl border border-white/10 bg-white/[0.03] p-5", BLOQUE_A_BORDE)} data-para-quien>
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-400">
                   <Users className="h-4 w-4" /> Para quién es este plan
                 </div>
                 <p className="mt-3 text-base leading-relaxed text-white">{pagina.paraQuien.paraQuien}</p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5" data-caso-tipico>
+              <div className={cn("rounded-xl border border-white/10 bg-white/[0.03] p-5", BLOQUE_A_BORDE)} data-caso-tipico>
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-400">
                   <Briefcase className="h-4 w-4" /> Un caso típico
                 </div>
@@ -727,7 +758,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
               className={cn(ANCHO_DE_LA_LANDING, "grid gap-4", COLUMNAS_DE_CAPACIDAD[pagina.capacidad.length] ?? "sm:grid-cols-3")}
               data-ancho-del-bloque
             >
-              <RecuadrosDeCapacidad capacidad={pagina.capacidad} />
+              <RecuadrosDeCapacidad capacidad={pagina.capacidad} aBorde />
             </div>
           </section>
         ) : null;
@@ -736,7 +767,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.funciones.length > 0 ? (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="funciones">
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
-              <BloqueQueIncluye funciones={pagina.funciones} />
+              <BloqueQueIncluye funciones={pagina.funciones} aBorde />
             </div>
           </section>
         ) : null;
@@ -745,7 +776,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.preguntas.length > 0 ? (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="preguntas">
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
-              <h2 className="mb-8 text-center text-2xl font-bold sm:text-3xl">Preguntas frecuentes</h2>
+              <h2 className={cn("mb-8 text-center text-2xl font-bold sm:text-3xl", SANGRIA_DEL_TEXTO)}>Preguntas frecuentes</h2>
               <Preguntas preguntas={pagina.preguntas} />
             </div>
           </section>
@@ -755,7 +786,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
         return pagina.todoIncluido ? (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="incluido">
             <div className={ANCHO_DE_LA_LANDING} data-ancho-del-bloque>
-              <BloqueTodoIncluido todoIncluido={pagina.todoIncluido} />
+              <BloqueTodoIncluido todoIncluido={pagina.todoIncluido} aBorde />
             </div>
           </section>
         ) : null;
@@ -763,7 +794,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
       case "comenzar":
         return (
           <section key={clave} className={ESPACIO_DEL_BLOQUE} data-seccion="comenzar">
-            <div className={cn(ANCHO_DE_LA_LANDING, "text-center")} data-ancho-del-bloque>
+            <div className={cn(ANCHO_DE_LA_LANDING_CON_SANGRIA, "text-center")} data-ancho-del-bloque>
               {/* Sin título: el precio, en blanco, es lo que se lee antes del botón. */}
               <p
                 className={cn(
@@ -803,7 +834,7 @@ export function PlanDetailPage({ pagina }: { pagina: PaginaDelPlan }) {
     <div className="min-h-full bg-[#0a0f1a] text-white" data-pagina-de-plan={pagina.plan}>
       {/* ── Barra ── */}
       <div className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0f1a]/95 backdrop-blur-sm">
-        <div className={cn(ANCHO_DE_LA_LANDING, "flex items-center justify-between gap-3 py-3")} data-ancho-de-la-barra>
+        <div className={cn(ANCHO_DE_LA_LANDING_CON_SANGRIA, "flex items-center justify-between gap-3 py-3")} data-ancho-de-la-barra>
           <Link href="/inicio#pricing" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white" data-volver-a-planes>
             <ArrowLeft className="h-4 w-4" /> Volver a planes
           </Link>

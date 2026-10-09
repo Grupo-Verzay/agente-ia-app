@@ -160,8 +160,9 @@ aparte, el plan suelto con su enlace y el fondo que no cambia.
 
 Era una tira de 672 px (`max-w-2xl`) en medio de cualquier pantalla. Ahora
 `ANCHO_DE_LA_PROPUESTA` ES `ANCHO_DE_LA_LANDING` (`max-w-6xl`, con su relleno
-dentro): llena la ventana hasta 1152 px y de ahí se centra, igual que la landing
-y la página de un plan. Los párrafos largos (alcance, nota, condiciones, pago)
+dentro desde `sm`; en el teléfono sin margen: ver «En el teléfono, las públicas
+llenan el ancho»): llena la ventana hasta 1152 px y de ahí se centra, igual que
+la landing y la página de un plan. Los párrafos largos (alcance, nota, condiciones, pago)
 llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea): con el
 contenedor ancho se leerían a 140. Medido: las tarjetas de capacidad de un plan
 dentro de un servicio ocupan ~96 % de la fila, sin apretarse. Lo prueba
@@ -224,6 +225,72 @@ entre bloques, el mismo texto en las tres, «preparada por» encima y los
 rótulos en cada tarjeta). `MODO=roto` las pinta con el código de `20f8e50` y
 afirma la raya de lado a lado, el aire distinto, el plan sin derechos y la
 propuesta sin raya y con «Servicios» encima de la lista.
+
+## En el teléfono, las públicas llenan el ancho: sin margen a los lados, y sin que el texto toque el borde
+
+La landing, las dos de resellers, la página de un plan y la propuesta
+compartían `ANCHO_DE_LA_LANDING` (`lib/ancho-de-la-landing.ts`) con **32 px de
+relleno a cada lado en el teléfono**: 64 de 390, el 16 % de la pantalla en
+blanco, y en la propuesta —de fondo claro— se notaba más. En la bandeja de
+Chats, dentro de la App, el contenido llena el ancho (`p-0 sm:p-1`,
+`rounded-none border-0 sm:rounded-md sm:border`). Ahora las públicas hacen lo
+mismo **por debajo de `sm` (640 px)**; desde `sm`, tableta y computador, todo
+sigue exactamente igual.
+
+> **Cuatro piezas, todas en `lib/ancho-de-la-landing.ts` y escritas UNA vez**
+> (clases literales: Tailwind solo genera lo que ve escrito):
+>
+> | Pieza | Clases | Para qué |
+> | --- | --- | --- |
+> | `ANCHO_DE_LA_LANDING` | `mx-auto max-w-6xl px-0 sm:px-12 lg:px-16` | la caja de cada bloque: a ras de pantalla en el teléfono |
+> | `ANCHO_DE_LA_LANDING_CON_SANGRIA` | `mx-auto max-w-6xl px-4 sm:px-12 lg:px-16` | las barras (la de arriba) y los bloques que son solo texto (el primer pantallazo, el cierre del plan) |
+> | `SANGRIA_DEL_TEXTO` | `px-4 sm:px-0` | un título o un párrafo suelto dentro de la caja: 16 px en el teléfono, 0 desde `sm` |
+> | `BLOQUE_A_BORDE` | `max-sm:rounded-none max-sm:border-x-0` | una tarjeta del PRIMER nivel: sin esquinas ni raya lateral que la pantalla corte |
+
+Lo que hay que mantener:
+
+1. **Quitar el margen obliga a dos cosas más**, y las dos van en cada pantalla
+   nueva: el texto suelto lleva `SANGRIA_DEL_TEXTO` (lo de DENTRO de una tarjeta
+   ya trae su relleno) y la tarjeta que toca el borde lleva `BLOQUE_A_BORDE`.
+   Nunca `ANCHO_DE_LA_LANDING` y `SANGRIA_DEL_TEXTO` en el mismo elemento: a
+   `sm` chocan `sm:px-0` y `sm:px-12`; para eso está `…_CON_SANGRIA`.
+2. **Solo las tarjetas del primer nivel van a borde.** Una tarjeta DENTRO de
+   otra se queda con su aire y sus esquinas: el plan que va dentro de un
+   servicio de la propuesta (`PlanEnLaPropuesta`) usa las MISMAS piezas que la
+   página del plan, así que `MarcoDelVideo`, `RecuadrosDeCapacidad`,
+   `BloqueQueIncluye` y `BloqueTodoIncluido` reciben `aBorde` (por defecto
+   `false`) y solo `PlanDetailPage` lo pasa. Sin el interruptor, la propuesta
+   habría cuadrado también lo de dentro.
+3. **La raya del pie conserva 16 px en el teléfono** (`PieDeLasPublicas` envuelve
+   su línea en `SANGRIA_DEL_TEXTO`): «al ancho del contenido» sigue siendo cierto
+   y no queda una raya de borde a borde.
+4. **Los tutoriales de la landing conservan su sangría de 16 px**, también en el
+   teléfono: son los componentes del centro de ayuda, compartidos con el panel
+   (`CentroDeAyuda`, `GuiasDeLaCategoria`, `GuiaEnLaLanding`), y no se tocan por
+   esto. Si algún día se quiere a borde, es con un interruptor en ellos, como
+   `aBorde` arriba.
+5. **El selector de periodo (Mensual · Trimestral · Anual) se parte en dos filas
+   antes de desbordar** (`max-w-full flex-wrap`, `px-2.5 sm:px-4`): con 32 px de
+   margen ya desbordaba a 390 px (417 de ancho) y la landing se desplazaba hacia
+   los lados. Ahora a 390 cabe en una fila, a 360 se parte en dos, y a ninguno
+   se desplaza.
+
+Lo prueba `scripts/banco-landing-a-borde-en-movil.sh`, que pinta las cinco
+pantallas REALES en Chromium (la landing, las dos de resellers, un plan y una
+propuesta con un plan dentro) a 360/390/430 y a 640/768/1024/1280/1440:
+
+- en el teléfono, ningún bloque pegado a los dos bordes conserva esquina o raya
+  lateral, ningún texto, mando o icono queda a menos de 12 px del borde, la
+  página no se desplaza hacia los lados, las tarjetas del primer nivel llegan
+  de borde a borde y las de dentro no;
+- desde 640 px, la posición y el tamaño de CADA texto y de cada caja con fondo o
+  borde son idénticos a los del código de `ANTES_REF` (`fb40429`): es la prueba
+  de que computador y tableta no se tocaron;
+- `MODO=roto` pinta las mismas pantallas con el código de `ANTES_REF` y afirma
+  los 32 px de margen a cada lado y que ningún bloque llegaba al borde.
+
+Si una pantalla pública nueva usa `ANCHO_DE_LA_LANDING`, se añade a
+`lib/__tests__/fingido/landings-a-borde-harness.tsx`: el banco la mide sola.
 
 ## El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
 

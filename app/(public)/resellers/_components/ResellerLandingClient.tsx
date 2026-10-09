@@ -15,7 +15,12 @@ import { elSlugDelNivel } from "@/lib/enlaces-de-planes";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { AnimatedChat } from "@/components/custom/AnimatedChat";
-import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import {
+  ANCHO_DE_LA_LANDING,
+  ANCHO_DE_LA_LANDING_CON_SANGRIA,
+  BLOQUE_A_BORDE,
+  SANGRIA_DEL_TEXTO,
+} from "@/lib/ancho-de-la-landing";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
@@ -313,7 +318,7 @@ function ResellerPlanCard({ plan, packSize }: {
   const pricePerLicense = price > 0 ? (price / pack.qty).toFixed(2) : null;
 
   return (
-    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
+    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]", BLOQUE_A_BORDE,
       plan.isPopular ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : "border-white/10 bg-white/5")}>
       {plan.isPopular && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -390,7 +395,7 @@ function StepCard({ step, accent, icon, title, description, items }: {
     violet: { border: "border-violet-500/20", from: "from-violet-600/10", label: "text-violet-400", bg: "bg-violet-600/20", check: "text-violet-400" },
   }[accent];
   return (
-    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", s.border, s.from)}>
+    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", BLOQUE_A_BORDE, s.border, s.from)}>
       <div className="flex items-center gap-3">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", s.bg)}>{icon}</div>
         <span className={cn("text-xs font-semibold uppercase tracking-widest", s.label)}>Paso {step}</span>
@@ -459,7 +464,7 @@ export function ResellerLandingClient({
 
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
+        <div className={`flex items-center justify-between py-3 ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <div className="flex items-center gap-2">
             {logoUrl ? (
               <img src={logoUrl} alt="Agente IA" className="h-8 max-w-[120px] object-contain" />
@@ -516,7 +521,7 @@ export function ResellerLandingClient({
           <div className="absolute -left-20 top-20 h-80 w-80 rounded-full bg-violet-500/8 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-60 w-96 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
         </div>
-        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
+        <div className={`relative ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda: texto */}
@@ -589,7 +594,7 @@ export function ResellerLandingClient({
           {/* Stats bar */}
           <div className="mt-12">
             <FadeIn>
-              <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
+              <div className={`grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4 ${BLOQUE_A_BORDE}`}>
                 {[
                   { to: 500, suffix: "+", label: "Negocios automatizados", prefix: "" },
                   { to: 40,  suffix: "+", label: "Resellers activos",      prefix: "" },
@@ -613,7 +618,7 @@ export function ResellerLandingClient({
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
         <div className={ANCHO_DE_LA_LANDING}>
-          <div className="relative overflow-hidden rounded-xl"
+          <div className={`relative overflow-hidden rounded-xl ${BLOQUE_A_BORDE}`}
             style={{
               maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
               WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
@@ -633,14 +638,14 @@ export function ResellerLandingClient({
       <section id="benefits" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-8 text-center">
+            <div className={`mb-8 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">¿Por qué ser reseller de Agente IA?</h2>
               <p className="mt-2 text-slate-400">Un negocio digital con producto probado, soporte técnico y margen sólido desde el día uno.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {BENEFITS.map((b, i) => (
                 <FadeIn key={b.title} delay={i * 60} className="h-full">
-                  <div className={cn("flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", b.border, "bg-white/5")}>
+                  <div className={cn("flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", BLOQUE_A_BORDE, b.border, "bg-white/5")}>
                     <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", b.bg)}>
                       <b.icon className={cn("h-5 w-5", b.color)} />
                     </div>
@@ -660,7 +665,7 @@ export function ResellerLandingClient({
       <section id="how" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-8 text-center">
+            <div className={`mb-8 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Cómo funciona el programa</h2>
               <p className="mt-2 text-slate-400">Tres pasos para tener tu negocio de Agente IA operando.</p>
             </div>
@@ -686,7 +691,7 @@ export function ResellerLandingClient({
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
-              <div>
+              <div className={SANGRIA_DEL_TEXTO}>
                 <h2 className="mb-3 text-2xl font-bold text-white sm:text-3xl">Todo incluido en una sola plataforma</h2>
                 <p className="mb-6 text-slate-400">
                   Tus clientes tienen acceso a todas las funcionalidades de Agente IA desde el primer día. No necesitas integrar nada extra.
@@ -702,7 +707,7 @@ export function ResellerLandingClient({
                   ))}
                 </div>
               </div>
-              <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/10 to-transparent p-7">
+              <div className={`rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/10 to-transparent p-7 ${BLOQUE_A_BORDE}`}>
                 <div className="mb-4 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-emerald-400" />
                   <span className="font-semibold text-white">Ejemplo de margen</span>
@@ -738,14 +743,14 @@ export function ResellerLandingClient({
       <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-8 text-center">
+            <div className={`mb-8 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">¿Para quién es el programa?</h2>
               <p className="mt-2 text-slate-400">Ideal para quienes ya tienen clientes o quieren construir un negocio digital escalable.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {IDEAL_FOR.map((item, i) => (
                 <FadeIn key={item.title} delay={i * 60} className="h-full">
-                  <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <div className={`flex h-full gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07] ${BLOQUE_A_BORDE}`}>
                     <span className="text-2xl">{item.emoji}</span>
                     <div>
                       <h3 className="font-semibold text-white">{item.title}</h3>
@@ -763,7 +768,7 @@ export function ResellerLandingClient({
       <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-8 text-center">
+            <div className={`mb-8 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros resellers</h2>
               <p className="mt-2 text-slate-400">Personas reales que ya están generando ingresos con el programa.</p>
             </div>
@@ -780,7 +785,7 @@ export function ResellerLandingClient({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {activeTestimonials.map((t, i) => (
                     <FadeIn key={i} delay={i * 80}>
-                      <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+                      <div className={`flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5 ${BLOQUE_A_BORDE}`}>
                         <div className="flex items-start justify-between">
                           <Quote className="h-5 w-5 text-blue-400/50" />
                           <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Reseller activo</span>
@@ -815,12 +820,12 @@ export function ResellerLandingClient({
       <section id="pricing" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Conoce el costo de la plataforma para que puedas definir tu margen de reventa.</p>
 
               {/* Pack toggle */}
-              <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+              <div className="mt-4 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 max-sm:rounded-3xl">
                 {PACK_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -856,13 +861,13 @@ export function ResellerLandingClient({
       <section id="faq" className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-8 text-center">
+            <div className={`mb-8 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
               <p className="mt-2 text-slate-400">Todo lo que necesitas saber antes de unirte al programa.</p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {FAQS.map((faq, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                <div key={i} className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 ${BLOQUE_A_BORDE}`}>
                   <button
                     onClick={() => setOpenFaq(openFaq === i ? null : i)}
                     className="flex w-full items-center justify-between px-5 py-4 text-left"
@@ -889,7 +894,7 @@ export function ResellerLandingClient({
       <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-10 text-center">
+            <div className={`rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-10 text-center ${BLOQUE_A_BORDE}`}>
               <Badge className="mb-4 inline-flex items-center gap-1.5 border-blue-500/30 bg-blue-500/10 text-blue-400">
                 <Zap className="h-3 w-3" /> Plazas disponibles
               </Badge>
