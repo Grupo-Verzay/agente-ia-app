@@ -1,6 +1,6 @@
 # Pendiente: grabación, transcripción y resumen en el detalle de la videollamada (Tavus)
 
-Estado: **diagnóstico hecho, arreglo sin empezar.** Este documento es el punto
+Estado: **diagnóstico hecho, decidido grabar en el navegador; código sin empezar.** Este documento es el punto
 de partida para el hilo que lo continúe.
 
 ## El síntoma
@@ -59,7 +59,60 @@ pasar el middleware sin sesión) y que `losTurnos`
   se le da un bucket S3. Eso hoy no se hace: falta del lado de Verzay (código)
   y del lado de AWS (bucket + rol para Tavus).
 
-## Plan para el hilo siguiente
+## Diagnóstico de las dos preguntas (2026-10-09)
+
+1. **¿Tavus graba en un S3 compatible genérico (MinIO)?** No. Sus opciones
+   de grabación son Amazon S3 (con `aws_assume_role_arn`), Google Cloud
+   Storage o Azure Blob. No acepta un endpoint propio, así que no puede
+   escribir en nuestro MinIO.
+2. **¿El audio se puede traer sin depender del video de Tavus?** Sí. La sala
+   del navegador (`components/videollamada/SalaDeLaVideollamada.tsx`, con
+   `DailyIframe.createCallObject`) tiene la pista del avatar (remota de
+   Daily, en un `<video>` siempre montado) y el micrófono del cliente (pista
+   local). Se puede grabar ahí, como Reuniones, y subir a MinIO. La
+   transcripción ya llega por el webhook de Tavus.
+
+## Decisión: grabar en el NAVEGADOR, no en Tavus
+
+Se descarta el plan de abajo (S3 de Tavus). Lo nuevo:
+
+- Grabar en la sala, igual que Reuniones (`hooks/useGrabacionDeLaReunion.ts`,
+  `lib/grabacion-de-reunion.ts`, `lib/grabacion-de-reunion.server.ts`): mezcla
+  de audio en un `AudioContext` (voz del avatar + micrófono propio, con el
+  `ConstantSourceNode` en silencio para que el grafo ruede) y video dibujado en
+  un lienzo (avatar en grande; si hay pantalla compartida, el `<img>` MJPEG de
+  `/api/videollamada/pantalla?stream=1` en grande y el avatar en miniatura).
+  Un fichero de audio aparte a `AUDIO_BPS` siempre.
+- Subir por partes de 8 MiB (relleno a 5 cifras, `composeObject`) a MinIO por
+  una ruta propia firmada con la cita (la sala no tiene sesión), p. ej.
+  `/api/videollamada/grabacion` (y añadir su prefijo al middleware, ver
+  *Un `fetch` SIGUE las redirecciones*).
+- Al cerrar: merge de JSONB en `raw.call` de la fila `tavus_<cita>`
+  (`hasRecording`, `recordingUrl`, `videoUrl`), con paréntesis
+  (`raw || (... )`, el `-` liga más fuerte que `||`). Si la fila aún no
+  existe (la transcripción llega después), guardarlo en `videollamadas_ia` y
+  que `anotarEnElCrm` lo copie.
+- Pendiente de confirmar leyendo la sala: cámara del cliente (pista local, no
+  se pinta) — decidir si entra en el lienzo o solo su audio.
+
+### Pasos
+
+1. Leer `SalaDeLaVideollamada.tsx` y confirmar pistas (avatar audio+video,
+   micrófono y cámara del cliente).
+2. Hook `useGrabacionDeLaVideollamada` reutilizando las piezas puras de
+   Reuniones (no copiar: extraer si hace falta).
+3. Ruta de partes firmada + unión + merge en `raw.call`.
+4. `lib/fila-de-llamada.ts` / `CallsCrmClient.tsx`: exponer `isVideo` y
+   `provider`; para Tavus usar `raw.call.recordingUrl`/`videoUrl`.
+5. `CallDetailDialog.tsx`: título **«Detalle de la videollamada»** cuando
+   `isVideo`; `<video controls preload="metadata">`; transcripción + Resumen
+   IA; sin el «Reintentar» de AstraCalls en filas de Tavus.
+6. Banco `scripts/banco-detalle-de-videollamada.sh` (sala montada con un Daily
+   fingido, la ruta contra Postgres con bucket fingido y el diálogo en
+   Chromium). `MODO=roto` pinchado a `5983031`.
+7. Sección en `CLAUDE.md`, fusionar y comprobar el despliegue.
+
+## Plan anterior (descartado: Tavus solo graba en Amazon S3)
 
 1. `crearLaConversacion`: mandar `enable_recording: true` y los datos S3 desde
    el entorno (`TAVUS_S3_BUCKET`, `TAVUS_S3_REGION`, `TAVUS_AWS_ROLE_ARN`); sin
