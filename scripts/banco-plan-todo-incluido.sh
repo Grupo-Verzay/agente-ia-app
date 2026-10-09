@@ -15,8 +15,13 @@
 # PANTALLA real en Chromium sobre el CSS del build (la página a 1440 y 390, el
 # plan dentro de una propuesta y el editor del panel).
 #
+# El texto sale en TARJETAS, una por línea, con el aspecto de los recuadros de
+# capacidad: dos columnas en computador y tablet, una en el móvil (se mide a
+# 1440, 1024, 768 y 390 de ancho).
+#
 # `MODO=roto` lee el código de ANTES_REF —pinchado a un commit, nunca
-# `origin/main`— y AFIRMA que no existía nada de esto.
+# `origin/main`— y AFIRMA que no existía nada de esto; y el de
+# ANTES_TARJETAS_REF, y AFIRMA que el texto salía en una sola caja.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,7 +32,8 @@ export CHROME_BIN="${CHROME_BIN:-$(ls /opt/pw-browsers/chromium-*/chrome-linux/c
 MODO="${MODO:-bueno}"
 export MODO
 ANTES_REF="${ANTES_REF:-8302e3e}"
-export ANTES_REF
+ANTES_TARJETAS_REF="${ANTES_TARJETAS_REF:-7343076}"
+export ANTES_REF ANTES_TARJETAS_REF
 
 if [ "$MODO" = "roto" ]; then
   node --test lib/__tests__/plan-todo-incluido.test.mjs "$@"

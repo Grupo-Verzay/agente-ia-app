@@ -1418,7 +1418,8 @@ export function elParaQuienQueSale(raw: unknown, datos: DatosDelPlan): ParaQuien
  * Lo que el plan trae SIN COSTO ADICIONAL, escrito a mano por plan en el panel:
  * un título (de fábrica «Todo incluido, sin sorpresas») y un texto libre que
  * sale ENTERO y a la vista —sin desplegar nada— entre las preguntas y el
- * precio. Es aparte de «Qué incluye este plan», que lista las FUNCIONES.
+ * precio, en tarjetas: una por línea (`lasTarjetasDelTodoIncluido`). Es aparte
+ * de «Qué incluye este plan», que lista las FUNCIONES.
  *
  * Vive en `plan_todo_incluido` (`lib/plan-todo-incluido-db.ts`). Sin texto, el
  * bloque no sale: el título solo no dice nada.
@@ -1454,6 +1455,19 @@ export function comoTodoIncluido(raw: unknown): TodoIncluidoDelPlan {
     return { titulo, texto };
 }
 
+/**
+ * Las tarjetas en que se parte el texto de «Todo incluido»: UNA por línea con
+ * contenido. Las líneas vacías no cuentan y una viñeta al principio («- », «• »,
+ * «✓ ») se quita: la tarjeta ya es la viñeta. Es la misma regla para la página
+ * del plan y para la propuesta que la hereda.
+ */
+export function lasTarjetasDelTodoIncluido(texto: string): string[] {
+    return texto
+        .split(/\r\n?|\n/)
+        .map((l) => l.trim().replace(/^(?:[-*•·–—✓✔]+(?:\s+|$))+/, "").trim())
+        .filter((l) => l.length > 0);
+}
+
 /** Por qué lo escrito no sale en la página, campo por campo. Para el panel. */
 export function losAvisosDelTodoIncluido(raw: unknown, datos: DatosDelPlan): { titulo: string[]; texto: string[] } {
     const g = comoTodoIncluido(raw);
@@ -1474,7 +1488,8 @@ export function losAvisosDelTodoIncluido(raw: unknown, datos: DatosDelPlan): { t
  */
 export function elTodoIncluidoQueSale(raw: unknown, datos: DatosDelPlan): TodoIncluidoDelPlan | null {
     const g = comoTodoIncluido(raw);
-    if (!g.texto) return null;
+    // Sin ninguna tarjeta que pintar (el texto era solo viñetas) tampoco sale.
+    if (lasTarjetasDelTodoIncluido(g.texto).length === 0) return null;
     const avisos = losAvisosDelTodoIncluido(g, datos);
     if (avisos.texto.length > 0) return null;
     return {

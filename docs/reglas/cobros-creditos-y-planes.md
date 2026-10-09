@@ -1977,6 +1977,14 @@ detalle. Reglas:
 - **Sale entero y a la vista**: ni acordeón ni «Ver más». El texto conserva sus
   saltos de línea (`comoTodoIncluido`). Sin texto no sale; el título solo no
   dice nada.
+- **En tarjetas, una por línea** (`lasTarjetasDelTodoIncluido`; las líneas
+  vacías y las viñetas del principio no cuentan), con el MISMO aspecto que los
+  recuadros de capacidad (Créditos IA, Multimedia, Agenda…): borde, fondo,
+  radio y relleno iguales. **Dos columnas desde `sm`** (computador y tablet) y
+  **una sola en el móvil**, apiladas. Si son impares, la última ocupa las dos
+  columnas: nunca una fila con una suelta; una sola tarjeta va a todo el
+  ancho. Antes eran las líneas dentro de UNA caja angosta, con mucho vacío a
+  los lados. Un texto de solo viñetas no tiene tarjetas y no sale.
 - **Su sitio es después de «Preguntas frecuentes» y antes de «Comenzar»**
   (`ORDEN_DE_FABRICA`). Un orden guardado de antes lo recibe ahí solo
   (`comoOrdenDeBloques` mete lo que falta detrás de su vecino de fábrica).
@@ -1991,5 +1999,6 @@ detalle. Reglas:
   funciones no lo deje fuera) y la página pública de la propuesta lo pinta en
   vivo con el MISMO componente (`BloqueTodoIncluido`).
 
-Lo prueba `scripts/banco-plan-todo-incluido.sh` (regla, Postgres y Chromium);
-`MODO=roto` lee `8302e3e` y afirma que no existía.
+Lo prueba `scripts/banco-plan-todo-incluido.sh` (regla, Postgres y Chromium,
+a 1440, 1024, 768 y 390 de ancho); `MODO=roto` lee `8302e3e` y afirma que no
+existía, y `7343076` y afirma que el texto salía en una sola caja.
