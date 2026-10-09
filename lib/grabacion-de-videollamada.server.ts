@@ -1,14 +1,22 @@
 import "server-only";
 
+import { spawn } from "child_process";
+import { createReadStream, createWriteStream, existsSync } from "fs";
+import { mkdtemp, rm, stat } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { pipeline } from "stream/promises";
+
 import { minioClient } from "@/lib/minio";
-import { TAMANO_DE_PARTE, llaveDeLaParte, sePuedeMandarLaParte } from "@/lib/grabacion-de-reunion";
+import { TAMANO_DE_PARTE, llaveDeLaGrabacion, llaveDeLaParte, sePuedeMandarLaParte } from "@/lib/grabacion-de-reunion";
 import { juntarLasPartes } from "@/lib/grabacion-de-reunion.server";
-import { HORAS_SIN_CERRAR, elTipoDelFichero, llaveDelTrozo } from "@/lib/grabacion-de-videollamada";
+import { HORAS_SIN_CERRAR, elTipoDelFichero, lasOrdenesDeLaMezcla, llaveDelTrozo, type CualTrozo } from "@/lib/grabacion-de-videollamada";
 import type { ExtensionDeGrabacion } from "@/lib/grabacion-de-reunion";
 import {
     cerrarLaGrabacionDeLaSala,
     copiarLaGrabacionAlCrm,
     lasGrabacionesDeLaSalaSinCerrar,
+    lasVocesDeLaGrabacion,
     reclamarElCierreDeLaSala,
 } from "@/lib/videollamada-ia-db";
 
@@ -20,7 +28,8 @@ function elBucket(): string {
 export async function guardarElTrozo(input: {
     cuentaId: string;
     grabacionId: string;
-    cual: "audio" | "video";
+    cual: CualTrozo;
+    pista?: number;
     numero: number;
     formato: ExtensionDeGrabacion;
     bytes: Buffer;
@@ -52,6 +61,8 @@ export async function juntarLosTrozos(input: {
     cuentaId: string;
     grabacionId: string;
     cual: "audio" | "video";
+    /** Juntar los trozos de esta VOZ (y guardarla como el `audio`). */
+    pista?: number;
     trozos: number;
     formato: ExtensionDeGrabacion;
 }): Promise<string | null> {
@@ -83,7 +94,7 @@ export async function juntarLosTrozos(input: {
     };
     const llaves: string[] = [];
     for (let n = 1; n <= input.trozos; n += 1) {
-        const llave = llaveDelTrozo({ ...input, numero: n });
+        const llave = llaveDelTrozo({ ...input, cual: input.pista ? "voz" : input.cual, numero: n });
         try {
             const trozo = await leerEntero(bucket, llave);
             llaves.push(llave);
@@ -122,6 +133,191 @@ export async function juntarLosTrozos(input: {
     return url;
 }
 
+/* ── Las voces sueltas: se mezclan aquí, con ffmpeg ─────────────────────── */
+
+/**
+ * El `ffmpeg` del servidor: el binario estático de `@ffmpeg-installer` (está
+ * en `dependencies`, así que el contenedor lo trae en `node_modules`), o el
+ * del sistema. `FFMPEG_PATH` manda si está.
+ */
+export function elFfmpeg(): string {
+    const propio = process.env.FFMPEG_PATH?.trim();
+    if (propio) return propio;
+    const empaquetado = join(process.cwd(), "node_modules", "@ffmpeg-installer", "linux-x64", "ffmpeg");
+    return existsSync(empaquetado) ? empaquetado : "ffmpeg";
+}
+
+/** Lo que tarda como mucho una mezcla: copia el video, solo recodifica la voz. */
+const TOPE_DE_LA_MEZCLA_MS = 15 * 60 * 1000;
+
+function correrFfmpeg(ordenes: string[]): Promise<void> {
+    return new Promise((listo, mal) => {
+        const proceso = spawn(elFfmpeg(), ordenes, { stdio: ["ignore", "ignore", "pipe"] });
+        let errores = "";
+        proceso.stderr?.on("data", (d) => {
+            if (errores.length < 4_000) errores += String(d);
+        });
+        const plazo = setTimeout(() => proceso.kill("SIGKILL"), TOPE_DE_LA_MEZCLA_MS);
+        proceso.on("error", (e) => {
+            clearTimeout(plazo);
+            mal(e);
+        });
+        proceso.on("close", (codigo) => {
+            clearTimeout(plazo);
+            if (codigo === 0) listo();
+            else mal(new Error(`ffmpeg salió con ${codigo}: ${errores.trim().slice(0, 600)}`));
+        });
+    });
+}
+
+/**
+ * Bajar los trozos de una pista a UN fichero del disco, en orden, sin
+ * tenerlos en memoria. Un trozo perdido se salta y se dice.
+ */
+async function bajarLosTrozos(input: {
+    cuentaId: string;
+    grabacionId: string;
+    cual: CualTrozo;
+    pista?: number;
+    trozos: number;
+    formato: ExtensionDeGrabacion;
+    archivo: string;
+}): Promise<{ llaves: string[]; bytes: number }> {
+    const bucket = elBucket();
+    const llaves: string[] = [];
+    for (let n = 1; n <= input.trozos; n += 1) {
+        const llave = llaveDelTrozo({ ...input, numero: n });
+        try {
+            const flujo = await minioClient.getObject(bucket, llave);
+            await pipeline(flujo, createWriteStream(input.archivo, { flags: "a" }));
+            llaves.push(llave);
+        } catch (error) {
+            console.warn("[videollamada] falta un trozo de la grabación; se salta", {
+                grabacion: input.grabacionId,
+                cual: input.cual,
+                pista: input.pista,
+                trozo: n,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+    const bytes = llaves.length ? (await stat(input.archivo)).size : 0;
+    return { llaves, bytes };
+}
+
+async function subirElFichero(input: { archivo: string; llave: string; tipo: string }): Promise<string> {
+    const { size } = await stat(input.archivo);
+    await minioClient.putObject(elBucket(), input.llave, createReadStream(input.archivo), size, { "Content-Type": input.tipo });
+    return `${process.env.S3_PUBLIC_URL}/${elBucket()}/${input.llave}`;
+}
+
+/**
+ * Juntar una grabación de voces sueltas: el video (solo lienzo) y cada voz a
+ * un fichero, `ffmpeg` las mezcla con su retraso y pega la mezcla al video, y
+ * se suben los dos ficheros. Los trozos se borran DESPUÉS de subir.
+ *
+ * Si `ffmpeg` falla, no se pierde la llamada: el video se junta solo (mudo) y
+ * de audio va la voz más larga.
+ */
+export async function juntarConLasVoces(fila: {
+    id: string;
+    citaId: string;
+    cuentaId: string;
+    formato: ExtensionDeGrabacion;
+    trozosVideo: number;
+}): Promise<{ audioUrl: string | null; videoUrl: string | null }> {
+    const voces = (await lasVocesDeLaGrabacion(fila.id)).filter((v) => v.trozos > 0);
+    const base = { cuentaId: fila.cuentaId, grabacionId: fila.id, formato: fila.formato };
+    const dir = await mkdtemp(join(tmpdir(), "videollamada-"));
+    try {
+        const video = fila.trozosVideo > 0
+            ? { archivo: join(dir, `lienzo.${fila.formato}`), ...(await bajarLosTrozos({ ...base, cual: "video", trozos: fila.trozosVideo, archivo: join(dir, `lienzo.${fila.formato}`) })) }
+            : null;
+        const bajadas: { archivo: string; desdeMs: number; llaves: string[]; bytes: number; pista: number; trozos: number }[] = [];
+        for (const v of voces) {
+            const archivo = join(dir, `voz-${v.pista}.${fila.formato}`);
+            const b = await bajarLosTrozos({ ...base, cual: "voz", pista: v.pista, trozos: v.trozos, archivo });
+            if (b.bytes > 0) bajadas.push({ archivo, desdeMs: v.desdeMs, pista: v.pista, trozos: v.trozos, ...b });
+        }
+        const conVideo = Boolean(video && video.bytes > 0);
+        const todas = [...(video ? video.llaves : []), ...bajadas.flatMap((b) => b.llaves)];
+        const borrar = async () => {
+            for (const llave of todas) {
+                try {
+                    await minioClient.removeObject(elBucket(), llave);
+                } catch (error) {
+                    console.warn("[videollamada] no se pudo borrar un trozo", { llave, error });
+                }
+            }
+        };
+
+        if (!bajadas.length) {
+            // Sin ninguna voz: el video solo, como venga.
+            if (!conVideo || !video) return { audioUrl: null, videoUrl: null };
+            const videoUrl = await subirElFichero({
+                archivo: video.archivo,
+                llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "video", modulo: "videollamadas", extension: fila.formato }),
+                tipo: elTipoDelFichero(fila.formato, "video"),
+            });
+            await borrar();
+            return { audioUrl: null, videoUrl };
+        }
+
+        const salidaAudio = join(dir, `audio.${fila.formato}`);
+        const salidaVideo = conVideo ? join(dir, `video.${fila.formato}`) : null;
+        try {
+            await correrFfmpeg(
+                lasOrdenesDeLaMezcla({
+                    video: conVideo && video ? video.archivo : null,
+                    voces: bajadas.map((b) => ({ archivo: b.archivo, desdeMs: b.desdeMs })),
+                    formato: fila.formato,
+                    salidaAudio,
+                    salidaVideo,
+                }),
+            );
+        } catch (error) {
+            console.warn("[videollamada] ffmpeg no pudo mezclar las voces; va el video mudo y la voz más larga", {
+                grabacion: fila.id,
+                cita: fila.citaId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+            const larga = [...bajadas].sort((a, b) => b.bytes - a.bytes)[0];
+            const audioUrl = await subirElFichero({
+                archivo: larga.archivo,
+                llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "audio", modulo: "videollamadas", extension: fila.formato }),
+                tipo: elTipoDelFichero(fila.formato, "audio"),
+            });
+            const videoUrl = conVideo && video
+                ? await subirElFichero({
+                      archivo: video.archivo,
+                      llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "video", modulo: "videollamadas", extension: fila.formato }),
+                      tipo: elTipoDelFichero(fila.formato, "video"),
+                  })
+                : null;
+            await borrar();
+            return { audioUrl, videoUrl };
+        }
+
+        const audioUrl = await subirElFichero({
+            archivo: salidaAudio,
+            llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "audio", modulo: "videollamadas", extension: fila.formato }),
+            tipo: elTipoDelFichero(fila.formato, "audio"),
+        });
+        const videoUrl = salidaVideo
+            ? await subirElFichero({
+                  archivo: salidaVideo,
+                  llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "video", modulo: "videollamadas", extension: fila.formato }),
+                  tipo: elTipoDelFichero(fila.formato, "video"),
+              })
+            : null;
+        await borrar();
+        console.info("[videollamada] voces mezcladas", { grabacion: fila.id, voces: bajadas.length, conVideo });
+        return { audioUrl, videoUrl };
+    } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 /**
  * Cerrar la grabación de la sala de una videollamada: juntar sus trozos en el
  * bucket y llevarla a la fila del CRM.
@@ -152,8 +348,25 @@ export async function cerrarYJuntarLaGrabacionDeLaSala(input: {
             return null;
         }
     };
-    const audioUrl = await juntar("audio", fila.trozosAudio);
-    const videoUrl = await juntar("video", fila.trozosVideo);
+    // Las salas de ahora suben cada voz suelta (`cual=voz`) y el video sin
+    // audio; las de antes, la mezcla (`audio`) y el video con ella.
+    let audioUrl: string | null = null;
+    let videoUrl: string | null = null;
+    const conVoces = (await lasVocesDeLaGrabacion(fila.id).catch(() => [])).some((v) => v.trozos > 0);
+    if (conVoces) {
+        try {
+            ({ audioUrl, videoUrl } = await juntarConLasVoces(fila));
+        } catch (error) {
+            console.warn("[videollamada] no se pudo juntar la grabación con sus voces", {
+                grabacion: fila.id,
+                cita: fila.citaId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    } else {
+        audioUrl = await juntar("audio", fila.trozosAudio);
+        videoUrl = await juntar("video", fila.trozosVideo);
+    }
 
     const salio = Boolean(audioUrl || videoUrl);
     await cerrarLaGrabacionDeLaSala({

@@ -2478,6 +2478,8 @@ el cliente se va, empieza; y el chat con `🎥`). `MODO=roto` monta los de
 
 ## Videollamada: la grabación no espera al primer clic (el audio parado no graba ni el video)
 
+> **Superada por la sección siguiente**: ya no hay botón ni reintentos; la sala no usa `AudioContext` para grabar.
+
 La grabación ya llegaba al CRM, pero **empezaba un minuto o más tarde** que
 la llamada: su primer fotograma ya era la portada con Verzy en miniatura, o
 sea, después de la presentación.
@@ -2514,3 +2516,52 @@ ni un byte aunque el navegador ya dejara, y que nada pedía el toque.
 De paso, en `sala-que-graba.test.mjs` el cierre por `sendBeacon` se prueba
 con el evento `pagehide` en la página viva: navegando fuera, Playwright a
 veces no veía el beacon en su ruta (fallaba a ratos también en `main`).
+
+## Videollamada: cada voz se graba SUELTA y el servidor la mezcla (sin toque, también en el teléfono)
+
+Con el arreglo anterior seguía haciendo falta un toque: en el TELÉFONO una
+videollamada no dejó ni un byte (el `AudioContext` no arrancó y nadie tocó el
+botón). La regla del navegador no se puede saltar desde la página, así que
+**la grabación ya no depende del `AudioContext`**:
+
+1. **El video es solo el lienzo** (`captureStream`, sin pista de audio): nada
+   lo puede parar. Empieza al entrar, como antes.
+2. **Cada voz va con su propio `MediaRecorder`** sobre su pista tal cual (la
+   de Verzy, el micrófono, cada persona; una reconexión trae pistas nuevas y
+   abre voces nuevas). Un `MediaRecorder` sobre una pista nativa no necesita
+   ningún toque. Cada voz dice **cuándo empezó respecto al video**
+   (`desdeMs`) y sube a `?a=trozo&cual=voz&pista=N&desde=ms`.
+3. **El servidor mezcla al cerrar** (`juntarConLasVoces`): baja el video y
+   cada voz a disco (sin tenerlos en memoria), `ffmpeg` retrasa cada voz a su
+   sitio (`adelay`), las mezcla (`amix` + `volume`) y saca la mezcla sola
+   (`audioUrl`) y el video con la mezcla **sin recodificar el video**
+   (`-c:v copy`). Las órdenes las arma una función pura
+   (`lasOrdenesDeLaMezcla`).
+4. **`ffmpeg`**: el sistema del contenedor no lo trae, pero `@ffmpeg-installer/ffmpeg`
+   está en `dependencies` y el contenedor hace `npm ci --omit=dev`: el binario
+   estático vive en `node_modules/@ffmpeg-installer/linux-x64/ffmpeg`
+   (`elFfmpeg`, `FFMPEG_PATH` manda). Si falla, **no se pierde la llamada**:
+   va el video mudo y, de audio, la voz más larga, y se dice.
+5. **Techos de la ruta sin sesión**: 40 voces por grabación (`TOPE_DE_VOCES`),
+   `desde` entre 0 y 6 h; los de bytes y trozos, como siempre. Las voces se
+   apuntan en `videollamada_grabacion_voces` (tabla de la App, `CREATE TABLE
+   IF NOT EXISTS` en `lib/videollamada-ia-db.ts`).
+6. **Las salas de antes** (páginas abiertas antes del despliegue) suben
+   `cual=audio` con la mezcla del navegador: sin voces, el cierre junta como
+   siempre.
+
+Lo prueba `scripts/banco-grabacion-voces-sueltas.sh`: las órdenes de la
+mezcla; la ruta y el cierre contra Postgres con el `ffmpeg` de verdad y medios
+fabricados por él (un tono desde el segundo 0 y otro que entra a los 4 s: antes
+de los 4 s suena uno, después los dos; el video se copia), el techo de voces,
+el caso sin `ffmpeg` y el de una sala de antes; y la sala montada en Chromium
+con la regla del navegador FINGIDA: sin un solo toque dice «Grabando», sube
+video y cada voz con su `desde`, y lo subido mezclado con `ffmpeg` es un video
+1280×720 con las dos voces, el video y la voz a la par (<1 s). `MODO=roto`
+monta la sala de `fb40429` y afirma que sin un toque no subía ni un byte de
+video y salía el botón. `scripts/banco-grabacion-sin-clic.sh` se retiró: lo
+que probaba (el botón) ya no existe.
+
+**Lo que no se pudo ejercer aquí**: un teléfono de verdad y MinIO de verdad.
+Si un teléfono no graba, mirar en el log del servidor si llegó `a=empezar` y
+algún `cual=voz`.

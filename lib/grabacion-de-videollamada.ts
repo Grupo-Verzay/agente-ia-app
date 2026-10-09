@@ -30,8 +30,8 @@ export function elFormatoDeLaGrabacion(mimeType: unknown): ExtensionDeGrabacion 
 }
 
 /** El tipo con el que se guarda cada fichero en el bucket. */
-export function elTipoDelFichero(formato: ExtensionDeGrabacion, cual: "audio" | "video"): string {
-    return `${cual}/${formato}`;
+export function elTipoDelFichero(formato: ExtensionDeGrabacion, cual: CualTrozo): string {
+    return `${cual === "video" ? "video" : "audio"}/${formato}`;
 }
 
 /**
@@ -50,14 +50,78 @@ export function elTipoDelFichero(formato: ExtensionDeGrabacion, cual: "audio" | 
 export const TROZO_CADA_MS = 10_000;
 
 /**
- * El audio de la grabación (un `AudioContext`) nace PARADO si la página no
- * recibió un clic, y parado no se graba nada, ni el video: Chrome no suelta un
- * fotograma sin la voz que va con él. Se insiste en arrancarlo cada segundo
- * (el navegador lo deja en cuanto la cámara o el micrófono están abiertos) y,
- * si a los 3 s sigue parado, la sala pide un toque.
+ * # Cada voz, su propio grabador; el servidor las mezcla
+ *
+ * La sala mezclaba las voces con un `AudioContext`, y un `AudioContext` nacido
+ * sin un toque en la página nace PARADO (Chrome y Safari, y en el TELÉFONO
+ * casi siempre). Parado no se graba nada, ni el video: el video llevaba esa
+ * mezcla y sin ella el navegador no suelta ni un fotograma. En el teléfono la
+ * llamada no dejaba ni un byte; en el ordenador empezaba con el primer clic.
+ *
+ * Ahora el navegador NO mezcla:
+ * - el video es SOLO el lienzo (sin audio: nada lo puede parar);
+ * - cada voz (la de Verzy, el micrófono, cada persona) se graba tal cual
+ *   llega, con su propio `MediaRecorder`, y apunta CUÁNDO empezó respecto al
+ *   video (`desdeMs`);
+ * - al cerrar, el servidor las junta con `ffmpeg` (`lasOrdenesDeLaMezcla`):
+ *   cada voz retrasada a su sitio, todas mezcladas, y el video con esa mezcla.
  */
-export const REINTENTAR_EL_AUDIO_CADA_MS = 1_000;
-export const EN_PAUSA_TRAS_MS = 3_000;
+
+/** El techo de voces de una grabación (cada reconexión o persona nueva abre una). */
+export const TOPE_DE_VOCES = 40;
+
+/** Cuánto puede empezar una voz después del video: más allá es un dato roto. */
+export const TOPE_DEL_DESDE_MS = 6 * 60 * 60 * 1000;
+
+/** El trozo es del video, de la mezcla antigua (`audio`) o de una VOZ suelta. */
+export type CualTrozo = "audio" | "video" | "voz";
+
+/**
+ * Lo que `ffmpeg` hace al cerrar: retrasar cada voz a su sitio (`adelay`),
+ * mezclarlas (`amix`, que divide el volumen entre las entradas: se devuelve
+ * con `volume`), y sacar dos ficheros: la mezcla sola (el «audio» del
+ * detalle) y, si hay video, el video con la mezcla (el video NO se recodifica:
+ * `-c:v copy`). Pura: la prueba el banco con el `ffmpeg` de verdad.
+ */
+export function lasOrdenesDeLaMezcla(input: {
+    video: string | null;
+    voces: { archivo: string; desdeMs: number }[];
+    formato: ExtensionDeGrabacion;
+    salidaAudio: string;
+    salidaVideo: string | null;
+}): string[] {
+    if (!input.voces.length) throw new Error("sin voces que mezclar");
+    const primera = input.video ? 1 : 0;
+    const n = input.voces.length;
+    const conVideo = Boolean(input.video && input.salidaVideo);
+    const retrasos = input.voces.map((v, i) => {
+        const ms = Math.max(0, Math.min(TOPE_DEL_DESDE_MS, Math.round(v.desdeMs)));
+        return `[${primera + i}:a]aresample=48000,aformat=channel_layouts=mono,adelay=${ms}[v${i}]`;
+    });
+    const entradas = input.voces.map((_, i) => `[v${i}]`).join("");
+    const salidas = conVideo ? ",asplit=2[mezcla][mezclav]" : "[mezcla]";
+    const filtro = `${retrasos.join(";")};${entradas}amix=inputs=${n}:duration=longest:dropout_transition=0,volume=${n}${salidas}`;
+    const codec = input.formato === "mp4" ? ["-c:a", "aac", "-b:a", "96k"] : ["-c:a", "libopus", "-b:a", "48k"];
+    const contenedor = input.formato === "mp4" ? ["-movflags", "+faststart"] : [];
+    return [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        ...(input.video ? ["-i", input.video] : []),
+        ...input.voces.flatMap((v) => ["-i", v.archivo]),
+        "-filter_complex",
+        filtro,
+        "-map",
+        "[mezcla]",
+        ...codec,
+        ...contenedor,
+        input.salidaAudio,
+        ...(conVideo
+            ? ["-map", "0:v", "-map", "[mezclav]", "-c:v", "copy", ...codec, ...contenedor, input.salidaVideo as string]
+            : []),
+    ];
+}
 
 /**
  * La llave de un trozo en el bucket, con el número rellenado a cinco cifras
@@ -66,12 +130,15 @@ export const EN_PAUSA_TRAS_MS = 3_000;
 export function llaveDelTrozo(input: {
     cuentaId: string;
     grabacionId: string;
-    cual: "audio" | "video";
+    cual: CualTrozo;
+    /** La voz (1, 2…) cuando `cual` es `voz`. */
+    pista?: number;
     numero: number;
     formato: ExtensionDeGrabacion;
 }): string {
     const n = String(Math.max(1, Math.floor(input.numero))).padStart(5, "0");
-    return `${input.cuentaId}/videollamadas/${input.grabacionId}/trozos-${input.cual}/${n}.${input.formato}`;
+    const carpeta = input.cual === "voz" ? `voz-${Math.max(1, Math.floor(input.pista ?? 1))}` : input.cual;
+    return `${input.cuentaId}/videollamadas/${input.grabacionId}/trozos-${carpeta}/${n}.${input.formato}`;
 }
 
 /**

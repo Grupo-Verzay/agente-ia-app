@@ -7,8 +7,7 @@ import {
     ALTO_DEL_LIENZO_DE_LA_SALA,
     ANCHO_DEL_LIENZO_DE_LA_SALA,
     FPS_DEL_LIENZO_DE_LA_SALA,
-    EN_PAUSA_TRAS_MS,
-    REINTENTAR_EL_AUDIO_CADA_MS,
+    TOPE_DE_VOCES,
     TROZO_CADA_MS,
     VIDEO_BPS_DE_LA_SALA,
     comoCabeEntero,
@@ -26,26 +25,20 @@ function lasMedidas(el: HTMLVideoElement | HTMLImageElement): { ancho: number; a
 }
 
 /**
- * Grabar la videollamada con IA desde la sala del CLIENTE (ver
+ * Grabar la videollamada con IA desde la sala (ver
  * `lib/grabacion-de-videollamada.ts`).
  *
  * - **Empieza sola** la primera vez que la sala está `dentro`, y sigue a través
- *   de las reconexiones: la sala no se desmonta, solo cambian las pistas, y el
- *   mezclador las vuelve a enchufar por su id.
+ *   de las reconexiones: la sala no se desmonta, solo cambian las pistas.
+ * - **Sin `AudioContext`**: nacido sin un toque nace parado, y parado no
+ *   grababa NADA (en el teléfono, ni un byte). El video es solo el lienzo, y
+ *   cada voz va con su propio `MediaRecorder` y su `desdeMs` (cuándo empezó
+ *   respecto al video). El servidor las mezcla y las pega al video al cerrar.
  * - **Termina** al colgar (`terminar`), y al cerrar la pestaña manda un
  *   `sendBeacon` para que el servidor junte lo subido.
  * - **No toca la llamada**: solo LEE pistas y elementos que ya están. Grabar no
  *   puede costarle la llamada al cliente, así que cualquier fallo se dice en la
  *   consola y la llamada sigue.
- * - El audio va SIEMPRE en su propio fichero (`AUDIO_BPS`), como en Reuniones.
- * - **Sin el `AudioContext` en marcha no se graba NADA**, ni el video: el
- *   video lleva la mezcla de voces, y con ella parada Chrome no suelta ni un
- *   fotograma. Y un `AudioContext` nacido sin un clic nace parado: la
- *   grabación empezaba con el primer toque en la página, a veces un minuto
- *   tarde. Se insiste en arrancarlo cada `REINTENTAR_EL_AUDIO_CADA_MS` (en
- *   cuanto la cámara o el micrófono están abiertos, el navegador lo deja) y,
- *   si sigue parado tras `EN_PAUSA_TRAS_MS`, `enPausa` le dice a la sala que
- *   pida un toque.
  */
 export function useGrabacionDeLaVideollamada(input: {
     /** ¿Esta pestaña graba? La del cliente, o la de un asesor solo con Verzy (`laSalaGraba`). Una vez empezada, sigue. */
@@ -60,12 +53,8 @@ export function useGrabacionDeLaVideollamada(input: {
     voces: MediaStreamTrack[];
     /** Qué se ve ahora mismo (lo lee el lienzo en cada fotograma). */
     queSeVe: () => LoQueSeVe;
-}): { grabando: boolean; enPausa: boolean; reanudar: () => void } {
-    // Montada: los grabadores existen. Corriendo: el audio rueda, o sea que de
-    // verdad se graba. «Grabando» es las dos cosas.
-    const [montada, setMontada] = useState(false);
-    const [corriendo, setCorriendo] = useState(false);
-    const [enPausa, setEnPausa] = useState(false);
+}): { grabando: boolean } {
+    const [grabando, setGrabando] = useState(false);
     const queSeVeRef = useRef(input.queSeVe);
     queSeVeRef.current = input.queSeVe;
     const consultaRef = useRef(input.consulta);
@@ -75,50 +64,43 @@ export function useGrabacionDeLaVideollamada(input: {
     const empezoRef = useRef(false);
     const cerradaRef = useRef(false);
     const terminadaRef = useRef(false);
+    /** Cuándo empezó el VIDEO: cada voz dice cuánto después empezó ella. */
     const empezoEnRef = useRef(0);
-    const ctxRef = useRef<AudioContext | null>(null);
-    const mezclaRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-    const enchufadasRef = useRef<Map<string, MediaStreamAudioSourceNode>>(new Map());
-    const grabadoresRef = useRef<MediaRecorder[]>([]);
+    const formatoRef = useRef<"webm" | "mp4">("webm");
+    const videoRef = useRef<MediaRecorder | null>(null);
+    /** Un grabador por voz, por el id de su pista. */
+    const vocesRef = useRef<Map<string, MediaRecorder>>(new Map());
+    const pistasRef = useRef(0);
     const pintandoRef = useRef<number | null>(null);
     // Los trozos suben EN SERIE (una cola): dos a la vez podrían llegar
     // desordenados, y el número del trozo es su sitio en el fichero.
     const colaRef = useRef<Promise<void>>(Promise.resolve());
-    const numerosRef = useRef({ audio: 0, video: 0 });
+    const numerosRef = useRef<Map<string, number>>(new Map());
 
     const segundos = () => Math.round((Date.now() - empezoEnRef.current) / 1000);
+
+    const parar = (g: MediaRecorder | null) => {
+        try {
+            if (g && g.state !== "inactive") g.stop();
+        } catch {
+            // Ya parado.
+        }
+    };
 
     const soltar = () => {
         if (pintandoRef.current !== null) window.clearInterval(pintandoRef.current);
         pintandoRef.current = null;
-        for (const n of enchufadasRef.current.values()) {
-            try {
-                n.disconnect();
-            } catch {
-                // Ya estaba suelta.
-            }
-        }
-        enchufadasRef.current.clear();
-        mezclaRef.current = null;
-        const ctx = ctxRef.current;
-        ctxRef.current = null;
-        // Cerrarlo: los navegadores topan cuántos `AudioContext` hay a la vez.
-        if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
     };
 
     const cerrar = async () => {
         if (cerradaRef.current || !idRef.current) return;
         cerradaRef.current = true;
-        setMontada(false);
+        setGrabando(false);
         // `stop()` provoca el último `dataavailable`: se para ANTES de esperar la cola.
-        for (const g of grabadoresRef.current) {
-            try {
-                if (g.state !== "inactive") g.stop();
-            } catch {
-                // Ya parado.
-            }
-        }
-        grabadoresRef.current = [];
+        parar(videoRef.current);
+        videoRef.current = null;
+        for (const g of vocesRef.current.values()) parar(g);
+        vocesRef.current.clear();
         await new Promise((listo) => setTimeout(listo, 300));
         await colaRef.current;
         soltar();
@@ -137,14 +119,18 @@ export function useGrabacionDeLaVideollamada(input: {
     const cerrarRef = useRef(cerrar);
     cerrarRef.current = cerrar;
 
-    const mandarElTrozo = (cual: "audio" | "video", trozo: Blob) => {
+    /** `voz` lleva su pista y cuándo empezó; el video no. */
+    const mandarElTrozo = (trozo: Blob, voz?: { pista: number; desdeMs: number }) => {
         if (!trozo?.size || !idRef.current) return;
         const id = idRef.current;
-        const numero = ++numerosRef.current[cual];
+        const llave = voz ? `voz-${voz.pista}` : "video";
+        const numero = (numerosRef.current.get(llave) ?? 0) + 1;
+        numerosRef.current.set(llave, numero);
+        const deLaVoz = voz ? `&cual=voz&pista=${voz.pista}&desde=${voz.desdeMs}` : "&cual=video";
         colaRef.current = colaRef.current.then(async () => {
             try {
                 const res = await fetch(
-                    `/api/videollamada/grabacion?a=trozo&g=${encodeURIComponent(id)}&cual=${cual}&numero=${numero}&${consultaRef.current}`,
+                    `/api/videollamada/grabacion?a=trozo&g=${encodeURIComponent(id)}${deLaVoz}&numero=${numero}&${consultaRef.current}`,
                     { method: "POST", body: trozo },
                 );
                 if (res.status === 413) {
@@ -154,97 +140,80 @@ export function useGrabacionDeLaVideollamada(input: {
                 } else if (!res.ok) {
                     // Un trozo perdido deja un salto, no tira la grabación: se
                     // sigue y el servidor lo salta al juntar.
-                    console.warn("[videollamada] un trozo de la grabación no subió", { cual, numero, estado: res.status });
+                    console.warn("[videollamada] un trozo de la grabación no subió", { llave, numero, estado: res.status });
                 }
             } catch (error) {
-                console.warn("[videollamada] fallo al subir un trozo de la grabación", { cual, numero, error });
+                console.warn("[videollamada] fallo al subir un trozo de la grabación", { llave, numero, error });
             }
         });
+    };
+
+    /** Una voz nueva: su propio grabador, sin mezclar nada aquí. */
+    const grabarLaVoz = (pista: MediaStreamTrack) => {
+        if (vocesRef.current.has(pista.id) || pista.readyState === "ended") return;
+        if (pistasRef.current >= TOPE_DE_VOCES) return;
+        try {
+            const tipo = elFormato(
+                formatoRef.current === "mp4"
+                    ? ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"]
+                    : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"],
+            );
+            const g = new MediaRecorder(new MediaStream([pista]), { ...(tipo ? { mimeType: tipo } : {}), audioBitsPerSecond: AUDIO_BPS });
+            const voz = { pista: ++pistasRef.current, desdeMs: Math.max(0, Date.now() - empezoEnRef.current) };
+            g.ondataavailable = (ev) => mandarElTrozo(ev.data, voz);
+            g.start(TROZO_CADA_MS);
+            vocesRef.current.set(pista.id, g);
+        } catch (error) {
+            console.warn("[videollamada] no se pudo grabar una voz", error);
+        }
     };
 
     const empezar = async () => {
         if (empezoRef.current) return;
         empezoRef.current = true;
-        if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") {
+        if (typeof MediaRecorder === "undefined") {
             console.warn("[videollamada] este navegador no puede grabar la llamada");
             return;
         }
         try {
-            const ctx = new AudioContext();
-            ctxRef.current = ctx;
-            const alCambiar = () => setCorriendo(ctx.state === "running");
-            ctx.addEventListener("statechange", alCambiar);
-            alCambiar();
-            const mezcla = ctx.createMediaStreamDestination();
-            mezclaRef.current = mezcla;
-            // Silencio exacto conectado siempre: sin nada enchufado el grafo no
-            // rueda y `MediaRecorder` no emite ni un trozo (ver Reuniones).
-            const silencio = ctx.createConstantSource();
-            silencio.offset.value = 0;
-            silencio.connect(mezcla);
-            silencio.start();
-            // Un `AudioContext` creado sin gesto puede nacer suspendido; la
-            // sala ya tiene el audio sonando, así que suele dejar reanudarlo.
-            if (ctx.state === "suspended") void ctx.resume().catch(() => {});
-
-            const audio = new MediaRecorder(mezcla.stream, {
-                mimeType: elFormato(["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]),
-                audioBitsPerSecond: AUDIO_BPS,
-            });
-            const formato = elFormatoDeLaGrabacion(audio.mimeType);
+            const tipoDelVideo = elFormato(["video/webm;codecs=vp8", "video/webm", "video/mp4"]);
+            const formato = elFormatoDeLaGrabacion(tipoDelVideo);
+            formatoRef.current = formato;
             const r = await fetch(`/api/videollamada/grabacion?a=empezar&formato=${formato}&${consultaRef.current}`, {
                 method: "POST",
             }).then((x) => x.json());
             if (!r?.ok || typeof r.grabacionId !== "string") {
                 console.warn("[videollamada] no se pudo empezar a grabar", { motivo: r?.motivo });
-                soltar();
                 return;
             }
             idRef.current = r.grabacionId;
-            empezoEnRef.current = Date.now();
             if (terminadaRef.current) {
-                soltar();
                 void cerrarRef.current();
                 return;
             }
-            numerosRef.current = { audio: 0, video: 0 };
+            numerosRef.current = new Map();
 
-            audio.ondataavailable = (ev) => mandarElTrozo("audio", ev.data);
-            const grabadores: MediaRecorder[] = [audio];
-
+            // El video es SOLO el lienzo: sin una pista de audio dentro, nada
+            // (un `AudioContext` parado, una voz que tarda) lo puede frenar.
             const lienzo = document.createElement("canvas");
             lienzo.width = ANCHO_DEL_LIENZO_DE_LA_SALA;
             lienzo.height = ALTO_DEL_LIENZO_DE_LA_SALA;
             pintandoRef.current = window.setInterval(() => pintar(lienzo), Math.round(1000 / FPS_DEL_LIENZO_DE_LA_SALA));
             pintar(lienzo);
-            const conVideo = lienzo.captureStream(FPS_DEL_LIENZO_DE_LA_SALA);
-            for (const p of mezcla.stream.getAudioTracks()) conVideo.addTrack(p);
-            const video = new MediaRecorder(conVideo, {
-                mimeType: elFormato(
-                    formato === "mp4"
-                        ? ["video/mp4"]
-                        : ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm"],
-                ),
+            const video = new MediaRecorder(lienzo.captureStream(FPS_DEL_LIENZO_DE_LA_SALA), {
+                ...(tipoDelVideo ? { mimeType: tipoDelVideo } : {}),
                 videoBitsPerSecond: VIDEO_BPS_DE_LA_SALA,
-                audioBitsPerSecond: AUDIO_BPS,
             });
-            video.ondataavailable = (ev) => mandarElTrozo("video", ev.data);
-            grabadores.push(video);
-
-            for (const g of grabadores) g.start(TROZO_CADA_MS);
-            grabadoresRef.current = grabadores;
-            setMontada(true);
-            console.info("[videollamada] grabando la llamada", { grabacion: r.grabacionId, formato, audio: ctx.state });
+            video.ondataavailable = (ev) => mandarElTrozo(ev.data);
+            empezoEnRef.current = Date.now();
+            video.start(TROZO_CADA_MS);
+            videoRef.current = video;
+            setGrabando(true);
+            console.info("[videollamada] grabando la llamada", { grabacion: r.grabacionId, formato });
         } catch (error) {
             console.warn("[videollamada] no se pudo montar la grabación", error);
-            for (const g of grabadoresRef.current) {
-                try {
-                    g.stop();
-                } catch {
-                    // Nada.
-                }
-            }
-            grabadoresRef.current = [];
+            parar(videoRef.current);
+            videoRef.current = null;
             soltar();
             if (idRef.current) {
                 cerradaRef.current = false;
@@ -299,62 +268,22 @@ export function useGrabacionDeLaVideollamada(input: {
         if (input.terminada) void cerrarRef.current();
     }, [input.terminada]);
 
-    // Enchufar y desenchufar voces: cambian con cada reconexión y con quien entra.
+    // Las voces: cada una nueva, su grabador; la que se va (una reconexión
+    // trae pistas nuevas), se para y entrega su último trozo.
     useEffect(() => {
-        const ctx = ctxRef.current;
-        const mezcla = mezclaRef.current;
-        if (!ctx || !mezcla || !montada) return;
+        if (!grabando) return;
         const vivas = new Set<string>();
         for (const pista of input.voces) {
             if (!pista || pista.readyState === "ended") continue;
             vivas.add(pista.id);
-            if (enchufadasRef.current.has(pista.id)) continue;
-            try {
-                const nodo = ctx.createMediaStreamSource(new MediaStream([pista]));
-                nodo.connect(mezcla);
-                enchufadasRef.current.set(pista.id, nodo);
-            } catch (error) {
-                console.warn("[videollamada] no se pudo mezclar una voz en la grabación", error);
-            }
+            grabarLaVoz(pista);
         }
-        for (const [id, nodo] of Array.from(enchufadasRef.current)) {
+        for (const [id, g] of Array.from(vocesRef.current)) {
             if (vivas.has(id)) continue;
-            try {
-                nodo.disconnect();
-            } catch {
-                // Ya suelta.
-            }
-            enchufadasRef.current.delete(id);
+            parar(g);
+            vocesRef.current.delete(id);
         }
-    }, [montada, input.voces]);
-
-    // Un `AudioContext` nacido sin gesto se queda suspendido, y suspendido no
-    // graba NI EL VIDEO: se insiste solo (el navegador lo deja en cuanto la
-    // cámara o el micrófono están abiertos) y con el primer toque o tecla.
-    useEffect(() => {
-        if (!montada || corriendo) {
-            setEnPausa(false);
-            return;
-        }
-        const reanudar = () => {
-            const ctx = ctxRef.current;
-            if (ctx && ctx.state === "suspended") void ctx.resume().catch(() => {});
-        };
-        reanudar();
-        const insistir = window.setInterval(reanudar, REINTENTAR_EL_AUDIO_CADA_MS);
-        const avisar = window.setTimeout(() => {
-            console.warn("[videollamada] la grabación espera un toque: el navegador no deja arrancar el audio");
-            setEnPausa(true);
-        }, EN_PAUSA_TRAS_MS);
-        window.addEventListener("pointerdown", reanudar);
-        window.addEventListener("keydown", reanudar);
-        return () => {
-            window.clearInterval(insistir);
-            window.clearTimeout(avisar);
-            window.removeEventListener("pointerdown", reanudar);
-            window.removeEventListener("keydown", reanudar);
-        };
-    }, [montada, corriendo]);
+    }, [grabando, input.voces]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // La pestaña se cierra: lo que esté sin subir (como mucho un trozo) se
     // pierde, pero el servidor junta lo subido al momento.
@@ -374,10 +303,5 @@ export function useGrabacionDeLaVideollamada(input: {
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const reanudar = () => {
-        const ctx = ctxRef.current;
-        if (ctx && ctx.state === "suspended") void ctx.resume().catch(() => {});
-    };
-
-    return { grabando: montada && corriendo, enPausa: montada && !corriendo && enPausa, reanudar };
+    return { grabando };
 }

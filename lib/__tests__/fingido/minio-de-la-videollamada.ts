@@ -30,8 +30,16 @@ export class CopySourceOptions {
 }
 
 export const minioClient = {
-    async putObject(b: string, o: string, cuerpo: Buffer, _largo: number, meta?: Record<string, string>) {
-        bucket.set(llave(b, o), { bytes: Buffer.from(cuerpo), tipo: meta?.["Content-Type"] ?? "" });
+    async putObject(b: string, o: string, cuerpo: Buffer | NodeJS.ReadableStream, _largo: number, meta?: Record<string, string>) {
+        // Un fichero grande (la mezcla de ffmpeg) llega como flujo.
+        let bytes: Buffer;
+        if (Buffer.isBuffer(cuerpo)) bytes = Buffer.from(cuerpo);
+        else {
+            const pedazos: Buffer[] = [];
+            for await (const p of cuerpo as AsyncIterable<Buffer | string>) pedazos.push(Buffer.isBuffer(p) ? p : Buffer.from(p));
+            bytes = Buffer.concat(pedazos);
+        }
+        bucket.set(llave(b, o), { bytes, tipo: meta?.["Content-Type"] ?? "" });
         return { etag: "banco" };
     },
     async getObject(b: string, o: string) {
