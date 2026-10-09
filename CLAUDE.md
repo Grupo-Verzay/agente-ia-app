@@ -26369,16 +26369,17 @@ cada plan, la guía sin salidas, el tema claro y oscuro medido y el ancho a
 390/768/1024/1440); `MODO=roto` monta la de `94fcc3c` y afirma la cabecera
 aparte, el plan suelto con su enlace y el fondo que no cambia.
 
-### El ancho: crece en escritorio por escalones, y el párrafo se topa
+### El ancho: el MISMO contenedor que la landing, y el párrafo se topa
 
 Era una tira de 672 px (`max-w-2xl`) en medio de cualquier pantalla. Ahora
-`ANCHO_DE_LA_PROPUESTA` crece solo desde `lg`: 896, 1024 (`xl`) y 1152 px
-(`2xl`), centrado y siempre con margen a los lados; hasta `md` —tableta y
-móvil— no cambia nada. Y los párrafos largos (alcance, nota, condiciones,
-pago) llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea):
-con el contenedor ancho se leerían a 140. Lo prueba
+`ANCHO_DE_LA_PROPUESTA` ES `ANCHO_DE_LA_LANDING` (`max-w-6xl`, con su relleno
+dentro): llena la ventana hasta 1152 px y de ahí se centra, igual que la landing
+y la página de un plan. Los párrafos largos (alcance, nota, condiciones, pago)
+llevan `TOPE_DE_LECTURA` (`max-w-3xl`, ~100 caracteres por línea): con el
+contenedor ancho se leerían a 140. Medido: las tarjetas de capacidad de un plan
+dentro de un servicio ocupan ~96 % de la fila, sin apretarse. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
-1440/1920; `MODO=roto` monta el componente de `f8057cb` y afirma los 672 px.
+1440/1920; `MODO=roto` monta el componente de `3d2ff75` y afirma los 672 px.
 
 ## Las tres públicas llevan UN pie: el mismo texto, la raya al ancho del contenido y el aire de entre bloques
 
