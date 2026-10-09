@@ -4,6 +4,8 @@ import {
     TOPE_DE_BYTES_DE_LA_SALA,
     TOPE_DE_GRABACIONES_POR_CITA,
     TOPE_DE_TROZOS,
+    TOPE_DE_VOCES,
+    TOPE_DEL_DESDE_MS,
     TOPE_DEL_TROZO,
     elFormatoDeLaGrabacion,
 } from "@/lib/grabacion-de-videollamada";
@@ -11,6 +13,8 @@ import { cerrarYJuntarLaGrabacionDeLaSala, guardarElTrozo } from "@/lib/grabacio
 import { esLaFirmaDeLaCita } from "@/lib/videollamada-ia.server";
 import {
     apuntarElTrozoDeLaSala,
+    apuntarElTrozoDeLaVoz,
+    cuantasVocesTiene,
     empezarLaGrabacionDeLaSala,
     laGrabacionDeLaSala,
     laVideollamada,
@@ -30,7 +34,9 @@ export const dynamic = "force-dynamic";
  *
  * Tres acciones, todas `POST` (`sendBeacon` solo sabe mandar `POST`):
  * - `a=empezar&formato=webm|mp4` → `{ ok, grabacionId }`
- * - `a=trozo&g=&cual=audio|video&numero=` con el binario en el cuerpo
+ * - `a=trozo&g=&cual=video&numero=` con el binario en el cuerpo; las VOCES
+ *   van cada una por su lado: `cual=voz&pista=N&desde=<ms tras el video>`
+ *   (`cual=audio`, la mezcla del navegador, es de las salas de antes)
  * - `a=cerrar&g=&segundos=` → junta los trozos y lo lleva al CRM
  */
 export async function POST(req: Request) {
@@ -75,10 +81,26 @@ export async function POST(req: Request) {
     if (fila.estado !== "grabando") {
         return NextResponse.json({ ok: false, motivo: "cerrada" }, { status: 409 });
     }
-    const cual = url.searchParams.get("cual") === "video" ? "video" : "audio";
+    const pedido = url.searchParams.get("cual");
+    const cual = pedido === "video" ? "video" : pedido === "voz" ? "voz" : "audio";
     const numero = Number(url.searchParams.get("numero") ?? "0");
     if (!Number.isInteger(numero) || numero < 1 || numero > TOPE_DE_TROZOS) {
         return NextResponse.json({ ok: false, motivo: "trozo" }, { status: 400 });
+    }
+    const pista = Number(url.searchParams.get("pista") ?? "0");
+    const desdeMs = Number(url.searchParams.get("desde") ?? "0");
+    if (cual === "voz") {
+        if (!Number.isInteger(pista) || pista < 1 || pista > TOPE_DE_VOCES) {
+            return NextResponse.json({ ok: false, motivo: "pista" }, { status: 400 });
+        }
+        if (!Number.isInteger(desdeMs) || desdeMs < 0 || desdeMs > TOPE_DEL_DESDE_MS) {
+            return NextResponse.json({ ok: false, motivo: "desde" }, { status: 400 });
+        }
+        // Una voz NUEVA cuenta para el techo de voces.
+        const { pistas } = await cuantasVocesTiene(fila.id);
+        if (!pistas.includes(pista) && pistas.length >= TOPE_DE_VOCES) {
+            return NextResponse.json({ ok: false, motivo: "tope" }, { status: 413 });
+        }
     }
     const cuerpo = Buffer.from(await req.arrayBuffer());
     if (!cuerpo.length) return NextResponse.json({ ok: false, motivo: "vacia" }, { status: 400 });
@@ -89,7 +111,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        await guardarElTrozo({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual, numero, formato: fila.formato, bytes: cuerpo });
+        await guardarElTrozo({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual, pista, numero, formato: fila.formato, bytes: cuerpo });
     } catch (error) {
         console.warn("[videollamada] no se pudo guardar un trozo de la grabación", {
             cita: citaId,
@@ -101,6 +123,7 @@ export async function POST(req: Request) {
     }
     // DESPUÉS de que el trozo exista: al revés, un fallo dejaría el contador
     // por delante de los trozos de verdad.
-    await apuntarElTrozoDeLaSala({ id: fila.id, cual, numero, bytes: cuerpo.length });
+    if (cual === "voz") await apuntarElTrozoDeLaVoz({ id: fila.id, pista, desdeMs, numero, bytes: cuerpo.length });
+    else await apuntarElTrozoDeLaSala({ id: fila.id, cual, numero, bytes: cuerpo.length });
     return NextResponse.json({ ok: true });
 }

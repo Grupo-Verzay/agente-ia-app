@@ -24,7 +24,8 @@
  *
  * - Whisper no admite un archivo de más de **25 MB**, y una hora de video son
  *   del orden de **1 GB**. Mandarle el video es imposible, y sacarle el audio
- *   en el servidor pediría `ffmpeg`, que este contenedor no tiene.
+ *   en el servidor pediría `ffmpeg` (el sistema no lo trae; hay uno estático en
+ *   `node_modules/@ffmpeg-installer`, que usa la videollamada para mezclar).
  * - Una hora de audio solo, al bitrate de aquí abajo, son **~14 MB**: cabe.
  *
  * Así que una grabación en video produce **dos** ficheros —el video y su
