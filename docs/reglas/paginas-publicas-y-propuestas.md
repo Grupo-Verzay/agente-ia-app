@@ -168,6 +168,20 @@ dentro de un servicio ocupan ~96 % de la fila, sin apretarse. Lo prueba
 `scripts/banco-ancho-de-la-propuesta.sh` en Chromium a 390/768/1024/1280/
 1440/1920; `MODO=roto` monta el componente de `3d2ff75` y afirma los 672 px.
 
+### Los recuadros de capacidad: la letra sigue el ancho de SU recuadro, no el de la ventana
+
+«Multimedia — PDFs, fotos, videos, etc.» iba en una línea en la página del plan
+y, dentro de la propuesta (`/propuesta/gabriel`), se partía antes de «etc.»: el
+recuadro mide ~15 px menos ahí (lo rodean la tarjeta del servicio y la sección,
+ambas con relleno) y el valor tenía 24 px fijos. `RecuadrosDeCapacidad` es UNA
+pieza para las dos vistas; el recuadro es contenedor (`[container-type:inline-size]`)
+y el valor usa `TAMANO_DEL_VALOR` (`clamp(1.125rem, 8.25cqw, 1.5rem)`): 24 px
+mientras cabe y hasta 18 px si se angosta. No volver a `text-2xl` fijo ni a
+tocar `COLUMNAS_DE_CAPACIDAD` para esto. A 768 px son tres columnas de ~200 px
+en las dos vistas y la frase puede partirse: es el mismo comportamiento de siempre.
+Lo prueba `scripts/banco-recuadros-de-capacidad-iguales.sh` en Chromium a
+1440/1280/1024/390; `MODO=roto` monta `7343076` y afirma el salto en la propuesta.
+
 ## Las tres públicas llevan UN pie: el mismo texto, la raya al ancho del contenido y el aire de entre bloques
 
 La landing principal, la página de un plan y la propuesta pública tenían tres
