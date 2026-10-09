@@ -2486,6 +2486,37 @@ un agente no. Lo prueba `scripts/banco-ia-del-asesor.sh` (aquí, contra Postgres
 las acciones de verdad) y el del mismo nombre en `api-webhook`; `MODO=roto` contra
 `7d3709d` afirma que no existían.
 
+## Equipo: los interruptores NUNCA le quitan los chats al asesor
+
+Carlos lo vio así: apagar «Sesión» o «Agente» de un asesor y que sus chats
+parezcan sin asignar. El diagnóstico (cinco traspasos, #1201-#1206, unificados en
+uno) dio dos causas, y ninguna es que el interruptor toque `assigned_advisor_id`
+—el banco lo comprueba apagando y encendiendo las dos partes—:
+
+1. **Pantalla (App).** «Sesión» apagado pone `status = false`, que también
+   significa «cerrada». La tabla y las métricas de Equipo contaban activas con
+   `status = true`, así que el asesor caía a 0 activas al apagarlo. Ahora
+   `lasPausadasPorElInterruptor` suma las que pausó el interruptor (marca
+   `apagoSesion`) a sus activas, y las resta de cerradas.
+2. **Pérdida real (backend, `releaseStaleEscalations`).** Es lo ÚNICO automático
+   que pone `assigned_advisor_id = NULL` (con `auto_released` en
+   `AssignmentLog`). Con «Sesión» apagado el barrido no mira la conversación, pero
+   el reloj del escalado sigue: al encender, todas las escaladas viejas salían
+   vencidas a la vez y se le quitaban. Ahora (a) las que tienen marca de un
+   interruptor no se sueltan (api-webhook#204) y (b) el plazo cuenta desde la
+   última vez que el asesor tocó sus interruptores (`asesor_ia_ajustes.actualizadoEn`).
+
+> **Apagar la IA es una decisión de atención, no un abandono.** Nada que lea
+> `status = false` puede tomarlo por «sin dueño» ni por «cerrada» sin mirar antes
+> `asesor_ia_marcas`.
+
+Lo prueban `scripts/banco-chats-del-asesor.sh` (aquí; `MODO=roto` contra
+`121a813` afirma la caída a 0) y `scripts/banco-ia-del-asesor.sh` de
+`api-webhook` (`MODO=roto` afirma la liberación de golpe). Las que el barrido ya
+soltó dejaron `auto_released` en `AssignmentLog` y se pueden revisar ahí; no se
+devolvieron solas porque el barrido también suelta, con razón, lo que nadie
+atendió.
+
 ## Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
 Un `agente` ve los números de los clientes con los cuatro últimos dígitos

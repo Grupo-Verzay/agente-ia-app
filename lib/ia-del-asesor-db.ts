@@ -256,6 +256,32 @@ export async function olvidarLaMarca(sessionId: number, parte: "sesion" | "agent
     }
 }
 
+/**
+ * Por asesor, cuántas de sus conversaciones de ESTA cuenta tiene pausadas el
+ * interruptor «Sesión».
+ *
+ * Apagarlo pone `status = false`, y `status = false` es también «cerrada». Las
+ * cuentas de Equipo que miran solo `status = true` dejaban al asesor con 0
+ * activas en cuanto apagaba el interruptor, y parecía que le habían quitado
+ * los chats aunque `assigned_advisor_id` no se movía. Una pausada por el
+ * interruptor sigue siendo SUYA y sigue abierta: se suma a sus activas.
+ */
+export async function lasPausadasPorElInterruptor(cuentaId: string): Promise<Map<string, number>> {
+    const filas = await conLasTablas(() =>
+        db.$queryRaw<Array<{ asesorId: string; n: number }>>`
+            SELECT s."assigned_advisor_id" AS "asesorId", COUNT(*)::int AS n
+              FROM "asesor_ia_marcas" m
+              JOIN "Session" s ON s.id = m."sessionId"
+             WHERE s."userId" = ${cuentaId}
+               AND m."apagoSesion"
+               AND s.status = false
+               AND s."assigned_advisor_id" IS NOT NULL
+             GROUP BY s."assigned_advisor_id"
+        `,
+    );
+    return new Map(filas.map((f) => [f.asesorId, Number(f.n)]));
+}
+
 /** ¿Este mecanismo tiene la sesión pausada? (para no reabrirla sola). */
 export async function laSesionLaPausoSuAsesor(sessionIds: number[]): Promise<Set<number>> {
     const ids = sessionIds.filter((id) => Number.isInteger(id) && id > 0);

@@ -152,7 +152,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - La llamada con IA: el enlace no se manda dos veces, y no se llama dos veces
 - El cupo de llamadas: un sitio que solo se libera cuando todo sale bien no es un cupo
 
-## [CRM: embudos, agenda, tickets, calidad y equipo](crm-embudos-agenda-equipo.md) — 20 reglas, 143 KB
+## [CRM: embudos, agenda, tickets, calidad y equipo](crm-embudos-agenda-equipo.md) — 21 reglas, 143 KB
 
 - Un grupo TIENE ficha, y toda consulta de CRM la excluye
 - Escalar a una persona: dos puertas, un solo camino
@@ -173,6 +173,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Notas internas: una hija puede mencionar a los administradores de su MADRE, solo para avisar
 - Equipo: la auto-asignación tiene TRES modos, y «Por porcentaje» es un contador continuo
 - Equipo: los interruptores «Sesión» y «Agente» de cada asesor
+- Equipo: los interruptores NUNCA le quitan los chats al asesor
 - Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
 ## [Agente IA, flujos, prompts y entrenamiento](agente-ia-y-flujos.md) — 11 reglas, 36 KB
