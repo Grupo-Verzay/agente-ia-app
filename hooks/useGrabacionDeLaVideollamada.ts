@@ -38,7 +38,7 @@ function lasMedidas(el: HTMLVideoElement | HTMLImageElement): { ancho: number; a
  * - El audio va SIEMPRE en su propio fichero (`AUDIO_BPS`), como en Reuniones.
  */
 export function useGrabacionDeLaVideollamada(input: {
-    /** ¿Esta pestaña graba? Solo la del cliente (`laSalaGraba`). */
+    /** ¿Esta pestaña graba? La del cliente, o la de un asesor solo con Verzy (`laSalaGraba`). Una vez empezada, sigue. */
     graba: boolean;
     /** ¿La sala ya está dentro de la llamada? La primera vez, empieza. */
     dentro: boolean;

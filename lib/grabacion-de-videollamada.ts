@@ -65,14 +65,22 @@ export function llaveDelTrozo(input: {
 }
 
 /**
- * Quién graba: **la pestaña del CLIENTE**, nunca la de un asesor.
+ * Quién graba: **la pestaña del CLIENTE**; la de un asesor, solo si no hay
+ * ningún cliente en la sala.
  *
- * El cliente está siempre (la sala es su enlace); un asesor entra a veces.
- * Si grabaran los dos saldrían dos ficheros de la misma llamada y el detalle
- * enseñaría uno al azar.
+ * El cliente está casi siempre (la sala es su enlace) y un asesor entra a
+ * veces: si grabaran los dos saldrían dos ficheros de la misma llamada.
+ *
+ * Pero quien abre el enlace con la sesión iniciada entra como asesor, y así
+ * es como se PRUEBA la videollamada (el dueño de la cuenta abre el enlace en
+ * su navegador). Con «el asesor nunca graba», esa llamada no dejaba ni audio
+ * ni video: en la sala no había nadie que grabara. Ahora el asesor graba
+ * cuando está solo con Verzy; si el cliente entra después, graban los dos y
+ * al CRM va la más larga (`copiarLaGrabacionAlCrm`). Antes una grabación de
+ * más que ninguna.
  */
-export function laSalaGraba(input: { esAsesor: boolean }): boolean {
-    return !input.esAsesor;
+export function laSalaGraba(input: { esAsesor: boolean; hayCliente: boolean }): boolean {
+    return !input.esAsesor || !input.hayCliente;
 }
 
 /**

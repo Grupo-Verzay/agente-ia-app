@@ -2384,7 +2384,7 @@ La transcripción y el resumen siguen saliendo de Tavus (`callback_url` →
 `lib/videollamada-ia-aviso.server.ts`), con turnos «Asistente:» / «Cliente:»
 que `losTurnos` reconoce.
 
-1. **Graba la pestaña del CLIENTE, nunca la de un asesor** (`laSalaGraba`):
+1. **Graba la pestaña del CLIENTE; la de un asesor, solo sin cliente** (`laSalaGraba`, ver la sección siguiente):
    el cliente está siempre; si grabaran los dos habría dos ficheros de la
    misma llamada. Empieza sola al entrar, **sigue a través de las
    reconexiones** (la sala no se desmonta; el mezclador vuelve a enchufar las
@@ -2449,3 +2449,29 @@ salía «de la llamada» sin video.
 **Lo que no se pudo ejercer aquí**: MinIO de verdad y un teléfono de verdad.
 Si en producción algo falla, mirar primero la unión (`composeObject`) y un
 cliente en iPhone (mp4).
+
+## Videollamada: graba también el ASESOR cuando está solo con Verzy, y en el chat sale con la cámara
+
+Tras la sección anterior, una videollamada de prueba seguía sin dejar ni audio
+ni video, y en la lista de chats salía «📞 Videollamada con IA realizada».
+
+| | qué pasaba | ahora |
+| --- | --- | --- |
+| a | quien abre el enlace **con la sesión iniciada** entra como asesor (`esDelEquipo` en `app/videollamada/[id]/page.tsx`), y la regla era «el asesor nunca graba». Así se PRUEBA la videollamada: el dueño abre el enlace en su navegador. En la sala no había nadie que grabara | `laSalaGraba({ esAsesor, hayCliente })`: el cliente graba siempre; el asesor, **mientras no haya cliente** en la sala. Si el cliente se va, el asesor empieza |
+| b | la vista previa de la lista ponía `📞` a toda fila `call` | `🎥` cuando `raw.call.isVideo` (`lastTextFrom`); el distintivo «Saliente» del detalle lleva la cámara |
+
+1. **«Hay cliente»** = un remoto con la marca de persona y SIN la de asesor
+   (`lasPistas` → `hayCliente`). La pestaña del cliente siempre cuenta como
+   que hay cliente: es ella.
+2. **Una vez empezada, sigue**: si el cliente entra después de que el asesor
+   empezara, graban los dos y al CRM va la más larga (`copiarLaGrabacionAlCrm`).
+   Una grabación de más es mejor que ninguna.
+3. La burbuja de la conversación ya pintaba la cámara (`MessageBubble`, con
+   `call.isVideo`); el banco lo vigila igual.
+
+Lo prueba `scripts/banco-videollamada-graba-el-asesor.sh` (sala montada en
+Chromium: el asesor solo graba y sube trozos; con el cliente dentro, no; si
+el cliente se va, empieza; y el chat con `🎥`). `MODO=roto` monta los de
+`7343076` y afirma que el asesor solo no subía ni un byte y que la lista decía
+`📞`. De paso, `sala-que-graba.test.mjs` ya no exige que el cierre por
+`sendBeacon` sea el ÚLTIMO pedido: el trozo de los 10 s se puede cruzar con él.

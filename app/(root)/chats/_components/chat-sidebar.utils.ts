@@ -624,9 +624,13 @@ export function lastTextFrom(chat: ChatData): {
       // Las llamadas del CRM ("Llamada realizada", "Videollamada realizada",
       // "Llamada con IA realizada") salían sin icono, como si fueran texto
       // suelto, mientras una nota de voz o una imagen sí lo llevaban.
+      // Una videollamada (la de Verzy con Tavus, `raw.call.isVideo`) lleva la
+      // cámara, no el teléfono: salía «📞 Videollamada con IA realizada».
       case "call": {
         const detalle = msg?.conversation?.trim();
-        text = detalle ? `📞 ${detalle}` : "📞 Llamada";
+        const esVideo = (msg as { call?: { isVideo?: unknown } } | undefined)?.call?.isVideo === true;
+        const icono = esVideo ? "🎥" : "📞";
+        text = detalle ? `${icono} ${detalle}` : `${icono} ${esVideo ? "Videollamada" : "Llamada"}`;
         break;
       }
       case "meta_call": {
