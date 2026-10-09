@@ -172,7 +172,7 @@ export function CallDetailDialog({
           {call.contactName && <span className="text-muted-foreground">+{call.phone}</span>}
           {isOut ? (
             <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700">
-              <PhoneOutgoing className="h-3 w-3" /> Saliente
+              {call.isVideo ? <Video className="h-3 w-3" /> : <PhoneOutgoing className="h-3 w-3" />} Saliente
             </Badge>
           ) : (
             <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700">

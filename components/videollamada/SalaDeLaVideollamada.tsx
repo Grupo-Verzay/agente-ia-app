@@ -85,8 +85,10 @@ type Pistas = {
     asesorPantalla: MediaStreamTrack | null;
     /** Mi micrófono: no se pinta (nadie se oye a sí mismo), solo entra en la grabación. */
     miMicro: MediaStreamTrack | null;
+    /** ¿Hay un CLIENTE (persona sin la marca de asesor) en la sala, yo incluido? Decide si un asesor graba (`laSalaGraba`). */
+    hayCliente: boolean;
 };
-const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [], asesorCamara: null, asesorPantalla: null, miMicro: null };
+const SIN_PISTAS: Pistas = { avatarVideo: null, avatarAudio: null, humanos: [], asesorCamara: null, asesorPantalla: null, miMicro: null, hayCliente: false };
 
 /** Cada persona entra marcada (`userData.humano`): así se distingue del avatar
  * de Tavus, que es el único remoto SIN la marca. */
@@ -133,6 +135,7 @@ function lasPistas(llamada: DailyCall, soyAsesor: boolean): Pistas {
         asesorCamara: pista(asesor, "video"),
         asesorPantalla: pista(asesor, "screenVideo"),
         miMicro: pista(todos.local as Remoto | undefined, "audio"),
+        hayCliente: !soyAsesor || remotos.some((p) => p !== avatar && esHumano(p) && !esAsesorDeLaSala(p)),
     };
 }
 
@@ -740,7 +743,8 @@ export default function SalaDeLaVideollamada({
     const ABAJO = elAbajoDeLoGrande(mandosOcultos);
     const GRANDE = `absolute inset-x-0 top-0 ${ABAJO} bg-black`;
 
-    // La grabación (la del cliente; ver `lib/grabacion-de-videollamada.ts`):
+    // La grabación (la del cliente, o la del asesor solo con Verzy; ver
+    // `laSalaGraba` en `lib/grabacion-de-videollamada.ts`):
     // las voces de todos y, en el lienzo, lo mismo que se ve aquí.
     const salaRef = useRef<HTMLElement>(null);
     const dispRef = useRef(disp);
@@ -763,7 +767,7 @@ export default function SalaDeLaVideollamada({
         return { grande, mini };
     };
     const grabacion = useGrabacionDeLaVideollamada({
-        graba: laSalaGraba({ esAsesor }),
+        graba: laSalaGraba({ esAsesor, hayCliente: pistas.hayCliente }),
         dentro: estado === "dentro",
         terminada: estado === "terminada" || estado === "sin_conexion",
         consulta,
