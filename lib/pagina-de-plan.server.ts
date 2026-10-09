@@ -13,6 +13,7 @@ import {
     elPlanSuperior,
     elPrecioQueSeEnsena,
     elTituloDelVideo,
+    elTodoIncluidoQueSale,
     elVideoDelPlan,
     laCabeceraDeLaPagina,
     laCapacidadDelPlan,
@@ -29,12 +30,14 @@ import {
     type PlanSuperior,
     type PreguntaDelPlan,
     type TarjetaDeCapacidad,
+    type TodoIncluidoDelPlan,
     type VideoDelPlan,
 } from "@/lib/pagina-de-plan";
 import { conLosNombresVigentes } from "@/lib/nombre-del-nivel.server";
 import { lasFuncionesGuardadas } from "@/lib/plan-funciones-db";
 import { laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado } from "@/lib/plan-para-quien-db";
+import { elTodoIncluidoGuardado } from "@/lib/plan-todo-incluido-db";
 import { normalizarAsistencia, normalizarPlan } from "@/lib/plan-pricing";
 import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
 
@@ -43,7 +46,8 @@ import { GUIAS_PUBLICADAS } from "@/lib/tutoriales-del-modulo";
  * hoy en el panel de Planes: el plan (nombre, precio, créditos, descripción,
  * si está activo), sus funciones (`features` + `plan_funciones`), su detalle
  * (`plan_details`: video, preguntas, botones, título de la pestaña), «para
- * quién es» (`plan_para_quien`), el orden de sus bloques y los recuadros de
+ * quién es» (`plan_para_quien`), «Todo incluido, sin sorpresas»
+ * (`plan_todo_incluido`), el orden de sus bloques y los recuadros de
  * catálogo y asistencia (`plan_pagina`) y cuál es el plan inmediato superior.
  *
  * Nada de lo que sale aquí está escrito a mano en la página: si en el panel se
@@ -66,6 +70,8 @@ export type PaginaDelPlan = {
     /** Una por función, en el orden del editor del panel. */
     funciones: FuncionQueSeEnsena[];
     preguntas: PreguntaDelPlan[];
+    /** «Todo incluido, sin sorpresas»: lo que trae sin costo adicional. `null`: no sale. */
+    todoIncluido: TodoIncluidoDelPlan | null;
     botones: { principal: BotonDelPlan; secundario: BotonDelPlan | null };
     /** La línea discreta del final. `null`: es el último nivel que se vende. */
     planSuperior: PlanSuperior | null;
@@ -73,7 +79,7 @@ export type PaginaDelPlan = {
     marca: string;
     logo: string | null;
     favicon: string | null;
-    /** En qué orden se pintan los bloques (el panel los arrastra). Siempre los seis. */
+    /** En qué orden se pintan los bloques (el panel los arrastra). Siempre todos. */
     orden: BloqueDeLaPagina[];
 };
 
@@ -106,7 +112,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
     if (!elegido) return null;
     const tipoElegido = elegido.assistanceType === "HUMANO" ? "HUMANO" : "IA";
 
-    const [detalle, guardadas, paraQuienGuardado, paginaGuardada, sitio] = await Promise.all([
+    const [detalle, guardadas, paraQuienGuardado, paginaGuardada, todoIncluidoGuardado, sitio] = await Promise.all([
         db.planDetail.findUnique({ where: { subscriptionPlanId: elegido.id } }).catch((e) => {
             console.error("[planes] no se pudo leer el detalle del plan; la página sale sin él", { plan: elegido.id, e });
             return null;
@@ -121,6 +127,10 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         }),
         laPaginaGuardada(elegido.id).catch((e) => {
             console.error("[planes] no se pudo leer el orden ni los recuadros; sale lo de fábrica", { plan: elegido.id, e });
+            return null;
+        }),
+        elTodoIncluidoGuardado(elegido.id).catch((e) => {
+            console.error("[planes] no se pudo leer «Todo incluido, sin sorpresas»; la página sale sin él", { plan: elegido.id, e });
             return null;
         }),
         getSiteConfig(),
@@ -144,6 +154,7 @@ export const laPaginaDelPlan = cache(async (slug: string, tipoCrudo?: string | n
         capacidad: laCapacidadDelPlan(datos, paginaGuardada?.recuadros),
         funciones: lasFuncionesQueSeEnsenan(funciones, datos, GUIAS_QUE_SE_ENSENAN),
         preguntas: lasPreguntasQueSalen(detalle?.faqs, datos),
+        todoIncluido: elTodoIncluidoQueSale(todoIncluidoGuardado, datos),
         botones: losBotonesDelPlan(detalle, datos, sitio),
         planSuperior: elPlanSuperior(planes, elegido),
         meta: { ...laCabeceraDeLaPagina(detalle, datos, descripcion, marca), imagen: comoImagenDelPlan(detalle?.ogImageUrl) },

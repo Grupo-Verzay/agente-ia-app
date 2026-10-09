@@ -63,7 +63,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - La clave del servidor de WhatsApp no viaja al navegador, nunca
 - Copiloto: `?u=` no puede ser código, y los dos botones se miden contra el COPILOTO
 
-## [Cobros, créditos de IA, planes y facturación](cobros-creditos-y-planes.md) — 22 reglas, 114 KB
+## [Cobros, créditos de IA, planes y facturación](cobros-creditos-y-planes.md) — 23 reglas, 114 KB
 
 - Renovación mensual: una columna que se pisa no tiene historia
 - Notas de voz: se paga por MINUTO y el contador mide TOKENS
@@ -83,6 +83,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - La página de un plan: la guía se DESPLIEGA dentro, «Qué incluye» nace plegado, y la landing sin franjas
 - La página de un plan: de entrada las DESTACADAS, la guía sin video y con el tema de la App, e «Inicio» arriba
 - La página de un plan: «Ver todas» en el orden del editor, y abrir la guía no mueve la página
+- La página de un plan: «Todo incluido, sin sorpresas» va a la vista, entre las preguntas y el precio
 - Planes: UNA plantilla maestra de funciones por audiencia, y cada plan solo enciende y destaca
 - Créditos: una cuenta sin pagar NO recibe créditos, y editar a mano no adelanta la renovación
 - Perfil › «Plan y facturación»: la prueba se decide como en el panel, y los planes van en «Cambiar plan»

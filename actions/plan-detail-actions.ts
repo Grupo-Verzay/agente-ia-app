@@ -7,14 +7,17 @@ import { quienMandaEnLaCasa } from "@/lib/puerta-de-la-casa";
 import {
   comoOrdenDeBloques,
   comoParaQuien,
+  comoTodoIncluido,
   esLaListaDeFabrica,
   laListaQueSeGuarda,
   losDatosDelPlan,
   type BloqueDeLaPagina,
   type ParaQuienDelPlan,
+  type TodoIncluidoDelPlan,
 } from "@/lib/pagina-de-plan";
 import { guardarLaPagina, laPaginaGuardada } from "@/lib/plan-pagina-db";
 import { elParaQuienGuardado, guardarElParaQuien } from "@/lib/plan-para-quien-db";
+import { elTodoIncluidoGuardado, guardarElTodoIncluido } from "@/lib/plan-todo-incluido-db";
 
 export type FeatureSection = {
   title: string;
@@ -114,7 +117,8 @@ function parsePlanDetail(raw: Record<string, unknown>): PlanDetailData {
  * El detalle de un plan y, aparte, lo escrito en «Para quién es este plan»
  * (`plan_para_quien`, tabla de la App: `null` es «nunca se escribió», y la
  * página enseña lo de fábrica) y el orden de los bloques de la página con los
- * recuadros del resumen de capacidad (`plan_pagina`; sin fila, lo de fábrica).
+ * recuadros del resumen de capacidad (`plan_pagina`; sin fila, lo de fábrica)
+ * y «Todo incluido, sin sorpresas» (`plan_todo_incluido`; `null`: no sale).
  * Los recuadros viajan CRUDOS (`null`: sin tocar): el panel los arma con los
  * datos del plan, que ya tiene delante (`laListaDeRecuadros`).
  * Si una de esas tablas no se puede leer, el detalle sale igual y se dice: el
@@ -122,7 +126,7 @@ function parsePlanDetail(raw: Record<string, unknown>): PlanDetailData {
  */
 export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: string) {
   try {
-    const [detail, paraQuien, pagina] = await Promise.all([
+    const [detail, paraQuien, pagina, todoIncluido] = await Promise.all([
       db.planDetail.findUnique({ where: { subscriptionPlanId } }),
       elParaQuienGuardado(subscriptionPlanId).catch((e) => {
         console.error("[planes] no se pudo leer «para quién es este plan»", { subscriptionPlanId, e });
@@ -132,6 +136,10 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
         console.error("[planes] no se pudo leer el orden ni los recuadros de la página", { subscriptionPlanId, e });
         return null;
       }),
+      elTodoIncluidoGuardado(subscriptionPlanId).catch((e) => {
+        console.error("[planes] no se pudo leer «Todo incluido, sin sorpresas»", { subscriptionPlanId, e });
+        return null;
+      }),
     ]);
     return {
       success: true,
@@ -139,6 +147,7 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
       paraQuien: paraQuien as ParaQuienDelPlan | null,
       orden: (pagina?.orden ?? comoOrdenDeBloques(null)) as BloqueDeLaPagina[],
       recuadros: (pagina?.recuadros ?? null) as unknown,
+      todoIncluido: todoIncluido as TodoIncluidoDelPlan | null,
     };
   } catch (e) {
     console.error("[getPlanDetailBySubscriptionPlanId]", e);
@@ -148,6 +157,7 @@ export async function getPlanDetailBySubscriptionPlanId(subscriptionPlanId: stri
       paraQuien: null as ParaQuienDelPlan | null,
       orden: comoOrdenDeBloques(null) as BloqueDeLaPagina[],
       recuadros: null as unknown,
+      todoIncluido: null as TodoIncluidoDelPlan | null,
     };
   }
 }
@@ -195,6 +205,10 @@ export type UpsertPlanDetailInput = Omit<PlanDetailData, "id" | "subscriptionPla
   orden?: unknown;
   /** Los recuadros del resumen de capacidad, al lado del orden: una lista, o `null` para los de fábrica. */
   recuadros?: unknown;
+  /** El título de «Todo incluido, sin sorpresas». Vive en `plan_todo_incluido`. */
+  todoIncluidoTitulo?: string;
+  /** Lo que trae el plan sin costo adicional, en texto libre. */
+  todoIncluidoTexto?: string;
 };
 
 /**
@@ -246,6 +260,16 @@ export async function upsertPlanDetail(
       await guardarElParaQuien(subscriptionPlanId, {
         paraQuien: entrada.paraQuien === undefined ? undefined : limpio.paraQuien,
         caso: entrada.caso === undefined ? undefined : limpio.caso,
+      });
+    }
+    if (
+      ("todoIncluidoTitulo" in entrada && entrada.todoIncluidoTitulo !== undefined) ||
+      ("todoIncluidoTexto" in entrada && entrada.todoIncluidoTexto !== undefined)
+    ) {
+      const limpio = comoTodoIncluido({ titulo: entrada.todoIncluidoTitulo ?? "", texto: entrada.todoIncluidoTexto ?? "" });
+      await guardarElTodoIncluido(subscriptionPlanId, {
+        titulo: entrada.todoIncluidoTitulo === undefined ? undefined : limpio.titulo,
+        texto: entrada.todoIncluidoTexto === undefined ? undefined : limpio.texto,
       });
     }
     // El orden y los recuadros, igual: solo lo que llega, y saneado en
