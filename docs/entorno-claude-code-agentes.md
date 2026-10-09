@@ -94,7 +94,7 @@ Cosas que conviene saber antes de copiarlo, de más a menos importante.
 5. **Los stacks están en modo «editor»**, no conectados a Git. Lo que manda en
    producción es lo que hay pegado en Portainer, no el archivo del repositorio.
    Nunca pegues la plantilla del repositorio encima sin copiar antes los
-   secretos del stack que ya corre (lo explica `CLAUDE.md`).
+   secretos del stack que ya corre (lo explica `docs/reglas/infraestructura-y-despliegue.md`).
 6. **La plantilla del backend (`api-webhook/portainer-stack.yml`) tiene
    contraseñas escritas dentro.** El repositorio es privado, pero cualquiera con
    acceso a él las lee. Recomendado: cambiarlas y dejarlas solo en Portainer.
