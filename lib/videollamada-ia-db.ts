@@ -132,6 +132,18 @@ function asegurarLasTablas(): Promise<void> {
             CREATE INDEX IF NOT EXISTS "videollamada_grabaciones_cita_idx"
             ON "videollamada_grabaciones" ("citaId")
         `);
+        // Cada VOZ de la grabación (la de Verzy, el micrófono, cada persona)
+        // va en su propio fichero y dice cuándo empezó respecto al video: el
+        // servidor las mezcla al cerrar (`lasOrdenesDeLaMezcla`).
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "videollamada_grabacion_voces" (
+                "grabacionId" TEXT NOT NULL,
+                "pista" INTEGER NOT NULL,
+                "desdeMs" INTEGER NOT NULL,
+                "trozos" INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY ("grabacionId", "pista")
+            )
+        `);
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -450,6 +462,49 @@ export async function apuntarElTrozoDeLaSala(input: { id: string; cual: "audio" 
                 WHERE "id" = ${input.id} AND "estado" = 'grabando'
             `,
     );
+}
+
+/** Cuántas voces lleva ya una grabación (el techo de la ruta sin sesión). */
+export async function cuantasVocesTiene(grabacionId: string): Promise<{ pistas: number[] }> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ pista: number }[]>`
+            SELECT "pista" FROM "videollamada_grabacion_voces" WHERE "grabacionId" = ${grabacionId}
+        `;
+        return { pistas: filas.map((f) => Number(f.pista)) };
+    });
+}
+
+/**
+ * Apunta un trozo de VOZ ya guardado: crea la voz la primera vez (con su
+ * `desdeMs`) y sube su contador al número más alto. Solo con la grabación
+ * aún `grabando`, como los demás trozos.
+ */
+export async function apuntarElTrozoDeLaVoz(input: { id: string; pista: number; desdeMs: number; numero: number; bytes: number }): Promise<void> {
+    await conLasTablas(async () => {
+        const tocadas = await db.$executeRaw`
+            UPDATE "videollamada_grabaciones"
+            SET "bytes" = "bytes" + ${input.bytes}, "vistaEn" = CURRENT_TIMESTAMP
+            WHERE "id" = ${input.id} AND "estado" = 'grabando'
+        `;
+        if (Number(tocadas) === 0) return;
+        await db.$executeRaw`
+            INSERT INTO "videollamada_grabacion_voces" ("grabacionId", "pista", "desdeMs", "trozos")
+            VALUES (${input.id}, ${input.pista}::int, ${input.desdeMs}::int, ${input.numero}::int)
+            ON CONFLICT ("grabacionId", "pista")
+            DO UPDATE SET "trozos" = GREATEST("videollamada_grabacion_voces"."trozos", EXCLUDED."trozos")
+        `;
+    });
+}
+
+/** Las voces de una grabación, en orden. */
+export async function lasVocesDeLaGrabacion(grabacionId: string): Promise<{ pista: number; desdeMs: number; trozos: number }[]> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ pista: number; desdeMs: number; trozos: number }[]>`
+            SELECT "pista", "desdeMs", "trozos" FROM "videollamada_grabacion_voces"
+            WHERE "grabacionId" = ${grabacionId} ORDER BY "pista"
+        `;
+        return filas.map((f) => ({ pista: Number(f.pista), desdeMs: Number(f.desdeMs), trozos: Number(f.trozos) }));
+    });
 }
 
 /**
