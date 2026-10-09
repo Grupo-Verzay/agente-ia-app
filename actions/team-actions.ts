@@ -11,6 +11,7 @@ import {
   guardarLosAjustes,
   lasConversacionesDelAsesor,
   laLlaveDeLosAjustes,
+  lasPausadasPorElInterruptor,
   losAjustesDeLosAsesores,
 } from "@/lib/ia-del-asesor-db";
 import { guardarVerNumero, laLlaveDelPermiso, losQueVenElNumero } from "@/lib/ver-numero-completo-db";
@@ -227,6 +228,16 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     console.warn("[equipo] no se pudieron leer los interruptores de IA", error);
   }
 
+  // Las que pausó el interruptor «Sesión» siguen siendo del asesor y siguen
+  // abiertas: sin sumarlas, apagarlo lo dejaba con 0 activas y parecía que le
+  // habían quitado los chats. Si no se puede leer, se dice.
+  let pausadas = new Map<string, number>();
+  try {
+    pausadas = await lasPausadasPorElInterruptor(owner.id);
+  } catch (error) {
+    console.warn("[equipo] no se pudieron leer las pausadas por el interruptor", error);
+  }
+
   // «Ver número». Si no se puede leer, sale apagado (el lado seguro) y se dice.
   let venElNumero = new Set<string>();
   try {
@@ -241,6 +252,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       const a = ajustes.get(laLlaveDeLosAjustes(owner.id, row.id));
       return {
         ...row,
+        activeCount: row.activeCount + (pausadas.get(row.id) ?? 0),
         lastActivity: row.lastActivity ? String(row.lastActivity) : null,
         sesionApagada: a?.sesionApagada ?? false,
         agenteApagado: a?.agenteApagado ?? false,
@@ -977,6 +989,17 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
     `,
   ]);
 
+  // Las mismas que suma la tabla de Equipo (`getTeamAdvisors`): las que pausó
+  // el interruptor «Sesión» siguen abiertas, no cerradas.
+  let pausadas = new Map<string, number>();
+  try {
+    pausadas = await lasPausadasPorElInterruptor(owner.id);
+  } catch (error) {
+    console.warn("[equipo] no se pudieron leer las pausadas por el interruptor", error);
+  }
+  let pausadasDeLaCuenta = 0;
+  for (const n of pausadas.values()) pausadasDeLaCuenta += n;
+
   const g = globalRows[0] ?? { total_active: 0, escalated: 0, total: 0 };
   const leadStatus = { FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0 };
   for (const row of leadRows) {
@@ -993,13 +1016,13 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
         name: r.name,
         email: r.email,
         totalAssigned: r.total_assigned,
-        activeCount: r.active_count,
-        closedCount: r.closed_count,
+        activeCount: r.active_count + (pausadas.get(r.id) ?? 0),
+        closedCount: Math.max(0, r.closed_count - (pausadas.get(r.id) ?? 0)),
         hotCount: r.hot_count,
         convertedCount: r.converted_count,
       })),
       global: {
-        totalActive: g.total_active,
+        totalActive: g.total_active + pausadasDeLaCuenta,
         newThisWeek: newSessionRows[0]?.cnt ?? 0,
         escalationRate: g.total > 0 ? Math.round((g.escalated / g.total) * 100) : 0,
         conversionRate: totalClassified > 0 ? Math.round((leadStatus.FINALIZADO / totalClassified) * 100) : 0,
