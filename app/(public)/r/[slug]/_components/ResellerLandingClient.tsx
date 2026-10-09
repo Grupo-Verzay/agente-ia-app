@@ -16,7 +16,12 @@ import { conCreditosIncluidos } from "@/lib/creditos-incluidos";
 import { elPeriodoDeEntrada } from "@/lib/tarjeta-de-plan";
 import { elEnlaceDeRegistro, estaEnUnMarco, recordarLaAsistencia } from "@/lib/enlaces-de-planes";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
-import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import {
+  ANCHO_DE_LA_LANDING,
+  ANCHO_DE_LA_LANDING_CON_SANGRIA,
+  BLOQUE_A_BORDE,
+  SANGRIA_DEL_TEXTO,
+} from "@/lib/ancho-de-la-landing";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -288,7 +293,7 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
     violet: { border: "border-violet-500/20", from: "from-violet-600/10", label: "text-violet-400", bg: "bg-violet-600/20" },
   }[accent]!;
   return (
-    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", s.border, s.from)}>
+    <div className={cn("relative flex flex-col gap-4 rounded-2xl border bg-gradient-to-b to-transparent p-6", BLOQUE_A_BORDE, s.border, s.from)}>
       <div className="flex items-center gap-3">
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", s.bg)}>{icon}</div>
         <span className={cn("text-xs font-semibold uppercase tracking-widest", s.label)}>Paso {step}</span>
@@ -318,7 +323,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
     : `Facturado $${(price * 12).toFixed(0)} al año`;
 
   return (
-    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
+    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]", BLOQUE_A_BORDE,
       plan.isPopular && !brand ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : plan.isPopular ? "bg-white/[0.07] shadow-lg" : "border-white/10 bg-white/5")}
          style={plan.isPopular && brand ? { borderColor: `${brand}66`, boxShadow: `0 10px 30px ${brand}18` } : undefined}>
       {plan.isPopular && (
@@ -491,7 +496,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
 
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
+        <div className={`flex items-center justify-between py-3 ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <div className="flex items-center gap-2">
             {logoUrl ? (
               <img src={logoUrl} alt={brandName} className="h-8 max-w-[120px] object-contain" />
@@ -552,7 +557,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
                style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
-        <div className={`relative ${ANCHO_DE_LA_LANDING}`}>
+        <div className={`relative ${ANCHO_DE_LA_LANDING_CON_SANGRIA}`}>
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
             <div className="flex flex-col justify-center">
               <Badge className={cn("mb-4 inline-flex w-fit items-center gap-1.5 border px-3 py-1", brand ? "brand-text brand-bg-soft brand-border" : "border-blue-500/20 bg-blue-500/10 text-blue-400")}>
@@ -625,7 +630,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-8">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
+            <div className={`grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4 ${BLOQUE_A_BORDE}`}>
               {[{ to: 500, suffix: "+", label: "Negocios activos" }, { to: 1, suffix: "M+", label: "Mensajes respondidos" }, { to: 4.9, suffix: "★", label: "Calificación promedio", decimals: 1 }, { to: 40, suffix: "%", label: "Aumento en ventas" }].map((s) => (
                 <div key={s.label}>
                   <div className={cn("text-3xl font-bold", brand ? "brand-text" : "text-blue-400")}><AnimatedCounter to={s.to} suffix={s.suffix} decimals={s.decimals} /></div>
@@ -641,7 +646,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
         <div className={ANCHO_DE_LA_LANDING}>
-          <div className="relative overflow-hidden rounded-xl"
+          <div className={`relative overflow-hidden rounded-xl ${BLOQUE_A_BORDE}`}
             style={{ maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)", WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)" }}>
             <div className="flex w-max gap-3 py-1" style={{ animation: "marquee 28s linear infinite" }}>
               {[...INTEGRATIONS, ...INTEGRATIONS].map((int, i) => (
@@ -658,16 +663,16 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <p className="mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500">¿Te suena familiar?</p>
+            <p className={`mb-4 text-center text-sm font-medium uppercase tracking-wider text-slate-500 ${SANGRIA_DEL_TEXTO}`}>¿Te suena familiar?</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {PAIN_POINTS.map((pain) => (
-                <div key={pain} className="flex items-start gap-3 rounded-xl border border-red-500/10 bg-red-500/5 px-4 py-3">
+                <div key={pain} className={`flex items-start gap-3 rounded-xl border border-red-500/10 bg-red-500/5 px-4 py-3 ${BLOQUE_A_BORDE}`}>
                   <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
                   <span className="text-sm text-slate-300">{pain}</span>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-center text-sm text-slate-400">
+            <p className={`mt-4 text-center text-sm text-slate-400 ${SANGRIA_DEL_TEXTO}`}>
               <span className="font-medium text-blue-400">Agente IA resuelve todo esto</span> — automáticamente.
             </p>
           </FadeIn>
@@ -678,13 +683,13 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <h2 className="mb-5 text-center text-2xl font-bold text-white sm:text-3xl">¿Qué cambia con Agente IA?</h2>
+            <h2 className={`mb-5 text-center text-2xl font-bold text-white sm:text-3xl ${SANGRIA_DEL_TEXTO}`}>¿Qué cambia con Agente IA?</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+              <div className={`rounded-2xl border border-red-500/20 bg-red-500/5 p-5 ${BLOQUE_A_BORDE}`}>
                 <div className="mb-4 flex items-center gap-2"><XCircle className="h-5 w-5 text-red-400" /><span className="font-semibold text-red-400">Sin Agente IA</span></div>
                 <ul className="space-y-3">{BEFORE.map((item) => (<li key={item} className="flex items-start gap-2.5 text-sm text-slate-400"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />{item}</li>))}</ul>
               </div>
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+              <div className={`rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 ${BLOQUE_A_BORDE}`}>
                 <div className="mb-4 flex items-center gap-2"><Check className="h-5 w-5 text-blue-400" /><span className="font-semibold text-blue-400">Con Agente IA</span></div>
                 <ul className="space-y-3">{AFTER.map((item) => (<li key={item} className="flex items-start gap-2.5 text-sm text-slate-300"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />{item}</li>))}</ul>
               </div>
@@ -697,14 +702,14 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Funciona para tu tipo de negocio</h2>
               <p className="mt-2 text-slate-400">Adaptado a las necesidades de cada industria, desde el primer día.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {INDUSTRIES.map((ind, i) => (
                 <FadeIn key={ind.name} delay={i * 60}>
-                  <div className="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <div className={`flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07] ${BLOQUE_A_BORDE}`}>
                     <span className="text-2xl">{ind.emoji}</span>
                     <div><h3 className="font-semibold text-white">{ind.name}</h3><p className="mt-1 text-sm text-slate-400">{ind.description}</p></div>
                   </div>
@@ -719,7 +724,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section id="how" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Tu agente listo en 3 pasos</h2>
               <p className="mt-2 text-slate-400">Sin programación. Sin conocimientos técnicos. Solo configura y funciona.</p>
             </div>
@@ -743,7 +748,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           <section className="py-6">
             <div className={ANCHO_DE_LA_LANDING}>
               <FadeIn>
-                <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+                <div className={`overflow-hidden rounded-2xl border border-white/10 ${BLOQUE_A_BORDE}`} style={{ aspectRatio: "16/9" }}>
                   <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
                 </div>
               </FadeIn>
@@ -756,14 +761,14 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section id="features" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Todo lo que hace por ti</h2>
               <p className="mt-2 text-slate-400">Un agente que trabaja solo, aprende de tu negocio y nunca descansa.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((f, i) => (
                 <FadeIn key={f.title} delay={i * 60}>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                  <div className={`rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07] ${BLOQUE_A_BORDE}`}>
                     <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
                       <f.icon className="h-4 w-4 text-blue-400" />
                     </div>
@@ -781,7 +786,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros clientes</h2>
               <p className="mt-2 text-slate-400">Negocios reales que ya automatizaron su atención al cliente.</p>
             </div>
@@ -798,7 +803,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {activeTestimonials.map((t, i) => (
                     <FadeIn key={i} delay={i * 80}>
-                      <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+                      <div className={`flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5 ${BLOQUE_A_BORDE}`}>
                         <div className="flex items-start justify-between">
                           <Quote className="h-5 w-5 text-blue-400/50" />
                           <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Verificado</span>
@@ -830,16 +835,16 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section id="pricing" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Sin contratos. Cancela cuando quieras.</p>
               {showBillingToggle && (
-                <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                <div className="mt-4 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 max-sm:rounded-3xl">
                   {([["monthly","Mensual",null],["quarterly","Trimestral","−14%"],["yearly","Anual","−22%"]] as [BillingPeriod,string,string|null][])
                     .filter(([p]) => availablePeriods.includes(p))
                     .map(([p,label,badge]) => (
                     <button key={p} onClick={() => setBillingPeriod(p)}
-                      className={cn("flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectivePeriod === p ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
+                      className={cn("flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm font-medium transition-all sm:px-4", effectivePeriod === p ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
                       {label}
                       {badge && <span className={cn("rounded-full px-1.5 py-px text-[9px] font-bold", effectivePeriod === p ? "bg-green-400/20 text-green-300" : "bg-green-500/15 text-green-500")}>{badge}</span>}
                     </button>
@@ -847,7 +852,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                 </div>
               )}
               {showAssistanceToggle && (
-                <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                <div className="mt-3 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 max-sm:rounded-3xl">
                   <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectiveType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
                     <Zap className="h-3.5 w-3.5" /> Asistencia IA
                   </button>
@@ -876,13 +881,13 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section id="faq" className="py-6">
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
-            <div className="mb-6 text-center">
+            <div className={`mb-6 text-center ${SANGRIA_DEL_TEXTO}`}>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Preguntas frecuentes</h2>
               <p className="mt-2 text-slate-400">Todo lo que necesitas saber antes de empezar.</p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {FAQS.map((faq, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                <div key={i} className={`overflow-hidden rounded-xl border border-white/10 bg-white/5 ${BLOQUE_A_BORDE}`}>
                   <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between px-5 py-4 text-left">
                     <span className="pr-4 text-sm font-medium text-white">{faq.q}</span>
                     {openFaq === i ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
@@ -904,7 +909,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
         <div className={ANCHO_DE_LA_LANDING}>
           <FadeIn>
             <div
-              className={cn("rounded-2xl border px-10 py-8 text-center", !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
+              className={cn("rounded-2xl border px-10 py-8 text-center", BLOQUE_A_BORDE, !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
               style={brand || bg
                 ? { borderColor: brand ? `${brand}55` : "#3b82f620", background: `linear-gradient(to bottom right, #1e293b, ${bg ?? "#0f172a"})` }
                 : undefined

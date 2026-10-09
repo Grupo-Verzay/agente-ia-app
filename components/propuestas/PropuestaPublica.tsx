@@ -1,7 +1,7 @@
 import { CalendarClock, CalendarDays, CreditCard, FileText, Package, PlayCircle, RefreshCw, ScrollText, StickyNote } from "lucide-react";
 
 import { PlanEnLaPropuesta } from "@/components/propuestas/PlanEnLaPropuesta";
-import { ANCHO_DE_LA_LANDING } from "@/lib/ancho-de-la-landing";
+import { ANCHO_DE_LA_LANDING, BLOQUE_A_BORDE } from "@/lib/ancho-de-la-landing";
 import { PieDeLasPublicas } from "@/components/shared/PieDeLasPublicas";
 import { AIRE_ENCIMA_DEL_PIE, elTextoDePreparadaPor } from "@/lib/pie-de-las-publicas";
 import {
@@ -69,6 +69,10 @@ export const ESLOGAN_DE_LA_PROPUESTA = "text-base leading-snug sm:text-lg lg:tex
  * El ancho del contenedor es el de la landing de planes (`ANCHO_DE_LA_LANDING`,
  * hasta 1152 px): así las tarjetas de capacidad de un plan se ven igual de
  * holgadas aquí que en su página. Una sola fuente para el ancho.
+ *
+ * En el teléfono no lleva margen a los lados: las tarjetas del primer nivel
+ * llevan `BLOQUE_A_BORDE` y llenan la pantalla; las de DENTRO (el plan de un
+ * servicio) se quedan con su aire.
  */
 export const ANCHO_DE_LA_PROPUESTA = ANCHO_DE_LA_LANDING;
 
@@ -117,7 +121,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                 abajo, «Inversión total» a la izquierda y el eslogan a la
                 derecha. Ni el nombre de la cuenta (el logo lo dice, y sale en
                 el pie) ni el rótulo «Propuesta comercial». */}
-            <section data-hero className={`rounded-2xl p-5 text-white shadow-sm sm:p-7 ${AZUL_DE_LA_PROPUESTA}`}>
+            <section data-hero className={`rounded-2xl p-5 text-white shadow-sm sm:p-7 ${BLOQUE_A_BORDE} ${AZUL_DE_LA_PROPUESTA}`}>
                 <div data-hero-arriba className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                         <p data-preparada-para className="text-xs uppercase tracking-wide text-white/80">Preparada para</p>
@@ -177,7 +181,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                                 key={i}
                                 data-servicio
                                 data-servicio-con-plan={plan ? plan.llave : undefined}
-                                className="rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5"
+                                className={`rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}
                             >
                                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                                     <h3
@@ -228,7 +232,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
                 servicios (otro nombre, o se renombró después): sale aquí, con
                 el mismo bloque y dentro de la misma propuesta. */}
             {sueltos.length > 0 ? (
-                <section data-planes-de-la-propuesta className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                <section data-planes-de-la-propuesta className={`mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}>
                     <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                         <PlayCircle className="h-4 w-4 text-plan-suave" />
                         {sueltos.length === 1 ? "Conoce el plan" : "Conoce los planes"}
@@ -245,7 +249,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             ) : null}
 
             {conMantenimiento ? (
-                <section data-mantenimiento className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                <section data-mantenimiento className={`mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}>
                     <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                         <RefreshCw className="h-4 w-4 text-plan-suave" />
                         Mantenimiento mensual
@@ -264,7 +268,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             ) : null}
 
             {propuesta.nota ? (
-                <section data-nota className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                <section data-nota className={`mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}>
                     <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                         <StickyNote className="h-4 w-4 text-plan-suave" />
                         Nota
@@ -276,7 +280,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             ) : null}
 
             {propuesta.condiciones ? (
-                <section data-condiciones className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                <section data-condiciones className={`mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}>
                     <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                         <ScrollText className="h-4 w-4 text-plan-suave" />
                         Condiciones
@@ -290,7 +294,7 @@ export function PropuestaPublica({ propuesta, planes = [] }: { propuesta: Datos;
             {/* Cómo pagar: después de las condiciones y antes del pie. Sin días
                 de licencia ni vencimientos — el cliente todavía no contrató. */}
             {conPago ? (
-                <section data-pago className="mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5">
+                <section data-pago className={`mt-8 rounded-2xl border border-plan-borde bg-plan-superficie p-4 shadow-sm sm:p-5 ${BLOQUE_A_BORDE}`}>
                     <h2 className="flex items-center gap-2 text-base font-semibold text-plan-tinta">
                         <CreditCard className="h-4 w-4 text-plan-suave" />
                         Información de pago

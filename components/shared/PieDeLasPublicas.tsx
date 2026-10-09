@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { SANGRIA_DEL_TEXTO } from "@/lib/ancho-de-la-landing";
 import {
     COLORES_DEL_PIE,
     LINEA_DEL_PIE,
@@ -62,9 +63,13 @@ export function PieDeLasPublicas({
             )}
         </div>
     );
+    // La raya no toca el borde en el teléfono: el contenedor de las públicas
+    // ya no lleva margen a los lados ahí (`ANCHO_DE_LA_LANDING`), y una raya de
+    // lado a lado rompería «al ancho del contenido». Desde `sm`, sin sangría.
+    const conSangria = <div className={SANGRIA_DEL_TEXTO}>{linea}</div>;
     return (
         <footer data-pie-de-pagina className={aire}>
-            {ancho ? <div className={ancho}>{linea}</div> : linea}
+            {ancho ? <div className={ancho}>{conSangria}</div> : conSangria}
         </footer>
     );
 }
