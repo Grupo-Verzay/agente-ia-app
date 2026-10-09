@@ -1,6 +1,9 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
+
 import { db } from "@/lib/db";
+import { elMensajeDeLaVideollamada, laGrabacionParaElCrm } from "@/lib/grabacion-de-videollamada";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
 import { comoCapacidad, laCapacidadQueVale } from "@/lib/capacidad-de-multiagenda";
 import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FABRICA_MIN, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
@@ -103,6 +106,31 @@ function asegurarLasTablas(): Promise<void> {
         await ddl(() => db.$executeRaw`
             CREATE INDEX IF NOT EXISTS "videollamadas_ia_conversacion_idx"
             ON "videollamadas_ia" ("conversacionId")
+        `);
+        // La grabación de la SALA (la graba el navegador del cliente; Tavus
+        // no puede escribir en MinIO). Una fila por cada vez que se abre la
+        // sala: una reconexión sigue en la misma, una recarga abre otra.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "videollamada_grabaciones" (
+                "id" TEXT PRIMARY KEY,
+                "citaId" TEXT NOT NULL,
+                "cuentaId" TEXT NOT NULL,
+                "estado" TEXT NOT NULL DEFAULT 'grabando',
+                "formato" TEXT NOT NULL DEFAULT 'webm',
+                "trozosAudio" INTEGER NOT NULL DEFAULT 0,
+                "trozosVideo" INTEGER NOT NULL DEFAULT 0,
+                "bytes" BIGINT NOT NULL DEFAULT 0,
+                "segundos" INTEGER,
+                "audioUrl" TEXT,
+                "videoUrl" TEXT,
+                "creadaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "vistaEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "cerradaEn" TIMESTAMP(3)
+            )
+        `);
+        await ddl(() => db.$executeRaw`
+            CREATE INDEX IF NOT EXISTS "videollamada_grabaciones_cita_idx"
+            ON "videollamada_grabaciones" ("citaId")
         `);
     })().catch((error) => {
         tablasListas = null;
@@ -356,6 +384,151 @@ export async function marcarFinalizada(citaId: string): Promise<void> {
         UPDATE "videollamadas_ia" SET "estado" = 'finalizada', "finalizadaEn" = COALESCE("finalizadaEn", CURRENT_TIMESTAMP)
         WHERE "citaId" = ${citaId}
     `);
+}
+
+/* ── La grabación de la sala ───────────────────────────────────────── */
+
+export type GrabacionDeLaSala = {
+    id: string;
+    citaId: string;
+    cuentaId: string;
+    estado: "grabando" | "juntando" | "lista" | "fallida";
+    formato: "webm" | "mp4";
+    /** Cuántos trozos subió de cada pista (uno cada ~10 s). */
+    trozosAudio: number;
+    trozosVideo: number;
+    bytes: number;
+    segundos: number | null;
+    audioUrl: string | null;
+    videoUrl: string | null;
+};
+
+/**
+ * Abre una grabación para la sala de esta cita. `null` si la cita ya llegó a
+ * su tope de grabaciones (la ruta se abre sin sesión: es su techo).
+ */
+export async function empezarLaGrabacionDeLaSala(citaId: string, cuentaId: string, formato: "webm" | "mp4", tope: number): Promise<string | null> {
+    return conLasTablas(async () => {
+        const id = randomUUID();
+        const tocadas = await db.$executeRaw`
+            INSERT INTO "videollamada_grabaciones" ("id", "citaId", "cuentaId", "formato")
+            SELECT ${id}, ${citaId}, ${cuentaId}, ${formato}
+            WHERE (SELECT COUNT(*) FROM "videollamada_grabaciones" WHERE "citaId" = ${citaId}) < ${tope}
+        `;
+        return Number(tocadas) > 0 ? id : null;
+    });
+}
+
+export async function laGrabacionDeLaSala(id: string): Promise<GrabacionDeLaSala | null> {
+    if (!id) return null;
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<GrabacionDeLaSala[]>`
+            SELECT "id", "citaId", "cuentaId", "estado", "formato", "trozosAudio", "trozosVideo",
+                   "bytes"::float8 AS "bytes", "segundos", "audioUrl", "videoUrl"
+            FROM "videollamada_grabaciones" WHERE "id" = ${id} LIMIT 1
+        `;
+        return filas[0] ?? null;
+    });
+}
+
+/**
+ * Apunta un trozo YA guardado en el bucket. El contador es el número más alto
+ * (`GREATEST`), no una suma: un trozo repetido no deja el contador por delante
+ * de los trozos de verdad.
+ */
+export async function apuntarElTrozoDeLaSala(input: { id: string; cual: "audio" | "video"; numero: number; bytes: number }): Promise<void> {
+    await conLasTablas(() =>
+        input.cual === "video"
+            ? db.$executeRaw`
+                UPDATE "videollamada_grabaciones"
+                SET "trozosVideo" = GREATEST("trozosVideo", ${input.numero}), "bytes" = "bytes" + ${input.bytes}, "vistaEn" = CURRENT_TIMESTAMP
+                WHERE "id" = ${input.id} AND "estado" = 'grabando'
+            `
+            : db.$executeRaw`
+                UPDATE "videollamada_grabaciones"
+                SET "trozosAudio" = GREATEST("trozosAudio", ${input.numero}), "bytes" = "bytes" + ${input.bytes}, "vistaEn" = CURRENT_TIMESTAMP
+                WHERE "id" = ${input.id} AND "estado" = 'grabando'
+            `,
+    );
+}
+
+/**
+ * Reclama el cierre: pasa de `grabando` a `juntando` y devuelve la fila solo a
+ * UNO de los que cierran a la vez (el botón de colgar, el aviso de que la
+ * pestaña se va y el barrido pueden coincidir).
+ */
+export async function reclamarElCierreDeLaSala(id: string): Promise<GrabacionDeLaSala | null> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<GrabacionDeLaSala[]>`
+            UPDATE "videollamada_grabaciones" SET "estado" = 'juntando'
+            WHERE "id" = ${id} AND "estado" = 'grabando'
+            RETURNING "id", "citaId", "cuentaId", "estado", "formato", "trozosAudio", "trozosVideo",
+                      "bytes"::float8 AS "bytes", "segundos", "audioUrl", "videoUrl"
+        `;
+        return filas[0] ?? null;
+    });
+}
+
+export async function cerrarLaGrabacionDeLaSala(input: {
+    id: string;
+    estado: "lista" | "fallida";
+    segundos: number;
+    audioUrl: string | null;
+    videoUrl: string | null;
+}): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        UPDATE "videollamada_grabaciones"
+        SET "estado" = ${input.estado}, "segundos" = ${input.segundos},
+            "audioUrl" = ${input.audioUrl}, "videoUrl" = ${input.videoUrl}, "cerradaEn" = CURRENT_TIMESTAMP
+        WHERE "id" = ${input.id}
+    `);
+}
+
+/** Las que se quedaron en `grabando` porque la pestaña murió sin avisar. */
+export async function lasGrabacionesDeLaSalaSinCerrar(horas: number, limite: number): Promise<{ id: string; segundos: number }[]> {
+    return conLasTablas(() => db.$queryRaw<{ id: string; segundos: number }[]>`
+        SELECT "id", GREATEST(0, EXTRACT(EPOCH FROM ("vistaEn" - "creadaEn")))::int AS "segundos"
+        FROM "videollamada_grabaciones"
+        WHERE "estado" = 'grabando' AND "vistaEn" < CURRENT_TIMESTAMP - make_interval(hours => ${horas}::int)
+        ORDER BY "vistaEn" ASC
+        LIMIT ${limite}::int
+    `);
+}
+
+/**
+ * Lleva la grabación de la sala a la fila del CRM (`chat_messages`,
+ * `tavus_<cita>`), mezclando en `raw.call` sin tocar lo demás (la
+ * transcripción, el resumen).
+ *
+ * La llaman los DOS que pueden llegar segundos: el cierre de la grabación y la
+ * transcripción de Tavus (que crea la fila). Cada uno escribe lo suyo y LUEGO
+ * llama a esto, así que el último de los dos siempre ve lo del otro.
+ *
+ * De varias grabaciones (una recarga abre otra) gana la más larga. Devuelve
+ * `true` si la fila existía y se tocó.
+ */
+export async function copiarLaGrabacionAlCrm(citaId: string): Promise<boolean> {
+    return conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ audioUrl: string | null; videoUrl: string | null }[]>`
+            SELECT "audioUrl", "videoUrl" FROM "videollamada_grabaciones"
+            WHERE "citaId" = ${citaId} AND "estado" = 'lista'
+            ORDER BY COALESCE("segundos", 0) DESC, "creadaEn" DESC
+            LIMIT 1
+        `;
+        const grabacion = filas[0] ? laGrabacionParaElCrm(filas[0]) : null;
+        if (!grabacion) return false;
+        const tocadas = await db.$executeRaw`
+            UPDATE "chat_messages"
+            SET "raw" = jsonb_set(
+                    COALESCE("raw"::jsonb, '{}'::jsonb),
+                    '{call}',
+                    (COALESCE("raw"::jsonb -> 'call', '{}'::jsonb) || ${JSON.stringify(grabacion)}::jsonb)
+                ),
+                "updatedAt" = CURRENT_TIMESTAMP
+            WHERE "messageId" = ${elMensajeDeLaVideollamada(citaId)} AND "messageType" = 'call'
+        `;
+        return Number(tocadas) > 0;
+    });
 }
 
 /* ── Los enlaces mandados por WhatsApp durante la llamada ───────────── */

@@ -39,6 +39,15 @@ export interface CallRow {
   dispositionIa: string | null;
   hasRecording: boolean;
   recordingUrl: string | null;
+  /**
+   * La videollamada con IA (Tavus) también es una fila `call`, con
+   * `raw.call.isVideo` y `provider: 'tavus'`. Su grabación la sube la sala del
+   * cliente: `recordingUrl` es el audio y `videoUrl` el video (ver
+   * `lib/grabacion-de-videollamada.ts`).
+   */
+  isVideo: boolean;
+  provider: string | null;
+  videoUrl: string | null;
   transcript: string | null;
   summary: string | null;
   astraSid: string | null;
@@ -120,6 +129,9 @@ export function elCallRowDesdeLaFila(r: FilaCrudaDeLlamada): CallRow {
     dispositionIa: texto(callRaw.dispositionIa),
     hasRecording: Boolean(callRaw.hasRecording),
     recordingUrl: texto(callRaw.recordingUrl),
+    isVideo: callRaw.isVideo === true,
+    provider: texto(callRaw.provider),
+    videoUrl: texto(callRaw.videoUrl),
     transcript: texto(callRaw.transcript),
     summary: texto(callRaw.summary),
     astraSid: texto(callRaw.astraSid),
