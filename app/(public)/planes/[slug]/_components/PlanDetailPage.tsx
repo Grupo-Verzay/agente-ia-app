@@ -608,6 +608,15 @@ export function BloqueTodoIncluido({ todoIncluido }: { todoIncluido: TodoIncluid
  * Clases literales: Tailwind no ve las compuestas.
  */
 /**
+ * El tamaño del valor de un recuadro («PDFs, fotos, videos, etc.») sigue el
+ * ancho de SU recuadro (`cqw`, el recuadro es contenedor), no el de la ventana:
+ * 24 px mientras cabe y hasta 18 px si el recuadro se angosta. Así la misma
+ * frase queda en UNA línea en la página del plan y dentro de la propuesta, donde
+ * el recuadro mide ~15 px menos por las cajas que lo rodean. Clase literal.
+ */
+export const TAMANO_DEL_VALOR = "text-[length:clamp(1.125rem,8.25cqw,1.5rem)]";
+
+/**
  * Los recuadros de capacidad (créditos, catálogo, asistencia…). Los pinta la
  * página del plan y, tal cual, la propuesta que lleva ese plan dentro.
  */
@@ -619,7 +628,7 @@ export function RecuadrosDeCapacidad({ capacidad }: { capacidad: PaginaDelPlan["
       return (
         <div
           key={t.id}
-          className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5"
+          className="rounded-xl border border-plan-tinta/10 bg-plan-tinta/[0.03] p-5 [container-type:inline-size]"
           data-capacidad={t.id}
           data-icono={t.icono}
         >
@@ -628,7 +637,7 @@ export function RecuadrosDeCapacidad({ capacidad }: { capacidad: PaginaDelPlan["
               <Icono className="h-4 w-4 shrink-0" /> {t.titulo}
             </div>
           )}
-          <div className={cn("text-2xl font-bold text-plan-tinta", t.titulo ? "mt-2" : "flex items-center gap-2")}>
+          <div className={cn("font-bold leading-8 text-plan-tinta", TAMANO_DEL_VALOR, t.titulo ? "mt-2" : "flex items-center gap-2")}>
             {!t.titulo && <Icono className="h-5 w-5 shrink-0 text-plan-suave" />}
             {t.valor}
           </div>
