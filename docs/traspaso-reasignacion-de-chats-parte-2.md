@@ -62,14 +62,80 @@ conversaciones asignadas, y llamar a las acciones reales de `team-actions.ts`
 (solo se finge `currentUser()`, `revalidatePath` y `cache()`), como hacen
 `scripts/banco-ia-del-asesor.sh` y compañía.
 
+## Avance de este hilo (segunda sesión)
+
+**La causa exacta SIGUE sin identificarse.** La prueba en Postgres que decide
+**no se ha escrito ni corrido todavía**; Carlos ya la autorizó
+("Sí, haz la prueba en Postgres local para confirmar la causa").
+
+Lo que sí se confirmó leyendo código (sin ejecutar nada):
+
+- `lib/ia-del-asesor-db.ts`: `aplicarALasConversaciones` y `aplicarAUna` solo
+  **leen** `assigned_advisor_id` (`SELECT … "assigned_advisor_id" AS asesor …
+  FOR UPDATE`) y escriben únicamente lo que devuelve `queHacerAlAsignar`.
+- `lib/ia-del-asesor.ts` `queHacerAlAsignar` (líneas ~66-105): `datos` solo puede
+  llevar `status`, `agentDisabled` y `aiOptIn`. Nunca el asesor.
+- `lasConversacionesDelAsesor(asesorId, cuentaId)` = asignadas ∪ marcadas.
+
+Hipótesis nueva (sin verificar, no darla por cierta): **`Session.status` tiene
+doble sentido** ("conversación resuelta" y "IA pausada por intervención
+humana"). El interruptor «Sesión» apagado pone `status = false`. Si Chats (filtro
+o contadores) o el backend (`releaseStaleEscalations`, `tryAssign`, reparto por
+porcentaje) leen `status = false` como "resuelta / sin dueño", el chat parecería
+o quedaría desasignado sin que nadie toque `assigned_advisor_id`. Es la primera
+cosa que hay que mirar después de la prueba.
+
+Tampoco se leyó todavía `actions/advisor-assign-actions.ts` (llama a
+`aplicarALasConversaciones` en ~170, 244, 376, 422, 453 y 515): ahí viven
+asignar, tomar, transferir y soltar.
+
+### Cómo escribir la prueba (andamio ya existente)
+
+Copiar el patrón de `scripts/banco-ia-del-asesor.sh` y
+`lib/__tests__/ia-del-asesor-db.test.mjs` (mismo Postgres local, mismo
+`prisma db push`, mismo esbuild con los alias de `lib/__tests__/fingido/`; la
+entrada `entrada-del-ia-del-asesor.ts` ya exporta `toggleAdvisorIa`,
+`getTeamAdvisors`, `assignSessionToAdvisor`, `updateSessionStatus`,
+`toggleAgentDisabled`, `upsertSessionFromChatMessage` y `db`). Los ayudantes
+`quien(id)`, `sesion(asesor, extra)` y `leer(id)` del test existente sirven tal
+cual (dueño, dos asesores con `ownerId` y `advisorRole: "agente"`, una fila de
+`Instancias`).
+
+Pasos:
+
+1. Sembrar: dueño, dos asesores, varias conversaciones asignadas a cada uno
+   (algunas con `status: true`, otras ya pausadas a mano).
+2. Foto de antes: `assignedAdvisorId`, `status`, `agentDisabled`, `aiOptIn` y
+   las filas de `asesor_ia_marcas`.
+3. Llamar a `toggleAdvisorIa(asesor, "sesion", false)` y luego
+   `toggleAdvisorIa(asesor, "agente", false)` (acciones reales).
+4. Foto de después y comparar. **Pregunta única: ¿cambió `assignedAdvisorId`?**
+5. Encender de nuevo (`true`) y comprobar que se devuelve solo lo que apagó el
+   interruptor.
+6. Opcional: simular un mensaje entrante (`upsertSessionFromChatMessage`) con el
+   interruptor «Sesión» apagado y ver si algo reasigna o reabre.
+
+### Siguiente paso según el resultado
+
+- `assignedAdvisorId` **no cambia** → no hay pérdida en la base. Entonces el
+  fallo es de lectura/pantalla (Chats) o del `status` leído por el backend:
+  arreglar buscando la sesión por `id` (`aplicarEnLaSesion`) y, si el culpable
+  es el backend, avisar a Carlos en una línea (ese repositorio no está en esta
+  sesión). No hay nada que reasignar.
+- `assignedAdvisorId` **cambia** → pérdida real: arreglar quién lo escribe y
+  hacer el script de recuperación (ver "Plan según el resultado").
+
 ## Por leer todavía
 
+- `actions/advisor-assign-actions.ts` (asignar, tomar, transferir, soltar).
 - `getSessionForChat` en `chat-sidebar.tsx` y `chats-client.tsx`; el filtro y los
-  contadores `'unassigned'` (`chat-sidebar.tsx` ~945, ~1082, ~1106).
+  contadores `'unassigned'` (`chat-sidebar.tsx` ~945, ~1082, ~1106). Mirar si
+  usan `status` para decidir "sin asignar".
 - `lib/chat-session-match.ts` y `getSesionesDeLaCuenta` (qué llaves llegan).
-- `lib/ia-del-asesor-db.ts`, `lib/ia-del-asesor.ts` y `scripts/banco-ia-del-asesor.sh`.
 - `ChatContactItem.tsx`, `ChatTabBar.tsx`, `AdvisorAssignBadge.tsx`.
 - `deleteAdvisor` en `actions/team-actions.ts` (~756), que no se leyó a detalle.
+- (Ya leídos en este hilo: `lib/ia-del-asesor-db.ts`, `lib/ia-del-asesor.ts` y
+  `scripts/banco-ia-del-asesor.sh`.)
 
 ## Plan según el resultado
 
