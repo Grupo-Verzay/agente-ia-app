@@ -7,6 +7,8 @@ import {
     ALTO_DEL_LIENZO_DE_LA_SALA,
     ANCHO_DEL_LIENZO_DE_LA_SALA,
     FPS_DEL_LIENZO_DE_LA_SALA,
+    EN_PAUSA_TRAS_MS,
+    REINTENTAR_EL_AUDIO_CADA_MS,
     TROZO_CADA_MS,
     VIDEO_BPS_DE_LA_SALA,
     comoCabeEntero,
@@ -36,6 +38,14 @@ function lasMedidas(el: HTMLVideoElement | HTMLImageElement): { ancho: number; a
  *   puede costarle la llamada al cliente, así que cualquier fallo se dice en la
  *   consola y la llamada sigue.
  * - El audio va SIEMPRE en su propio fichero (`AUDIO_BPS`), como en Reuniones.
+ * - **Sin el `AudioContext` en marcha no se graba NADA**, ni el video: el
+ *   video lleva la mezcla de voces, y con ella parada Chrome no suelta ni un
+ *   fotograma. Y un `AudioContext` nacido sin un clic nace parado: la
+ *   grabación empezaba con el primer toque en la página, a veces un minuto
+ *   tarde. Se insiste en arrancarlo cada `REINTENTAR_EL_AUDIO_CADA_MS` (en
+ *   cuanto la cámara o el micrófono están abiertos, el navegador lo deja) y,
+ *   si sigue parado tras `EN_PAUSA_TRAS_MS`, `enPausa` le dice a la sala que
+ *   pida un toque.
  */
 export function useGrabacionDeLaVideollamada(input: {
     /** ¿Esta pestaña graba? La del cliente, o la de un asesor solo con Verzy (`laSalaGraba`). Una vez empezada, sigue. */
@@ -50,8 +60,12 @@ export function useGrabacionDeLaVideollamada(input: {
     voces: MediaStreamTrack[];
     /** Qué se ve ahora mismo (lo lee el lienzo en cada fotograma). */
     queSeVe: () => LoQueSeVe;
-}): { grabando: boolean } {
-    const [grabando, setGrabando] = useState(false);
+}): { grabando: boolean; enPausa: boolean; reanudar: () => void } {
+    // Montada: los grabadores existen. Corriendo: el audio rueda, o sea que de
+    // verdad se graba. «Grabando» es las dos cosas.
+    const [montada, setMontada] = useState(false);
+    const [corriendo, setCorriendo] = useState(false);
+    const [enPausa, setEnPausa] = useState(false);
     const queSeVeRef = useRef(input.queSeVe);
     queSeVeRef.current = input.queSeVe;
     const consultaRef = useRef(input.consulta);
@@ -95,7 +109,7 @@ export function useGrabacionDeLaVideollamada(input: {
     const cerrar = async () => {
         if (cerradaRef.current || !idRef.current) return;
         cerradaRef.current = true;
-        setGrabando(false);
+        setMontada(false);
         // `stop()` provoca el último `dataavailable`: se para ANTES de esperar la cola.
         for (const g of grabadoresRef.current) {
             try {
@@ -158,6 +172,9 @@ export function useGrabacionDeLaVideollamada(input: {
         try {
             const ctx = new AudioContext();
             ctxRef.current = ctx;
+            const alCambiar = () => setCorriendo(ctx.state === "running");
+            ctx.addEventListener("statechange", alCambiar);
+            alCambiar();
             const mezcla = ctx.createMediaStreamDestination();
             mezclaRef.current = mezcla;
             // Silencio exacto conectado siempre: sin nada enchufado el grafo no
@@ -216,8 +233,8 @@ export function useGrabacionDeLaVideollamada(input: {
 
             for (const g of grabadores) g.start(TROZO_CADA_MS);
             grabadoresRef.current = grabadores;
-            setGrabando(true);
-            console.info("[videollamada] grabando la llamada", { grabacion: r.grabacionId, formato });
+            setMontada(true);
+            console.info("[videollamada] grabando la llamada", { grabacion: r.grabacionId, formato, audio: ctx.state });
         } catch (error) {
             console.warn("[videollamada] no se pudo montar la grabación", error);
             for (const g of grabadoresRef.current) {
@@ -286,7 +303,7 @@ export function useGrabacionDeLaVideollamada(input: {
     useEffect(() => {
         const ctx = ctxRef.current;
         const mezcla = mezclaRef.current;
-        if (!ctx || !mezcla || !grabando) return;
+        if (!ctx || !mezcla || !montada) return;
         const vivas = new Set<string>();
         for (const pista of input.voces) {
             if (!pista || pista.readyState === "ended") continue;
@@ -309,23 +326,35 @@ export function useGrabacionDeLaVideollamada(input: {
             }
             enchufadasRef.current.delete(id);
         }
-    }, [grabando, input.voces]);
+    }, [montada, input.voces]);
 
-    // Un `AudioContext` nacido sin gesto puede quedarse suspendido, y
-    // suspendido no graba voz: se reanuda con el primer toque o tecla.
+    // Un `AudioContext` nacido sin gesto se queda suspendido, y suspendido no
+    // graba NI EL VIDEO: se insiste solo (el navegador lo deja en cuanto la
+    // cámara o el micrófono están abiertos) y con el primer toque o tecla.
     useEffect(() => {
-        if (!grabando) return;
+        if (!montada || corriendo) {
+            setEnPausa(false);
+            return;
+        }
         const reanudar = () => {
             const ctx = ctxRef.current;
             if (ctx && ctx.state === "suspended") void ctx.resume().catch(() => {});
         };
+        reanudar();
+        const insistir = window.setInterval(reanudar, REINTENTAR_EL_AUDIO_CADA_MS);
+        const avisar = window.setTimeout(() => {
+            console.warn("[videollamada] la grabación espera un toque: el navegador no deja arrancar el audio");
+            setEnPausa(true);
+        }, EN_PAUSA_TRAS_MS);
         window.addEventListener("pointerdown", reanudar);
         window.addEventListener("keydown", reanudar);
         return () => {
+            window.clearInterval(insistir);
+            window.clearTimeout(avisar);
             window.removeEventListener("pointerdown", reanudar);
             window.removeEventListener("keydown", reanudar);
         };
-    }, [grabando]);
+    }, [montada, corriendo]);
 
     // La pestaña se cierra: lo que esté sin subir (como mucho un trozo) se
     // pierde, pero el servidor junta lo subido al momento.
@@ -345,5 +374,10 @@ export function useGrabacionDeLaVideollamada(input: {
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return { grabando };
+    const reanudar = () => {
+        const ctx = ctxRef.current;
+        if (ctx && ctx.state === "suspended") void ctx.resume().catch(() => {});
+    };
+
+    return { grabando: montada && corriendo, enPausa: montada && !corriendo && enPausa, reanudar };
 }

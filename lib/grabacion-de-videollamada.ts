@@ -50,6 +50,16 @@ export function elTipoDelFichero(formato: ExtensionDeGrabacion, cual: "audio" | 
 export const TROZO_CADA_MS = 10_000;
 
 /**
+ * El audio de la grabación (un `AudioContext`) nace PARADO si la página no
+ * recibió un clic, y parado no se graba nada, ni el video: Chrome no suelta un
+ * fotograma sin la voz que va con él. Se insiste en arrancarlo cada segundo
+ * (el navegador lo deja en cuanto la cámara o el micrófono están abiertos) y,
+ * si a los 3 s sigue parado, la sala pide un toque.
+ */
+export const REINTENTAR_EL_AUDIO_CADA_MS = 1_000;
+export const EN_PAUSA_TRAS_MS = 3_000;
+
+/**
  * La llave de un trozo en el bucket, con el número rellenado a cinco cifras
  * (el listado de S3 ordena como texto: sin relleno el 10 iría antes que el 2).
  */
