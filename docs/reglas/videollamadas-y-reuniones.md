@@ -2475,3 +2475,42 @@ el cliente se va, empieza; y el chat con `🎥`). `MODO=roto` monta los de
 `7343076` y afirma que el asesor solo no subía ni un byte y que la lista decía
 `📞`. De paso, `sala-que-graba.test.mjs` ya no exige que el cierre por
 `sendBeacon` sea el ÚLTIMO pedido: el trozo de los 10 s se puede cruzar con él.
+
+## Videollamada: la grabación no espera al primer clic (el audio parado no graba ni el video)
+
+La grabación ya llegaba al CRM, pero **empezaba un minuto o más tarde** que
+la llamada: su primer fotograma ya era la portada con Verzy en miniatura, o
+sea, después de la presentación.
+
+> **Con el `AudioContext` de la grabación parado no se graba NADA, ni el
+> video.** El video lleva la mezcla de voces, y sin ella rodando Chrome no
+> suelta ni un fotograma (medido en Chromium: con el contexto suspendido,
+> ni un byte en 25 s; al reanudarlo, trozos normales). Y un `AudioContext`
+> creado sin un clic en la página **nace parado** (regla de Chrome y Safari).
+> El hook lo arrancaba UNA vez al crearlo y luego solo con el primer toque o
+> tecla: la grabación empezaba cuando el cliente tocaba la página por
+> primera vez.
+
+1. **Se insiste** (`REINTENTAR_EL_AUDIO_CADA_MS`, 1 s): el navegador deja
+   arrancarlo en cuanto la cámara o el micrófono están abiertos (es lo que ya
+   deja sonar al avatar sin clic), y eso pasa DESPUÉS de crear el contexto.
+2. **Si a los `EN_PAUSA_TRAS_MS` (3 s) sigue parado, se pide el toque** con
+   el botón que la sala ya tenía para el sonido bloqueado («Toca aquí para
+   activar el audio de la llamada», `data-zona="activar-sonido"`). Antes de
+   perder el primer trozo de 10 s.
+3. **«Grabando» es verdad**: la pastilla y `data-grabando` solo con el audio
+   rodando (`grabando = montada && corriendo`). Antes decía «Grabando»
+   mientras no se grababa nada.
+
+Lo prueba `scripts/banco-grabacion-sin-clic.sh`: la sala montada en Chromium
+con la regla del navegador FINGIDA (Playwright la apaga: lanza Chromium con
+`--autoplay-policy=no-user-gesture-required` y marca como gesto cada
+`evaluate`, así que el clic «de verdad» se mira con `isTrusted`). Si el
+navegador deja a los 1,5 s, el primer trozo con video llega antes de los
+14 s y sin botón; si no deja, sale el botón, no dice «Grabando», y al tocarlo
+graba. `MODO=roto` monta la sala de `2954e39` y afirma que sin clic no subía
+ni un byte aunque el navegador ya dejara, y que nada pedía el toque.
+
+De paso, en `sala-que-graba.test.mjs` el cierre por `sendBeacon` se prueba
+con el evento `pagehide` en la página viva: navegando fuera, Playwright a
+veces no veía el beacon en su ruta (fallaba a ratos también en `main`).

@@ -879,13 +879,20 @@ export default function SalaDeLaVideollamada({
                     )}
                 </div>
             )}
-            {sinSonido && (
+            {/* El mismo botón para el sonido bloqueado y para la grabación que
+                espera un toque (su audio no arranca sin uno y sin él no se
+                graba nada, ni el video). */}
+            {(sinSonido || (grabacion.enPausa && estado === "dentro")) && (
                 <button
                     type="button"
-                    onClick={activarSonido}
+                    data-zona="activar-sonido"
+                    onClick={() => {
+                        activarSonido();
+                        grabacion.reanudar();
+                    }}
                     className="absolute inset-x-4 top-4 z-30 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white"
                 >
-                    Toca aquí para escuchar a Verzy
+                    {sinSonido ? "Toca aquí para escuchar a Verzy" : "Toca aquí para activar el audio de la llamada"}
                 </button>
             )}
             <div
