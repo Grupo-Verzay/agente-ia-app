@@ -21,4 +21,4 @@ La casita era un enlace simple: no fijaba la etiqueta del módulo ni resolvía e
 - Replicar fielmente el destino del Panel de `nav-main.tsx` (reseller, portada, primer subitem).
 - Confirmar el scroll en navegador.
 - Extender `scripts/banco-barra-de-arriba.sh` (casita tras el menú, tres bloques centrados, Llamadas sin contador, scroll; `MODO=roto` contra `d7e8df7`).
-- Typecheck filtrado (`alternar-bandejas|AlternarBandeja`), tests, build; documentar en CLAUDE.md.
+- Typecheck filtrado (`alternar-bandejas|AlternarBandeja`), tests, build; documentar en `docs/reglas/` (nunca en un CLAUDE.md).

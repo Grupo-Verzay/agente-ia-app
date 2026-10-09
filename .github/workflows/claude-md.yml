@@ -1,0 +1,24 @@
+name: claude-md
+
+# Ningún CLAUDE.md pasa de 2.000 tokens. El de la raíz llegó a 1,6 MB
+# porque cada PR le añadía su sección; lo largo va a docs/reglas/.
+# Es la misma comprobación que el pre-commit, pero aquí no se puede saltar.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tamano:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tamaño de los CLAUDE.md
+        run: node scripts/comprobar-claude-md.mjs

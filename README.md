@@ -4,6 +4,7 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 
 - [Manual de emergencia](docs/manual-emergencia.md) — qué hacer cuando algo se cae
 - [Follow-up IA](docs/follow-up-ia.md)
+- [Reglas y aprendizajes por tema](docs/reglas/README.md) — lo que antes vivía en el `CLAUDE.md`
 
 ## Getting Started
 
