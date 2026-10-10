@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { comoLaVeElNavegador } from "@/lib/clave-de-ia-para-el-navegador";
-import { elAvatarPropio } from "@/lib/videollamada-ia-db";
+import { elAvatarPropio, leerLosAjustes } from "@/lib/videollamada-ia-db";
 import {
     elEstadoDeLaLinea,
     elEstadoDeLaMensajeria,
@@ -27,7 +27,7 @@ export async function elEstadoDeLasClaves(cuentaId: string, canal: string): Prom
     const secciones = lasSeccionesDelCanal(canal);
     if (!secciones.length) return [];
 
-    const necesitaIa = secciones.some((s) => s === "mensajeria" || s === "voz" || s === "llamadas");
+    const necesitaIa = secciones.some((s) => s === "mensajeria" || s === "voz" || s === "llamadas" || s === "videollamadas");
     const [cuenta, configs] = necesitaIa
         ? await Promise.all([
             db.user.findUnique({
@@ -92,8 +92,14 @@ export async function elEstadoDeLasClaves(cuentaId: string, canal: string): Prom
                     console.warn("[claves] no se pudo leer el avatar propio de Tavus", { cuenta: cuentaId, error: String(error) });
                     return null;
                 });
+                const ajustes = await leerLosAjustes(cuentaId).catch((error) => {
+                    console.warn("[claves] no se pudo leer el proveedor de la videollamada", { cuenta: cuentaId, error: String(error) });
+                    return null;
+                });
                 return elEstadoDelAvatar({
                     propio: propio?.clave ? { personaId: propio.personaId, clave: comoLaVeElNavegador(propio.clave) } : null,
+                    proveedor: ajustes?.proveedor,
+                    openAi: laConfigDeOpenAi(deIa),
                 });
             }
             default: {

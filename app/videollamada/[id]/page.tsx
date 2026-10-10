@@ -5,6 +5,7 @@ import { abrirLaVideollamada, type ResultadoAlAbrir } from "@/lib/videollamada-i
 import { deInstanteAReloj } from "@/lib/zona-de-la-cuenta";
 import { currentUser } from "@/lib/auth";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
+import { elMotorPuedeAbrir } from "@/lib/motor-de-verzay.server";
 
 /**
  * ¿Quien abre el enlace es del equipo de la cuenta dueña de la cita? Lo decide
@@ -63,7 +64,12 @@ function elMensaje(resultado: Exclude<ResultadoAlAbrir, { estado: "ir" }>): { ti
 }
 
 export default async function PaginaDeLaVideollamada({ params }: { params: { id: string } }) {
-    const resultado = await abrirLaVideollamada(decodeURIComponent(params.id ?? ""));
+    const abierta = await abrirLaVideollamada(decodeURIComponent(params.id ?? ""));
+    // Con el motor propio, los créditos se miran antes de pintar la sala.
+    const resultado: ResultadoAlAbrir =
+        abierta.estado === "ir" && abierta.proveedor === "verzay" && !(await elMotorPuedeAbrir(abierta.cuentaId))
+            ? { estado: "fallo", motivo: "El servicio de videollamada no tiene saldo disponible." }
+            : abierta;
     if (resultado.estado === "ir") return (
             <SalaDeLaVideollamada
                 url={resultado.url}

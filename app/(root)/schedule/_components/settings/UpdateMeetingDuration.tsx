@@ -14,12 +14,12 @@ import {
     LIMITE_DE_FABRICA_MIN,
     LIMITE_MAXIMO_MIN,
     LIMITE_MINIMO_MIN,
-    FALTA_EL_AVATAR_PROPIO,
     MODOS_DE_REUNION,
     NOMBRE_DEL_MODO,
     comoLimiteDeMinutos,
     type ModoDeReunion,
 } from "@/lib/videollamada-ia";
+import { loQueFaltaParaElProveedor, PROVEEDOR_DE_FABRICA, type ProveedorDeVideollamada } from "@/lib/proveedor-de-videollamada";
 
 type NoticeUnit = "minutes" | "hours" | "days";
 const toMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -59,6 +59,8 @@ export const UpdateMeetingDuration = ({
     // Videollamadas › Claves): aquí solo se elige el modo. Sin avatar no hay modo IA.
     const [modo, setModo] = useState<ModoDeReunion>("enlace");
     const [disponible, setDisponible] = useState(true);
+    // El proveedor (Tavus o el motor propio) se elige en Agente IA › Videollamadas › Claves.
+    const [proveedor, setProveedor] = useState<ProveedorDeVideollamada>(PROVEEDOR_DE_FABRICA);
     const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
     // El respaldo: la videollamada dura lo agendado en la cita; este límite, solo si la cita no lo dice.
     const [limite, setLimite] = useState<number>(LIMITE_DE_FABRICA_MIN);
@@ -71,6 +73,7 @@ export const UpdateMeetingDuration = ({
                 if (!vivo || !res.success) return;
                 setModo(res.data.modo);
                 setDisponible(res.data.disponible);
+                setProveedor(res.data.proveedor);
                 setGuardado(res.data.modo);
                 setLimite(res.data.limiteMinutos);
                 setLimiteGuardado(res.data.limiteMinutos);
@@ -88,6 +91,7 @@ export const UpdateMeetingDuration = ({
             const video = await guardarAjustesDeVideollamadaAction(userId, { modo, limiteMinutos: limite });
             if (!video.success) throw new Error(video.message);
             setDisponible(video.data.disponible);
+            setProveedor(video.data.proveedor);
             setGuardado(video.data.modo);
             setLimite(video.data.limiteMinutos);
             setLimiteGuardado(video.data.limiteMinutos);
@@ -145,7 +149,7 @@ export const UpdateMeetingDuration = ({
         const durationError = validateDuration(durationMinutes.toString());
         if (durationError) return toast.error(durationError);
 
-        if (modo === "tavus" && !disponible) return toast.error(FALTA_EL_AVATAR_PROPIO);
+        if (modo === "tavus" && !disponible) return toast.error(loQueFaltaParaElProveedor(proveedor));
         const urlError = validateMeetingUrl(url);
         if (urlError) return toast.error(urlError);
 
@@ -242,12 +246,12 @@ export const UpdateMeetingDuration = ({
                     <div className="space-y-1.5" data-ajustes-de-tavus>
                         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                             <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                            Te atiende tu avatar de Tavus
+                            {proveedor === "verzay" ? "Te atiende Verzy con el motor propio de Verzay" : "Te atiende tu avatar de Tavus"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {disponible
                                 ? "Cada cita recibe su propio enlace. La sala se abre cuando el cliente la abre."
-                                : FALTA_EL_AVATAR_PROPIO}
+                                : loQueFaltaParaElProveedor(proveedor)}
                         </p>
                         <label
                             htmlFor="limiteDeLaVideollamada"

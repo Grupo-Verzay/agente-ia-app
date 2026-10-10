@@ -21,6 +21,7 @@ import { VoiceSettings } from '@/app/(root)/ai/_components/VoiceSettings';
 import { VENTANA_DE_VOZ } from '@/app/(root)/ai/_components/ai-section-labels';
 import {
     actualizarLaLineaDelCanalAction,
+    elegirElProveedorDeVideollamadaAction,
     guardarElAvatarDeTavusAction,
     guardarLaClaveDeLlamadasAction,
     quitarElAvatarDeTavusAction,
@@ -85,7 +86,7 @@ function VentanaDeVoz({ userId, onOpenChange, onGuardado }: PropsDeLaVentana) {
 
 /* ── Selector de proveedor: los que aún no funcionan se ven y no se pulsan ─ */
 
-function ProveedoresDeLaSeccion({ seccion, elegido }: { seccion: SeccionDeClaves; elegido: string }) {
+function ProveedoresDeLaSeccion({ seccion, elegido, onElegir }: { seccion: SeccionDeClaves; elegido: string; onElegir?: (id: string) => void }) {
     const proveedores = SECCIONES_DE_CLAVES[seccion].proveedores;
     return (
         <div className="grid gap-2">
@@ -97,6 +98,8 @@ function ProveedoresDeLaSeccion({ seccion, elegido }: { seccion: SeccionDeClaves
                         type="button"
                         disabled={!p.disponible}
                         aria-pressed={p.id === elegido}
+                        data-proveedor={p.id}
+                        onClick={onElegir ? () => onElegir(p.id) : undefined}
                         className={cn(
                             'h-11 flex-1 px-2 text-center text-xs font-medium leading-tight transition-colors',
                             p.id === elegido ? 'bg-primary text-primary-foreground' : 'text-foreground',
@@ -190,10 +193,15 @@ function VentanaDeLlamadas({ userId, estado, onOpenChange, onGuardado }: PropsDe
 /* ── Videollamadas: la clave y el avatar de Tavus de ESTA cuenta ───────── */
 
 function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaVentana) {
+    // Dos proveedores que conviven (como Evolution y Waha): el que se ve es el
+    // elegido; cambiar no borra la clave del otro.
+    const [proveedor, setProveedor] = useState(estado?.proveedor === 'verzay' ? 'verzay' : 'tavus');
     const [clave, setClave] = useState('');
     const [personaId, setPersonaId] = useState(estado?.personaId ?? '');
     const [guardando, setGuardando] = useState(false);
-    const hayPropio = estado?.estado === 'lista';
+    const hayPropio = !!estado?.hayTavus;
+    const elMotorEsElElegido = estado?.proveedor === 'verzay';
+    const motorListo = elMotorEsElElegido && estado?.estado === 'lista';
 
     useEffect(() => {
         if (estado?.personaId) setPersonaId((actual) => actual || estado.personaId!);
@@ -216,6 +224,20 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
         hecho(res);
     };
 
+    const usarElMotor = async () => {
+        setGuardando(true);
+        const res = await elegirElProveedorDeVideollamadaAction(userId, 'verzay');
+        setGuardando(false);
+        hecho(res);
+    };
+
+    const volverATavus = async () => {
+        setGuardando(true);
+        const res = await elegirElProveedorDeVideollamadaAction(userId, 'tavus');
+        setGuardando(false);
+        hecho(res);
+    };
+
     const quitar = async () => {
         setGuardando(true);
         const res = await quitarElAvatarDeTavusAction(userId);
@@ -234,7 +256,24 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
                     <DialogDescription>{SECCIONES_DE_CLAVES.videollamadas.descripcion}</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
-                    <ProveedoresDeLaSeccion seccion="videollamadas" elegido="tavus" />
+                    <ProveedoresDeLaSeccion seccion="videollamadas" elegido={proveedor} onElegir={(id) => setProveedor(id === 'verzay' ? 'verzay' : 'tavus')} />
+                    {proveedor === 'verzay' ? (
+                        <div className="grid gap-2 text-sm" data-ventana="motor-propio">
+                            <p>
+                                Verzy habla con su propia voz e inteligencia, y en la sala se ve el <strong>logo de Verzay</strong> como participante
+                                (como una llamada de WhatsApp con la cámara apagada), que se mueve mientras habla. La sala, el guion, las herramientas,
+                                la grabación, el resumen y el CRM son los mismos.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Usa la clave de OpenAI de la cuenta (la de Agente IA › Llamadas › Claves). El consumo se descuenta de tus créditos.
+                            </p>
+                            {elMotorEsElElegido && <LaGuardada estado={estado} />}
+                            {!elMotorEsElElegido && hayPropio && (
+                                <p className="text-xs text-muted-foreground">Tu clave de Tavus queda guardada: puedes volver a Tavus cuando quieras.</p>
+                            )}
+                        </div>
+                    ) : (
+                    <>
                     <div className="grid gap-2">
                         <Label htmlFor="clave-de-tavus">API key de Tavus</Label>
                         <Input
@@ -257,7 +296,11 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
                             placeholder="p1234abcd"
                             disabled={guardando}
                         />
-                        <LaGuardada estado={estado} />
+                        {elMotorEsElElegido ? (
+                            hayPropio && <p className="text-xs text-muted-foreground">Tu clave de Tavus sigue guardada; hoy se usa el motor propio.</p>
+                        ) : (
+                            <LaGuardada estado={estado} />
+                        )}
                         <p className="text-xs text-muted-foreground">
                             Los dos están en{' '}
                             <a href="https://platform.tavus.io" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
@@ -266,9 +309,11 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
                             . Son obligatorios: sin ellos no hay videollamada con IA.
                         </p>
                     </div>
+                    </>
+                    )}
                 </div>
                 <DialogFooter className="gap-2 sm:justify-between">
-                    {hayPropio ? (
+                    {proveedor === 'tavus' && hayPropio ? (
                         <Button type="button" variant="ghost" className="text-destructive" onClick={quitar} disabled={guardando}>
                             Quitar la clave
                         </Button>
@@ -279,14 +324,24 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={guardando}>
                             Cancelar
                         </Button>
-                        <Button
-                            type="button"
-                            variant="save"
-                            onClick={guardar}
-                            disabled={guardando || !personaId.trim() || (!clave.trim() && !hayPropio)}
-                        >
-                            {guardando ? 'Guardando…' : 'Guardar'}
-                        </Button>
+                        {proveedor === 'verzay' ? (
+                            <Button type="button" variant="save" onClick={usarElMotor} disabled={guardando || motorListo}>
+                                {guardando ? 'Guardando…' : motorListo ? 'En uso' : 'Usar el motor propio'}
+                            </Button>
+                        ) : elMotorEsElElegido && hayPropio && !clave.trim() && personaId.trim() === (estado?.personaId ?? '') ? (
+                            <Button type="button" variant="save" onClick={volverATavus} disabled={guardando}>
+                                {guardando ? 'Guardando…' : 'Volver a Tavus'}
+                            </Button>
+                        ) : (
+                            <Button
+                                type="button"
+                                variant="save"
+                                onClick={guardar}
+                                disabled={guardando || !personaId.trim() || (!clave.trim() && !hayPropio)}
+                            >
+                                {guardando ? 'Guardando…' : 'Guardar'}
+                            </Button>
+                        )}
                     </div>
                 </DialogFooter>
             </DialogContent>

@@ -2,7 +2,7 @@ import "server-only";
 
 import { laCitaDeLaVideollamada } from "@/lib/cita-de-la-videollamada.server";
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
@@ -11,6 +11,12 @@ import { elBloqueDeAtencion } from "@/lib/atencion-de-la-videollamada";
 import { leerElGuionDeVideollamada } from "@/lib/guion-videollamada-db";
 import { elGuionQueSeUsa, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { laPersonaParaLaConversacion } from "@/lib/persona-de-tavus.server";
+import {
+    elProveedorDeLaConversacion,
+    esSalaPropia,
+    laUrlDeLaSalaPropia,
+    type ProveedorDeVideollamada,
+} from "@/lib/proveedor-de-videollamada";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
 import { ESPERA_SI_SE_CAE_S } from "@/lib/fin-de-la-videollamada";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
@@ -71,6 +77,8 @@ export type ResultadoAlAbrir =
           empezoEn: string | null;
           /** La cuenta dueña de la cita: la página decide con ella si quien abre es del equipo. */
           cuentaId: string;
+          /** Con qué se conecta la sala: lo dice la conversación (`elProveedorDeLaConversacion`). */
+          proveedor: ProveedorDeVideollamada;
       }
     | { estado: "temprano"; abreEn: Date; zona: string }
     | { estado: "cerrada" }
@@ -259,6 +267,24 @@ async function elContexto(
         .join("\n\n");
 }
 
+/**
+ * El contexto de la cita para el MOTOR PROPIO: el MISMO texto que recibe Tavus
+ * en `conversational_context` (chat, guion, entrenamiento, atención, reloj y lo
+ * ya hablado), y el nombre del negocio para presentarse. `null` si la cita no existe.
+ */
+export async function elContextoDeLaCitaParaElMotor(
+    citaId: string,
+    yaHablado: string | null,
+): Promise<{ cuentaId: string; negocio: string; contexto: string } | null> {
+    const cita: CitaParaAbrir | null = await laCitaDeLaVideollamada(citaId);
+    if (!cita) return null;
+    const ajustes = await leerLosAjustes(cita.userId).catch(() => null);
+    const minutos = losMinutosDeLaVideollamada(cita.startTime, cita.endTime, ajustes?.limiteMinutos);
+    const guion = await elGuionDeLaCita(cita);
+    const contexto = await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita), minutos);
+    return { cuentaId: cita.userId, negocio: nombreDeLaCuenta(cita.user), contexto };
+}
+
 /** «jueves 2026-10-08T15:30», en la zona de la cuenta. */
 export function laFechaDeHoyParaElGuion(instante: Date, zona: string): string {
     const partes = Object.fromEntries(
@@ -407,9 +433,12 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     if (!cita) return { estado: "no_existe" };
 
     const ajustes = await leerLosAjustes(cita.userId).catch(() => null);
-    const tavus = await elAvatarDeLaCuenta(cita.userId);
-    if (ajustes?.modo !== "tavus" || !tavus) {
-        if (!tavus) console.error("[videollamada] la cuenta no tiene su clave y su avatar de Tavus: no hay videollamada con IA", { cita: id, cuenta: cita.userId });
+    // Dos proveedores que conviven: Tavus (lo de siempre) o el motor propio.
+    const proveedor: ProveedorDeVideollamada = ajustes?.proveedor ?? "tavus";
+    const tavus = proveedor === "tavus" ? await elAvatarDeLaCuenta(cita.userId) : null;
+    if (ajustes?.modo !== "tavus" || (proveedor === "tavus" ? !tavus : !ajustes.disponible)) {
+        if (proveedor === "tavus" && !tavus) console.error("[videollamada] la cuenta no tiene su clave y su avatar de Tavus: no hay videollamada con IA", { cita: id, cuenta: cita.userId });
+        if (proveedor === "verzay" && ajustes && !ajustes.disponible) console.error("[videollamada] la cuenta eligió el motor propio y no tiene clave de OpenAI: no hay videollamada con IA", { cita: id, cuenta: cita.userId });
         return { estado: "sin_configurar" };
     }
 
@@ -428,6 +457,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         limiteMinutos: minutos,
         empezoEn: null as string | null,
         cuentaId: cita.userId,
+        proveedor: elProveedorDeLaConversacion(url),
     });
     const decision = queHacerAlAbrir({
         ahora,
@@ -461,7 +491,26 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         return { estado: "fallo", motivo: "No se pudo abrir la videollamada en este momento." };
     }
 
+    if (proveedor === "verzay") {
+        // El motor propio no crea nada fuera: la sala es nuestra y la sesión de
+        // voz la pide la propia sala al entrar (`/api/videollamada/motor`). Los
+        // créditos los mira la página antes de pintar la sala (`elMotorPuedeAbrir`).
+        try {
+            const conversacionId = `verzay-${randomUUID()}`;
+            const url = laUrlDeLaSalaPropia(conversacionId);
+            await apuntarLaConversacion(id, conversacionId, url);
+            console.info("[videollamada] conversación creada con el motor propio", { cita: id, cuenta: cita.userId, conversacion: conversacionId });
+            return irA(url);
+        } catch (error) {
+            const motivo = error instanceof Error ? error.message : String(error);
+            await soltarElReclamo(id).catch(() => undefined);
+            console.error("[videollamada] no se pudo crear la conversación del motor propio", { cita: id, cuenta: cita.userId, motivo });
+            return { estado: "fallo", motivo: "No se pudo abrir la videollamada en este momento." };
+        }
+    }
+
     try {
+        if (!tavus) throw new Error("sin avatar de Tavus");
         const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion, minutos);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
@@ -486,6 +535,13 @@ export async function terminarLaConversacion(citaId: string): Promise<{ ok: bool
         const fila = await laVideollamada(citaId);
         if (!fila?.conversacionId) return { ok: false, motivo: "sin_conversacion" };
         if (fila.estado === "finalizada") return { ok: true, motivo: "ya_finalizada" };
+        if (esSalaPropia(fila.conversacionUrl)) {
+            // El motor propio no cobra por minuto abierto: no hay nada que
+            // avisar fuera. La transcripción la entrega la sala al colgar.
+            await marcarFinalizada(citaId);
+            console.info("[videollamada] conversación del motor propio terminada al colgar", { cita: citaId, conversacion: fila.conversacionId });
+            return { ok: true };
+        }
         const tavus = await elAvatarDeLaCuenta(fila.cuentaId);
         if (!tavus) return { ok: false, motivo: "sin_avatar" };
         const respuesta = await fetch(`${API_DE_TAVUS}/${encodeURIComponent(fila.conversacionId)}/end`, {
