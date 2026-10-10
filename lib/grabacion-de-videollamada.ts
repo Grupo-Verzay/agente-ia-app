@@ -267,18 +267,28 @@ export function comoCabeEntero(input: {
  * Lo que se mezcla en `raw.call` de la fila del CRM (`tavus_<cita>`) al cerrar
  * una grabación. Solo las llaves que tienen valor: un `null` pisaría una
  * dirección buena de una grabación anterior.
+ *
+ * Con la grabación va también su DURACIÓN (`durationSecs`): la que escribe el
+ * aviso de Tavus es «del momento de entrar al momento del aviso», y Tavus
+ * avisa cuando cierra la conversación, que es `participant_left_timeout`
+ * (180 s) DESPUÉS de que el cliente cuelga. Una llamada de 1:29 salía como
+ * 4:33 mientras la grabación decía 1:29. La grabación va de entrar a colgar:
+ * es la llamada, ni más ni menos.
  */
 export function laGrabacionParaElCrm(input: {
     audioUrl: string | null;
     videoUrl: string | null;
-}): { hasRecording: true; recordingUrl?: string; videoUrl?: string } | null {
+    segundos?: number | null;
+}): { hasRecording: true; recordingUrl?: string; videoUrl?: string; durationSecs?: number } | null {
     const audio = (input.audioUrl ?? "").trim();
     const video = (input.videoUrl ?? "").trim();
     if (!audio && !video) return null;
+    const segundos = Math.round(Number(input.segundos) || 0);
     return {
         hasRecording: true,
         ...(audio ? { recordingUrl: audio } : {}),
         ...(video ? { videoUrl: video } : {}),
+        ...(segundos > 0 ? { durationSecs: segundos } : {}),
     };
 }
 
