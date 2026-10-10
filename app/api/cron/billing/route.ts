@@ -6,6 +6,7 @@ import { runRecordatoriosDeCobros } from "@/lib/cobros-runner";
 import { runAvisosDeVencimiento } from "@/lib/avisos-de-vencimiento-runner";
 import { runGrabacionesDeReuniones } from "@/lib/grabaciones-runner.server";
 import { recogerLasGrabacionesDeLaSala } from "@/lib/grabacion-de-videollamada.server";
+import { recogerLasConversacionesDelMotor } from "@/lib/motor-de-verzay.server";
 import { rescatarLlamadasSinCerrar } from "@/lib/rescate-de-llamadas.server";
 import { runPapeleraDeEmbudos } from "@/lib/papelera-de-embudos-runner.server";
 import { runPurgaDeChats } from "@/lib/purga-de-chats.server";
@@ -186,6 +187,9 @@ export async function POST(request: Request) {
   } catch (e) {
     grabacionesDeVideollamada = { error: e instanceof Error ? e.message : String(e) };
   }
+  // Las videollamadas del motor propio que se quedaron sin colgar (pestaña
+  // cerrada): su transcripción se entrega al resumen y al CRM. Nunca lanza.
+  const conversacionesDelMotor = await recogerLasConversacionesDelMotor();
 
   return NextResponse.json(
     {
@@ -197,6 +201,7 @@ export async function POST(request: Request) {
       vencimientos,
       grabaciones,
       grabacionesDeVideollamada,
+      conversacionesDelMotor,
       llamadas,
       papeleraDeEmbudos,
       purgaDeChats,

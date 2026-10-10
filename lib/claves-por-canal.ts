@@ -67,8 +67,11 @@ export const SECCIONES_DE_CLAVES: Record<SeccionDeClaves, DefinicionDeSeccion> =
     },
     videollamadas: {
         titulo: "Avatar de videollamada",
-        descripcion: "La clave y el avatar de Tavus con los que se hace la videollamada.",
-        proveedores: [{ id: "tavus", nombre: "Tavus", disponible: true }],
+        descripcion: "Con qué se hace la videollamada: Tavus (su avatar) o el motor propio de Verzay (el logo de Verzay que habla).",
+        proveedores: [
+            { id: "tavus", nombre: "Tavus", disponible: true },
+            { id: "verzay", nombre: "Motor propio de Verzay", disponible: true },
+        ],
     },
     "linea-whatsapp-api": {
         titulo: "Línea de WhatsApp API",
@@ -132,6 +135,10 @@ export type EstadoDeSeccion = {
     lineas?: LineaDelCanal[];
     /** Solo videollamadas: el avatar (persona) propio guardado. No es secreto. */
     personaId?: string;
+    /** Solo videollamadas: el proveedor elegido (`tavus` o `verzay`). */
+    proveedor?: string;
+    /** Solo videollamadas: si la clave de Tavus está guardada (para volver a Tavus sin escribirla). */
+    hayTavus?: boolean;
 };
 
 /** El botón avisa si CUALQUIER sección está pendiente; las apagadas no cuentan. */
@@ -214,23 +221,25 @@ export function elEstadoDeLasLlamadas(openAi: ConfigDeIa | null): EstadoDeSeccio
     return { seccion: "llamadas", estado: "lista", detalle: `OpenAI · ${comoSeEnsenaLaClave(openAi.clave)}` };
 }
 
-/** Sin avatar propio NO hay videollamada con IA: no existe avatar de respaldo. */
+/**
+ * La videollamada, según su proveedor. Con Tavus: sin avatar propio NO hay
+ * videollamada con IA (no existe avatar de respaldo). Con el motor propio: la
+ * clave de OpenAI de la cuenta (la misma de Llamadas con IA).
+ */
 export function elEstadoDelAvatar(avatar: {
     propio: { personaId: string; clave: ClaveVistaDesdeElNavegador } | null;
+    proveedor?: string;
+    openAi?: ConfigDeIa | null;
 }): EstadoDeSeccion {
-    if (avatar.propio) {
-        return {
-            seccion: "videollamadas",
-            estado: "lista",
-            detalle: `Tavus · ${comoSeEnsenaLaClave(avatar.propio.clave)} · avatar ${avatar.propio.personaId}`,
-            personaId: avatar.propio.personaId,
-        };
+    const comun = { seccion: "videollamadas" as const, proveedor: avatar.proveedor === "verzay" ? "verzay" : "tavus", hayTavus: !!avatar.propio, ...(avatar.propio ? { personaId: avatar.propio.personaId } : {}) };
+    if (avatar.proveedor === "verzay") {
+        if (!avatar.openAi) return { ...comun, estado: "pendiente", detalle: "Motor propio de Verzay · falta la clave de OpenAI (la de Llamadas con IA)" };
+        return { ...comun, estado: "lista", detalle: `Motor propio de Verzay · OpenAI ${comoSeEnsenaLaClave(avatar.openAi.clave)}` };
     }
-    return {
-        seccion: "videollamadas",
-        estado: "pendiente",
-        detalle: "Falta tu clave y tu avatar de Tavus: sin ellos no hay videollamada con IA",
-    };
+    if (avatar.propio) {
+        return { ...comun, estado: "lista", detalle: `Tavus · ${comoSeEnsenaLaClave(avatar.propio.clave)} · avatar ${avatar.propio.personaId}` };
+    }
+    return { ...comun, estado: "pendiente", detalle: "Falta tu clave y tu avatar de Tavus: sin ellos no hay videollamada con IA" };
 }
 
 export function elEstadoDeLaLinea(seccion: SeccionDeClaves, lineas: LineaDelCanal[]): EstadoDeSeccion {

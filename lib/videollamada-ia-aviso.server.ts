@@ -11,6 +11,7 @@ import { conElNombreDeLaMarca } from "@/lib/nombres-de-la-marca";
 import { laLineaDeWhatsappDeLaCuenta } from "@/lib/linea-de-whatsapp";
 import { laTranscripcionDeTavus, queHaceElAvisoDeTavus } from "@/lib/videollamada-ia";
 import { elMensajeDeLaVideollamada } from "@/lib/grabacion-de-videollamada";
+import { elProveedorDeLaConversacion } from "@/lib/proveedor-de-videollamada";
 import {
     apuntarElMensaje,
     apuntarLaGrabacion,
@@ -146,7 +147,8 @@ async function anotarEnElCrm(citaId: string, transcripcion: string, resumen: str
                 direction: "outgoing",
                 isVideo: true,
                 isBot: true,
-                provider: "tavus",
+                // Quién hizo la llamada: Tavus o el motor propio (la fila es la misma).
+                provider: elProveedorDeLaConversacion(fila?.conversacionUrl),
                 durationSecs,
                 transcript: transcripcion,
                 ...(resumen ? { summary: resumen } : {}),

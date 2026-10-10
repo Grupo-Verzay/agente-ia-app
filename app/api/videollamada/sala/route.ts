@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     }
     const r = await abrirLaVideollamada(citaId);
     if (r.estado !== "ir") return NextResponse.json({ ok: false, estado: r.estado });
-    return NextResponse.json({ ok: true, url: r.url, reentrada: r.reentrada });
+    return NextResponse.json({ ok: true, url: r.url, reentrada: r.reentrada, proveedor: r.proveedor });
 }
 
 /**

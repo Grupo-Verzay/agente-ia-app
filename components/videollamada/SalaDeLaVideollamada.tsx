@@ -60,6 +60,8 @@ import {
     type TipoDeAtencion,
 } from "@/lib/atencion-de-la-videollamada";
 import { laSalaGraba } from "@/lib/grabacion-de-videollamada";
+import { elProveedorDeLaConversacion } from "@/lib/proveedor-de-videollamada";
+import { crearLaSalaPropia } from "@/components/videollamada/sala-propia";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
 export const REABRIR_EL_VIDEO_MS = 1_500;
@@ -597,7 +599,12 @@ export default function SalaDeLaVideollamada({
         let llamada: DailyCall;
         let aProposito = false;
         try {
-            llamada = DailyIframe.createCallObject({ subscribeToTracksAutomatically: true });
+            // Dos proveedores que conviven: la conversación dice cuál. Con
+            // Tavus, su sala de Daily; con el motor propio, la sala propia, que
+            // se usa EXACTAMENTE igual (mismos eventos, mismos participantes).
+            llamada = elProveedorDeLaConversacion(conexion.url) === "verzay"
+                ? (crearLaSalaPropia({ consulta, esAsesor }) as unknown as DailyCall)
+                : DailyIframe.createCallObject({ subscribeToTracksAutomatically: true });
         } catch (e) {
             console.error("[videollamada] no se pudo montar la sala", e);
             setError("No pudimos abrir la sala. Recarga la página.");

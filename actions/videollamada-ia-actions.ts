@@ -3,6 +3,7 @@
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { guardarLosAjustes, leerLosAjustes, type AjustesDeLaVideollamada } from '@/lib/videollamada-ia-db';
 import { losAjustesQueSeGuardan } from '@/lib/videollamada-ia';
+import { loQueFaltaParaElProveedor } from '@/lib/proveedor-de-videollamada';
 
 /**
  * Agenda › Ajustes › Configuración de Reunión: el modo de reunión de la cuenta.
@@ -33,7 +34,7 @@ export async function guardarAjustesDeVideollamadaAction(
     if (!cuenta) return { success: false, message: 'No autorizado.' };
     try {
         const actuales = await leerLosAjustes(cuenta);
-        const decision = losAjustesQueSeGuardan(pedido ?? {}, actuales.disponible);
+        const decision = losAjustesQueSeGuardan(pedido ?? {}, actuales.disponible, loQueFaltaParaElProveedor(actuales.proveedor));
         if (!decision.ok) return { success: false, message: decision.motivo };
         return { success: true, data: await guardarLosAjustes(cuenta, decision.ajustes) };
     } catch (error) {

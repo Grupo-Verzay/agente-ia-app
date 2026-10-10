@@ -6,7 +6,8 @@ import { laClaveQueSeGuarda } from '@/lib/clave-de-ia-para-el-navegador';
 import { validateProviderApiKey } from '@/lib/ai-key-validation';
 import { elEstadoDeLasClaves } from '@/lib/claves-por-canal.server';
 import { esLineaDeLaSeccion, esSeccionDeLinea, type EstadoDeSeccion, type SeccionDeClaves } from '@/lib/claves-por-canal';
-import { elAvatarPropio, guardarElAvatarPropio } from '@/lib/videollamada-ia-db';
+import { elAvatarPropio, guardarElAvatarPropio, guardarElProveedor } from '@/lib/videollamada-ia-db';
+import { comoProveedorDeVideollamada, NOMBRE_DEL_PROVEEDOR } from '@/lib/proveedor-de-videollamada';
 import { updateMetaInstance, updateTelegramInstance } from '@/actions/instances-actions';
 
 /**
@@ -91,10 +92,31 @@ export async function guardarElAvatarDeTavusAction(
 
         const hecho = await guardarElAvatarPropio(cuenta, { clave: clave.clave, personaId });
         if (!hecho.ok) return { success: false, message: hecho.motivo ?? 'No se pudo guardar.' };
+        // Guardar el avatar de Tavus es elegir Tavus.
+        await guardarElProveedor(cuenta, 'tavus');
         return { success: true, message: 'Avatar de Tavus guardado.' };
     } catch (error) {
         console.error('[claves] no se pudo guardar el avatar de Tavus', { cuenta, error: String(error) });
         return { success: false, message: 'No se pudo guardar el avatar de Tavus.' };
+    }
+}
+
+/**
+ * Videollamadas: con qué proveedor se conecta (Tavus o el motor propio), como
+ * Evolution y Waha en WhatsApp. Cambiar no borra nada: la clave de Tavus queda
+ * guardada para volver cuando se quiera. Afecta a las conversaciones NUEVAS.
+ */
+export async function elegirElProveedorDeVideollamadaAction(userId: string | null, proveedor: unknown): Promise<Respuesta> {
+    const cuenta = await laCuentaDeLaAccion(userId);
+    if (!cuenta) return { success: false, message: 'No autorizado.' };
+    try {
+        const elegido = comoProveedorDeVideollamada(proveedor);
+        await guardarElProveedor(cuenta, elegido);
+        console.info('[claves] proveedor de videollamada elegido', { cuenta, proveedor: elegido });
+        return { success: true, message: `La videollamada usa ahora: ${NOMBRE_DEL_PROVEEDOR[elegido]}.` };
+    } catch (error) {
+        console.error('[claves] no se pudo elegir el proveedor de videollamada', { cuenta, error: String(error) });
+        return { success: false, message: 'No se pudo cambiar el proveedor de la videollamada.' };
     }
 }
 

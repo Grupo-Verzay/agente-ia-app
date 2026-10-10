@@ -7,6 +7,8 @@ import { elMensajeDeLaVideollamada, laGrabacionParaElCrm } from "@/lib/grabacion
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
 import { comoCapacidad, laCapacidadQueVale } from "@/lib/capacidad-de-multiagenda";
 import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FABRICA_MIN, elAvatarQueUsa, elModoQueVale, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { asegurarColumna } from "@/lib/ddl-sin-bloquear";
+import { comoProveedorDeVideollamada, elProveedorEstaListo, PROVEEDOR_DE_FABRICA, type ProveedorDeVideollamada } from "@/lib/proveedor-de-videollamada";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -57,6 +59,9 @@ function asegurarLasTablas(): Promise<void> {
         await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioPersonaId" TEXT`);
         await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "propioClaveSellada" TEXT`);
         await ddl(() => db.$executeRaw`ALTER TABLE "videollamada_ajustes" ADD COLUMN IF NOT EXISTS "limiteMinutos" INTEGER`);
+        // El proveedor (Tavus o el motor propio): por el catálogo y con plazo
+        // de candado (`ddl-sin-bloquear`), nunca un ALTER a pelo.
+        await asegurarColumna("videollamada_ajustes", "proveedor", `ALTER TABLE "videollamada_ajustes" ADD COLUMN "proveedor" TEXT`);
         await ddl(() => db.$executeRaw`
             CREATE TABLE IF NOT EXISTS "videollamadas_ia" (
                 "citaId" TEXT PRIMARY KEY,
@@ -174,7 +179,12 @@ export type AjustesDeLaVideollamada = {
     modo: ModoDeReunion;
     /** Cuánto dura como mucho cada videollamada, en minutos (30 si no se cambia). */
     limiteMinutos: number;
-    /** Si la CUENTA tiene su avatar de Tavus (sin él no hay modo Tavus). */
+    /** Con qué se hace la videollamada: Tavus o el motor propio (`lib/proveedor-de-videollamada.ts`). */
+    proveedor: ProveedorDeVideollamada;
+    /**
+     * Si el PROVEEDOR elegido está listo: con Tavus, la clave y el avatar de la
+     * cuenta; con el motor propio, su clave de OpenAI. Sin él no hay modo IA.
+     */
     disponible: boolean;
 };
 
@@ -246,16 +256,54 @@ export async function guardarElAvatarPropio(cuentaId: string, avatar: { clave: s
     return { ok: true };
 }
 
+/**
+ * ¿La cuenta tiene clave de OpenAI (la del motor propio)? La MISMA regla que
+ * `laClaveDeOpenAiEntre` (cualquier configuración de OpenAI con clave), leída
+ * aquí en SQL para no arrastrar la cadena de créditos a quien solo lee ajustes.
+ * Un fallo al leerla es «no», y se dice.
+ */
+async function hayClaveDeOpenAi(cuentaId: string): Promise<boolean> {
+    try {
+        const filas = await db.$queryRaw<{ ok: number }[]>`
+            SELECT 1 AS ok FROM "user_ai_configs" c
+            JOIN "ai_providers" p ON p."id" = c."providerId"
+            WHERE c."userId" = ${cuentaId} AND lower(trim(p."name")) = 'openai' AND trim(COALESCE(c."apiKey", '')) <> ''
+            LIMIT 1
+        `;
+        return filas.length > 0;
+    } catch (error) {
+        console.warn("[videollamada] no se pudo leer la clave de OpenAI de la cuenta", { cuenta: cuentaId, error: String(error) });
+        return false;
+    }
+}
+
 export async function leerLosAjustes(cuentaId: string): Promise<AjustesDeLaVideollamada> {
-    const disponible = Boolean(await elAvatarDeLaCuenta(cuentaId));
-    if (!cuentaId) return { modo: "enlace", limiteMinutos: LIMITE_DE_FABRICA_MIN, disponible };
-    return conLasTablas(async () => {
-        const filas = await db.$queryRaw<{ modo: string; limiteMinutos: number | null }[]>`
-            SELECT "modo", "limiteMinutos" FROM "videollamada_ajustes"
+    if (!cuentaId) return { modo: "enlace", limiteMinutos: LIMITE_DE_FABRICA_MIN, proveedor: PROVEEDOR_DE_FABRICA, disponible: false };
+    const fila = await conLasTablas(async () => {
+        const filas = await db.$queryRaw<{ modo: string; limiteMinutos: number | null; proveedor: string | null }[]>`
+            SELECT "modo", "limiteMinutos", "proveedor" FROM "videollamada_ajustes"
             WHERE "cuentaId" = ${cuentaId} LIMIT 1
         `;
-        return { modo: comoModoDeReunion(filas[0]?.modo), limiteMinutos: comoLimiteDeMinutos(filas[0]?.limiteMinutos), disponible };
+        return filas[0];
     });
+    const proveedor = comoProveedorDeVideollamada(fila?.proveedor);
+    // Solo se mira lo que pide el proveedor elegido: con Tavus, lo de siempre.
+    const disponible = proveedor === "verzay"
+        ? elProveedorEstaListo({ proveedor, hayAvatarDeTavus: false, hayClaveDeOpenAi: await hayClaveDeOpenAi(cuentaId) })
+        : Boolean(await elAvatarDeLaCuenta(cuentaId));
+    return { modo: comoModoDeReunion(fila?.modo), limiteMinutos: comoLimiteDeMinutos(fila?.limiteMinutos), proveedor, disponible };
+}
+
+/** Elige el proveedor de la videollamada de una cuenta. No toca el modo, ni la clave de Tavus guardada. */
+export async function guardarElProveedor(cuentaId: string, proveedor: ProveedorDeVideollamada): Promise<void> {
+    const valor = comoProveedorDeVideollamada(proveedor);
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "videollamada_ajustes" ("cuentaId", "proveedor", "actualizadoEn")
+        VALUES (${cuentaId}, ${valor}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("cuentaId") DO UPDATE SET
+            "proveedor" = EXCLUDED."proveedor",
+            "actualizadoEn" = CURRENT_TIMESTAMP
+    `);
 }
 
 export async function guardarLosAjustes(cuentaId: string, ajustes: AjustesParaGuardar): Promise<AjustesDeLaVideollamada> {

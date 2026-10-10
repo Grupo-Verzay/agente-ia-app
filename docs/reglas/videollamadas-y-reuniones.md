@@ -2768,3 +2768,57 @@ Lo prueba `scripts/banco-duracion-agendada-de-la-videollamada.sh`: las reglas,
 (20 y 45 minutos). `MODO=roto` compila `8004e67` y afirma que la sala y Tavus
 iban a 30 y que la de 45 avisaba a los 25 y cortaba a los 30. Que Tavus acepte
 `max_call_duration` de más de una hora no se puede probar desde este entorno.
+
+## Videollamada: DOS proveedores que conviven, Tavus y el motor propio de Verzay
+
+Como Evolution y Waha en WhatsApp: la cuenta elige en Agente IA ›
+Videollamadas › Claves con qué se hace la videollamada, y cambia cuando quiera
+sin perder la clave del otro (`videollamada_ajustes.proveedor`, creada con
+`asegurarColumna`; sin valor, `tavus`). Las reglas: `lib/proveedor-de-videollamada.ts`.
+
+| proveedor | voz, oído, IA y transcripción | lo que se ve de Verzy | sala |
+| --- | --- | --- | --- |
+| `tavus` | la persona de Tavus | su cara animada | Daily (de Tavus) |
+| `verzay` | OpenAI Realtime con la clave de OpenAI de la cuenta | el logo de Verzay, que late con su voz | la sala propia |
+
+1. **La conversación dice el proveedor, no el ajuste de hoy.** La del motor
+   propio se guarda como `verzay:<id>` en `videollamadas_ia.conversacionUrl`, así
+   abrir, reutilizar, reentrar y reconectar siguen `queHacerAlAbrir` sin cambios.
+   Cambiar de proveedor no rompe una sala abierta.
+2. **La sala no cambia su lógica.** `SalaPropia`
+   (`components/videollamada/sala-propia.ts`) se usa como `DailyCall`: mismos
+   eventos y misma forma de participantes. El motor habla con la sala en el
+   idioma de Tavus: `lib/motor-de-verzay.ts` traduce Realtime ⇄
+   `conversation.utterance`/`tool_call`/`echo`/`respond`/`interrupt`/
+   `append_llm_context`. El silencio, pedir un humano, el cierre, el reloj, la
+   pantalla, el envío y agendar leen lo de siempre. Las herramientas son las
+   MISMAS de la persona de Tavus.
+3. **Verzy es un participante.** Su video es un lienzo (`logo-que-habla`) pasado
+   a pista: va en el mismo recuadro que la cara de Tavus y la grabación lo
+   recoge sin regla nueva. Callado queda quieto; hablando crece un poco y le
+   salen anillos (`lib/logo-que-habla.ts`).
+4. **El motor vive en el navegador del CLIENTE.** La clave de la cuenta nunca
+   sale del servidor: `/api/videollamada/motor` (`a: "sesion"`) pide a OpenAI
+   una clave de UN uso con instrucciones, herramientas y voz ya puestas (la voz
+   del asistente de llamadas de la línea). Un asesor que entra se conecta con el
+   cliente por WebRTC (`/api/videollamada/senales`, tablas
+   `videollamada_sala_presencia` y `videollamada_sala_senales`): recibe la voz de
+   Verzy y lo que hace, y sus órdenes a Verzy llegan al motor del cliente.
+   Verzy oye la mezcla del cliente y el asesor. Dos pestañas del mismo enlace
+   no tienen dos Verzys (`llevaElMotor`).
+5. **Transcripción, resumen y CRM por el MISMO camino.** La sala manda lo
+   hablado cada pocos segundos (`videollamada_motor`). Al colgar
+   («Salir», despedida, límite) se entrega UNA vez con la forma del aviso de
+   Tavus (`elAvisoDeTranscripcion` → `procesarElAvisoDeTavus`). Una pestaña
+   cerrada sin colgar la entrega el barrido (`recogerLasConversacionesDelMotor`,
+   cron de facturación y la propia ruta) tras 3 minutos quieta. Una recarga sigue
+   la misma conversación: la sesión nueva trae lo ya hablado.
+6. **Cobro.** Los tokens de Realtime se descuentan de los créditos de la cuenta
+   (`cobrarElUsoDeIa`, `videollamada-motor`), con tope por minuto
+   (`losTokensQueSeCobran`). Sin créditos la página lo dice antes de pintar la
+   sala (`elMotorPuedeAbrir`). La fila del CRM dice `provider: "verzay"`.
+
+Lo prueba `scripts/banco-proveedor-propio-de-videollamada.sh` (reglas, servidor
+con dobles, la sala en Chromium con un motor de mentira, y cliente + asesor con
+WebRTC de verdad); `MODO=roto` lee `2f3633e` y afirma que sin Tavus no había
+videollamada con IA y que una conversación del motor propio no tenía sala.

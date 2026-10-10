@@ -262,10 +262,12 @@ export type AjustesParaGuardar = { modo: ModoDeReunion; limiteMinutos: number };
 export function losAjustesQueSeGuardan(
     pedido: { modo?: unknown; limiteMinutos?: unknown },
     hayAvatar: boolean,
+    /** Lo que falta se dice con el proveedor elegido (sin él, el de Tavus de siempre). */
+    loQueFalta: string = FALTA_EL_AVATAR_PROPIO,
 ): { ok: true; ajustes: AjustesParaGuardar } | { ok: false; motivo: string } {
     const modo = comoModoDeReunion(pedido.modo);
     if (modo === "tavus" && !hayAvatar) {
-        return { ok: false, motivo: FALTA_EL_AVATAR_PROPIO };
+        return { ok: false, motivo: loQueFalta };
     }
     return { ok: true, ajustes: { modo, limiteMinutos: comoLimiteDeMinutos(pedido.limiteMinutos) } };
 }
