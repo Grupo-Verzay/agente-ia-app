@@ -551,6 +551,38 @@ export async function lasGrabacionesDeLaSalaSinCerrar(horas: number, limite: num
 }
 
 /**
+ * Las PARTES grabadas de una cita (cada recarga de la página abre una), en el
+ * orden en que se grabaron. No incluye la unión (`laIdDeLaUnion`).
+ */
+export async function lasPartesDeLaCita(citaId: string): Promise<{ id: string; cuentaId: string; formato: "webm" | "mp4"; audioUrl: string | null; videoUrl: string | null; segundos: number | null }[]> {
+    return conLasTablas(() => db.$queryRaw<{ id: string; cuentaId: string; formato: "webm" | "mp4"; audioUrl: string | null; videoUrl: string | null; segundos: number | null }[]>`
+        SELECT "id", "cuentaId", "formato", "audioUrl", "videoUrl", "segundos" FROM "videollamada_grabaciones"
+        WHERE "citaId" = ${citaId} AND "estado" = 'lista' AND "id" <> ${laIdDeLaUnion(citaId)}
+        ORDER BY "creadaEn" ASC, "id" ASC
+    `);
+}
+
+/** La fila de la UNIÓN de todas las partes de una cita: una sola, con id fijo. */
+export function laIdDeLaUnion(citaId: string): string {
+    return `union-${citaId}`;
+}
+
+/**
+ * Guarda la unión de las partes como una grabación más de la cita, `lista` y
+ * con la duración de TODO: así es la más larga y la que va al CRM
+ * (`copiarLaGrabacionAlCrm`) sin otra regla.
+ */
+export async function guardarLaUnion(input: { citaId: string; cuentaId: string; formato: "webm" | "mp4"; audioUrl: string | null; videoUrl: string | null; segundos: number }): Promise<void> {
+    await conLasTablas(() => db.$executeRaw`
+        INSERT INTO "videollamada_grabaciones" ("id", "citaId", "cuentaId", "estado", "formato", "segundos", "audioUrl", "videoUrl", "cerradaEn")
+        VALUES (${laIdDeLaUnion(input.citaId)}, ${input.citaId}, ${input.cuentaId}, 'lista', ${input.formato}, ${Math.round(input.segundos)}::int,
+                ${input.audioUrl}, ${input.videoUrl}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("id") DO UPDATE SET "estado" = 'lista', "formato" = EXCLUDED."formato", "segundos" = EXCLUDED."segundos",
+            "audioUrl" = EXCLUDED."audioUrl", "videoUrl" = EXCLUDED."videoUrl", "cerradaEn" = CURRENT_TIMESTAMP
+    `);
+}
+
+/**
  * Lleva la grabación de la sala a la fila del CRM (`chat_messages`,
  * `tavus_<cita>`), mezclando en `raw.call` sin tocar lo demás (la
  * transcripción, el resumen).

@@ -12,7 +12,8 @@ import {
     FPS_DEL_FLUJO, REPETIR_QUIETA_MS, RECORRIDO_DEL_RATON_MS, PAUSA_ENTRE_LETRAS_MS,
     elRecorridoDelRaton, loQueSeBusca, elDestinoQueSeRetoma,
     TAMANO_DE_FABRICA, esUnaPaginaDeError, esElMismoTamano, AGENTE_DEL_DISPOSITIVO,
-    type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden, type TamanoDeLaPantalla,
+    laVistaQueToca, laRutaQueSigueElEspejo, laProporcionBajada, comoDispositivo,
+    type Dispositivo, type LugarDeVerzy, type OrdenDeLaPantalla, type ResultadoDeLaOrden, type TamanoDeLaPantalla,
 } from "@/lib/pantalla-de-verzy";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 
@@ -100,6 +101,18 @@ function asegurarLasTablas(): Promise<void> {
         `);
         await ddl(() => db.$executeRaw`CREATE INDEX IF NOT EXISTS "verzy_ordenes_cita_idx" ON "verzy_ordenes" ("citaId", "id")`);
         await asegurarColumna("verzy_pantallas", "pideRelevoEn", 'ALTER TABLE "verzy_pantallas" ADD COLUMN IF NOT EXISTS "pideRelevoEn" TIMESTAMP(3)');
+        // El relevo de los ESPEJOS (una vista por dispositivo): una fila por
+        // cita y dispositivo, solo mientras una sala de la otra réplica la pide.
+        await ddl(() => db.$executeRaw`
+            CREATE TABLE IF NOT EXISTS "verzy_pantalla_vistas" (
+                "citaId" TEXT NOT NULL,
+                "dispositivo" TEXT NOT NULL,
+                "foto" BYTEA,
+                "fotoEn" TIMESTAMP(3),
+                "pideRelevoEn" TIMESTAMP(3),
+                PRIMARY KEY ("citaId", "dispositivo")
+            )
+        `);
     })().catch((error) => {
         tablasListas = null;
         throw error;
@@ -266,6 +279,31 @@ const CURSOR_EN_LA_PAGINA = () => {
 // ---------------------------------------------------------------- una pantalla viva
 
 type Suscriptor = (jpeg: Buffer) => void;
+type Cdp = { send: (metodo: string, params?: Record<string, unknown>) => Promise<unknown> };
+
+/**
+ * El ESPEJO de un dispositivo: otra ventana, con el tamaño y el dispositivo de
+ * esa sala, que sigue a la de Verzy (el conductor): la misma página y la misma
+ * parte bajada. Sin cursor ni gestos: lo que cuenta es la información.
+ */
+type Espejo = {
+    dispositivo: Dispositivo;
+    pagina: Pagina;
+    cdp?: Cdp;
+    tamano: TamanoDeLaPantalla;
+    ultimo: Buffer | null;
+    ultimoEn: number;
+    suscriptores: Set<Suscriptor>;
+    congelada?: boolean;
+    /** La ruta que tiene cargada (la del conductor que sigue), o «espera». */
+    ruta: string | null;
+    /** Lo bajada que la dejó el último ajuste (0–1). */
+    bajada: number;
+    /** La última vez que alguien la miró (aquí o por relevo). */
+    vistoEn: number;
+    ocupado: boolean;
+    cerrado: boolean;
+};
 
 type Viva = {
     citaId: string;
@@ -281,7 +319,11 @@ type Viva = {
     /** El tamaño de la ventana ahora mismo: el de fábrica o el que pidió la sala. */
     tamano: TamanoDeLaPantalla;
     /** La sesión del screencast, para volver a arrancarlo con otro tamaño. */
-    cdp?: { send: (metodo: string, params?: Record<string, unknown>) => Promise<unknown> };
+    cdp?: Cdp;
+    /** ¿Ya tomó el dispositivo de una sala? Hasta entonces es el de fábrica y lo toma la primera que hable. */
+    adoptado: boolean;
+    /** Las vistas de los OTROS dispositivos (`laVistaQueToca`). */
+    espejos: Map<Dispositivo, Espejo>;
     /** El chat que Verzy dejó abierto. La URL no lo dice: abrirlo pulsando la fila no pone `?jid=`. */
     chatAbierto?: string | null;
     parada: boolean;
@@ -332,6 +374,7 @@ export async function asegurarLaPantalla(citaId: string): Promise<boolean> {
         const viva: Viva = {
             citaId, pagina, destino: null, prospecto: await elProspecto(citaId),
             ultimo: null, ultimoEn: 0, suscriptores: new Set(), raton: { x: ANCHO / 2, y: ALTO / 2 }, tamano: { ...TAMANO_DE_FABRICA }, parada: false,
+            adoptado: false, espejos: new Map(),
         };
         pantallasVivas.set(citaId, viva);
         await empezarElScreencast(viva);
@@ -384,21 +427,33 @@ async function arrancarElScreencast(viva: Viva): Promise<void> {
     });
 }
 
-/** La ventana toma el formato del hueco de la sala. Mismo tamaño: no se toca nada. */
+/** La ventana toma el tamaño y el DISPOSITIVO de la sala: un teléfono la ve como en su teléfono (vista móvil, táctil y su agente), no un escritorio encogido. */
+async function emularElDispositivo(citaId: string, pagina: Pagina, cdp: Cdp | undefined, tamano: TamanoDeLaPantalla): Promise<void> {
+    const dispositivo = tamano.dispositivo ?? "pc";
+    await pagina.setViewportSize({ width: tamano.ancho, height: tamano.alto });
+    const tactil = dispositivo !== "pc";
+    await cdp?.send("Emulation.setDeviceMetricsOverride", {
+        width: tamano.ancho, height: tamano.alto, deviceScaleFactor: tactil ? 2 : 1, mobile: tactil,
+    }).catch((error) => console.warn("[verzy] no se pudo emular el dispositivo", { cita: citaId, dispositivo, motivo: error instanceof Error ? error.message : String(error) }));
+    await cdp?.send("Emulation.setUserAgentOverride", { userAgent: AGENTE_DEL_DISPOSITIVO[dispositivo] }).catch(() => {});
+    await cdp?.send("Emulation.setTouchEmulationEnabled", { enabled: tactil, maxTouchPoints: tactil ? 5 : 0 }).catch(() => {});
+}
+
+/**
+ * Una sala dice su tamaño y su dispositivo. La ventana de Verzy (el conductor)
+ * toma el de la PRIMERA sala que habla y los cambios de las salas de ese mismo
+ * dispositivo; otro dispositivo va a su ESPEJO (`laVistaQueToca`). Antes la
+ * última sala en hablar se quedaba la ventana de todos.
+ */
 async function cambiarElTamano(viva: Viva, tamano: TamanoDeLaPantalla): Promise<ResultadoDeLaOrden> {
+    const pedido = tamano.dispositivo ?? "pc";
+    const vista = laVistaQueToca({ pedido, conductor: viva.tamano.dispositivo ?? "pc", adoptado: viva.adoptado });
+    viva.adoptado = true;
+    if (vista === "espejo") return ponerElEspejo(viva, { ...tamano, dispositivo: pedido });
     if (esElMismoTamano(viva.tamano, tamano)) return { ok: true };
     const antes = viva.tamano.dispositivo ?? "pc";
-    const dispositivo = tamano.dispositivo ?? "pc";
-    await viva.pagina.setViewportSize({ width: tamano.ancho, height: tamano.alto });
-    // El dispositivo del CLIENTE: un teléfono ve la plataforma como en su
-    // teléfono (vista móvil, táctil y su agente), no un escritorio encogido.
-    const tactil = dispositivo !== "pc";
-    await viva.cdp?.send("Emulation.setDeviceMetricsOverride", {
-        width: tamano.ancho, height: tamano.alto, deviceScaleFactor: tactil ? 2 : 1, mobile: tactil,
-    }).catch((error) => console.warn("[verzy] no se pudo emular el dispositivo", { cita: viva.citaId, dispositivo, motivo: error instanceof Error ? error.message : String(error) }));
-    await viva.cdp?.send("Emulation.setUserAgentOverride", { userAgent: AGENTE_DEL_DISPOSITIVO[dispositivo] }).catch(() => {});
-    await viva.cdp?.send("Emulation.setTouchEmulationEnabled", { enabled: tactil, maxTouchPoints: tactil ? 5 : 0 }).catch(() => {});
-    viva.tamano = { ...tamano, dispositivo };
+    await emularElDispositivo(viva.citaId, viva.pagina, viva.cdp, { ...tamano, dispositivo: pedido });
+    viva.tamano = { ...tamano, dispositivo: pedido };
     viva.raton = {
         x: Math.min(viva.raton.x, tamano.ancho - 1),
         y: Math.min(viva.raton.y, tamano.alto - 1),
@@ -407,11 +462,183 @@ async function cambiarElTamano(viva: Viva, tamano: TamanoDeLaPantalla): Promise<
     await arrancarElScreencast(viva);
     // Otro dispositivo: la página se vuelve a pedir (congelada) para que la
     // plataforma decida su vista con el agente nuevo.
-    if (antes !== dispositivo && viva.pagina.url().startsWith(BASE_LOCAL)) {
+    if (antes !== pedido && viva.pagina.url().startsWith(BASE_LOCAL)) {
         const u = new URL(viva.pagina.url());
         await cargarSinEnsenarElFallo(viva, `${u.pathname}${u.search}${u.hash}`);
     }
     return { ok: true };
+}
+
+// ---------------------------------------------------------------- los espejos
+
+/** Sin cursor en un espejo: el de la página se queda quieto en un sitio raro. */
+const SIN_CURSOR = () => {
+    const poner = () => {
+        const st = document.createElement("style");
+        st.textContent = "#__cursor_de_verzy{display:none!important}";
+        (document.head || document.documentElement).appendChild(st);
+    };
+    if (document.documentElement) poner();
+    else document.addEventListener("DOMContentLoaded", poner);
+};
+
+/** Abre (o ajusta) el espejo de un dispositivo y lo deja siguiendo al conductor. */
+async function ponerElEspejo(viva: Viva, tamano: TamanoDeLaPantalla): Promise<ResultadoDeLaOrden> {
+    const dispositivo = tamano.dispositivo ?? "pc";
+    const ya = viva.espejos.get(dispositivo);
+    if (ya && !ya.cerrado) {
+        ya.vistoEn = Date.now();
+        if (esElMismoTamano(ya.tamano, tamano)) return { ok: true };
+        await emularElDispositivo(viva.citaId, ya.pagina, ya.cdp, tamano);
+        ya.tamano = { ...tamano };
+        await ya.cdp?.send("Page.stopScreencast").catch(() => {});
+        await arrancarElScreencastDelEspejo(ya);
+        return { ok: true };
+    }
+    const pagina = await viva.pagina.context().newPage();
+    await pagina.addInitScript(SIN_CURSOR);
+    const cdp = (await pagina.context().newCDPSession(pagina)) as unknown as Cdp & { on: (ev: string, fn: (f: { data: string; sessionId: number }) => void) => void };
+    const espejo: Espejo = {
+        dispositivo, pagina, cdp, tamano: { ...tamano }, ultimo: null, ultimoEn: 0, suscriptores: new Set(),
+        ruta: null, bajada: 0, vistoEn: Date.now(), ocupado: false, cerrado: false,
+    };
+    cdp.on("Page.screencastFrame", (f) => {
+        cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {});
+        if (espejo.congelada || esUnaPaginaDeError(pagina.url())) return;
+        const jpeg = Buffer.from(f.data, "base64");
+        espejo.ultimo = jpeg;
+        espejo.ultimoEn = Date.now();
+        for (const s of espejo.suscriptores) {
+            try { s(jpeg); } catch (error) {
+                console.warn("[verzy] un suscriptor del espejo falló", { cita: viva.citaId, dispositivo, motivo: error instanceof Error ? error.message : String(error) });
+            }
+        }
+    });
+    await emularElDispositivo(viva.citaId, pagina, cdp, tamano);
+    await arrancarElScreencastDelEspejo(espejo);
+    viva.espejos.set(dispositivo, espejo);
+    console.info("[verzy] espejo abierto", { cita: viva.citaId, dispositivo, conductor: viva.tamano.dispositivo ?? "pc", ancho: tamano.ancho, alto: tamano.alto });
+    await seguirAlConductor(viva, espejo);
+    return { ok: true };
+}
+
+async function arrancarElScreencastDelEspejo(e: Espejo): Promise<void> {
+    await e.cdp?.send("Page.startScreencast", {
+        format: "jpeg", quality: 70, maxWidth: e.tamano.ancho, maxHeight: e.tamano.alto, everyNthFrame: 1,
+    });
+    await tocarParaPintar(e.pagina);
+}
+
+/**
+ * El screencast solo manda cuando algo se PINTA, y en un espejo no hay cursor
+ * que se mueva: se cambia un punto invisible (1 px, casi transparente) y eso
+ * obliga a pintar un fotograma.
+ */
+async function tocarParaPintar(pagina: Pagina): Promise<void> {
+    await pagina.evaluate(() => {
+        let p = document.getElementById("__toque_de_verzy");
+        if (!p) {
+            p = document.createElement("div");
+            p.id = "__toque_de_verzy";
+            p.setAttribute("aria-hidden", "true");
+            p.style.cssText = "position:fixed;right:0;bottom:0;width:1px;height:1px;pointer-events:none;z-index:2147483647;";
+            document.documentElement.appendChild(p);
+        }
+        p.style.background = p.style.background === "rgba(0, 0, 0, 0.01)" ? "rgba(0, 0, 0, 0.02)" : "rgba(0, 0, 0, 0.01)";
+    }).catch(() => {});
+}
+
+/**
+ * El espejo va a donde está el conductor y baja lo mismo. Una carga va con el
+ * video congelado (como en el conductor): nunca se ve una página a medias.
+ */
+async function seguirAlConductor(viva: Viva, e: Espejo): Promise<void> {
+    if (e.ocupado || e.cerrado || viva.congelada) return;
+    e.ocupado = true;
+    try {
+        const ruta = laRutaQueSigueElEspejo({
+            url: viva.pagina.url(),
+            base: BASE_LOCAL,
+            chatAbierto: viva.chatAbierto && viva.prospecto?.jid === viva.chatAbierto ? { jid: viva.chatAbierto, linea: viva.prospecto?.linea ?? null } : null,
+        });
+        const objetivo = ruta ?? "espera";
+        if (objetivo !== e.ruta) {
+            e.congelada = true;
+            try {
+                if (ruta) {
+                    const res = await e.pagina.goto(`${BASE_LOCAL}${ruta}`, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch(() => null);
+                    await e.pagina.waitForLoadState("networkidle", { timeout: CALMA_DE_LA_RED_MS }).catch(() => {});
+                    if (!res || res.status() >= 400 || esUnaPaginaDeError(e.pagina.url())) {
+                        console.warn("[verzy] el espejo no pudo seguir al conductor", { cita: viva.citaId, dispositivo: e.dispositivo, ruta, estado: res?.status() });
+                    }
+                } else {
+                    await e.pagina.setContent(PANTALLA_DE_ESPERA).catch(() => {});
+                }
+                e.ruta = objetivo;
+                e.bajada = -1;
+            } finally {
+                e.congelada = false;
+                // Lo pintado mientras cargaba no se mandó: un toque obliga a pintar otra vez.
+                await tocarParaPintar(e.pagina);
+            }
+        }
+        // La misma parte de la página: lo bajada que va el conductor, en proporción.
+        const medida = await viva.pagina.evaluate(() => {
+            const el = document.scrollingElement || document.documentElement;
+            return { arriba: el.scrollTop, alto: el.scrollHeight, ventana: window.innerHeight };
+        }).catch(() => null);
+        if (medida) {
+            const bajada = laProporcionBajada(medida);
+            if (Math.abs(bajada - e.bajada) > 0.01) {
+                await e.pagina.evaluate((b) => {
+                    const el = document.scrollingElement || document.documentElement;
+                    el.scrollTop = b * Math.max(0, el.scrollHeight - window.innerHeight);
+                }, bajada).catch(() => {});
+                e.bajada = bajada;
+                await tocarParaPintar(e.pagina);
+            }
+        }
+    } finally {
+        e.ocupado = false;
+    }
+}
+
+async function cerrarElEspejo(viva: Viva, e: Espejo, porque: string): Promise<void> {
+    if (e.cerrado) return;
+    e.cerrado = true;
+    viva.espejos.delete(e.dispositivo);
+    e.suscriptores.clear();
+    await e.pagina.close().catch(() => {});
+    console.info("[verzy] espejo cerrado", { cita: viva.citaId, dispositivo: e.dispositivo, porque });
+}
+
+/** Cada vuelta del ciclo: los espejos siguen al conductor, y el que nadie mira se cierra. */
+async function cuidarLosEspejos(viva: Viva): Promise<void> {
+    if (!viva.espejos.size) return;
+    const pedidos = await db.$queryRaw<{ dispositivo: string }[]>`
+        SELECT "dispositivo" FROM "verzy_pantalla_vistas"
+        WHERE "citaId" = ${viva.citaId} AND "pideRelevoEn" > NOW() - make_interval(secs => ${RELEVO_VIVO_MS / 1000}::double precision)
+    `.catch(() => [] as { dispositivo: string }[]);
+    const porRelevo = new Set(pedidos.map((p) => p.dispositivo));
+    for (const e of Array.from(viva.espejos.values())) {
+        if (e.suscriptores.size || porRelevo.has(e.dispositivo)) e.vistoEn = Date.now();
+        if (Date.now() - e.vistoEn > SIN_MIRAR_MS) {
+            await cerrarElEspejo(viva, e, "nadie la mira");
+            continue;
+        }
+        void seguirAlConductor(viva, e).catch((error) =>
+            console.warn("[verzy] el espejo no pudo seguir al conductor", { cita: viva.citaId, dispositivo: e.dispositivo, motivo: error instanceof Error ? error.message : String(error) }));
+    }
+}
+
+/** Las vistas de la pantalla de una cita (para el log y el banco). */
+export function lasVistasDeLaPantalla(citaId: string): { dispositivo: Dispositivo; papel: "conductor" | "espejo"; url: string; ancho: number; alto: number; bajada: number }[] {
+    const viva = pantallasVivas.get(citaId);
+    if (!viva) return [];
+    return [
+        { dispositivo: viva.tamano.dispositivo ?? "pc", papel: "conductor" as const, url: viva.pagina.url(), ancho: viva.tamano.ancho, alto: viva.tamano.alto, bajada: -1 },
+        ...Array.from(viva.espejos.values()).map((e) => ({ dispositivo: e.dispositivo, papel: "espejo" as const, url: e.pagina.url(), ancho: e.tamano.ancho, alto: e.tamano.alto, bajada: e.bajada })),
+    ];
 }
 
 async function anotarElError(citaId: string, error: unknown): Promise<void> {
@@ -466,6 +693,7 @@ async function elCiclo(viva: Viva): Promise<void> {
                 if (despues) await despues().catch(() => {});
                 latidoEn = 0;
             }
+            await cuidarLosEspejos(viva);
             await new Promise<void>((listo) => {
                 const t = setTimeout(() => { viva.despertar = undefined; listo(); }, VUELTA_MS);
                 viva.despertar = () => { clearTimeout(t); viva.despertar = undefined; listo(); };
@@ -478,6 +706,7 @@ async function elCiclo(viva: Viva): Promise<void> {
         viva.parada = true;
         pantallasVivas.delete(citaId);
         viva.suscriptores.clear();
+        for (const e of Array.from(viva.espejos.values())) await cerrarElEspejo(viva, e, "la pantalla se detuvo");
         await viva.pagina.close().catch(() => {});
         await db.$executeRaw`UPDATE "verzy_pantallas" SET "replica" = NULL WHERE "citaId" = ${citaId} AND "replica" = ${REPLICA}`.catch(() => {});
     }
@@ -490,8 +719,23 @@ async function elCiclo(viva: Viva): Promise<void> {
  */
 async function elRelevo(viva: Viva): Promise<void> {
     let escritoEn = 0;
+    const escritoDelEspejo = new Map<Dispositivo, number>();
     while (!viva.parada) {
         await dormir(RELEVO_MS);
+        // Los espejos: solo si una sala de la otra réplica pide ese dispositivo.
+        for (const e of viva.espejos.values()) {
+            if (!e.ultimo || escritoDelEspejo.get(e.dispositivo) === e.ultimoEn) continue;
+            try {
+                const n = await db.$executeRaw`
+                    UPDATE "verzy_pantalla_vistas" SET "foto" = ${e.ultimo}, "fotoEn" = NOW()
+                    WHERE "citaId" = ${viva.citaId} AND "dispositivo" = ${e.dispositivo}
+                      AND "pideRelevoEn" > NOW() - make_interval(secs => ${RELEVO_VIVO_MS / 1000}::double precision)
+                `;
+                if (n > 0) escritoDelEspejo.set(e.dispositivo, e.ultimoEn);
+            } catch (error) {
+                console.warn("[verzy] no se pudo pasar el fotograma de un espejo a la otra réplica", { cita: viva.citaId, dispositivo: e.dispositivo, motivo: error instanceof Error ? error.message : String(error) });
+            }
+        }
         if (viva.parada || !viva.ultimo || viva.ultimoEn === escritoEn) continue;
         try {
             const n = await db.$executeRaw`
@@ -939,8 +1183,18 @@ export async function pedirALaPantalla(citaId: string, orden: OrdenDeLaPantalla)
 }
 
 /** Marca que alguien mira desde ESTA réplica y lee el último fotograma relevado. */
-async function elFotogramaRelevado(citaId: string): Promise<{ foto: Buffer; en: Date } | null> {
+async function elFotogramaRelevado(citaId: string, dispositivo: Dispositivo | null = null): Promise<{ foto: Buffer; en: Date } | null> {
     await db.$executeRaw`UPDATE "verzy_pantallas" SET "pideRelevoEn" = NOW(), "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
+    if (dispositivo) {
+        // El espejo de su dispositivo, si la réplica dueña lo tiene; si no, la ventana de Verzy.
+        const vistas = await db.$queryRaw<{ foto: Buffer | null; fotoEn: Date | null }[]>`
+            INSERT INTO "verzy_pantalla_vistas" ("citaId", "dispositivo", "pideRelevoEn") VALUES (${citaId}, ${dispositivo}, NOW())
+            ON CONFLICT ("citaId", "dispositivo") DO UPDATE SET "pideRelevoEn" = NOW()
+            RETURNING "foto", "fotoEn"
+        `;
+        const v = vistas[0];
+        if (v?.foto && v.fotoEn && Date.now() - v.fotoEn.getTime() < SIN_MIRAR_MS) return { foto: Buffer.from(v.foto), en: v.fotoEn };
+    }
     const filas = await db.$queryRaw<{ foto: Buffer | null; fotoEn: Date | null }[]>`
         SELECT "foto", "fotoEn" FROM "verzy_pantallas" WHERE "citaId" = ${citaId}
     `;
@@ -965,7 +1219,9 @@ export async function laFotoDeLaPantalla(citaId: string): Promise<{ foto: Buffer
  * Si la pantalla vive en esta réplica, directo de la memoria; si vive en la
  * otra, por relevo. Nunca lanza.
  */
-export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => void, senal: AbortSignal): Promise<void> {
+export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => void, senal: AbortSignal, dispositivoPedido?: unknown): Promise<void> {
+    // La sala dice su dispositivo: si hay un espejo de él, ve el espejo.
+    const dispositivo: Dispositivo | null = dispositivoPedido ? comoDispositivo(dispositivoPedido) : null;
     const minimo = Math.floor(1000 / FPS_DEL_FLUJO);
     let enviadoEn = 0;
     let ultimoEnviado: Buffer | null = null;
@@ -986,6 +1242,17 @@ export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => voi
         espera ??= setTimeout(() => { espera = null; if (pendiente) { const j = pendiente; pendiente = null; mandar(j); } }, falta);
     };
 
+    // De dónde salen los fotogramas: la ventana de Verzy o el espejo del dispositivo.
+    let fuente: { suscriptores: Set<Suscriptor>; ultimo: Buffer | null } | null = null;
+    const ponerLaFuente = (f: { suscriptores: Set<Suscriptor>; ultimo: Buffer | null } | null) => {
+        if (f === fuente) return;
+        fuente?.suscriptores.delete(recibir);
+        fuente = f;
+        if (f) {
+            f.suscriptores.add(recibir);
+            if (f.ultimo) mandar(f.ultimo);
+        }
+    };
     try {
         await asegurarLasTablas();
         let viva: Viva | undefined;
@@ -998,32 +1265,34 @@ export async function abrirElFlujo(citaId: string, enviar: (jpeg: Buffer) => voi
                 if (!viva || viva.parada) {
                     await asegurarLaPantalla(citaId);
                     const v = pantallasVivas.get(citaId);
-                    if (v && v !== viva) {
-                        viva?.suscriptores.delete(recibir);
-                        viva = v;
-                        viva.suscriptores.add(recibir);
-                        if (viva.ultimo) mandar(viva.ultimo);
-                    }
+                    if (v && v !== viva) viva = v;
                 } else {
                     await db.$executeRaw`UPDATE "verzy_pantallas" SET "pedidaEn" = NOW() WHERE "citaId" = ${citaId}`;
                 }
             }
             if (!viva || viva.parada) {
-                // La pantalla vive en la otra réplica: relevo por la base.
-                const f = await elFotogramaRelevado(citaId);
+                ponerLaFuente(null);
+                // La pantalla vive en la otra réplica: relevo por la base (el de su espejo, si lo hay).
+                const f = await elFotogramaRelevado(citaId, dispositivo);
                 if (f && f.en.getTime() !== fotoEn) { fotoEn = f.en.getTime(); mandar(f.foto); }
                 await dormir(RELEVO_MS);
                 continue;
             }
+            const espejo = dispositivo ? viva.espejos.get(dispositivo) : undefined;
+            if (espejo && !espejo.cerrado) espejo.vistoEn = Date.now();
+            ponerLaFuente(espejo && !espejo.cerrado ? espejo : viva);
             if (ultimoEnviado && Date.now() - enviadoEn >= REPETIR_QUIETA_MS) mandar(ultimoEnviado);
             await dormir(250);
         }
-        viva?.suscriptores.delete(recibir);
+        ponerLaFuente(null);
     } catch (error) {
         console.error("[verzy] el flujo de la pantalla se cortó", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) });
     } finally {
         if (espera) clearTimeout(espera);
-        for (const v of pantallasVivas.values()) v.suscriptores.delete(recibir);
+        for (const v of pantallasVivas.values()) {
+            v.suscriptores.delete(recibir);
+            for (const e of v.espejos.values()) e.suscriptores.delete(recibir);
+        }
     }
 }
 

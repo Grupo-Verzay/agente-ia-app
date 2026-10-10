@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { abrirLaVideollamada, esLaFirmaDeLaCita, marcarLaEntradaReal } from "@/lib/videollamada-ia.server";
+import { abrirLaVideollamada, esLaFirmaDeLaCita, marcarLaEntradaReal, terminarLaConversacion } from "@/lib/videollamada-ia.server";
 
 export const dynamic = "force-dynamic";
 
@@ -41,4 +41,21 @@ export async function PUT(req: Request) {
         });
         return NextResponse.json({ ok: false }, { status: 500 });
     }
+}
+
+/**
+ * Se colgó A PROPÓSITO («Salir», la despedida, el límite) y no queda nadie más:
+ * se termina la conversación en Tavus para que deje de cobrar al momento
+ * (`terminaLaConversacionAlColgar` decide en la sala). Pública con la firma
+ * de la cita, como el resto: lo peor que alguien con el enlace puede hacer es
+ * colgar su propia llamada.
+ */
+export async function DELETE(req: Request) {
+    const url = new URL(req.url);
+    const citaId = String(url.searchParams.get("c") ?? "");
+    if (!citaId || !esLaFirmaDeLaCita(citaId, url.searchParams.get("f"))) {
+        return NextResponse.json({ ok: false, estado: "firma" }, { status: 401 });
+    }
+    const r = await terminarLaConversacion(citaId);
+    return NextResponse.json(r);
 }

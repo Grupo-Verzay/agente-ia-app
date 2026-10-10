@@ -2,7 +2,7 @@ import "server-only";
 
 import { spawn } from "child_process";
 import { createReadStream, createWriteStream, existsSync } from "fs";
-import { mkdtemp, rm, stat } from "fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { pipeline } from "stream/promises";
@@ -15,7 +15,9 @@ import type { ExtensionDeGrabacion } from "@/lib/grabacion-de-reunion";
 import {
     cerrarLaGrabacionDeLaSala,
     copiarLaGrabacionAlCrm,
+    guardarLaUnion,
     lasGrabacionesDeLaSalaSinCerrar,
+    lasPartesDeLaCita,
     lasVocesDeLaGrabacion,
     reclamarElCierreDeLaSala,
 } from "@/lib/videollamada-ia-db";
@@ -348,6 +350,93 @@ export async function juntarConLasVoces(fila: {
     }
 }
 
+/* ── Las partes de una misma llamada, en UN video ─────────────────────── */
+
+/** La llave en el bucket de una dirección nuestra; `null` si no es de nuestro bucket. */
+function laLlaveDeLaDireccion(url: string | null): string | null {
+    const raiz = `${process.env.S3_PUBLIC_URL}/${elBucket()}/`;
+    return url && url.startsWith(raiz) ? url.slice(raiz.length) : null;
+}
+
+async function bajarElFichero(llave: string, archivo: string): Promise<void> {
+    const flujo = await minioClient.getObject(elBucket(), llave);
+    await pipeline(flujo, createWriteStream(archivo));
+}
+
+/**
+ * Une en UN video todas las partes grabadas de una cita, en el orden en que se
+ * grabaron, y lo guarda como la grabación de la cita (`guardarLaUnion`): es la
+ * que va al CRM.
+ *
+ * Una recarga de la página (el teléfono la recarga al volver al navegador)
+ * abre otra grabación: una llamada de 40 minutos cortada a los 30 quedaba en
+ * dos ficheros de 30 y 10, y el detalle enseñaba solo el de 30. Ahora se ven
+ * los 40.
+ *
+ * Se pegan con el `concat` de `ffmpeg` SIN recodificar (`-c copy`): todas salen
+ * de la misma sala, con el mismo lienzo y los mismos códecs. Si no se pueden
+ * pegar (un mp4 de Safari y un webm de otro aparato), se dice y se queda la más
+ * larga, como antes. Nunca lanza.
+ */
+export async function unirLasPartesDeLaCita(citaId: string): Promise<{ partes: number; segundos: number | null } | null> {
+    const partes = await lasPartesDeLaCita(citaId).catch(() => []);
+    if (partes.length < 2) return null;
+    const formato = partes[0].formato;
+    if (partes.some((p) => p.formato !== formato)) {
+        console.warn("[videollamada] las partes de la llamada tienen formatos distintos; va la más larga", { cita: citaId, partes: partes.length });
+        return null;
+    }
+    const dir = await mkdtemp(join(tmpdir(), "videollamada-union-"));
+    try {
+        const unir = async (cual: "audio" | "video"): Promise<{ url: string; archivo: string } | null> => {
+            const llaves = partes.map((p) => laLlaveDeLaDireccion(cual === "video" ? p.videoUrl : p.audioUrl));
+            // Solo si TODAS las partes lo tienen: si no, saldría un video con huecos sin decir dónde.
+            if (llaves.some((l) => !l)) return null;
+            const archivos: string[] = [];
+            for (const [i, llave] of llaves.entries()) {
+                const archivo = join(dir, `${cual}-${i + 1}.${formato}`);
+                await bajarElFichero(llave as string, archivo);
+                archivos.push(archivo);
+            }
+            const lista = join(dir, `${cual}.txt`);
+            await writeFile(lista, archivos.map((a) => `file '${a.replace(/'/g, "'\\''")}'`).join("\n"));
+            const salida = join(dir, `${cual}-unido.${formato}`);
+            await correrFfmpeg([
+                "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", lista, "-c", "copy",
+                ...(formato === "mp4" ? ["-movflags", "+faststart"] : []),
+                salida,
+            ]);
+            const llave = `${partes[0].cuentaId}/videollamadas/citas/${citaId}/${cual}.${formato}`;
+            const url = await subirElFichero({ archivo: salida, llave, tipo: elTipoDelFichero(formato, cual) });
+            return { url, archivo: salida };
+        };
+        const video = await unir("video");
+        const audio = await unir("audio");
+        if (!video && !audio) return null;
+        const segundos = await laDuracionDelFichero((video ?? audio)!.archivo);
+        const suma = partes.reduce((t, p) => t + (Number(p.segundos) || 0), 0);
+        await guardarLaUnion({
+            citaId,
+            cuentaId: partes[0].cuentaId,
+            formato,
+            audioUrl: audio?.url ?? null,
+            videoUrl: video?.url ?? null,
+            segundos: segundos ?? suma,
+        });
+        console.info("[videollamada] partes de la llamada unidas en un video", { cita: citaId, partes: partes.length, segundos: segundos ?? suma });
+        return { partes: partes.length, segundos };
+    } catch (error) {
+        console.warn("[videollamada] no se pudieron unir las partes de la llamada; va la más larga", {
+            cita: citaId,
+            partes: partes.length,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 /**
  * Cerrar la grabación de la sala de una videollamada: juntar sus trozos en el
  * bucket y llevarla a la fila del CRM.
@@ -422,6 +511,9 @@ export async function cerrarYJuntarLaGrabacionDeLaSala(input: {
         return { ok: false, hecho: "fallida" };
     }
 
+    // Con varias partes (una recarga abre otra), se unen en un video: la
+    // llamada ENTERA, no la parte más larga.
+    await unirLasPartesDeLaCita(fila.citaId);
     try {
         const enElCrm = await copiarLaGrabacionAlCrm(fila.citaId);
         // Sin fila todavía no es un fallo: la transcripción de Tavus llega

@@ -60,3 +60,24 @@ export function loQueTerminaLaLlamada(mensaje: unknown): LoQueTerminaLaLlamada {
 /** Lo que se le cuenta a Verzy cuando el cliente se despide. */
 export const AL_DESPEDIRSE_EL_CLIENTE =
     "El cliente se está despidiendo. Despídete en una sola frase corta y amable; la llamada se cerrará al terminar.";
+
+/**
+ * Lo que espera Tavus a que el cliente VUELVA si se le cae la conexión
+ * (`participant_left_timeout`), en segundos. Ese rato Tavus lo cobra: con 180
+ * eran tres minutos pagados tras cada llamada. Un minuto deja volver a quien
+ * se le cortó la red sin pagar de más.
+ */
+export const ESPERA_SI_SE_CAE_S = 60;
+
+/**
+ * ¿Al colgar se le dice a Tavus que la conversación TERMINÓ (y deja de
+ * cobrar al momento)? Sí cuando se cuelga A PROPÓSITO («Salir», la
+ * despedida, el límite de minutos, Verzy que se fue) y no queda nadie más en
+ * la sala. No si Tavus ya la terminó, ni si otra persona sigue dentro (el
+ * asesor que sale no le corta la llamada al cliente). Una caída de la red no
+ * pasa por aquí: ahí Tavus espera `ESPERA_SI_SE_CAE_S`.
+ */
+export function terminaLaConversacionAlColgar(input: { porque: string; quedanOtrasPersonas: boolean }): boolean {
+    if (input.porque === "fin-de-tavus") return false;
+    return !input.quedanOtrasPersonas;
+}
