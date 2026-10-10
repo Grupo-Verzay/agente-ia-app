@@ -6,6 +6,21 @@ import { currentUser } from "@/lib/auth";
 import { lasCuentasQueVeLaBandeja } from "@/lib/cuentas-asociadas";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { laCuentaDeLaConversacion } from "@/lib/dueno-del-dato.server";
+import { laCuentaDeLaAccion } from "@/lib/cuenta-de-la-accion";
+import {
+  TOPE_DE_ADJUNTOS_DE_LA_NOTA,
+  comoSeGuardanLosAdjuntosDeLaNota,
+  elTextoDeLaNotaParaElAviso,
+  laCuentaDelArchivoDeLaNota,
+  type AdjuntoDeLaNota,
+} from "@/lib/adjuntos-de-la-nota";
+import {
+  guardarLosAdjuntosDeLaNota,
+  losAdjuntosDeLasNotas,
+  prepararLosAdjuntosDeLasNotas,
+  quitarLosAdjuntosDeLaNota,
+  soltarLosArchivosDelBucket,
+} from "@/lib/adjuntos-de-la-nota-db";
 import { elEquipoDeLaCuenta } from "@/lib/equipo-de-la-cuenta.server";
 import { darAccesoPorMencion } from "@/lib/acceso-por-mencion-db";
 import { enlaceDeLaMencion, quienesRecibenAcceso } from "@/lib/acceso-por-mencion";
@@ -52,6 +67,15 @@ import {
  * el alcance se pregunta a la fila efectiva (con las cuentas que la bandeja
  * enseña, `lasCuentasQueVeLaBandeja`). Resolver la persona ahí es exactamente
  * lo que rompió la cartera de clientes en el #783.
+ *
+ * # Y la nota puede llevar archivos
+ *
+ * Imagen, video, audio o documento, hasta `TOPE_DE_ADJUNTOS_DE_LA_NOTA`. Suben
+ * antes al bucket (`lib/subir-adjuntos-de-la-nota.ts`) y aquí llegan solo sus
+ * direcciones, que se vuelven a comprobar: de NUESTRO bucket, en la carpeta de
+ * las notas y de una cuenta que se alcanza. Se guardan en `adjuntos_de_notas`
+ * (`lib/adjuntos-de-la-nota-db.ts`) en la MISMA transacción que la nota: o
+ * quedan las dos cosas o ninguna. Una nota puede ser SOLO un archivo.
  */
 
 export type InternalNoteData = {
@@ -62,13 +86,28 @@ export type InternalNoteData = {
   authorEmail: string;
   content: string;
   mentionedUserIds: string[];
+  adjuntos: AdjuntoDeLaNota[];
   createdAt: string;
 };
 
 const createSchema = z.object({
   sessionId: z.number().int().positive(),
-  content: z.string().trim().min(1),
+  // Vacío solo si la nota lleva un archivo: se comprueba abajo.
+  content: z.string().trim().default(""),
   mentionedUserIds: z.array(z.string()).optional().default([]),
+  // Lo que llega del navegador: se vuelve a comprobar entero abajo.
+  adjuntos: z
+    .array(
+      z.object({
+        url: z.string().max(2048).optional(),
+        nombre: z.string().max(300).nullish(),
+        mime: z.string().max(200).nullish(),
+        tamano: z.number().optional(),
+      }),
+    )
+    .max(TOPE_DE_ADJUNTOS_DE_LA_NOTA)
+    .optional()
+    .default([]),
 });
 
 async function assertAuthorized() {
@@ -90,6 +129,32 @@ export async function createInternalNoteAction(
     const alcanzada = await laCuentaDeLaConversacion(parsed.sessionId);
     if (!alcanzada) return { success: false, message: "Sesión no encontrada." };
     const session = alcanzada.sesion;
+
+    // Una nota es texto, archivos o las dos cosas; vacía no.
+    if (!parsed.content && parsed.adjuntos.length === 0) {
+      return { success: false, message: "Escribe la nota o adjunta un archivo." };
+    }
+    // Los archivos, por la misma puerta que el chat del equipo: nuestra
+    // dirección, la carpeta de las notas y una cuenta que se alcanza. Si uno
+    // falla NO se guarda la nota sin él: se creería adjunto y no lo está.
+    const bucket = { publicUrl: process.env.S3_PUBLIC_URL, nombre: process.env.S3_BUCKET_NAME || "verzay-media" };
+    const { adjuntos, rechazados } = comoSeGuardanLosAdjuntosDeLaNota(parsed.adjuntos, bucket);
+    if (rechazados > 0) {
+      console.warn("[notas internas] llegaron adjuntos que no valen: la nota no se guarda", {
+        sessionId: parsed.sessionId,
+        rechazados,
+      });
+      return { success: false, message: "No se pudo adjuntar uno de los archivos." };
+    }
+    const carpetas = new Set(adjuntos.map((a) => laCuentaDelArchivoDeLaNota(a.url, bucket)));
+    for (const carpeta of carpetas) {
+      if (!carpeta || !(await laCuentaDeLaAccion(carpeta))) {
+        console.warn("[notas internas] un adjunto está en la carpeta de una cuenta que no se alcanza", {
+          sessionId: parsed.sessionId,
+        });
+        return { success: false, message: "No se pudo adjuntar uno de los archivos." };
+      }
+    }
 
     // No mencionarse a sí mismo; sin duplicados. Se descuenta la PERSONA: los
     // ids que llegan salen del desplegable de asesores, que son personas, así
@@ -123,14 +188,21 @@ export async function createInternalNoteAction(
       });
     }
 
-    const note = await (db as any).internalNote.create({
-      data: {
-        sessionId: parsed.sessionId,
-        authorId: yo,
-        content: parsed.content,
-        mentionedUserIds: mentioned,
-      },
-      include: { author: { select: { name: true, email: true } } },
+    // La tabla de adjuntos se asegura FUERA de la transacción: un DDL con su
+    // plazo de candado no debe vivir dentro de ella.
+    if (adjuntos.length) await prepararLosAdjuntosDeLasNotas();
+    const note = await db.$transaction(async (tx) => {
+      const creada = await (tx as any).internalNote.create({
+        data: {
+          sessionId: parsed.sessionId,
+          authorId: yo,
+          content: parsed.content,
+          mentionedUserIds: mentioned,
+        },
+        include: { author: { select: { name: true, email: true } } },
+      });
+      await guardarLosAdjuntosDeLaNota(tx, creada.id, adjuntos);
+      return creada;
     });
 
     // El acceso va ANTES del aviso: quien pulse la notificación en el acto
@@ -155,7 +227,7 @@ export async function createInternalNoteAction(
     // Notificación por mención (campanita) para cada asesor mencionado.
     if (reparto.delEquipo.length > 0) {
       try {
-        const preview = parsed.content.slice(0, 140);
+        const preview = elTextoDeLaNotaParaElAviso(parsed.content, adjuntos).slice(0, 140);
         await (db as any).collabNotification.createMany({
           data: reparto.delEquipo.map((recipientId) => ({
             recipientId,
@@ -184,7 +256,7 @@ export async function createInternalNoteAction(
         cuentaDeLaConversacion: session.userId,
         sessionId: parsed.sessionId,
         remoteJid: session.remoteJid,
-        contenido: parsed.content,
+        contenido: elTextoDeLaNotaParaElAviso(parsed.content, adjuntos),
       });
     }
 
@@ -199,6 +271,7 @@ export async function createInternalNoteAction(
         authorEmail: note.author.email,
         content: note.content,
         mentionedUserIds: note.mentionedUserIds ?? [],
+        adjuntos,
         createdAt: note.createdAt.toISOString(),
       },
     };
@@ -223,6 +296,15 @@ export async function getInternalNotesBySessionAction(
       orderBy: { createdAt: "asc" },
     });
 
+    // Los archivos de todas las notas en UNA consulta. Si no se pueden leer, las
+    // notas salen igual —el texto no se pierde— pero se dice: no es mudo.
+    let adjuntosPorNota = new Map<number, AdjuntoDeLaNota[]>();
+    try {
+      adjuntosPorNota = await losAdjuntosDeLasNotas(notes.map((n: any) => n.id));
+    } catch (adjuntosErr) {
+      console.warn("[getInternalNotesBySessionAction] no se pudieron leer los adjuntos de las notas", adjuntosErr);
+    }
+
     return {
       success: true,
       data: notes.map((n: any) => ({
@@ -233,6 +315,7 @@ export async function getInternalNotesBySessionAction(
         authorEmail: n.author.email,
         content: n.content,
         mentionedUserIds: n.mentionedUserIds ?? [],
+        adjuntos: adjuntosPorNota.get(n.id) ?? [],
         createdAt: n.createdAt.toISOString(),
       })),
     };
@@ -265,10 +348,12 @@ export async function lasNotasDeLaBandejaAction(): Promise<NotaDeLaFila[]> {
     // nunca pintaba su candado aunque tuviera notas.
     const cuentas = await lasCuentasQueVeLaBandeja(user);
     const alcance = cuentas.length ? cuentas : [user.id];
+    // Una nota que es SOLO un archivo no tiene texto: la fila dice que lo lleva.
     const filas = await db.$queryRaw<Array<{ sessionId: number; contenido: string | null; creadaEn: Date | null }>>`
       SELECT DISTINCT ON (n."sessionId")
              n."sessionId" AS "sessionId",
-             left(n."content", ${TOPE_DEL_TEXTO_DE_LA_NOTA * 2}::int) AS "contenido",
+             CASE WHEN btrim(n."content") = '' THEN '📎 Archivo adjunto'
+                  ELSE left(n."content", ${TOPE_DEL_TEXTO_DE_LA_NOTA * 2}::int) END AS "contenido",
              n."createdAt" AS "creadaEn"
         FROM "internal_notes" n
         JOIN "Session" s ON s."id" = n."sessionId"
@@ -298,7 +383,15 @@ export async function deleteInternalNoteAction(
       return { success: false, message: "Solo el autor puede eliminar la nota." };
     }
 
-    await (db as any).internalNote.delete({ where: { id: noteId } });
+    // Sus archivos van con ella —en la misma transacción— y luego se sueltan
+    // del bucket. `losAdjuntosDeLasNotas` dice antes si hay alguno: así una
+    // nota sin archivos no toca la tabla.
+    const adjuntos = (await losAdjuntosDeLasNotas([noteId])).get(noteId) ?? [];
+    await db.$transaction(async (tx) => {
+      if (adjuntos.length) await quitarLosAdjuntosDeLaNota(tx, noteId);
+      await (tx as any).internalNote.delete({ where: { id: noteId } });
+    });
+    if (adjuntos.length) await soltarLosArchivosDelBucket(adjuntos);
     return { success: true, message: "Nota eliminada." };
   } catch (error) {
     console.error("[deleteInternalNoteAction]", error);

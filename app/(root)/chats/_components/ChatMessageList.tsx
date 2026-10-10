@@ -42,7 +42,14 @@ function estimateItemHeight(item: RenderedListItem) {
   // virtualizada se nota como un salto del scroll al llegar a ella.
   if (item.message.isNote) {
     const letras = item.message.content?.length ?? 0;
-    return ESTIMATED_NOTE_HEIGHT + Math.min(180, Math.floor(letras / 55) * 22);
+    // Cada archivo de la nota pesa como un adjunto: sin esto una nota con foto
+    // se estima como una línea de texto y el scroll da un salto al llegar a ella.
+    const archivos = item.message.noteAdjuntos?.length ?? 0;
+    return (
+      ESTIMATED_NOTE_HEIGHT +
+      Math.min(180, Math.floor(letras / 55) * 22) +
+      archivos * ESTIMATED_MEDIA_HEIGHT
+    );
   }
   if (item.message.media || item.message.adPreview || item.message.kind === 'sticker') {
     return ESTIMATED_MEDIA_HEIGHT;
@@ -177,6 +184,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           authorName={message.noteAuthorName ?? null}
           authorEmail={message.noteAuthorEmail ?? ''}
           mentionNames={message.noteMentionNames}
+          adjuntos={message.noteAdjuntos}
           timestamp={message.ts ? new Date(message.ts).toISOString() : new Date().toISOString()}
           isOwn={message.sender === 'user'}
           onDelete={
@@ -268,6 +276,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
   // o anuncio), re-renderizamos por seguridad para nunca mostrar algo viejo.
   if (
     a.media || b.media ||
+    a.noteAdjuntos?.length || b.noteAdjuntos?.length ||
     a.ubicacion || b.ubicacion ||
     a.call || b.call ||
     a.quotedMessage || b.quotedMessage ||

@@ -29,9 +29,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export function AttachmentMenu({
   onComposeMediaChange,
   maxBase64MB = 8,
+  conVideo = false,
 }: {
   onComposeMediaChange?: (m: ComposeMedia | null) => void;
   maxBase64MB?: number;
+  /**
+   * Ofrece también «Video». Al cliente sigue apagado, como estaba; a una
+   * NOTA INTERNA sí, porque el archivo sube al bucket y no sale por WhatsApp.
+   */
+  conVideo?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -145,14 +151,16 @@ export function AttachmentMenu({
             <ImageIcon className="w-4 h-4" />
             Imagen
           </button>
-          {/* <button
-            type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-            onClick={() => handlePick(vidInputRef)}
-          >
-            <Video className="w-4 h-4" />
-            Video
-          </button> */}
+          {conVideo && (
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => handlePick(vidInputRef)}
+            >
+              <Video className="w-4 h-4" />
+              Video
+            </button>
+          )}
           <button
             type="button"
             className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"

@@ -1,3 +1,4 @@
+import type { AdjuntoDeLaNota } from "@/lib/adjuntos-de-la-nota";
 import type { Traduccion } from '@/lib/traduccion-de-chats';
 import type { MediaType } from './attachment-menu';
 import type { Ubicacion } from '@/lib/ubicacion-de-whatsapp';
@@ -162,6 +163,8 @@ export type UIBubble = {
   noteAuthorEmail?: string;
   noteId?: number;
   noteMentionNames?: string[];
+  /** Los archivos que lleva la nota (imagen, video, audio o documento). */
+  noteAdjuntos?: AdjuntoDeLaNota[];
 };
 
 /**

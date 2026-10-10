@@ -306,7 +306,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Chats: la lista es grande, no rehacerla por gusto
 - Chats: la regla de la lista no se recalcula al hacer scroll
 
-## [Chats: fichas, marcas, borrado, etiquetas y acciones](chats-datos-y-acciones.md) — 23 reglas, 85 KB
+## [Chats: fichas, marcas, borrado, etiquetas y acciones](chats-datos-y-acciones.md) — 24 reglas, 89 KB
 
 - Chats: la ficha de contacto se LEE y se GUARDA por la misma puerta
 - Chats: la nota interna es la vista previa si es LO ÚLTIMO
@@ -331,6 +331,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Chats: el contexto del lead, el recordatorio y la tarea son barra lateral
 - Chats: mencionar a un compañero le ABRE esa conversación, y resolver se la cierra
 - Chats: lanzar un flujo A MANO también marca la fila
+- Chats: una nota interna puede llevar archivos, y se ven al abrirla
 
 ## [Chats: interfaz de la lista, la cabecera y los paneles](chats-interfaz.md) — 19 reglas, 99 KB
 

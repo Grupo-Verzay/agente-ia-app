@@ -34,6 +34,7 @@ import {
   mencionablesDeLaMadreAction,
 } from '@/actions/internal-notes-actions';
 import { losMencionables, type Mencionable } from '@/lib/menciones-de-la-madre';
+import { soltarLosSubidos, subirLosAdjuntosDeLaNota } from '@/lib/subir-adjuntos-de-la-nota';
 import { executeMacroAction } from '@/actions/macro-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
@@ -554,6 +555,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         noteMentionNames: (n.mentionedUserIds ?? [])
           .map((id) => advisorNameById.get(id))
           .filter((x): x is string => Boolean(x)),
+        noteAdjuntos: n.adjuntos?.length ? n.adjuntos : undefined,
       })),
     [notes, userId, advisorNameById],
   );
@@ -842,7 +844,15 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     return () => window.removeEventListener('verzay:copilot-chat-action', handleCopilotChatAction);
   }, [buildCopilotTaskDraft, generateSuggestion, mutateSessionStatus, onRefresh, session?.id]);
 
-  const handleToggleNoteMode = useCallback(() => setNoteMode((v) => !v), []);
+  const handleToggleNoteMode = useCallback(() => {
+    // «Video» solo se ofrece en una NOTA (el archivo sube al bucket); al cliente
+    // sigue sin ofrecerse. Al dejar la nota se quita de la caja, y se dice.
+    if (noteMode && composeMediaList.some((m) => m.mediatype === 'video')) {
+      setComposeMediaList((prev) => prev.filter((m) => m.mediatype !== 'video'));
+      toast.info('El video solo se adjunta a notas internas: se quitó de la caja.');
+    }
+    setNoteMode((v) => !v);
+  }, [noteMode, composeMediaList]);
 
   const handleSendNote = useCallback(
     async (content: string) => {
@@ -852,33 +862,81 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         toast.error('Esta conversación todavía no tiene ficha en esta línea: la nota no se guardó.');
         return;
       }
+      // Una nota es texto, archivos o las dos cosas.
+      if (!content.trim() && composeMediaList.length === 0) return;
       // Solo cuentan los asesores elegidos cuyo "@Nombre" siga en el texto.
       // Los de la madre cuentan igual: el servidor decide qué hace con cada uno.
       const mentionedUserIds = [...(advisors ?? []), ...(deLaMadre ?? [])]
         .filter((a) => mentionIds.has(a.id) && a.name && content.includes(`@${a.name}`))
         .map((a) => a.id)
         .filter((id, i, todos) => todos.indexOf(id) === i);
+
+      // Los archivos suben ANTES: la acción recibe solo sus direcciones. Con
+      // la caja bloqueada mientras sube, así un segundo clic no guarda dos
+      // notas. Si algo falla, lo escrito y lo adjuntado se quedan donde están.
+      let adjuntos: Awaited<ReturnType<typeof subirLosAdjuntosDeLaNota>> = { ok: true, adjuntos: [] };
+      if (composeMediaList.length > 0) {
+        setIsSending(true);
+        try {
+          adjuntos = await subirLosAdjuntosDeLaNota(composeMediaList, session.userId ?? userId);
+        } finally {
+          setIsSending(false);
+        }
+        if (!adjuntos.ok) {
+          toast.error(adjuntos.message);
+          return;
+        }
+      }
+      const subidos = adjuntos.ok ? adjuntos.adjuntos : [];
+
       const res = await createInternalNoteAction({
         sessionId: session.id,
         content,
         mentionedUserIds,
+        adjuntos: subidos,
       });
       if (res.success && res.data) {
         setNotes((prev) => [...prev, res.data!]);
         // El candado de la fila de la lista: sin esto salía al recargar.
         avisarQueCambioLaFila(session.id, 'la nota interna');
         setInput('');
+        setComposeMediaList([]);
         setMentionIds(new Set());
         setMentionOpen(false);
         // La ficha enseña quién entra por mención: que la lista se ponga al
         // día sin esperar a volver a abrirla.
         if (mentionedUserIds.length) window.dispatchEvent(new Event(EVENTO_ACCESOS_POR_MENCION));
       } else {
+        // La nota no se guardó: lo subido queda huérfano en el bucket, se suelta.
+        // Y lo adjuntado sigue en la caja para volver a intentarlo, así que se
+        // sube otra vez al reintentar: no se deja una copia de más.
+        if (subidos.length) void soltarLosSubidos(subidos.map((a) => a.url ?? ''));
         toast.error(res.message);
       }
     },
-    [session?.id, advisors, deLaMadre, mentionIds],
+    [session?.id, session?.userId, userId, advisors, deLaMadre, mentionIds, composeMediaList],
   );
+
+  /** Estando en una nota, la grabación se ADJUNTA a la nota; no sale al cliente. */
+  const handleAdjuntarAudioALaNota = useCallback(() => {
+    if (!recordedAudio) return;
+    if (composeMediaList.length >= 4) {
+      toast.error('Una nota lleva hasta 4 archivos.');
+      return;
+    }
+    const mimeType = (recordedAudio.mimetype || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+    const extension = mimeType.split('/')[1]?.replace('x-', '') || 'webm';
+    setComposeMediaList((prev) => [
+      ...prev,
+      {
+        mediatype: 'audio',
+        dataUrl: recordedAudio.dataUrlWithPrefix,
+        mimeType,
+        fileName: `audio-${Date.now()}.${extension}`,
+      },
+    ]);
+    clearRecordedAudio();
+  }, [recordedAudio, composeMediaList.length, clearRecordedAudio]);
 
   const handleDeleteNote = useCallback(async (noteId: number) => {
     const res = await deleteInternalNoteAction(noteId);
@@ -924,8 +982,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   /* ─── Compose handlers ─── */
   const handleAddComposeMedia = useCallback((m: ComposeMedia) => {
     setComposeMediaList((prev) => prev.length >= 4 ? prev : [...prev, m]);
-    setInput('');
-  }, []);
+    // Al cliente, lo escrito pasa a ser el pie de la foto y se limpia. En una
+    // NOTA el texto es la nota y el archivo va con ella: no se borra.
+    if (!noteMode) setInput('');
+  }, [noteMode]);
 
   const handleRemoveComposeMedia = useCallback((index: number) => {
     setComposeMediaList((prev) => prev.filter((_, i) => i !== index));
@@ -1569,6 +1629,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         noteMode={noteMode}
         onToggleNoteMode={handleToggleNoteMode}
         onSendNote={handleSendNote}
+        onAdjuntarAudioALaNota={handleAdjuntarAudioALaNota}
       />
       </div>{/* end messages view */}
       </div>{/* end chat area */}

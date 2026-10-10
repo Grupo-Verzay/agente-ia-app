@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, AudioLines, Check, Lock, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, FileText, Lock, Mic, Paperclip, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, Video, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,10 +102,22 @@ interface ChatInputBarProps {
   onToggleNoteMode?: () => void;
   onSendNote?: (content: string) => Promise<void>;
   /**
+   * Solo en modo NOTA: pasa la nota de voz grabada a ser un archivo adjunto de
+   * la nota, en vez de mandársela al cliente. Sin esto, grabar y pulsar enviar
+   * dentro de una nota interna le llegaría al cliente por WhatsApp.
+   */
+  onAdjuntarAudioALaNota?: () => void;
+  /**
    * Lo que dice la caja cuando lo escrito se va a traducir al idioma del
    * cliente («Escribe en español: se enviará en inglés»). Sin él, lo de siempre.
    */
   avisoDeTraduccion?: string | null;
+}
+
+/** El icono de un adjunto que no es foto: no hay miniatura que pintar. */
+function IconoDelAdjunto({ tipo, className }: { tipo: ComposeMedia['mediatype']; className?: string }) {
+  const Icono = tipo === 'video' ? Video : tipo === 'audio' ? AudioLines : FileText;
+  return <Icono className={cn('text-muted-foreground', className)} aria-hidden="true" />;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
@@ -149,6 +161,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   noteMode = false,
   onToggleNoteMode,
   onSendNote,
+  onAdjuntarAudioALaNota,
 }) => {
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -361,11 +374,17 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     dictando: dictation.listening,
     grabando: isRecording,
     hayAlgoQueEnviar:
-      isSendButtonVisible || isPreviewingAudio || (noteMode && input.trim().length > 0),
+      isSendButtonVisible ||
+      isPreviewingAudio ||
+      (noteMode && (input.trim().length > 0 || composeMediaList.length > 0)),
   };
 
+  // Una nota es texto, archivos o las dos cosas: con un archivo adjunto el
+  // texto puede ir vacío.
+  const notaConAlgo = input.trim().length > 0 || composeMediaList.length > 0;
   const handleSendNote = async () => {
-    if (!onSendNote || !input.trim()) return;
+    // Con los archivos subiendo (`isSending`) un segundo clic guardaría OTRA nota.
+    if (!onSendNote || !notaConAlgo || isSending) return;
     await onSendNote(input.trim());
   };
 
@@ -474,8 +493,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           {composeMediaList.length === 1 ? (
             /* 1 imagen: fila con nombre y X roja */
             <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-2.5 py-2">
-              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-white dark:bg-gray-800">
-                <SafeImage src={composeMediaList[0].dataUrl} alt={composeMediaList[0].fileName} fill sizes="40px" className="object-cover" />
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-white dark:bg-gray-800">
+                {composeMediaList[0].mediatype === 'image' ? (
+                  <SafeImage src={composeMediaList[0].dataUrl} alt={composeMediaList[0].fileName} fill sizes="40px" className="object-cover" />
+                ) : (
+                  <IconoDelAdjunto tipo={composeMediaList[0].mediatype} className="h-5 w-5" />
+                )}
               </div>
               <div className="min-w-0 flex-1 text-xs">
                 <div className="truncate font-medium">{composeMediaList[0].fileName}</div>
@@ -501,8 +524,15 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               composeMediaList.length === 4 && "grid-cols-2",
             )}>
               {composeMediaList.map((m, i) => (
-                <div key={i} className="relative h-14 overflow-hidden rounded-md border border-border bg-muted/30">
-                  <SafeImage src={m.dataUrl} alt={m.fileName} fill sizes="120px" className="object-cover" />
+                <div key={i} className="relative flex h-14 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+                  {m.mediatype === 'image' ? (
+                    <SafeImage src={m.dataUrl} alt={m.fileName} fill sizes="120px" className="object-cover" />
+                  ) : (
+                    <div className="flex min-w-0 flex-col items-center gap-0.5 px-2">
+                      <IconoDelAdjunto tipo={m.mediatype} className="h-5 w-5" />
+                      <span className="max-w-full truncate text-[10px] text-muted-foreground">{m.fileName}</span>
+                    </div>
+                  )}
                   <button
                     onClick={() => onRemoveComposeMedia(i)}
                     aria-label="Quitar imagen"
@@ -582,16 +612,31 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300 flex-shrink-0">
             {formatSecs(recordedAudio.durationSecs)}
           </span>
-          <Button
-            onClick={onSend}
-            size="icon"
-            className="rounded-full bg-green-500 hover:bg-green-600 flex-shrink-0"
-            title="Enviar nota de voz"
-            aria-label="Enviar nota de voz"
-            type="button"
-          >
-            <Send className="w-5 h-5 text-white" />
-          </Button>
+          {noteMode && onAdjuntarAudioALaNota ? (
+            // En una nota interna la grabación NO sale al cliente: se adjunta.
+            <Button
+              onClick={onAdjuntarAudioALaNota}
+              size="icon"
+              className="rounded-full bg-amber-500 hover:bg-amber-600 flex-shrink-0"
+              title="Adjuntar el audio a la nota"
+              aria-label="Adjuntar el audio a la nota"
+              data-adjuntar-audio-a-la-nota=""
+              type="button"
+            >
+              <Paperclip className="w-5 h-5 text-white" />
+            </Button>
+          ) : (
+            <Button
+              onClick={onSend}
+              size="icon"
+              className="rounded-full bg-green-500 hover:bg-green-600 flex-shrink-0"
+              title="Enviar nota de voz"
+              aria-label="Enviar nota de voz"
+              type="button"
+            >
+              <Send className="w-5 h-5 text-white" />
+            </Button>
+          )}
         </div>
       )}
 
@@ -637,7 +682,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             {instanceType === 'meta' && instanceName && onSendTemplate && (
               <TemplatePickerDialog instanceName={instanceName} onSendTemplate={onSendTemplate} />
             )}
-            <AttachmentMenu onComposeMediaChange={composeMediaList.length < 4 ? (m) => m && onAddComposeMedia(m) : undefined} maxBase64MB={8} />
+            <AttachmentMenu onComposeMediaChange={composeMediaList.length < 4 ? (m) => m && onAddComposeMedia(m) : undefined} maxBase64MB={8} conVideo={noteMode} />
             {onToggleNoteMode && session && !isRecording && !isPreviewingAudio && (
               <Button
                 type="button"
@@ -767,7 +812,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           ref={textareaRef}
           placeholder={
             composeMediaList.length > 0
-              ? 'Pie de foto (opcional)...'
+              ? (noteMode ? 'Texto de la nota (opcional)...' : 'Pie de foto (opcional)...')
               : noteMode
                 ? 'Nota interna (solo visible para el equipo)...'
                 : avisoDeTraduccion
@@ -839,7 +884,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               if (noteMode) void handleSendNote();
               else onSend();
             },
-            deshabilitado: noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible),
+            deshabilitado: noteMode ? (!notaConAlgo || isSending) : (!isPreviewingAudio && !isSendButtonVisible),
             etiqueta: noteMode ? 'Guardar nota' : 'Enviar',
             titulo: noteMode ? 'Guardar nota interna' : 'Enviar',
             clase: noteMode ? 'bg-amber-500 hover:bg-amber-600' : BOTON_DE_ENVIAR,
