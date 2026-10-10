@@ -19,6 +19,8 @@
  * {@link queHacerAlAbrir}.
  */
 
+import { laDuracionDeLaCita } from "./reagendar-cita";
+
 export const MODOS_DE_REUNION = ["enlace", "tavus"] as const;
 export type ModoDeReunion = (typeof MODOS_DE_REUNION)[number];
 
@@ -126,15 +128,6 @@ export function queHacerAlAbrir(input: {
     return { accion: "crear" };
 }
 
-/**
- * Cuánto puede durar la conversación en Tavus: lo que quede de la franja, con
- * un suelo (una cita que se abre tarde no puede durar dos minutos) y un techo.
- */
-export function laDuracionMaxima(ahora: Date, fin: Date): number {
-    const restante = Math.ceil((fin.getTime() - ahora.getTime()) / 1000);
-    return Math.max(10 * 60, Math.min(restante, 2 * 60 * 60));
-}
-
 /* ── Los ajustes ───────────────────────────────────────────────────────── */
 
 /**
@@ -188,19 +181,26 @@ export const FALTA_EL_AVATAR_PROPIO =
 /* ── El límite de duración de cada videollamada ───────────────────────── */
 
 /**
- * Cuánto dura como mucho una videollamada si la cuenta no lo cambia. Treinta
- * es también el TECHO: la reunión con el avatar no pasa de 30 minutos, esté
- * en la etapa que esté (`lib/atencion-de-la-videollamada.ts`). Una cuenta que
- * guardó más se lee como 30. Una cuenta sí puede acortarla.
+ * La reunión dura lo que se AGENDÓ: de `startTime` a `endTime` de la cita
+ * (`losMinutosDeLaVideollamada`). 20, 30, 45 minutos o lo que sea, con los avisos 5 y
+ * 1 minuto antes de ese corte (`losMomentosDelReloj`).
+ *
+ * El límite de la CUENTA (Agenda › Ajustes, de fábrica 30, entre 5 y 30) es
+ * solo el RESPALDO de una cita sin duración legible: una sala que no se cierra
+ * es una sala que se paga.
  */
 export const LIMITE_DE_FABRICA_MIN = 30;
 export const LIMITE_MINIMO_MIN = 5;
 export const LIMITE_MAXIMO_MIN = 30;
+/** Lo más que dura una reunión con el avatar, la agenden como la agenden (2 h). */
+export const TECHO_DE_LA_REUNION_MIN = 120;
+/** Lo que Tavus espera de más tras el corte de la sala: el corte con despedida es SIEMPRE el de la sala. */
+export const MARGEN_DE_TAVUS_S = 60;
 
 /**
- * El límite en minutos de una videollamada: un entero entre el mínimo y el
- * máximo. Lo que no se entiende (vacío, texto, `null`) es el de fábrica,
- * nunca «sin límite»: una sala que no se cierra es una sala que se paga.
+ * El límite de la cuenta en minutos: un entero entre el mínimo y el máximo.
+ * Lo que no se entiende (vacío, texto, `null`) es el de fábrica, nunca «sin
+ * límite».
  */
 export function comoLimiteDeMinutos(valor: unknown): number {
     if (valor === null || valor === undefined || valor === "") return LIMITE_DE_FABRICA_MIN;
@@ -209,19 +209,48 @@ export function comoLimiteDeMinutos(valor: unknown): number {
     return Math.min(LIMITE_MAXIMO_MIN, Math.max(LIMITE_MINIMO_MIN, n));
 }
 
-/** Tavus nunca puede durar más que el límite, ni que la franja. */
-export function laDuracionConLimite(ahora: Date, fin: Date, limiteMinutos: number): number {
-    return Math.min(laDuracionMaxima(ahora, fin), comoLimiteDeMinutos(limiteMinutos) * 60);
+/**
+ * Los minutos que dura UNA reunión: un entero entre el mínimo y el techo de la
+ * reunión. Lo que no se entiende es el de fábrica, nunca «sin límite».
+ */
+export function comoMinutosDeLaReunion(valor: unknown): number {
+    if (valor === null || valor === undefined || valor === "") return LIMITE_DE_FABRICA_MIN;
+    const n = Math.round(Number(valor));
+    if (!Number.isFinite(n)) return LIMITE_DE_FABRICA_MIN;
+    return Math.min(TECHO_DE_LA_REUNION_MIN, Math.max(LIMITE_MINIMO_MIN, n));
 }
 
 /**
- * Cuándo se cierra la sala: el límite contado desde que alguien ENTRÓ de
+ * Cuánto dura la videollamada de una cita: lo que se agendó (fin − inicio, con
+ * `laDuracionDeLaCita`, la misma regla que reagendar). Una cita sin duración
+ * legible usa el límite de la cuenta.
+ */
+export function losMinutosDeLaVideollamada(
+    inicio: Date | string | null | undefined,
+    fin: Date | string | null | undefined,
+    limiteDeLaCuenta: unknown,
+): number {
+    const minutos = inicio && fin ? laDuracionDeLaCita(inicio, fin, 0) : 0;
+    return minutos > 0 ? comoMinutosDeLaReunion(minutos) : comoLimiteDeMinutos(limiteDeLaCuenta);
+}
+
+/**
+ * El `max_call_duration` de Tavus: la duración de la reunión y un margen. Tavus
+ * nunca corta ANTES que la sala: si cortara él (antes, con lo que quedaba de la
+ * franja), una entrada tarde se quedaba sin avisos ni despedida.
+ */
+export function laDuracionEnTavus(minutos: number): number {
+    return comoMinutosDeLaReunion(minutos) * 60 + MARGEN_DE_TAVUS_S;
+}
+
+/**
+ * Cuándo se cierra la sala: la duración contada desde que alguien ENTRÓ de
  * verdad (no desde que se abrió el enlace). Sin entrada todavía, desde ahora.
  */
-export function elCierreDeLaSala(empezoEn: Date | string | null | undefined, ahora: Date, limiteMinutos: number): Date {
+export function elCierreDeLaSala(empezoEn: Date | string | null | undefined, ahora: Date, minutos: number): Date {
     const inicio = empezoEn ? new Date(empezoEn) : ahora;
     const base = Number.isFinite(inicio.getTime()) ? inicio : ahora;
-    return new Date(base.getTime() + comoLimiteDeMinutos(limiteMinutos) * 60_000);
+    return new Date(base.getTime() + comoMinutosDeLaReunion(minutos) * 60_000);
 }
 
 export type AjustesParaGuardar = { modo: ModoDeReunion; limiteMinutos: number };

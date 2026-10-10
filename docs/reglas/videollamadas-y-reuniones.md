@@ -2737,3 +2737,34 @@ que cuelga tras despedirse, y el 25/29/30 con el seguimiento. `MODO=roto` monta
 la sala de `86f29ee` y afirma que nada de esto pasaba. Contra Tavus y Daily de
 verdad no se puede probar desde este entorno: `conversation.respond` y los
 eventos `conversation.user.*` son los de su documentación.
+
+## Videollamada: dura lo que se AGENDÓ, con avisos 5 y 1 minuto antes del corte
+
+> **Manda sobre «el reloj fijo de 30 minutos»**: 30 ya no es el techo de la
+> reunión. La sala cortaba SIEMPRE a los 30 (aviso a los 25 y a los 29) porque
+> la duración salía del límite de la CUENTA (Agenda › Ajustes, tope fijo
+> `LIMITE_MAXIMO_MIN` = 30) y nunca de la cita.
+
+Ahora la decide `losMinutosDeLaVideollamada` (`lib/videollamada-ia.ts`, pura):
+fin − inicio de la cita (`laDuracionDeLaCita` de `lib/reagendar-cita.ts`, la
+misma regla que reagendar), entre 5 y `TECHO_DE_LA_REUNION_MIN` (120). El
+límite de la cuenta (5–30) queda solo como RESPALDO de una cita sin duración
+legible; la pantalla de ajustes lo dice.
+
+1. `abrirLaVideollamada` le da esos minutos a la sala (`limiteMinutos`), al
+   contexto de Verzy (`elBloqueDeAtencion`) y a Tavus.
+2. **Tavus nunca corta antes que la sala**: `max_call_duration` =
+   `laDuracionEnTavus` (la duración + `MARGEN_DE_TAVUS_S`, 60 s). Antes era lo
+   que quedaba de la franja: una entrada tarde se cortaba sin avisos ni
+   despedida. El corte con despedida es siempre el de la sala.
+3. El cierre se cuenta desde que alguien ENTRÓ (`elCierreDeLaSala`, con
+   `comoMinutosDeLaReunion`, no con `comoLimiteDeMinutos`, que lee 45 como 30).
+4. Los avisos ya eran relativos al cierre (`losMomentosDelReloj`): con la
+   duración buena salen 5 y 1 minuto antes del corte (20 → 15 y 19; 45 → 40 y 44).
+
+Lo prueba `scripts/banco-duracion-agendada-de-la-videollamada.sh`: las reglas,
+`abrirLaVideollamada` compilado con dobles de la base y un Tavus de mentira
+(citas de 20, 30, 45 y 90), y la sala MONTADA en Chromium con el reloj falso
+(20 y 45 minutos). `MODO=roto` compila `8004e67` y afirma que la sala y Tavus
+iban a 30 y que la de 45 avisaba a los 25 y cortaba a los 30. Que Tavus acepte
+`max_call_duration` de más de una hora no se puede probar desde este entorno.

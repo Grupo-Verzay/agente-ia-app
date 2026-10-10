@@ -60,7 +60,7 @@ export const UpdateMeetingDuration = ({
     const [modo, setModo] = useState<ModoDeReunion>("enlace");
     const [disponible, setDisponible] = useState(true);
     const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
-    // Cuánto dura como mucho una videollamada con IA; al llegar, la sala se cierra sola.
+    // El respaldo: la videollamada dura lo agendado en la cita; este límite, solo si la cita no lo dice.
     const [limite, setLimite] = useState<number>(LIMITE_DE_FABRICA_MIN);
     const [limiteGuardado, setLimiteGuardado] = useState<number>(LIMITE_DE_FABRICA_MIN);
 
@@ -258,7 +258,7 @@ export const UpdateMeetingDuration = ({
                         </label>
                         <div className="flex items-center gap-3 w-full">
                             <p className="flex-1 text-xs text-muted-foreground">
-                                Al llegar a este tiempo la videollamada se cierra sola. Entre {LIMITE_MINIMO_MIN} y {LIMITE_MAXIMO_MIN} minutos.
+                                La videollamada dura lo que se agendó en la cita, con avisos 5 y 1 minuto antes del cierre. Este límite solo se usa si la cita no trae duración. Entre {LIMITE_MINIMO_MIN} y {LIMITE_MAXIMO_MIN} minutos.
                             </p>
                             <Input
                                 id="limiteDeLaVideollamada"

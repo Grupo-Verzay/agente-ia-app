@@ -254,7 +254,7 @@ export default function SalaDeLaVideollamada({
     reentrada?: boolean;
     /** El saludo del guion de la cuenta (Agente IA › Videollamadas); de fábrica, SALUDO_INICIAL. */
     saludo?: string;
-    /** Minutos que dura como mucho la sala (Agenda › Ajustes); llegado el tope se cuelga. */
+    /** Minutos que dura la sala: los agendados en la cita (`losMinutosDeLaVideollamada`); llegado el tope se cuelga. */
     limiteMinutos?: number;
     /** Cuándo empezó de verdad (ISO); sin él, desde que se abrió esta página. */
     empezoEn?: string | null;
@@ -772,8 +772,9 @@ export default function SalaDeLaVideollamada({
             }
         };
         if (atiende) {
-            // El reloj: a los 25, a los 29 y la despedida antes del 30, contados
-            // desde que EMPEZÓ. Fijo, esté en la etapa que esté.
+            // El reloj: 5 y 1 minuto antes del cierre y la despedida justo antes,
+            // con el cierre que se agendó, contado desde que EMPEZÓ. Fijo, esté
+            // en la etapa que esté.
             for (const m of losMomentosDelReloj(new Date(empezoEn ?? inicioRef.current), cierre)) {
                 enUnRato(() => {
                     const a = atencion.current;
