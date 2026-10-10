@@ -95,6 +95,11 @@ const apiUploadFormFilePrefix = "/api/upload-form-file";
 // grabación, fin). Lo manda Tavus, sin sesión. Su puerta es la firma HMAC de
 // la cita que va en el `callback_url` (`esLaFirmaDeLaCita`).
 const apiVideollamadaPrefix = "/api/videollamada";
+// El ciclo automático de la cita: el reloj de la espera, lo que escribe un
+// cliente con cita y lo que decide en la llamada del minuto 5. Las tres las
+// llama el BACKEND con la clave interna (`CRM_FOLLOW_UP_RUNNER_KEY`), nunca un
+// navegador; cada ruta la comprueba por su cuenta.
+const apiCicloDeCitasPrefix = "/api/ciclo-de-citas";
 
 
 export default auth((req) => {
@@ -127,6 +132,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiTicketsPublicoPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCallsPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiVideollamadaPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiCicloDeCitasPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiSendMediaPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiProductsPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiExternalClientDataPrefix)) return NextResponse.next();

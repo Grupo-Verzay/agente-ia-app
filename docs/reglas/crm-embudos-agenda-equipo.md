@@ -2537,3 +2537,71 @@ fijo.
 
 Lo prueba `scripts/banco-ver-numero-completo.sh` (la regla, un barrido y las
 acciones contra Postgres); `MODO=roto` contra `4c84c02` afirma que no existía.
+
+## Agenda: el ciclo automático de la cita pone SOLO los estados objetivos
+
+Agenda › Ajustes › **Flujo automático de la cita** (un interruptor por
+cuenta, `cita_ciclo_ajustes`; sin fila = apagado y todo como antes). Las
+reglas son puras en `lib/ciclo-de-la-cita.ts`; lo que lee la base y manda, en
+`lib/ciclo-de-la-cita.server.ts`; la historia de cada cita, en `cita_ciclo`
+(`lib/ciclo-de-la-cita-db.ts`). En el backend, `src/modules/ciclo-de-la-cita/`.
+
+**Quién pone cada estado (no se toca la definición):**
+
+| estado | quién |
+| --- | --- |
+| Pendiente | al agendar |
+| Confirmada | una PERSONA (candidato calificado). El «Sí» del recordatorio NO lo es |
+| Atendida | el sistema, cuando el PROSPECTO entra a la videollamada |
+| No asistida | el sistema, al agotarse la espera (minuto 10 o su prórroga), o si en la llamada dice que no puede, aunque diga «cancelar» |
+| Cancelada | una PERSONA. Nunca por lo que diga el chat |
+| Finalizado | una PERSONA (el pago se valida en otra cuenta) |
+| Descartado | el sistema, solo con un rechazo LITERAL («no me interesa», «no es lo que buscaba»), sin preguntas ni negaciones |
+
+Lo que hay que mantener:
+
+1. **Los cuatro recordatorios sustituyen a las plantillas** (3 h, 1 h con
+   «Sí»/«No», 30 min, y el enlace a la hora). Llevan la llave
+   `appt-reminder:<cita>:ciclo-<clave>` y el `idNodo` `appt-reminder-ciclo-*`:
+   así reagendar y cancelar los borran con lo de siempre, y el motor los manda a
+   su hora. El de 1 h va con `tipo: 'botones'`: el backend pinta botones en
+   WAHA (o lista) y en Meta, y texto en Evolution; el texto ya pide «Sí» o «No».
+2. **La espera solo corre en modo «Videollamada con IA»**: es el único en el
+   que se SABE si entró. La entrada la apunta la sala al unirse
+   (`cita_ciclo.clienteEntroEn`, `PUT /api/videollamada/sala`); un asesor que
+   entra lleva `quien=asesor` y NO cuenta. Con un enlace fijo solo hay
+   recordatorios: un «No asistida» a ciegas sería inventarse un dato.
+3. **Un automático nunca pisa a una persona**: el cambio va con `desde`
+   (`updateMany` sobre Pendiente/Confirmada) en `cambiarElEstadoDeLaCita`
+   (`lib/estado-de-la-cita.server.ts`), que es la MISMA función que usa la
+   acción del tablero. Lo hecho por el sistema queda en `audit_logs` con
+   `actor_id` nulo.
+4. **El reloj lo da el backend cada minuto** (`CicloDeLaCitaSchedulerService`
+   → `POST /api/ciclo-de-citas/tic`, clave interna; se apaga con
+   `CICLO_DE_CITAS_ENABLED=false`). Minuto 5 sin entrar → la App pide la
+   llamada (`POST <backend>/citas/llamada-de-espera`); el backend apunta el
+   teléfono y `/voicebot/resolve` de ESA llamada lleva el encargo y la
+   herramienta `responder_espera_de_cita`, cuya respuesta va a
+   `/api/ciclo-de-citas/llamada`. «Más tiempo» extiende la espera (tope 30 min).
+   Una llamada que no sale se apunta en `llamadaResultado` y la espera sigue.
+   El reloj no toca citas de hace más de 2 h (un reloj parado no marca las de
+   ayer al volver).
+5. **Lo que escribe un contacto con cita** va a `/api/ciclo-de-citas/mensaje`
+   ANTES de los cortes de la IA. `{manejado:true}` (era el «Sí»/«No» del
+   recordatorio, ya contestado) corta el turno; el rechazo literal descarta y
+   deja contestar al agente. Un «No» quita los avisos de 30 min y del enlace,
+   ofrece reagendar, avisa a la cuenta y NO cancela.
+6. **Avisos**: No asistida → el mensaje de siempre al cliente (con el enlace
+   para reagendar) y uno a la cuenta (`notificationNumber` y contactos de
+   notificación) con el motivo. Atendida no avisa al cliente: está dentro de
+   la reunión. Todos disparan las automatizaciones del estado (mueven la tarjeta).
+
+Esto deja sin efecto el punto 3 de «Agenda: la videollamada con IA (Tavus)»
+(`videollamadas-y-reuniones.md`): aquel reloj de ausencia del backend nunca
+existió en `api-webhook`; este es el que hay.
+
+Lo prueban `scripts/banco-ciclo-de-la-cita.sh` aquí (las reglas y, contra
+Postgres, recordatorios, reloj, entrada, «Sí»/«No», Descartado y las rutas) y
+`scripts/banco-ciclo-de-la-cita.sh` en `api-webhook` (botones, la llamada de
+espera de punta a punta en `resolve` y la herramienta). Es una función nueva:
+no hay `MODO=roto` que afirmar.

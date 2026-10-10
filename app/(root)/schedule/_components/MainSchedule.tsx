@@ -23,7 +23,7 @@ import ServiceManager from './services/ServiceManager';
 import { CustomCalendar } from './dashboard';
 import { AgendaKanban } from './dashboard/AgendaKanban';
 import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
-import { UpdateMeetingDuration, GoogleCalendarSettings } from './settings';
+import { UpdateMeetingDuration, GoogleCalendarSettings, FlujoAutomaticoDeCitas } from './settings';
 import { BookingFormBuilder } from './form/BookingFormBuilder';
 import { BookingFormResponsesList, type BookingResponseCounts } from './form/BookingFormResponsesList';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
@@ -297,6 +297,9 @@ export const MainSchedule = ({
                             </div>
                             <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="google-calendar">
                                 <GoogleCalendarSettings userId={userId} />
+                            </div>
+                            <div className="h-full rounded-xl border bg-card shadow-sm p-6" data-ajuste-de-agenda="flujo-automatico">
+                                <FlujoAutomaticoDeCitas userId={userId} />
                             </div>
                         </div>
                     </div>
