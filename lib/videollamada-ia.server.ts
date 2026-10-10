@@ -21,8 +21,9 @@ import {
     elEnlaceDelNombre,
     elModoQueVale,
     elNombreDelProspecto,
-    comoLimiteDeMinutos,
-    laDuracionConLimite,
+    losMinutosDeLaVideollamada,
+    laDuracionEnTavus,
+    comoMinutosDeLaReunion,
     LIMITE_DE_FABRICA_MIN,
     pareceUnEnlaceConNombre,
     queHacerAlAbrir,
@@ -64,7 +65,7 @@ export type ResultadoAlAbrir =
           reentrada: boolean;
           /** El saludo del guion de la cuenta: la sala lo dice si Verzy calla al entrar. */
           saludo: string;
-          /** Minutos que dura como mucho la reunión (Agenda › Ajustes): al llegar, la sala se cierra sola. */
+          /** Minutos que dura la reunión: los AGENDADOS en la cita (`losMinutosDeLaVideollamada`). Al llegar, la sala se cierra sola. */
           limiteMinutos: number;
           /** Cuándo entró alguien de verdad (si ya pasó): el límite se cuenta desde ahí, no desde la recarga. */
           empezoEn: string | null;
@@ -251,7 +252,7 @@ async function elContexto(
         elBloqueDeLaPantalla(),
         elBloqueDelEnvio(),
         elBloqueDelGuion(ahora, guion, entrenamiento),
-        elBloqueDeAtencion(comoLimiteDeMinutos(limiteMinutos)),
+        elBloqueDeAtencion(comoMinutosDeLaReunion(limiteMinutos)),
         anterior,
     ]
         .filter(Boolean)
@@ -324,7 +325,6 @@ async function crearLaConversacion(
     limiteMinutos: number = LIMITE_DE_FABRICA_MIN,
 ): Promise<{ id: string; url: string }> {
     const origen = elOrigenPublico();
-    const ahora = new Date();
     // La persona con la que se crea TIENE las herramientas: la original si se
     // le pudieron poner, o su copia si tiene ediciones del editor de Tavus
     // (409 maker_changes). Sin ellas no hay pantalla compartida.
@@ -335,7 +335,7 @@ async function crearLaConversacion(
         conversation_name: `Cita ${cita.id}`,
         conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita), limiteMinutos),
         properties: {
-            max_call_duration: laDuracionConLimite(ahora, cita.endTime, limiteMinutos),
+            max_call_duration: laDuracionEnTavus(limiteMinutos),
             participant_absent_timeout: 300,
             // Si se le cae la conexión al cliente, la conversación espera un
             // minuto a que vuelva por el mismo enlace: así el avatar sigue
@@ -415,6 +415,8 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
 
     const existente = await laVideollamada(id);
     const guion = await elGuionDeLaCita(cita);
+    // Dura lo que se agendó; el límite de la cuenta solo si la cita no lo dice.
+    const minutos = losMinutosDeLaVideollamada(cita.startTime, cita.endTime, ajustes.limiteMinutos);
     const irA = (url: string) => ({
         estado: "ir" as const,
         url,
@@ -423,7 +425,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         firma: laFirmaDeLaCita(id),
         reentrada: false,
         saludo: elGuionQueSeUsa(guion).saludo || SALUDO_INICIAL,
-        limiteMinutos: ajustes.limiteMinutos,
+        limiteMinutos: minutos,
         empezoEn: null as string | null,
         cuentaId: cita.userId,
     });
@@ -460,7 +462,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     }
 
     try {
-        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion, ajustes.limiteMinutos);
+        const conversacion = await crearLaConversacion(cita, tavus, existente?.transcripcion, guion, minutos);
         await apuntarLaConversacion(id, conversacion.id, conversacion.url);
         console.info("[videollamada] conversación creada", { cita: id, cuenta: cita.userId, conversacion: conversacion.id });
         return irA(conversacion.url);

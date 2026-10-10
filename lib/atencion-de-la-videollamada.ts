@@ -15,7 +15,8 @@
  * | intención clara de comprar | Verzy salta al cierre: pago, registro, tutoriales y soporte |
  * | «no me interesa», «muy caro», «no es lo que busco» | despedida cordial, la cita a Descartado |
  *
- * El reloj (minuto 25, 29 y 30) va SIEMPRE, en cualquier etapa.
+ * El reloj (5 y 1 minuto antes del cierre agendado, y el cierre) va SIEMPRE,
+ * en cualquier etapa.
  */
 
 import { normalizar } from "@/lib/silencio-de-verzy";
