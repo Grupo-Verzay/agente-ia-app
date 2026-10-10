@@ -11,6 +11,7 @@ import { leerElGuionDeVideollamada } from "@/lib/guion-videollamada-db";
 import { elGuionQueSeUsa, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { laPersonaParaLaConversacion } from "@/lib/persona-de-tavus.server";
 import { SALUDO_INICIAL } from "@/lib/videollamada-crm";
+import { ESPERA_SI_SE_CAE_S } from "@/lib/fin-de-la-videollamada";
 import { deInstanteAReloj, laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { elContextoDeLaConversacion, TOPE_DE_MENSAJES, type MensajeDelChat } from "@/lib/contexto-de-la-conversacion";
 import {
@@ -30,6 +31,7 @@ import {
     laCitaDelEnlace,
     laVideollamada,
     leerLosAjustes,
+    marcarFinalizada,
     marcarQueEntro,
     reclamarLaCreacion,
     soltarElReclamo,
@@ -318,10 +320,12 @@ async function crearLaConversacion(
         properties: {
             max_call_duration: laDuracionConLimite(ahora, cita.endTime, limiteMinutos),
             participant_absent_timeout: 300,
-            // Si se le cae la conexión al cliente, la conversación espera
-            // tres minutos a que vuelva por el mismo enlace: así el avatar
-            // sigue donde iba en vez de empezar de nuevo.
-            participant_left_timeout: 180,
+            // Si se le cae la conexión al cliente, la conversación espera un
+            // minuto a que vuelva por el mismo enlace: así el avatar sigue
+            // donde iba en vez de empezar de nuevo. Ese rato Tavus lo cobra
+            // (con 180 eran tres minutos pagados tras cada llamada). Al pulsar
+            // «Salir» no se espera: la sala la termina (`terminarLaConversacion`).
+            participant_left_timeout: ESPERA_SI_SE_CAE_S,
             language: "spanish",
         },
     };
@@ -448,6 +452,40 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
         await soltarElReclamo(id).catch(() => undefined);
         console.error("[videollamada] Tavus no creó la conversación", { cita: id, cuenta: cita.userId, motivo });
         return { estado: "fallo", motivo: elMotivoLegible(motivo) };
+    }
+}
+
+/**
+ * Se colgó a propósito («Salir», la despedida, el límite): se le dice a Tavus
+ * que la conversación TERMINÓ, para que deje de cobrar al momento en vez de
+ * esperar `ESPERA_SI_SE_CAE_S` por si el cliente vuelve. Y se marca
+ * finalizada: abrir el enlace otra vez crea una conversación nueva (con lo ya
+ * hablado), no vuelve a una que Tavus ya cerró. Nunca lanza.
+ */
+export async function terminarLaConversacion(citaId: string): Promise<{ ok: boolean; motivo?: string }> {
+    try {
+        const fila = await laVideollamada(citaId);
+        if (!fila?.conversacionId) return { ok: false, motivo: "sin_conversacion" };
+        if (fila.estado === "finalizada") return { ok: true, motivo: "ya_finalizada" };
+        const tavus = await elAvatarDeLaCuenta(fila.cuentaId);
+        if (!tavus) return { ok: false, motivo: "sin_avatar" };
+        const respuesta = await fetch(`${API_DE_TAVUS}/${encodeURIComponent(fila.conversacionId)}/end`, {
+            method: "POST",
+            headers: { "x-api-key": tavus.clave },
+            cache: "no-store",
+        });
+        // 400 / 404: Tavus ya la había cerrado. Igual se marca finalizada.
+        if (!respuesta.ok && respuesta.status !== 400 && respuesta.status !== 404) {
+            console.warn("[videollamada] Tavus no terminó la conversación al colgar", { cita: citaId, estado: respuesta.status });
+            return { ok: false, motivo: `tavus_${respuesta.status}` };
+        }
+        await marcarFinalizada(citaId);
+        console.info("[videollamada] conversación terminada al colgar", { cita: citaId, conversacion: fila.conversacionId });
+        return { ok: true };
+    } catch (error) {
+        const motivo = error instanceof Error ? error.message : String(error);
+        console.warn("[videollamada] no se pudo terminar la conversación al colgar", { cita: citaId, motivo });
+        return { ok: false, motivo };
     }
 }
 

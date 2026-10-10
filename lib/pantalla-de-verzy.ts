@@ -183,6 +183,52 @@ export function elTamanoDeLaPantalla(ancho: unknown, alto: unknown, dispositivo?
     };
 }
 
+// ---------------------------------------------------------------- una vista por dispositivo
+//
+// La pantalla de una cita era UNA ventana, y cada sala le decía su tamaño: con
+// el cliente en el teléfono y un asesor en el ordenador, la última en hablar
+// ganaba y los dos veían lo mismo (casi siempre la de escritorio). Ahora la
+// ventana que Verzy mueve (el CONDUCTOR) toma el dispositivo de la primera
+// sala que habla, y cada OTRO dispositivo tiene su ESPEJO: otra ventana con
+// su tamaño, que sigue a la del conductor (la misma página, el mismo sitio).
+// La información es la misma para todos; cambia solo cómo se acomoda.
+
+/** ¿Esta sala ve la ventana de Verzy (el conductor) o el espejo de su dispositivo? */
+export function laVistaQueToca(input: { pedido: Dispositivo; conductor: Dispositivo; adoptado: boolean }): "conductor" | "espejo" {
+    if (!input.adoptado || input.pedido === input.conductor) return "conductor";
+    return "espejo";
+}
+
+/**
+ * La ruta que sigue un espejo: la de la página del conductor. Un chat abierto
+ * pulsando su fila no cambia la URL (`/chats` a secas): entonces va la de esa
+ * conversación. Fuera de la plataforma (la pantalla de espera), `null`.
+ */
+export function laRutaQueSigueElEspejo(input: {
+    url: string;
+    base: string;
+    chatAbierto: { jid: string; linea: string | null } | null;
+}): string | null {
+    let u: URL;
+    try {
+        u = new URL(input.url);
+    } catch {
+        return null;
+    }
+    if (u.origin !== new URL(input.base).origin) return null;
+    if (u.pathname === "/chats" && !u.searchParams.get("jid") && input.chatAbierto?.jid) {
+        return laUrlDeLaConversacion(input.chatAbierto);
+    }
+    return `${u.pathname}${u.search}`;
+}
+
+/** Lo bajada que va una página (0 arriba, 1 abajo), para que el espejo enseñe la misma parte. */
+export function laProporcionBajada(input: { arriba: number; alto: number; ventana: number }): number {
+    const recorrido = Number(input.alto) - Number(input.ventana);
+    if (!Number.isFinite(recorrido) || recorrido <= 0) return 0;
+    return Math.min(1, Math.max(0, Number(input.arriba) / recorrido));
+}
+
 /** El agente de usuario que se le pone a la ventana para cada dispositivo (los sitios que miran el UA). */
 export const AGENTE_DEL_DISPOSITIVO: Record<Dispositivo, string> = {
     movil: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",

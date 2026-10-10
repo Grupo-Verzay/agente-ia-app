@@ -2616,3 +2616,63 @@ Lo prueba `scripts/banco-duracion-de-la-videollamada.sh` (la regla pura y, contr
 Postgres y el `ffmpeg` de verdad, los dos órdenes: el CRM queda con ~9 s de
 grabación y no con los 273 del aviso). `MODO=roto` compila `dd0a1f7` y afirma
 que el CRM se quedaba con los 273.
+
+## Videollamada: la llamada COMPLETA, «Salir» deja de cobrar, y la pantalla de Verzy en el formato de cada sala
+
+Tres cosas pedidas juntas.
+
+**1. La llamada completa en un video.** Una recarga de la página (el teléfono
+la recarga al volver al navegador) abre otra grabación: una llamada de 40
+minutos cortada a los 30 quedaba en dos ficheros y el detalle enseñaba solo el
+de 30. Ahora, al cerrar cada parte, `unirLasPartesDeLaCita` pega TODAS las
+partes `lista` de la cita, en el orden en que se grabaron, con el `concat` de
+`ffmpeg` sin recodificar, y las guarda como una grabación más de la cita
+(`union-<cita>`, `guardarLaUnion`) con la duración de todo: es la más larga y
+la que va al CRM sin otra regla. Las partes no se borran. Solo se unen si todas
+tienen ese fichero y el mismo formato; si no, se dice y queda la más larga.
+
+**2. «Salir» termina la conversación; una caída espera un minuto.** Tavus cobra
+mientras la conversación sigue abierta, y tras colgar esperaba
+`participant_left_timeout` (180 s) por si el cliente volvía. Ahora:
+- `ESPERA_SI_SE_CAE_S` = **60** (`lib/fin-de-la-videollamada.ts`), para quien se
+  queda sin red.
+- Al colgar A PROPÓSITO («Salir», la despedida, el límite) sin nadie más en la
+  sala (`terminaLaConversacionAlColgar`), la sala llama a
+  `DELETE /api/videollamada/sala` (firma de la cita) y el servidor hace
+  `POST /v2/conversations/<id>/end` con la clave de la cuenta
+  (`terminarLaConversacion`) y la marca `finalizada`: abrir el enlace otra vez
+  crea una conversación nueva con lo ya hablado. Un asesor que sale con el
+  cliente dentro no la termina. 400/404 de Tavus = ya cerrada.
+
+**3. La pantalla de Verzy en el formato de cada sala.** La pantalla de una cita
+era UNA ventana de Chromium y cada sala le mandaba su tamaño: la última en
+hablar se la quedaba (el teléfono acababa viendo la vista de escritorio). Ahora:
+- La ventana que Verzy mueve (el **conductor**) toma el dispositivo de la
+  PRIMERA sala que habla (`laVistaQueToca`); cada otro dispositivo tiene su
+  **espejo**: otra ventana del mismo contexto (la misma sesión), con su tamaño,
+  su agente y su vista táctil, que sigue al conductor (`seguirAlConductor`):
+  la misma ruta (`laRutaQueSigueElEspejo`, con el chat abierto por fila) y lo
+  mismo bajado en proporción (`laProporcionBajada`). Sin cursor ni gestos: la
+  información es la misma, cambia cómo se acomoda.
+- El flujo se pide con `&d=movil|tablet|pc` y cada sala ve su vista.
+- El espejo nadie mira en `SIN_MIRAR_MS` se cierra. Por la otra réplica, el
+  relevo es por dispositivo (`verzy_pantalla_vistas`).
+- El screencast solo manda cuando algo se pinta y un espejo no tiene cursor:
+  `tocarParaPintar` cambia un punto de 1 px casi transparente.
+- Lo que no se ve en el espejo: el tecleo de una nota en directo (se ve en el
+  conductor; el espejo enseña la página).
+
+Lo prueban:
+- `scripts/banco-grabacion-completa.sh`: reglas puras; dos partes unidas en
+  orden (440 Hz y luego 660 Hz) con el `ffmpeg` de verdad y la duración de
+  todo en el CRM; `DELETE` que termina en Tavus una vez; la sala en Chromium
+  («Salir» termina; el asesor con el cliente dentro, no). `MODO=roto` contra
+  `8488992`.
+- `scripts/banco-vista-por-dispositivo.sh`: la pantalla de verdad (Chromium por
+  CDP) con una plataforma de mentira: teléfono, ordenador y tableta, cada flujo
+  medido por su JPEG (vertical, horizontal, intermedio), la misma página con el
+  agente de cada aparato, y los espejos que siguen a Verzy de página y de
+  sección. `MODO=roto` contra `8488992`: todos recibían el mismo fotograma.
+
+`banco-silencio-y-pantalla.sh` falla ya en `main` (espera `CALMA_DE_LA_RED_MS
+= 600` y el código dice 400): no es de este cambio.

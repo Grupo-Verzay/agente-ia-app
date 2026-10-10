@@ -30,6 +30,7 @@ import {
     GRACIA_SI_VERZY_SALE_MS,
     loQueTerminaLaLlamada,
     TOPE_DE_LA_DESPEDIDA_MS,
+    terminaLaConversacionAlColgar,
 } from "@/lib/fin-de-la-videollamada";
 import { elAbajoDeLoGrande, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
@@ -382,6 +383,9 @@ export default function SalaDeLaVideollamada({
     // Con los mandos escondidos la caja baja hasta el borde (80 px más): se
     // descuentan, o cada vez que se apartan el servidor cambiaría de tamaño.
     const mandosOcultosRef = useRef(false);
+    // El dispositivo de ESTA sala: el flujo pide la vista de su dispositivo
+    // (cada sala la suya: el teléfono en vertical, el ordenador en horizontal).
+    const [dispositivoDeLaPantalla, setDispositivoDeLaPantalla] = useState<string | null>(null);
     useEffect(() => {
         const caja = cajaDeLaPantalla;
         if (!caja || typeof ResizeObserver === "undefined") return;
@@ -398,6 +402,7 @@ export default function SalaDeLaVideollamada({
             const llave = `${ancho}x${alto}x${dispositivo}`;
             if (llave === ultimo) return;
             ultimo = llave;
+            setDispositivoDeLaPantalla(dispositivo);
             fetch(`/api/videollamada/pantalla?${consulta}`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -545,6 +550,19 @@ export default function SalaDeLaVideollamada({
             colgada = true;
             aProposito = true;
             console.info("[videollamada] se cuelga", { porque });
+            // A propósito y sin nadie más en la sala: se le dice a Tavus que
+            // terminó (deja de cobrar ya; una caída de red no pasa por aquí).
+            let quedanOtrasPersonas = false;
+            try {
+                quedanOtrasPersonas = Object.values(llamada.participants()).some((p) => !p.local && esHumano(p));
+            } catch {
+                // Sin la lista, se termina igual: quien cuelga es quien está.
+            }
+            if (terminaLaConversacionAlColgar({ porque, quedanOtrasPersonas })) {
+                void fetch(`/api/videollamada/sala?${consulta}`, { method: "DELETE", keepalive: true }).catch((e) =>
+                    console.warn("[videollamada] no se pudo terminar la conversación al colgar", e),
+                );
+            }
             setEstado("terminada");
             setPistas(SIN_PISTAS);
             setDestino(null);
@@ -818,7 +836,7 @@ export default function SalaDeLaVideollamada({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             data-zona="video-de-la-pantalla"
-                            src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}`}
+                            src={`/api/videollamada/pantalla?stream=1&${consulta}&k=${video}${dispositivoDeLaPantalla ? `&d=${dispositivoDeLaPantalla}` : ""}`}
                             onLoad={() => { intentosDelVideo.current = 0; }}
                             onError={reabrirElVideo}
                             alt={`Pantalla de Verzay Ventas: ${pantallaQueSeVe}`}

@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
  * Al navegador llega el VIDEO de la pantalla (MJPEG, en vivo y en movimiento)
  * y el resultado de cada orden: la sesión de Verzay Ventas se queda aquí.
  *
- * GET  `?stream=1` → el flujo en vivo (multipart/x-mixed-replace), mientras
- *        la sala lo mire. Sin él, la última foto (204 si no hay).
+ * GET  `?stream=1&d=movil|tablet|pc` → el flujo en vivo (multipart/x-mixed-replace),
+ *        mientras la sala lo mire, de la vista de SU dispositivo. Sin él, la última foto (204 si no hay).
  *        `?preparar=1` deja la sesión y la pantalla listas.
  * POST → una orden: { tipo: "ir", lugar } (la URL que eligió el modelo, cargada tal cual tras sanearla), { tipo: "nota", texto },
  *        { tipo: "tamano", ancho, alto } (el hueco donde la sala la pinta: el navegador del servidor toma ese formato).
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
             if (lista) await asegurarLaPantalla(citaId);
             return NextResponse.json({ ok: lista });
         }
-        if (new URL(req.url).searchParams.get("stream") === "1") return elFlujo(req, citaId);
+        if (new URL(req.url).searchParams.get("stream") === "1") return elFlujo(req, citaId, new URL(req.url).searchParams.get("d"));
         const f = await laFotoDeLaPantalla(citaId);
         if (!f) return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
         return new NextResponse(new Uint8Array(f.foto), {
@@ -50,7 +50,8 @@ export async function GET(req: Request) {
     }
 }
 
-function elFlujo(req: Request, citaId: string): Response {
+/** `d` es el dispositivo de la sala: ve el espejo de su dispositivo si lo hay (`laVistaQueToca`). */
+function elFlujo(req: Request, citaId: string, dispositivo: string | null): Response {
     const corte = new AbortController();
     req.signal.addEventListener("abort", () => corte.abort(), { once: true });
     const cod = new TextEncoder();
@@ -61,7 +62,7 @@ function elFlujo(req: Request, citaId: string): Response {
                 control.enqueue(cod.encode(laCabeceraDeLaParte(jpeg.length)));
                 control.enqueue(new Uint8Array(jpeg));
                 control.enqueue(fin);
-            }, corte.signal)
+            }, corte.signal, dispositivo ?? undefined)
                 .catch((error) => console.error("[videollamada] se cortó el flujo de la pantalla", { cita: citaId, motivo: error instanceof Error ? error.message : String(error) }))
                 .finally(() => { try { control.close(); } catch { /* ya cerrado por quien miraba */ } });
         },
