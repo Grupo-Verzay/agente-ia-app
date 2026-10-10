@@ -1793,3 +1793,15 @@ herramientas del móvil reparte todo el ancho con `justify-between`, así que al
 quitar un icono los demás se reacomodan con huecos iguales y los dos bordes
 pegados. Lo prueba `scripts/banco-estado-de-sesion-en-la-cabecera.sh`;
 `MODO=roto` lee `f227386` y afirma la pastilla aparte y el hueco.
+
+## Chats: la vista previa de una foto o un video lleva su pie
+
+La fila decía siempre «🖼️ Imagen» / «🎥 Video», aunque el mensaje llevara un
+texto. Ahora, con pie, enseña el icono y ese texto en una línea (como la nota
+interna: candado y texto); sin pie, «Imagen» / «Video» como antes. Vale para lo
+recibido y lo enviado. El pie sale de `imageMessage.caption` /
+`videoMessage.caption` o, suelto, de `conversation` (`pieParaLaFila` en
+`chat-sidebar.utils.ts`); la etiqueta `[Imagen]`, el rótulo de la burbuja
+optimista y el nombre del archivo NO son un pie. Documentos, audios y
+stickers no cambian. Lo prueba `scripts/banco-pie-en-la-vista-previa.sh`;
+`MODO=roto` lee `1d733ad` y afirma que el pie no salía.

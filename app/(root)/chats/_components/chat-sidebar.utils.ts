@@ -4,6 +4,7 @@ import { puedeVerTelefonoCompleto, telefonoParaMostrar } from "@/lib/telefono-vi
 import { avatarSrcFor } from "@/lib/avatar";
 import { esSobreInternoDeWhatsapp, tipoRealDeWhatsapp } from "@/lib/whatsapp-message-kinds";
 import { epochToMs } from "@/lib/epoch";
+import { elTextoDeLaNota } from "@/lib/nota-en-la-vista-previa";
 import type { ChatData } from "@/actions/chat-actions";
 import type { ChatConversationPreference } from "@/types/chat";
 import type { ChatContactSessionMap, ChatContactSessionSummary } from "@/types/session";
@@ -460,6 +461,35 @@ const TIPOS_CON_ETIQUETA_PROPIA = new Set([
   "contactsArrayMessage",
 ]);
 
+/**
+ * El pie de una foto o un video, en UNA línea, para la vista previa de la fila.
+ *
+ * La lista decía siempre «🖼️ Imagen» o «🎥 Video», aunque el mensaje llevara un
+ * texto: había que abrir el chat para saber de qué iba. Con pie, la fila enseña
+ * el icono y ese texto, igual que enseña el candado y el texto de una nota.
+ *
+ * El pie viaja en `imageMessage.caption` / `videoMessage.caption`, o suelto en
+ * `conversation` (ver `pieDelAdjunto` en `chat-message-utils.ts`). En ese
+ * segundo sitio también puede haber algo que NO escribió nadie: la etiqueta
+ * `[Imagen]` que guarda el servidor, el rótulo de la burbuja optimista o el
+ * nombre del archivo. Eso no es un pie y la fila se queda con «Imagen»/«Video».
+ */
+function pieParaLaFila(
+  msg: Record<string, any>,
+  tipo: "imageMessage" | "videoMessage",
+): string {
+  const adjunto = msg?.[tipo];
+  const propio = typeof adjunto?.caption === "string" ? elTextoDeLaNota(adjunto.caption) : "";
+  if (propio) return propio;
+
+  const suelto = typeof msg?.conversation === "string" ? msg.conversation.trim() : "";
+  if (!suelto) return "";
+  if (normalizePreviewText(suelto) !== suelto) return "";
+  if (suelto === "🖼️ Imagen" || suelto === "🎥 Video") return "";
+  if (suelto === adjunto?.fileName) return "";
+  return elTextoDeLaNota(suelto);
+}
+
 export function lastTextFrom(chat: ChatData): {
   text: string;
   messageType?: string;
@@ -485,12 +515,16 @@ export function lastTextFrom(chat: ChatData): {
     text = normalizePreviewText(msg.conversation);
   } else {
     switch (type) {
-      case "imageMessage":
-        text = "🖼️ Imagen";
+      case "imageMessage": {
+        const pie = pieParaLaFila(msg as Record<string, any>, "imageMessage");
+        text = pie ? `🖼️ ${pie}` : "🖼️ Imagen";
         break;
-      case "videoMessage":
-        text = "🎥 Video";
+      }
+      case "videoMessage": {
+        const pie = pieParaLaFila(msg as Record<string, any>, "videoMessage");
+        text = pie ? `🎥 ${pie}` : "🎥 Video";
         break;
+      }
       case "audioMessage":
         text = msg?.audioMessage?.ptt === false ? "🎧 Audio" : "🎙️ Nota de voz";
         break;
