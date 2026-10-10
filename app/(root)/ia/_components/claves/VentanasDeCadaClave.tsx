@@ -263,14 +263,14 @@ function VentanaDeTavus({ userId, estado, onOpenChange, onGuardado }: PropsDeLaV
                             <a href="https://platform.tavus.io" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
                                 platform.tavus.io
                             </a>
-                            . Sin clave propia, las videollamadas usan el avatar de la plataforma.
+                            . Son obligatorios: sin ellos no hay videollamada con IA.
                         </p>
                     </div>
                 </div>
                 <DialogFooter className="gap-2 sm:justify-between">
                     {hayPropio ? (
                         <Button type="button" variant="ghost" className="text-destructive" onClick={quitar} disabled={guardando}>
-                            Usar el de la plataforma
+                            Quitar la clave
                         </Button>
                     ) : (
                         <span />

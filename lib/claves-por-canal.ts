@@ -214,9 +214,9 @@ export function elEstadoDeLasLlamadas(openAi: ConfigDeIa | null): EstadoDeSeccio
     return { seccion: "llamadas", estado: "lista", detalle: `OpenAI · ${comoSeEnsenaLaClave(openAi.clave)}` };
 }
 
+/** Sin avatar propio NO hay videollamada con IA: no existe avatar de respaldo. */
 export function elEstadoDelAvatar(avatar: {
     propio: { personaId: string; clave: ClaveVistaDesdeElNavegador } | null;
-    hayDeLaCasa: boolean;
 }): EstadoDeSeccion {
     if (avatar.propio) {
         return {
@@ -229,7 +229,7 @@ export function elEstadoDelAvatar(avatar: {
     return {
         seccion: "videollamadas",
         estado: "pendiente",
-        detalle: avatar.hayDeLaCasa ? "Sin clave propia: usa el avatar de la plataforma" : "Sin clave de Tavus",
+        detalle: "Falta tu clave y tu avatar de Tavus: sin ellos no hay videollamada con IA",
     };
 }
 

@@ -60,8 +60,7 @@ su postgres -c "/usr/lib/postgresql/16/bin/createdb -h $PGDIR -p $PORT -U postgr
 export DATABASE_URL="postgresql://postgres@localhost:$PORT/banco?host=$PGDIR"
 export DIRECT_URL="$DATABASE_URL"
 export AUTH_SECRET=banco NEXTAUTH_URL=http://localhost AUTH_RESEND_KEY=banco CRM_FOLLOW_UP_RUNNER_KEY=banco \
-       S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=localhost S3_PUBLIC_URL=http://bucket.test GEMINI_API_KEY=banco \
-       TAVUS_API_KEY=clave-de-tavus-del-banco-0123456789 TAVUS_PERSONA_ID=persona-banco
+       S3_ACCESS_KEY=banco S3_SECRET_KEY=banco S3_ENDPOINT=localhost S3_PUBLIC_URL=http://bucket.test GEMINI_API_KEY=banco
 npx prisma db push --skip-generate --accept-data-loss >/dev/null
 
 # El bucket de mentira es el de AHORA (acepta ficheros por flujo) en los dos modos.

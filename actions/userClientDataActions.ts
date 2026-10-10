@@ -10,7 +10,7 @@ import { getIaCreditByUser } from './actions-ia-credits';
 import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
 import { leerLosAjustes } from '@/lib/videollamada-ia-db';
-import { VARIABLE_DEL_ENLACE } from '@/lib/videollamada-ia';
+import { VARIABLE_DEL_ENLACE, elModoQueVale } from '@/lib/videollamada-ia';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { clientesDelAsesor } from '@/lib/clientes-del-asesor';
 import { cuentaQueManda } from '@/lib/cuenta-que-manda';
@@ -794,7 +794,7 @@ export async function updateUserMeetingDuration(
     const ajustes = await leerLosAjustes(userId).catch(() => null);
     const base = DEFAULT_REMINDERS_TEMPLATES[4].description;
     const newDesc =
-      ajustes?.modo === "tavus"
+      elModoQueVale(ajustes) === "tavus"
         ? `${base} Este es el link de acceso.\n\n👉 ${VARIABLE_DEL_ENLACE}`
         : url
           ? `${base} Este es el link de acceso.\n\n👉 ${url}`

@@ -73,8 +73,8 @@ export async function guardarLaClaveDeLlamadasAction(userId: string | null, apiK
 
 /**
  * Videollamadas: la clave y el avatar (persona) de Tavus PROPIOS de la cuenta.
- * Clave vacía = conservar la guardada. Sin avatar propio la cuenta usa el de
- * la plataforma (`elAvatarDeLaCuenta`).
+ * Clave vacía = conservar la guardada. Sin ellos la cuenta NO tiene
+ * videollamada con IA: no hay avatar de respaldo (`elAvatarDeLaCuenta`).
  */
 export async function guardarElAvatarDeTavusAction(
     userId: string | null,
@@ -104,7 +104,7 @@ export async function quitarElAvatarDeTavusAction(userId: string | null): Promis
     try {
         const hecho = await guardarElAvatarPropio(cuenta, null);
         if (!hecho.ok) return { success: false, message: hecho.motivo ?? 'No se pudo quitar.' };
-        return { success: true, message: 'Avatar propio quitado: se usa el de la plataforma.' };
+        return { success: true, message: 'Clave de Tavus quitada: la videollamada con IA queda desactivada hasta que pongas otra.' };
     } catch (error) {
         console.error('[claves] no se pudo quitar el avatar de Tavus', { cuenta, error: String(error) });
         return { success: false, message: 'No se pudo quitar el avatar de Tavus.' };

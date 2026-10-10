@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { elMensajeDeLaVideollamada, laGrabacionParaElCrm } from "@/lib/grabacion-de-videollamada";
 import { abrir, sellar } from "@/lib/correo-cifrado.server";
 import { comoCapacidad, laCapacidadQueVale } from "@/lib/capacidad-de-multiagenda";
-import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FABRICA_MIN, elAvatarDelEntorno, elAvatarQueUsa, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
+import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FABRICA_MIN, elAvatarQueUsa, elModoQueVale, type Avatar, type AjustesParaGuardar, type ModoDeReunion } from "@/lib/videollamada-ia";
 
 /**
  * Dónde vive la videollamada con IA. Dos tablas de la App, con
@@ -18,9 +18,9 @@ import { elEnlaceConSufijo, comoModoDeReunion, comoLimiteDeMinutos, LIMITE_DE_FA
  * | `videollamada_ajustes` | CUENTA: el modo de reunión |
  * | `videollamadas_ia` | CITA: la conversación de Tavus, cuándo entró, la transcripción |
  *
- * El avatar de la casa (el Pal «Verzy») sale del entorno (`elAvatarDeVerzay`).
- * Una cuenta puede tener el SUYO en `propioPersonaId` + `propioClaveSellada`
- * (sellada con la llave del correo; `elAvatarDeLaCuenta`). Son columnas
+ * No hay avatar de la casa ni respaldo del entorno: cada cuenta pone el SUYO
+ * en `propioPersonaId` + `propioClaveSellada` (sellada con la llave del
+ * correo; `elAvatarDeLaCuenta`), y sin él no tiene videollamada con IA. Son columnas
  * NUEVAS a propósito: `personaId`, `claveSellada` y `claveFinal` quedan de la
  * primera versión con datos de prueba y no se leen.
  *
@@ -174,36 +174,30 @@ export type AjustesDeLaVideollamada = {
     modo: ModoDeReunion;
     /** Cuánto dura como mucho cada videollamada, en minutos (30 si no se cambia). */
     limiteMinutos: number;
-    /** Si la plataforma tiene su avatar configurado (sin él no hay modo Tavus). */
+    /** Si la CUENTA tiene su avatar de Tavus (sin él no hay modo Tavus). */
     disponible: boolean;
 };
 
-/** El avatar fijo de la plataforma. Solo para el servidor que llama a Tavus. */
-export function elAvatarDeVerzay(): { clave: string; personaId: string } | null {
-    return elAvatarDelEntorno({ TAVUS_API_KEY: process.env.TAVUS_API_KEY, TAVUS_PERSONA_ID: process.env.TAVUS_PERSONA_ID });
-}
-
 /**
- * El avatar con el que se crea la videollamada de una cuenta: el suyo si lo
- * tiene, y si no el de la casa. Si el suyo no se puede leer (tabla o llave),
- * se usa el de la casa y se dice: una cita no se queda sin videollamada por eso.
+ * El avatar con el que se crea la videollamada de una cuenta: el SUYO, o
+ * `null`. No hay avatar de la casa al que caer: sin el suyo (o si no se puede
+ * leer) la cuenta no tiene videollamada con IA, y se dice.
  */
 export async function elAvatarDeLaCuenta(cuentaId: string): Promise<Avatar | null> {
-    const casa = elAvatarDeVerzay();
-    if (!cuentaId) return casa;
+    if (!cuentaId) return null;
     try {
         const filas = await conLasTablas(() => db.$queryRaw<{ personaId: string | null; sellada: string | null }[]>`
             SELECT "propioPersonaId" AS "personaId", "propioClaveSellada" AS "sellada"
             FROM "videollamada_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
         `);
         const f = filas[0];
-        if (!f?.personaId || !f.sellada) return casa;
+        if (!f?.personaId || !f.sellada) return null;
         const abierta = abrir<{ clave: string }>(f.sellada);
-        if (!abierta) console.warn("[videollamada] la clave propia de Tavus no se pudo abrir; se usa la de la casa", { cuenta: cuentaId });
-        return elAvatarQueUsa({ clave: abierta?.clave, personaId: f.personaId }, casa);
+        if (!abierta) console.warn("[videollamada] la clave propia de Tavus no se pudo abrir; la cuenta queda sin videollamada con IA", { cuenta: cuentaId });
+        return elAvatarQueUsa({ clave: abierta?.clave, personaId: f.personaId });
     } catch (error) {
-        console.warn("[videollamada] no se pudo leer el avatar propio; se usa el de la casa", { cuenta: cuentaId, error: String(error) });
-        return casa;
+        console.warn("[videollamada] no se pudo leer el avatar de la cuenta; queda sin videollamada con IA", { cuenta: cuentaId, error: String(error) });
+        return null;
     }
 }
 
@@ -236,7 +230,7 @@ export async function guardarElAvatarPropio(cuentaId: string, avatar: { clave: s
     let personaId: string | null = null;
     let sellada: string | null = null;
     if (avatar) {
-        const valido = elAvatarQueUsa(avatar, null);
+        const valido = elAvatarQueUsa(avatar);
         if (!valido) return { ok: false, motivo: "La clave o el persona_id de Tavus no tienen forma válida." };
         personaId = valido.personaId;
         sellada = sellar({ clave: valido.clave });
@@ -307,11 +301,11 @@ export async function guardarLaCapacidad(teamId: string, capacidad: number): Pro
     return valor;
 }
 
-/** La que cuenta para reservar: la guardada si la cuenta está en Tavus, si no 1. Un fallo es 1. */
+/** La que cuenta para reservar: la guardada si la cuenta está en Tavus (con su avatar), si no 1. Un fallo es 1. */
 export async function laCapacidadDelEquipo(teamId: string, cuentaId: string): Promise<number> {
     try {
         const [guardada, ajustes] = await Promise.all([laCapacidadGuardada(teamId), leerLosAjustes(cuentaId)]);
-        return laCapacidadQueVale(guardada, ajustes.modo);
+        return laCapacidadQueVale(guardada, elModoQueVale(ajustes));
     } catch (error) {
         console.warn("[multiagenda] no se pudo leer la capacidad; se usa 1", { equipo: teamId, error });
         return 1;
