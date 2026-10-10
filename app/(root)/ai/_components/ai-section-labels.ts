@@ -66,11 +66,16 @@ export const OPCIONES_DEL_AGENTE = {
   // «IA Prompts» se queda: es el nombre que ya usa el tutorial en vídeo de
   // esta pantalla. Lo que cambia es la ventana, que decía «Chat IA».
   asistente: "IA Prompts",
-  voz: "Voz del agente",
   metricas: "Métricas del agente",
   historial: "Historial de versiones",
   eliminar: "Eliminar todo",
 } as const;
+
+/**
+ * La ventana de la voz del agente. Ya no sale del «⋯»: la abre la sección
+ * «Voz» del botón «Claves» de WhatsApp (`ia/_components/claves`).
+ */
+export const VENTANA_DE_VOZ = "Voz del agente";
 
 /**
  * Borrar un elemento de una lista: el botón rojo de la tarjeta y la ventana

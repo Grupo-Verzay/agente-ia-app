@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Mic, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -47,8 +47,7 @@ import { applyTemplateToPrompt } from "@/actions/apply-template-action";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { OPCIONES_DEL_AGENTE, TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { VoiceSettings } from "./VoiceSettings";
+import { BotonDeClaves } from "../../ia/_components/claves/BotonDeClaves";
 import { CotizacionesBuilder } from "./CotizacionesBuilder";
 import { AJUSTES_POR_DEFECTO } from "@/lib/cotizacion-ia";
 import { laSeccionEnOrden } from "@/lib/orden-de-elementos";
@@ -66,14 +65,13 @@ const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
 
 type TabKey = AiSectionKey;
 
-export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: MainAiProps) => {
+export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones, canal = "whatsapp" }: MainAiProps) => {
     const router = useRouter();
     const [showAlertDialog, setShowAlertDialog] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showMetrics, setShowMetrics] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
-    const [showVoice, setShowVoice] = useState(false);
     // Los pasos de Inicio, EN VIVO: Preguntas, Productos y Extras eligen de
     // aquí el destino de una transición. Los mantiene Inicio al editarse.
     const [pasosDelInicio, setPasosDelInicio] = useState<Array<{ id: string; title?: string }>>(
@@ -427,6 +425,9 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                             distancia de la ultima. Las pestanas sirven para moverse;
                             Guardar hace algo. No deberian tocarse. */}
                         <div className="flex items-center gap-2 shrink-0 border-l border-border/60 pl-2 ml-1">
+                            {/* «Claves» a la vista y ANTES de Guardar: cada canal
+                                tiene las suyas, y en ámbar avisa de que falta alguna. */}
+                            <BotonDeClaves canal={canal} userId={user.effectiveId ?? user.id} />
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
@@ -530,16 +531,11 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
                                     </div>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuGroup>
-                                        {/* IA y Voz vivian en la barra; se movieron aqui para
-                                            dejar arriba solo Guardar, que es lo que se usa a
-                                            cada rato. */}
+                                        {/* La Voz ya no esta aqui: es una clave y vive en el
+                                            boton «Claves» de WhatsApp, a la vista. */}
                                         <DropdownMenuItem onSelect={() => setShowPromptChat(true)}>
                                             <Bot className="mr-2 h-4 w-4 text-primary" />
                                             {OPCIONES_DEL_AGENTE.asistente}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => setShowVoice(true)}>
-                                            <Mic className="mr-2 h-4 w-4" />
-                                            {OPCIONES_DEL_AGENTE.voz}
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
@@ -742,20 +738,6 @@ export const MainAi = ({ flows, user, promptMeta, sections, cotizaciones }: Main
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
-
-            <Dialog open={showVoice} onOpenChange={setShowVoice}>
-                <DialogContent className="flex h-[min(585px,92dvh)] w-[min(820px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
-                    <DialogHeader className="border-b px-5 py-3">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Mic className="h-4 w-4 text-primary" />
-                            {OPCIONES_DEL_AGENTE.voz}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-y-auto px-5 py-4">
-                        <VoiceSettings userId={user.effectiveId ?? user.id} />
-                    </div>
-                </DialogContent>
-            </Dialog>
 
             <VersionHistoryPanel
                 open={showHistory}

@@ -13,6 +13,8 @@ import {
     updateUserVoiceSettings,
     getElevenLabsVoices,
 } from '@/actions/userClientDataActions';
+import type { ClaveVistaDesdeElNavegador } from '@/lib/clave-de-ia-para-el-navegador';
+import { comoSeEnsenaLaClave } from '@/lib/claves-por-canal';
 
 type VoiceGender = 'masculino' | 'femenino';
 
@@ -59,8 +61,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
  * Panel de configuración de voz del agente (notas de voz de WhatsApp).
  * Es UNA sola config global por cuenta: aplica a todos los canales de chat.
  * Autocontenido: carga su propia config al montar y guarda en cada cambio.
+ *
+ * La clave de ElevenLabs guardada NO llega aquí: solo si la hay y su final.
+ * El campo queda vacío y vacío significa «conservarla».
  */
-export function VoiceSettings({ userId }: { userId: string }) {
+export function VoiceSettings({ userId, onSaved }: { userId: string; onSaved?: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -69,7 +74,9 @@ export function VoiceSettings({ userId }: { userId: string }) {
     const [voiceModel, setVoiceModel] = useState('gpt-4o-mini-tts');
     const [voiceInstructions, setVoiceInstructions] = useState('');
     const [ttsProvider, setTtsProvider] = useState('openai');
+    // Lo que se escribe NUEVO; la guardada solo se ve enmascarada.
     const [elApiKey, setElApiKey] = useState('');
+    const [elClave, setElClave] = useState<ClaveVistaDesdeElNavegador>({ tieneClave: false, finalDeLaClave: null });
     const [elVoiceId, setElVoiceId] = useState('');
     const [voiceGender, setVoiceGender] = useState<VoiceGender>('femenino');
 
@@ -87,7 +94,7 @@ export function VoiceSettings({ userId }: { userId: string }) {
                 setVoiceModel(res.data.voiceModel);
                 setVoiceInstructions(res.data.voiceInstructions || DEFAULT_VOICE_INSTRUCTIONS);
                 setTtsProvider(res.data.ttsProvider);
-                setElApiKey(res.data.elevenLabsApiKey);
+                setElClave(res.data.elevenLabsClave);
                 setElVoiceId(res.data.elevenLabsVoiceId);
             }
             setLoaded(true);
@@ -115,21 +122,28 @@ export function VoiceSettings({ userId }: { userId: string }) {
             next.model ?? voiceModel,
             next.instructions ?? voiceInstructions,
             next.provider ?? ttsProvider,
-            next.apiKey ?? elApiKey,
+            // Solo una clave escrita nueva; sin ella, el servidor conserva la guardada.
+            next.apiKey,
             next.elId ?? elVoiceId,
         );
         setSaving(false);
-        if (res.success) toast.success(res.message);
-        else toast.error(res.message);
+        if (res.success) {
+            toast.success(res.message);
+            if (next.apiKey) {
+                setElClave({ tieneClave: true, finalDeLaClave: next.apiKey.length >= 12 ? next.apiKey.slice(-4) : null });
+                setElApiKey('');
+            }
+            onSaved?.();
+        } else toast.error(res.message);
     };
 
     const handleLoadElVoices = async () => {
-        if (!elApiKey.trim()) {
+        if (!elApiKey.trim() && !elClave.tieneClave) {
             toast.error('Ingresa el API key de ElevenLabs primero.');
             return;
         }
         setLoadingElVoices(true);
-        const res = await getElevenLabsVoices(elApiKey.trim());
+        const res = await getElevenLabsVoices(elApiKey.trim(), userId);
         if (res.success && res.data) setElVoices(res.data);
         else toast.error(res.message);
         setLoadingElVoices(false);
@@ -277,17 +291,20 @@ export function VoiceSettings({ userId }: { userId: string }) {
                             <div className="flex gap-2">
                                 <Input
                                     type="password"
-                                    placeholder="sk_..."
+                                    placeholder={elClave.tieneClave ? `Guardada (${comoSeEnsenaLaClave(elClave)}). Vacía = conservarla` : 'sk_...'}
                                     value={elApiKey}
+                                    autoComplete="off"
                                     onChange={(e) => setElApiKey(e.target.value)}
-                                    onBlur={() => void persist({ apiKey: elApiKey })}
+                                    onBlur={() => {
+                                        if (elApiKey.trim()) void persist({ apiKey: elApiKey.trim() });
+                                    }}
                                     className="h-9 flex-1 text-sm"
                                 />
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={handleLoadElVoices}
-                                    disabled={loadingElVoices || !elApiKey.trim()}
+                                    disabled={loadingElVoices || (!elApiKey.trim() && !elClave.tieneClave)}
                                     className="h-9 shrink-0"
                                 >
                                     {loadingElVoices ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cargar voces'}

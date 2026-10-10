@@ -625,3 +625,33 @@ el viejo mandando: un chatbot con disparador seguía siendo IA.
 Lo prueba `scripts/banco-tipo-de-flujo.sh` (regla, barrido y la acción contra
 Postgres con todas las transiciones); `MODO=roto` lee `75b7e76` y afirma que
 no había forma de cambiarlo.
+
+## «Claves» por canal: a la vista, y cada clave DONDE el motor la lee
+
+Cada canal del editor del Agente IA (`/ia/<canal>`) tiene su botón «Claves»
+antes de «Guardar» (`app/(root)/ia/_components/claves/BotonDeClaves.tsx`). En
+ámbar con un punto si falta alguna, en gris si están todas: la misma lógica que
+«Guardar». Las secciones de cada canal y sus reglas viven en
+`lib/claves-por-canal.ts` (puro) y el estado se lee en
+`lib/claves-por-canal.server.ts`.
+
+- **No hay almacén nuevo.** Cada sección guarda donde el backend ya mira:
+  Mensajería en `user_ai_configs` (proveedor por defecto), Voz en `User`
+  (`ttsProvider`, `elevenLabs*`), Llamadas en la clave de OpenAI de
+  `user_ai_configs` (la que pide el servidor de llamadas, `no_openai_key`),
+  Videollamadas en `videollamada_ajustes.propio*` (Tavus) y WhatsApp API,
+  Telegram, Facebook e Instagram en el token de su fila de `Instancias`. Una
+  clave guardada donde el motor no lee sería un fallo mudo. Separar la IA de
+  cada canal de chat exige que el backend la lea primero.
+- **Ninguna clave viaja al navegador**: a lo sumo sus 4 últimos
+  (`comoLaVeElNavegador`), y el campo vacío CONSERVA la guardada. Esto incluye
+  la de ElevenLabs, que antes llegaba entera al panel de voz.
+- Toda acción del botón pasa por `laCuentaDeLaAccion`; cambiar una línea
+  comprueba en la FILA que es de la cuenta y de ese canal.
+- La voz salió del «⋯»: ahora es la sección «Voz» de las claves de WhatsApp.
+- Un proveedor que aún no funciona (ElevenLabs en Llamadas) se ve como
+  «Próximamente» y no se puede elegir.
+
+Lo prueba `scripts/banco-claves-por-canal.sh`; `MODO=roto` lee `1d733ad` y
+afirma que no había botón, que la voz estaba en el «⋯» y que la clave de
+ElevenLabs viajaba en claro.

@@ -52,6 +52,13 @@ type ApiKeyConfiguratorProps = {
      * navegador, tampoco al de quien administra.
      */
     showOrigin?: boolean;
+    /**
+     * Abierto desde fuera (el botón «Claves» del Agente IA). Con
+     * `sinDisparador` solo se pinta la ventana, sin el campo que la abre.
+     */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    sinDisparador?: boolean;
 };
 
 type SettingsData = NonNullable<
@@ -87,8 +94,16 @@ export function ApiKeyConfigurator({
     defaultOpen = false,
     onSaved,
     showOrigin = false,
+    open: abiertoDesdeFuera,
+    onOpenChange,
+    sinDisparador = false,
 }: ApiKeyConfiguratorProps) {
-    const [open, setOpen] = useState(false);
+    const [abiertoPropio, setAbiertoPropio] = useState(false);
+    const open = abiertoDesdeFuera ?? abiertoPropio;
+    const setOpen = (valor: boolean) => {
+        if (abiertoDesdeFuera === undefined) setAbiertoPropio(valor);
+        onOpenChange?.(valor);
+    };
     // Solo admin/reseller: origen (Verzay vs propia).
     const [origin, setOrigin] = useState<AiKeyOriginDTO | null>(null);
 
@@ -329,10 +344,11 @@ export function ApiKeyConfigurator({
         fmtProvider(providers.find((p) => p.id === previewProviderId)?.name ?? "") || "Proveedor";
 
     return (
-        <div className="space-y-2">
-            <Label className="text-muted-foreground">{label}</Label>
+        <div className={sinDisparador ? "contents" : "space-y-2"}>
+            {!sinDisparador && <Label className="text-muted-foreground">{label}</Label>}
 
             <Dialog open={open} onOpenChange={setOpen}>
+                {!sinDisparador && (
                 <DialogTrigger asChild>
                     <div className="relative">
                         <Input
@@ -362,6 +378,7 @@ export function ApiKeyConfigurator({
                         </div>
                     </div>
                 </DialogTrigger>
+                )}
 
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>

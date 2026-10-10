@@ -185,7 +185,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Equipo: los interruptores NUNCA le quitan los chats al asesor
 - Equipo: el interruptor «Ver número» deja a UN agente ver el número completo
 
-## [Agente IA, flujos, prompts y entrenamiento](agente-ia-y-flujos.md) — 11 reglas, 36 KB
+## [Agente IA, flujos, prompts y entrenamiento](agente-ia-y-flujos.md) — 12 reglas, 38 KB
 
 - Agente: «Agregar caso» y «Agregar transición» escriben en el BLOQUE del paso
 - Agente: una prohibición que no viaja en el prompt no existe
@@ -198,6 +198,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Flujos: lo que cuelga de un seguimiento sale CON el seguimiento, y un menú ahí espera
 - Entrenamiento › Cotizaciones: la App DECIDE y arma el PDF, el backend lo MANDA o escala
 - Flujos: cambiar el tipo es escribir el nuevo y QUITAR los otros dos
+- «Claves» por canal: a la vista, y cada clave DONDE el motor la lee
 
 ## [Guías públicas (`/guia/<módulo>`)](guias-publicas.md) — 23 reglas, 159 KB
 
