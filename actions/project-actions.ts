@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
-import { writeAuditLog } from "@/actions/audit-log-actions";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import { PROJECT_STATUSES, type ProjectData } from "@/lib/project-types";
 import { isTaskOpen, type TaskData, type TaskStatus } from "@/lib/task-types";
 import { canManageWorkspace } from "@/lib/workspace-roles";

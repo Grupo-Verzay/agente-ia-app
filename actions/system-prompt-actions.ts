@@ -15,6 +15,7 @@ import type {
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { laCuentaDelEntrenamiento } from '@/lib/dueno-del-dato.server';
 import * as nucleo from '@/lib/entrenamiento-del-agente.server';
+import { getAuditActorId } from '@/actions/audit-log-actions';
 
 /**
  * El editor del agente: guardar cada sección, publicar, listar y restaurar
@@ -181,14 +182,22 @@ export async function listPromptRevisions(promptId: string) {
     return nucleo.listPromptRevisions(promptId);
 }
 
-/** Restaura una revisión: copia sectionsSnapshot al draft del AgentPrompt. */
+/** Restaura una revisión y la publica (es la que el agente pasa a usar). */
 export async function restoreRevision(input: {
     promptId: string;
     revisionNumber: number;
     revalidate?: string;
 }) {
-    if (!(await laCuentaDelEntrenamiento(input?.promptId))) {
+    const dueno = await laCuentaDelEntrenamiento(input?.promptId);
+    if (!dueno) {
         return { ok: false as const, error: 'Revisión no encontrada' };
     }
-    return nucleo.restoreRevision(input);
+    // Restaurar es publicar esa versión: si no, el agente seguía contestando
+    // con la de antes hasta el siguiente «Guardar».
+    return nucleo.restaurarYPublicar({
+        promptId: input.promptId,
+        revisionNumber: input.revisionNumber,
+        publishedBy: (await getAuditActorId()) ?? dueno.cuenta,
+        revalidate: input.revalidate,
+    });
 }

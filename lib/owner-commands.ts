@@ -1,12 +1,14 @@
 import type { LeadStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { writeAuditLog } from "@/actions/audit-log-actions";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import {
   resolveWhatsAppDispatcherLine,
   sendViaWhatsAppDispatcher,
 } from "@/actions/whatsapp-dispatcher";
-import { updateSessionLeadStatus } from "@/actions/session-action";
+// Sin puerta: la acción `updateSessionLeadStatus` pide la sesión del navegador,
+// que el modo dueño no tiene (fallaba SIEMPRE con «No autorizado»).
+import { cambiarElEstadoDelLead } from "@/lib/estado-del-lead.server";
 // Sin puerta a propósito: el modo dueño entra por `/api/owner/*` con su clave y
 // no tiene sesión. La acción `addTagsToSessionAction` sí la pide.
 import { anadirEtiquetasALaSesion } from "@/lib/leads-sin-puerta.server";
@@ -464,7 +466,7 @@ async function getOwnedSession(sessionId: number, ownerId: string) {
  * sessionId, que se pierde entre turnos), así que las acciones aceptan ambos.
  * Por número, elige la sesión más reciente de ese contacto.
  */
-async function resolveTargetSession(
+export async function resolveTargetSession(
   ownerId: string,
   target: { sessionId?: number; phone?: string },
 ) {
@@ -606,7 +608,7 @@ export async function sendOwnerMessage(params: {
     entityId: String(session.id),
     action: "updated",
     summary: `Envió un mensaje a ${contactLabel(session)} desde WhatsApp (modo dueño)`,
-    metadata: { source: "owner-command", kind: "message", chars: text.length },
+    metadata: { source: "owner-command", kind: "message", text },
   });
 
   return { ok: true, data: { sessionId: session.id, contact: contactLabel(session) } };
@@ -626,7 +628,7 @@ export async function moveOwnerLeadStatus(params: {
     return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
   }
 
-  const res = await updateSessionLeadStatus(session.id, status);
+  const res = await cambiarElEstadoDelLead(session.id, status);
   if (!res.success) {
     return { ok: false, status: 502, message: res.message ?? "No se pudo actualizar el estado." };
   }
@@ -683,7 +685,7 @@ export async function tagOwnerContact(params: {
   sessionId?: number;
   phone?: string;
   tagName: string;
-}): Promise<OwnerActionResult<{ sessionId: number; contact: string; tag: string }>> {
+}): Promise<OwnerActionResult<{ sessionId: number; contact: string; tag: string; tagId: number }>> {
   const { ownerId, tagName } = params;
 
   const session = await resolveTargetSession(ownerId, params);
@@ -708,67 +710,122 @@ export async function tagOwnerContact(params: {
     metadata: { source: "owner-command", kind: "tag", tag: tagName, tagId },
   });
 
-  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), tag: tagName } };
+  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), tag: tagName, tagId } };
+}
+
+/** El asesor de la cuenta que casa con este nombre (o «ninguno» = liberar). */
+export async function resolverAsesor(
+  ownerId: string,
+  advisorName: string,
+): Promise<OwnerActionResult<{ advisorId: string | null; advisor: string | null }>> {
+  const nombre = advisorName?.trim() ?? "";
+  if (/^(ninguno|nadie|quitar|liberar|sin asesor)$/i.test(nombre)) {
+    return { ok: true, data: { advisorId: null, advisor: null } };
+  }
+  const matches = await db.user.findMany({
+    where: {
+      OR: [{ id: ownerId }, { ownerId }],
+      name: { contains: nombre, mode: "insensitive" },
+    },
+    select: { id: true, name: true, email: true },
+    take: 5,
+  });
+  if (matches.length === 0) {
+    return { ok: false, status: 404, message: `No encontré un asesor llamado "${nombre}".` };
+  }
+  if (matches.length > 1) {
+    const names = matches.map((m) => m.name || m.email).join(", ");
+    return { ok: false, status: 409, message: `Hay varios asesores que coinciden (${names}). Sé más específico.` };
+  }
+  return { ok: true, data: { advisorId: matches[0].id, advisor: matches[0].name || matches[0].email } };
+}
+
+/** El asesor que tiene ahora la conversación (la foto de «antes»). */
+export async function elAsesorDeLaSesion(sessionId: number): Promise<string | null> {
+  const filas = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
+    SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}`;
+  return filas[0]?.assigned_advisor_id ?? null;
 }
 
 /**
- * Asigna un contacto del dueño a un asesor de la cuenta (resuelto por nombre),
- * o lo libera si advisorName viene vacío. Verifica que la sesión y el asesor
- * pertenezcan a la cuenta.
+ * Pone (o quita, con `null`) el asesor de una conversación del dueño. Quien
+ * llama ya resolvió el asesor y comprobó que la sesión es de la cuenta.
  */
-export async function assignOwnerAdvisor(params: {
+export async function aplicarAsesor(params: {
   ownerId: string;
-  sessionId?: number;
-  phone?: string;
-  advisorName: string;
-}): Promise<OwnerActionResult<{ sessionId: number; contact: string; advisor: string | null }>> {
-  const { ownerId } = params;
-  const advisorName = params.advisorName?.trim() ?? "";
-
-  const session = await resolveTargetSession(ownerId, params);
-  if (!session) {
-    return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
-  }
-
-  // Liberar (sin asesor) si se pide explícitamente.
-  const release = /^(ninguno|nadie|quitar|liberar|sin asesor)$/i.test(advisorName);
-
-  let advisorId: string | null = null;
-  let advisorLabel: string | null = null;
-
-  if (!release) {
-    const matches = await db.user.findMany({
-      where: {
-        OR: [{ id: ownerId }, { ownerId }],
-        name: { contains: advisorName, mode: "insensitive" },
-      },
-      select: { id: true, name: true, email: true },
-      take: 5,
+  sessionId: number;
+  advisorId: string | null;
+  advisor: string | null;
+  contact: string;
+}): Promise<void> {
+  const { ownerId, sessionId, advisorId, advisor, contact } = params;
+  if (advisorId) {
+    // El asesor tiene que seguir siendo de la cuenta al ejecutar.
+    const sigue = await db.user.findFirst({
+      where: { id: advisorId, OR: [{ id: ownerId }, { ownerId }] },
+      select: { id: true },
     });
-    if (matches.length === 0) {
-      return { ok: false, status: 404, message: `No encontré un asesor llamado "${advisorName}".` };
-    }
-    if (matches.length > 1) {
-      const names = matches.map((m) => m.name || m.email).join(", ");
-      return { ok: false, status: 409, message: `Hay varios asesores que coinciden (${names}). Sé más específico.` };
-    }
-    advisorId = matches[0].id;
-    advisorLabel = matches[0].name || matches[0].email;
+    if (!sigue) throw new Error("Ese asesor ya no es de la cuenta.");
   }
-
-  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${session.id}`;
-
+  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${sessionId} AND "userId" = ${ownerId}`;
   await writeAuditLog({
     userId: ownerId,
     actorId: ownerId,
     entityType: "crm",
-    entityId: String(session.id),
+    entityId: String(sessionId),
     action: "updated",
-    summary: release
-      ? `Liberó a ${contactLabel(session)} (sin asesor) desde WhatsApp (modo dueño)`
-      : `Asignó a ${contactLabel(session)} al asesor ${advisorLabel} desde WhatsApp (modo dueño)`,
+    summary: advisorId
+      ? `Asignó a ${contact} al asesor ${advisor} desde WhatsApp (modo dueño)`
+      : `Liberó a ${contact} (sin asesor) desde WhatsApp (modo dueño)`,
     metadata: { source: "owner-command", kind: "assign-advisor", advisorId },
   });
-
-  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), advisor: advisorLabel } };
 }
+
+/** Deshacer «crear tarea»: la borra si sigue siendo de la cuenta. */
+export async function borrarTareaDelDueno(ownerId: string, taskId: number): Promise<boolean> {
+  const res = await db.task.deleteMany({ where: { id: taskId, ownerId } });
+  if (res.count > 0) {
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: ownerId,
+      entityType: "task",
+      entityId: String(taskId),
+      action: "deleted",
+      summary: "Deshizo una tarea creada desde WhatsApp (modo dueño)",
+      metadata: { source: "owner-command", kind: "revert" },
+    });
+  }
+  return res.count > 0;
+}
+
+/** ¿La conversación lleva esta etiqueta? (la foto de «antes» de etiquetar) */
+export async function laSesionTieneLaEtiqueta(sessionId: number, tagName: string, ownerId: string): Promise<boolean> {
+  const tag = await db.tag.findFirst({ where: { userId: ownerId, slug: slugify(tagName) }, select: { id: true } });
+  if (!tag) return false;
+  const fila = await db.sessionTag.findUnique({ where: { sessionId_tagId: { sessionId, tagId: tag.id } } });
+  return !!fila;
+}
+
+/** Deshacer «etiquetar»: quita la etiqueta de esa conversación. */
+export async function quitarEtiquetaDelContacto(ownerId: string, sessionId: number, tagId: number): Promise<void> {
+  const session = await getOwnedSession(sessionId, ownerId);
+  if (!session) throw new Error("La conversación ya no es de esta cuenta.");
+  await db.sessionTag.deleteMany({ where: { sessionId, tagId } });
+  await writeAuditLog({
+    userId: ownerId,
+    actorId: ownerId,
+    entityType: "crm",
+    entityId: String(sessionId),
+    action: "updated",
+    summary: `Quitó una etiqueta a ${contactLabel(session)} (deshacer, modo dueño)`,
+    metadata: { source: "owner-command", kind: "revert-tag", tagId },
+  });
+}
+
+/** El estado actual del lead (la foto de «antes»). */
+export async function elEstadoDelLead(sessionId: number): Promise<LeadStatus | null> {
+  const s = await db.session.findUnique({ where: { id: sessionId }, select: { leadStatus: true } });
+  return (s?.leadStatus as LeadStatus | null) ?? null;
+}
+
+export { contactLabel };

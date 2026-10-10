@@ -9,7 +9,8 @@ import { addMinutes, parseISO, isBefore } from 'date-fns';
 // `lib/leads-sin-puerta.server.ts`).
 import { registrarLaSesion } from '@/lib/leads-sin-puerta.server';
 import { laCuentaDeLaConversacion } from '@/lib/dueno-del-dato.server';
-import { getAuditActorId, writeAuditLog } from './audit-log-actions';
+import { getAuditActorId } from './audit-log-actions';
+import { writeAuditLog } from '@/lib/registro-de-cambios.server';
 import {
     syncAppointmentToCalendar,
     updateAppointmentCalendarEvent,

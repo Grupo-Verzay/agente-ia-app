@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
 
-import { writeAuditLog } from "@/actions/audit-log-actions";
+import { db } from "@/lib/db";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import {
   getAgentPromptByUserAndAgentId,
   listPromptRevisions,
   patchTrainingSection,
   publishPrompt,
-  restoreRevision,
+  restaurarYPublicar,
 } from "@/lib/entrenamiento-del-agente.server";
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import type { OwnerActionResult } from "@/lib/owner-commands";
@@ -391,25 +392,18 @@ export async function restoreOwnerTraining(params: {
     return { ok: false, status: 404, message: "Esta cuenta no tiene entrenamiento configurado." };
   }
 
-  const restored = await restoreRevision({ promptId: prompt.id, revisionNumber: params.revisionNumber });
-  if (!restored.ok) {
-    return { ok: false, status: 404, message: restored.error ?? "Revisión no encontrada." };
-  }
-
-  // Republica para que el rollback quede activo (restore deja el draft en la
-  // revisión previa; publicar recompone el promptText en vivo).
-  const fresh = await loadPrompt(params.ownerId, agentId);
-  if (!fresh) {
-    return { ok: false, status: 404, message: "Prompt no encontrado tras restaurar." };
-  }
-  const pub = await publishPrompt({
-    promptId: fresh.id,
-    version: fresh.version,
+  const restored = await restaurarYPublicar({
+    promptId: prompt.id,
+    revisionNumber: params.revisionNumber,
     publishedBy: params.ownerId,
     note: `Rollback a revisión ${params.revisionNumber} desde WhatsApp (modo dueño)`,
   });
-  if (!pub.ok) {
-    return { ok: false, status: 502, message: pub.error ?? "No se pudo republicar tras el rollback." };
+  if (!restored.ok) {
+    return { ok: false, status: 404, message: restored.error ?? "Revisión no encontrada." };
+  }
+  const fresh = await loadPrompt(params.ownerId, agentId);
+  if (!fresh) {
+    return { ok: false, status: 404, message: "Prompt no encontrado tras restaurar." };
   }
 
   await writeAuditLog({
@@ -423,4 +417,69 @@ export async function restoreOwnerTraining(params: {
   });
 
   return { ok: true, data: { promptId: fresh.id, restoredTo: params.revisionNumber } };
+}
+
+// ── Para deshacer (motor del Modo Dueño) ────────────────────────────────────
+
+export type FotoDelEntrenamiento = {
+  promptId: string;
+  version: number;
+  steps: any[];
+  sections: unknown;
+};
+
+/** Lo que hay ahora: la foto de «antes» de cada cambio de entrenamiento. */
+export async function laFotoDelEntrenamiento(
+  ownerId: string,
+  agentId: string = DEFAULT_AGENT_ID,
+): Promise<FotoDelEntrenamiento | null> {
+  const prompt = await loadPrompt(ownerId, agentId);
+  if (!prompt) return null;
+  return { promptId: prompt.id, version: prompt.version, steps: readSteps(prompt.sections), sections: prompt.sections };
+}
+
+/** Deshacer un cambio de instrucciones: vuelve a poner esos pasos y publica. */
+export async function devolverLosPasos(params: {
+  ownerId: string;
+  steps: any[];
+  note: string;
+  agentId?: string;
+}): Promise<OwnerActionResult<{ revisionNumber: number }>> {
+  const agentId = params.agentId ?? DEFAULT_AGENT_ID;
+  const prompt = await loadPrompt(params.ownerId, agentId);
+  if (!prompt) return { ok: false, status: 404, message: "Esta cuenta no tiene entrenamiento configurado." };
+  const patch = await patchTrainingSection({ promptId: prompt.id, version: prompt.version, data: { steps: params.steps } });
+  if (!patch.ok) return { ok: false, status: 409, message: "El entrenamiento cambió mientras tanto. Intenta de nuevo." };
+  const pub = await publishPrompt({
+    promptId: patch.data.id,
+    version: patch.data.version,
+    publishedBy: params.ownerId,
+    note: params.note,
+  });
+  if (!pub.ok) return { ok: false, status: 502, message: pub.error ?? "No se pudo publicar el entrenamiento." };
+  return { ok: true, data: { revisionNumber: pub.data.revision.revisionNumber } };
+}
+
+/** Deshacer una restauración: vuelve a poner las secciones de antes y publica. */
+export async function devolverLasSecciones(params: {
+  ownerId: string;
+  sections: unknown;
+  note: string;
+  agentId?: string;
+}): Promise<OwnerActionResult<{ revisionNumber: number }>> {
+  const agentId = params.agentId ?? DEFAULT_AGENT_ID;
+  const prompt = await loadPrompt(params.ownerId, agentId);
+  if (!prompt) return { ok: false, status: 404, message: "Esta cuenta no tiene entrenamiento configurado." };
+  const actualizado = await db.agentPrompt.update({
+    where: { id: prompt.id },
+    data: { sections: params.sections as any, version: { increment: 1 } },
+  });
+  const pub = await publishPrompt({
+    promptId: actualizado.id,
+    version: actualizado.version,
+    publishedBy: params.ownerId,
+    note: params.note,
+  });
+  if (!pub.ok) return { ok: false, status: 502, message: pub.error ?? "No se pudo publicar el entrenamiento." };
+  return { ok: true, data: { revisionNumber: pub.data.revision.revisionNumber } };
 }

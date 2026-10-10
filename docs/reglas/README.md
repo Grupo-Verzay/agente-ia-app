@@ -64,6 +64,16 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - La clave del servidor de WhatsApp no viaja al navegador, nunca
 - Copiloto: `?u=` no puede ser código, y los dos botones se miden contra el COPILOTO
 
+## [Modo Dueño: gobernanza en el servidor](modo-dueno.md) — 7 reglas, 8 KB
+
+- Las cinco reglas viven en UN sitio: `lib/motor-del-dueno.server.ts`
+- Un «sí» tiene que ser SOLO un sí (`queDiceLaRespuesta`)
+- La pendiente vive en la base, no en la memoria de un proceso
+- Identidad: número exacto + código de verificación (PIN)
+- Mover un lead y restaurar el entrenamiento ya no dependen de la sesión
+- Escribir el historial no es un POST del navegador
+- Llamadas: cómo se extendería la identidad (evaluación, sin construir)
+
 ## [Cobros, créditos de IA, planes y facturación](cobros-creditos-y-planes.md) — 23 reglas, 114 KB
 
 - Renovación mensual: una columna que se pisa no tiene historia

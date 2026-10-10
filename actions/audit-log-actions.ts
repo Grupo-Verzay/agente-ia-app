@@ -1,34 +1,17 @@
 "use server";
 
-import { randomUUID } from "crypto";
-
 import { currentUser } from "@/lib/auth";
 import { laPersonaQueActua } from "@/lib/chat-de-equipo";
 import { db } from "@/lib/db";
+import {
+  ensureAuditLogTable,
+  type AuditAction,
+  type AuditEntityType,
+  type AuditMetadata,
+} from "@/lib/registro-de-cambios.server";
 
-export type AuditEntityType = "crm" | "appointment" | "booking_appointment" | "note" | "task" | "project";
-export type AuditAction =
-  | "created"
-  | "updated"
-  | "deleted"
-  | "status_changed"
-  | "completed"
-  | "cancelled"
-  | "archived"
-  | "restored"
-  | "rescheduled";
-
-type AuditMetadata = Record<string, unknown>;
-
-type WriteAuditLogInput = {
-  userId: string;
-  actorId?: string | null;
-  entityType: AuditEntityType;
-  entityId: string;
-  action: AuditAction;
-  summary: string;
-  metadata?: AuditMetadata;
-};
+// Escribir el historial NO es una acción: vive en `lib/registro-de-cambios.server.ts`
+// (server-only). Aquí solo queda leerlo, con la puerta de la sesión.
 
 export type AuditLogItem = {
   id: string;
@@ -41,38 +24,6 @@ export type AuditLogItem = {
   metadata: AuditMetadata | null;
   createdAt: Date;
 };
-
-let auditTableReady = false;
-
-async function ensureAuditLogTable() {
-  if (auditTableReady) return;
-
-  await db.$executeRaw`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      actor_id TEXT NULL,
-      entity_type TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      action TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      metadata JSONB NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await db.$executeRaw`
-    CREATE INDEX IF NOT EXISTS audit_logs_user_created_at_idx
-    ON audit_logs (user_id, created_at DESC)
-  `;
-
-  await db.$executeRaw`
-    CREATE INDEX IF NOT EXISTS audit_logs_entity_created_at_idx
-    ON audit_logs (entity_type, entity_id, created_at DESC)
-  `;
-
-  auditTableReady = true;
-}
 
 /**
  * Quién hizo esto: la PERSONA, no la fila efectiva.
@@ -94,33 +45,6 @@ export async function getAuditActorId() {
     return laPersonaQueActua(user ?? {}).id || null;
   } catch {
     return null;
-  }
-}
-
-export async function writeAuditLog(input: WriteAuditLogInput) {
-  try {
-    if (!input.userId || !input.entityId) return;
-    await ensureAuditLogTable();
-
-    const metadataJson = input.metadata ? JSON.stringify(input.metadata) : null;
-
-    await db.$executeRaw`
-      INSERT INTO audit_logs (
-        id, user_id, actor_id, entity_type, entity_id, action, summary, metadata
-      )
-      VALUES (
-        ${randomUUID()},
-        ${input.userId},
-        ${input.actorId ?? null},
-        ${input.entityType},
-        ${input.entityId},
-        ${input.action},
-        ${input.summary},
-        ${metadataJson}::jsonb
-      )
-    `;
-  } catch (error) {
-    console.warn("[writeAuditLog]", error);
   }
 }
 

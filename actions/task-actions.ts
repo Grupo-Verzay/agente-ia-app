@@ -9,7 +9,7 @@ import { laLineaDeWhatsappDeLaCuenta } from "@/lib/linea-de-whatsapp";
 import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
 import { laPersonaQueActua as laPersona } from "@/lib/chat-de-equipo";
 import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
-import { writeAuditLog } from "@/actions/audit-log-actions";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import { olvidarLosAdjuntosDe } from "@/lib/adjuntos-de-tarea";
 import {
   detallesDeLasTareas,

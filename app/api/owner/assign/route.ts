@@ -1,49 +1,21 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { assignOwnerAdvisor } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeAccion } from "@/lib/rutas-del-dueno.server";
 
 /**
- * POST /api/owner/assign — asigna un contacto del dueño a un asesor de la cuenta
- * (resuelto por nombre), o lo libera.
+ * POST /api/owner/assign — asignar un contacto a un asesor (o «ninguno»).
  *
- * Acción que reasigna trabajo: requiere `confirmed: true` → 428 si falta.
- *
+ * NO ejecuta: PREPARA la acción y devuelve (202) el texto exacto que la persona
+ * tiene que confirmar. Se ejecuta con su «sí» en `/api/owner/turn`.
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, sessionId, advisorName, confirmed }
  */
 const bodySchema = ownerBaseSchema.extend({
   sessionId: z.number().int().positive().optional(),
   phone: z.string().trim().min(1).optional(),
   advisorName: z.string().trim().min(1).max(60),
-  confirmed: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  if (guard.body.confirmed !== true) {
-    return NextResponse.json(
-      { success: false, message: "Esta acción requiere confirmación (confirmed: true).", requiresConfirmation: true },
-      { status: 428 },
-    );
-  }
-
-  try {
-    const result = await assignOwnerAdvisor({
-      ownerId: guard.owner.ownerId,
-      sessionId: guard.body.sessionId,
-      phone: guard.body.phone,
-      advisorName: guard.body.advisorName,
-    });
-    if (!result.ok) {
-      return NextResponse.json({ success: false, message: result.message }, { status: result.status });
-    }
-    return NextResponse.json({ success: true, message: "Asignación actualizada.", ...result.data }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/assign]", error);
-    return NextResponse.json({ success: false, message: "No se pudo asignar el asesor." }, { status: 500 });
-  }
+  return rutaDeAccion(request, bodySchema, "owner_asignar_asesor", (body) => ({ sessionId: body.sessionId, phone: body.phone, advisorName: body.advisorName }));
 }

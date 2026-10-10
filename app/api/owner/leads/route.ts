@@ -1,16 +1,14 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeConsulta } from "@/lib/rutas-del-dueno.server";
 import { listOwnerLeads } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
 
 /**
- * POST /api/owner/leads — lista de solo lectura de los leads/contactos del dueño con
- * su estado del embudo (nombre, teléfono, estado, etiquetas). Filtro opcional por
- * estado (frío/tibio/caliente/finalizado/descartado).
+ * POST /api/owner/leads — leads con su estado (filtro opcional por estado).
  *
+ * Consulta: pasa por el motor (plan del módulo + bitácora).
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, status?, limit? }
  */
 const bodySchema = ownerBaseSchema.extend({
   status: z.string().trim().min(1).max(30).optional(),
@@ -18,17 +16,8 @@ const bodySchema = ownerBaseSchema.extend({
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  try {
-    const leads = await listOwnerLeads(guard.owner.ownerId, {
-      status: guard.body.status,
-      limit: guard.body.limit,
-    });
-    return NextResponse.json({ success: true, count: leads.length, leads }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/leads]", error);
-    return NextResponse.json({ success: false, message: "No se pudieron cargar los leads." }, { status: 500 });
-  }
+  return rutaDeConsulta(request, bodySchema, "owner_listar_leads", async (quien, body) => {
+    const leads = await listOwnerLeads(quien.cuentaId, { status: body.status, limit: body.limit });
+    return { count: leads.length, leads };
+  });
 }

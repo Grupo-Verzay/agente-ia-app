@@ -1,16 +1,14 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeConsulta } from "@/lib/rutas-del-dueno.server";
 import { listOwnerTasks } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
 
 /**
- * POST /api/owner/tasks — lista de solo lectura de las tareas del dueño con DETALLE
- * (título, tipo, vencimiento, contacto, responsable). El resumen (/api/owner/summary)
- * solo da el conteo.
+ * POST /api/owner/tasks — tareas pendientes o de hoy, con detalle.
  *
+ * Consulta: pasa por el motor (plan del módulo + bitácora).
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, scope? ("pending"|"today"), limit? }
  */
 const bodySchema = ownerBaseSchema.extend({
   scope: z.enum(["pending", "today"]).optional(),
@@ -18,17 +16,8 @@ const bodySchema = ownerBaseSchema.extend({
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  try {
-    const tasks = await listOwnerTasks(guard.owner.ownerId, {
-      scope: guard.body.scope,
-      limit: guard.body.limit,
-    });
-    return NextResponse.json({ success: true, count: tasks.length, tasks }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/tasks]", error);
-    return NextResponse.json({ success: false, message: "No se pudieron cargar las tareas." }, { status: 500 });
-  }
+  return rutaDeConsulta(request, bodySchema, "owner_listar_tareas", async (quien, body) => {
+    const tasks = await listOwnerTasks(quien.cuentaId, { scope: body.scope, limit: body.limit });
+    return { count: tasks.length, tasks };
+  });
 }
