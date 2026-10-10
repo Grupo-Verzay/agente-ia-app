@@ -1,6 +1,6 @@
 ﻿'use server';
 
-import { sinLaClave } from '@/lib/clave-de-ia-para-el-navegador';
+import { sinLaClave, comoLaVeElNavegador, type ClaveVistaDesdeElNavegador } from '@/lib/clave-de-ia-para-el-navegador';
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
 import { IaCredit, Pausar, Plan, Prisma, User } from '@prisma/client';
@@ -1142,7 +1142,9 @@ export async function updateUserVoiceSettings(
         ...(voiceModel ? { voiceModel } : {}),
         ...(voiceInstructions !== undefined ? { voiceInstructions } : {}),
         ...(ttsProvider ? { ttsProvider } : {}),
-        ...(elevenLabsApiKey !== undefined ? { elevenLabsApiKey } : {}),
+        // Vacía = conservar la guardada: el panel ya no recibe la clave
+        // (solo su final), así que no puede reenviarla.
+        ...(elevenLabsApiKey?.trim() ? { elevenLabsApiKey: elevenLabsApiKey.trim() } : {}),
         ...(elevenLabsVoiceId !== undefined ? { elevenLabsVoiceId } : {}),
       } as Prisma.UserUpdateInput,
     });
@@ -1160,7 +1162,8 @@ export type UserVoiceSettings = {
   voiceModel: string;
   voiceInstructions: string;
   ttsProvider: string;
-  elevenLabsApiKey: string;
+  /** La clave de ElevenLabs NO viaja: solo si la hay y su final. */
+  elevenLabsClave: ClaveVistaDesdeElNavegador;
   elevenLabsVoiceId: string;
 };
 
@@ -1202,7 +1205,7 @@ export async function getUserVoiceSettings(
         voiceModel: row.voiceModel ?? 'gpt-4o-mini-tts',
         voiceInstructions: row.voiceInstructions ?? '',
         ttsProvider: row.ttsProvider ?? 'openai',
-        elevenLabsApiKey: row.elevenLabsApiKey ?? '',
+        elevenLabsClave: comoLaVeElNavegador(row.elevenLabsApiKey),
         elevenLabsVoiceId: row.elevenLabsVoiceId ?? '',
       },
     };
@@ -1214,9 +1217,18 @@ export async function getUserVoiceSettings(
 
 export async function getElevenLabsVoices(
   apiKey: string,
+  userId?: string,
 ): Promise<ClientResponse<{ voice_id: string; name: string; category: string }[]>> {
   try {
-    const trimmedKey = apiKey.trim();
+    // Sin clave escrita se usa la GUARDADA de la cuenta, que el navegador ya
+    // no conoce.
+    let trimmedKey = (apiKey ?? '').trim();
+    if (!trimmedKey && userId) {
+      await ensureSelfOrAdmin(userId);
+      const row = await db.user.findUnique({ where: { id: userId }, select: { elevenLabsApiKey: true } });
+      trimmedKey = row?.elevenLabsApiKey?.trim() ?? '';
+    }
+    if (!trimmedKey) return { success: false, message: 'Ingresa el API key de ElevenLabs primero.' };
 
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
       headers: { 'xi-api-key': trimmedKey },

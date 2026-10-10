@@ -71,7 +71,6 @@ export const COINCIDENCIAS = ["Contiene", "Exacta"] as const;
 /** Lo que abre el «⋯» de la barra del editor (`ai-section-labels.ts › OPCIONES_DEL_AGENTE`). */
 export const OPCIONES_DEL_AGENTE = [
     "IA Prompts",
-    "Voz del agente",
     "Métricas del agente",
     "Historial de versiones",
     "Eliminar todo",
@@ -424,7 +423,7 @@ export const GUIA_AGENTE_IA: Contenido = {
                 },
                 {
                     titulo: "Más opciones",
-                    texto: "El tamaño del prompt, IA Prompts, Voz del agente, Métricas del agente, Historial de versiones y Eliminar todo.",
+                    texto: "El tamaño del prompt, IA Prompts, Métricas del agente, Historial de versiones y Eliminar todo. La voz del agente está ahora en «Claves».",
                     imagen: "menu-opciones.webp",
                     alt: "El menú Más opciones del agente abierto",
                 },

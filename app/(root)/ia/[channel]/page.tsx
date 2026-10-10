@@ -72,6 +72,7 @@ export default async function ChannelTrainingPage({ params }: { params: { channe
             promptMeta={{ id: prompt.id, version: prompt.version, businessName: prompt.businessName }}
             sections={sections as unknown as SectionsPromptSystem}
             cotizaciones={cotizaciones}
+            canal={channel.slug}
             paymentReceiptPrompt={paymentReceiptPrompt
                 ? {
                     id: paymentReceiptPrompt.id,

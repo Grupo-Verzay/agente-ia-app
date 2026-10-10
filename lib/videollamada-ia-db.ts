@@ -208,8 +208,27 @@ export async function elAvatarDeLaCuenta(cuentaId: string): Promise<Avatar | nul
 }
 
 /**
+ * El avatar PROPIO guardado de una cuenta, sin caer al de la casa: `null` si
+ * no tiene. La clave sale abierta SOLO para el servidor (el botón «Claves» la
+ * enseña enmascarada, y la conserva cuando se guarda vacía). Si la clave no se
+ * puede abrir, se dice y cuenta como que no hay clave.
+ */
+export async function elAvatarPropio(cuentaId: string): Promise<{ personaId: string; clave: string | null } | null> {
+    if (!cuentaId) return null;
+    const filas = await conLasTablas(() => db.$queryRaw<{ personaId: string | null; sellada: string | null }[]>`
+        SELECT "propioPersonaId" AS "personaId", "propioClaveSellada" AS "sellada"
+        FROM "videollamada_ajustes" WHERE "cuentaId" = ${cuentaId} LIMIT 1
+    `);
+    const f = filas[0];
+    if (!f?.personaId || !f.sellada) return null;
+    const abierta = abrir<{ clave: string }>(f.sellada);
+    if (!abierta?.clave) console.warn("[videollamada] la clave propia de Tavus no se pudo abrir", { cuenta: cuentaId });
+    return { personaId: f.personaId, clave: abierta?.clave ?? null };
+}
+
+/**
  * Pone (o quita, con `null`) el avatar PROPIO de una cuenta. Solo servidor:
- * no hay pantalla todavía, y la clave nunca vuelve al navegador. Lo que no
+ * la clave nunca vuelve al navegador. Lo que no
  * tiene forma de clave o de persona se rechaza en vez de guardarse a medias.
  */
 export async function guardarElAvatarPropio(cuentaId: string, avatar: { clave: string; personaId: string } | null): Promise<{ ok: boolean; motivo?: string }> {
