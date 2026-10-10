@@ -2593,3 +2593,26 @@ apunta lo que dura. `MODO=roto` compila la ruta y el cierre de `0442bbb` y
 afirma que la de 3 s tapaba a la de 8 s. Dos pruebas de
 `grabacion-de-videollamada-db.test.mjs` daban por bueno el reloj (600 s y
 3600 s con un solo trozo): ahora piden los trozos que esa duración necesita.
+
+## Videollamada: la DURACIÓN del CRM es la de la grabación, no la del aviso de Tavus
+
+El detalle decía **4:33** y la grabación duraba **1:29**. La grabación era la
+buena: va de entrar a la sala a colgar. Los 4:33 los escribe el aviso de Tavus
+(`anotarEnElCrm`: «ahora − `entroEn`»), y Tavus avisa cuando CIERRA la
+conversación, que es `participant_left_timeout` (**180 s**) después de que el
+cliente cuelga (está así para que una caída del teléfono pueda volver a la
+misma conversación). 1:29 + 3:00 ≈ 4:33.
+
+1. **Con la grabación viaja su duración**: `laGrabacionParaElCrm` añade
+   `durationSecs` (los `segundos` medidos por `ffmpeg`, sección anterior) al
+   merge de `raw.call`. Como el cierre y el aviso copian la grabación LUEGO de
+   escribir lo suyo (`copiarLaGrabacionAlCrm`), la duración buena gana en los
+   dos órdenes.
+2. Sin grabación (o sin medida) queda la del aviso: un `0` no pisa nada.
+3. No se toca `participant_left_timeout`: acortarlo haría que una caída de
+   red cortara la conversación.
+
+Lo prueba `scripts/banco-duracion-de-la-videollamada.sh` (la regla pura y, contra
+Postgres y el `ffmpeg` de verdad, los dos órdenes: el CRM queda con ~9 s de
+grabación y no con los 273 del aviso). `MODO=roto` compila `dd0a1f7` y afirma
+que el CRM se quedaba con los 273.

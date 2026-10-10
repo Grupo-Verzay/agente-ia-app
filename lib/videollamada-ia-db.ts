@@ -564,8 +564,8 @@ export async function lasGrabacionesDeLaSalaSinCerrar(horas: number, limite: num
  */
 export async function copiarLaGrabacionAlCrm(citaId: string): Promise<boolean> {
     return conLasTablas(async () => {
-        const filas = await db.$queryRaw<{ audioUrl: string | null; videoUrl: string | null }[]>`
-            SELECT "audioUrl", "videoUrl" FROM "videollamada_grabaciones"
+        const filas = await db.$queryRaw<{ audioUrl: string | null; videoUrl: string | null; segundos: number | null }[]>`
+            SELECT "audioUrl", "videoUrl", "segundos" FROM "videollamada_grabaciones"
             WHERE "citaId" = ${citaId} AND "estado" = 'lista'
             ORDER BY COALESCE("segundos", 0) DESC, "creadaEn" DESC
             LIMIT 1
