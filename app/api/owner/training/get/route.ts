@@ -1,31 +1,22 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeConsulta } from "@/lib/rutas-del-dueno.server";
 import { getOwnerTraining } from "@/lib/owner-training";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
 
 /**
- * POST /api/owner/training/get — lee la sección de entrenamiento actual del
- * dueño (solo lectura). Sirve para que el agente muestre qué instrucciones tiene.
+ * POST /api/owner/training/get — instrucciones actuales del agente.
+ *
+ * Consulta: pasa por el motor (plan del módulo + bitácora).
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, agentId? }
  */
 const bodySchema = ownerBaseSchema.extend({
   agentId: z.string().trim().min(1).optional(),
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  try {
-    const result = await getOwnerTraining(guard.owner.ownerId, guard.body.agentId);
-    if (!result.ok) {
-      return NextResponse.json({ success: false, message: result.message }, { status: result.status });
-    }
-    return NextResponse.json({ success: true, training: result.data }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/training/get]", error);
-    return NextResponse.json({ success: false, message: "No se pudo leer el entrenamiento." }, { status: 500 });
-  }
+  return rutaDeConsulta(request, bodySchema, "owner_ver_entrenamiento", async (quien, body) => {
+    const r = await getOwnerTraining(quien.cuentaId, body.agentId);
+    return r.ok ? { training: r.data } : { ok: false, status: r.status, message: r.message };
+  });
 }

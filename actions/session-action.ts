@@ -4,7 +4,6 @@ import { olvidarLaMarca } from '@/lib/ia-del-asesor-db';
 import { SIN_GRUPOS } from '@/lib/conversaciones-de-grupo';
 import { obtenerEscaladasDeCuentas } from "@/lib/escalado";
 import { db } from '@/lib/db'
-import { borrarSeguimientosDelNumeroEnLaCuenta } from '@/lib/seguimientos-de-la-cuenta.server';
 import type { EtapaDeLaFila } from '@/lib/embudos';
 import { lasEtapasDeLaBandeja } from '@/lib/etapas-de-la-bandeja.server';
 import {
@@ -39,7 +38,7 @@ import { currentUser } from '@/lib/auth';
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { anadirEtiquetasALaSesion, registrarLaSesion } from '@/lib/leads-sin-puerta.server';
 import { eliminarLaFichaDelContacto, eliminarTodasLasFichasDeLaCuenta } from '@/lib/borrado-de-chats.server';
-import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
+import { cambiarElEstadoDelLead } from '@/lib/estado-del-lead.server';
 import { revalidatePath } from 'next/cache';
 import {
   buildWhatsAppJidCandidates,
@@ -1223,21 +1222,7 @@ export async function updateSessionLeadStatus(
   try {
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      select: {
-        userId: true,
-        remoteJid: true,
-        pushName: true,
-        customName: true,
-        instanceId: true,
-        agentDisabled: true,
-        leadStatus: true,
-        user: {
-          select: {
-            apiKey: { select: { url: true, key: true } },
-            instancias: { select: { instanceName: true, instanceId: true } },
-          },
-        },
-      },
+      select: { userId: true },
     });
     if (!session?.userId) {
       return { success: false, message: 'Sesion no encontrada.' };
@@ -1245,71 +1230,9 @@ export async function updateSessionLeadStatus(
 
     await assertUserCanUseApp(session.userId);
 
-    const isDescartado = leadStatus === 'DESCARTADO';
-    const wasDescartado = session.leadStatus === 'DESCARTADO';
-
-    // Actualizar sesión: si pasa a DESCARTADO → deshabilitar agente; si sale de DESCARTADO → reactivar agente
-    await db.session.update({
-      where: { id: sessionId },
-      data: {
-        leadStatus: leadStatus ?? null,
-        leadStatusSourceHash: null,
-        leadStatusUpdatedAt: new Date(),
-        // DESCARTADO → apaga el agente y retira el opt-in de IA del contacto.
-        // Salir de DESCARTADO solo quita el bloqueo (no fuerza IA: eso es opt-in
-        // explícito vía toggle "Agente" o nodo "Activar IA").
-        ...(isDescartado && { agentDisabled: true, aiOptIn: false }),
-        ...(wasDescartado && !isDescartado && { agentDisabled: false }),
-      },
-    });
-
-    // Si se marca como DESCARTADO → eliminar todos los seguimientos, recordatorios y follow-ups
-    if (isDescartado) {
-      // Eliminar CRM follow-ups
-      await db.crmFollowUp.deleteMany({ where: { sessionId } });
-
-      // Eliminar todos los seguimientos (mensajes programados) del contacto
-      if (session.remoteJid) {
-        // Solo en las líneas de ESTA cuenta: el mismo número está en otras
-        // cuentas de la plataforma y sus seguimientos no son de aquí.
-        await borrarSeguimientosDelNumeroEnLaCuenta(session.userId, session.remoteJid);
-
-        // Limpiar referencias de seguimientos en la sesión
-        await db.session.update({
-          where: { id: sessionId },
-          data: { seguimientos: null, inactividad: null },
-        });
-      }
-
-      await db.sessionWorkflowState.updateMany({
-        where: { sessionId, intentionStatus: 'waiting' },
-        data: { intentionStatus: 'cancelled', currentNodeId: null },
-      });
-    }
-
-    // El cambio de estado es una clasificación INTERNA del asesor: mover una
-    // ficha a FRIO/TIBIO/CALIENTE/FINALIZADO no debe escribirle al cliente.
-    // Antes se le enviaba un mensaje automático por cada cambio ("tu solicitud
-    // ha captado nuestra atención", "ha sido un placer atenderte"...), lo que
-    // sorprendía al contacto y se sumaba a lo que el asesor ya estaba
-    // escribiendo. Si se quiere avisar al cliente, se hace con un flujo
-    // configurado a propósito (Ajustes → flujo por estado), no de forma
-    // implícita al arrastrar la tarjeta.
-
-    // Ejecutar automatizaciones de etapa (fire-and-forget)
-    if (leadStatus) {
-      void triggerStageAutomations(sessionId, leadStatus).catch(() => undefined);
-    }
-
-    // Solo aprende de resultados confirmados explícitamente por el asesor.
-    if (leadStatus === 'FINALIZADO' || leadStatus === 'DESCARTADO') {
-      await recordConfirmedSalesOutcome(
-        sessionId,
-        leadStatus === 'FINALIZADO' ? 'WON' : 'LOST',
-      ).catch((error) => console.error('[sales-learning:record]', error));
-    }
-
-    return { success: true, message: 'Estado del lead actualizado correctamente' };
+    // El cuerpo vive sin puerta en `lib/estado-del-lead.server.ts` para que el
+    // Modo Dueño (sin sesión) lo pueda usar; aquí queda la puerta.
+    return await cambiarElEstadoDelLead(sessionId, leadStatus);
   } catch (error) {
     console.error("[updateSessionLeadStatus]", error);
     return {
@@ -1317,15 +1240,4 @@ export async function updateSessionLeadStatus(
       message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del lead',
     };
   }
-}
-
-async function triggerStageAutomations(sessionId: number, newStage: string): Promise<void> {
-  const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
-  if (!backendUrl) return;
-  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
-  await fetch(`${backendUrl}/stage-automations/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
-    body: JSON.stringify({ sessionId, newStage }),
-  });
 }

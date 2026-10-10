@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createOwnerTask } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeAccion } from "@/lib/rutas-del-dueno.server";
 
 /**
- * POST /api/owner/reminder — crea un recordatorio para el dueño.
- * Un recordatorio es una tarea de tipo "Recordatorio" asignada al propio dueño.
+ * POST /api/owner/reminder — crear un recordatorio (tarea de tipo «Recordatorio»).
+ *
+ * NO ejecuta: PREPARA la acción y devuelve (202) el texto exacto que la persona
+ * tiene que confirmar. Se ejecuta con su «sí» en `/api/owner/turn`.
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, title, dueDate (ISO 8601) }
  */
 const bodySchema = ownerBaseSchema.extend({
   title: z.string().trim().min(1),
@@ -16,31 +16,5 @@ const bodySchema = ownerBaseSchema.extend({
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  const dueDate = new Date(guard.body.dueDate);
-  if (isNaN(dueDate.getTime())) {
-    return NextResponse.json(
-      { success: false, message: "dueDate inválida (usa formato ISO 8601)." },
-      { status: 422 },
-    );
-  }
-
-  try {
-    const reminder = await createOwnerTask({
-      ownerId: guard.owner.ownerId,
-      ownerName: guard.owner.name,
-      title: guard.body.title,
-      type: "Recordatorio",
-      dueDate,
-    });
-    return NextResponse.json(
-      { success: true, message: "Recordatorio creado.", reminder },
-      { status: 201 },
-    );
-  } catch (error) {
-    console.error("[POST /api/owner/reminder]", error);
-    return NextResponse.json({ success: false, message: "No se pudo crear el recordatorio." }, { status: 500 });
-  }
+  return rutaDeAccion(request, bodySchema, "owner_crear_recordatorio", (body) => ({ title: body.title, dueDate: body.dueDate }));
 }

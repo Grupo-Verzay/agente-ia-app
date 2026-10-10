@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createOwnerTask } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeAccion } from "@/lib/rutas-del-dueno.server";
 
 /**
- * POST /api/owner/task — crea una tarea para el dueño (Modo Dueño por WhatsApp).
+ * POST /api/owner/task — crear una tarea.
+ *
+ * NO ejecuta: PREPARA la acción y devuelve (202) el texto exacto que la persona
+ * tiene que confirmar. Se ejecuta con su «sí» en `/api/owner/turn`.
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, title, dueDate (ISO 8601), type? }
  */
 const bodySchema = ownerBaseSchema.extend({
   title: z.string().trim().min(1),
@@ -16,28 +17,5 @@ const bodySchema = ownerBaseSchema.extend({
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  const dueDate = new Date(guard.body.dueDate);
-  if (isNaN(dueDate.getTime())) {
-    return NextResponse.json(
-      { success: false, message: "dueDate inválida (usa formato ISO 8601)." },
-      { status: 422 },
-    );
-  }
-
-  try {
-    const task = await createOwnerTask({
-      ownerId: guard.owner.ownerId,
-      ownerName: guard.owner.name,
-      title: guard.body.title,
-      type: guard.body.type ?? "Seguimiento",
-      dueDate,
-    });
-    return NextResponse.json({ success: true, message: "Tarea creada.", task }, { status: 201 });
-  } catch (error) {
-    console.error("[POST /api/owner/task]", error);
-    return NextResponse.json({ success: false, message: "No se pudo crear la tarea." }, { status: 500 });
-  }
+  return rutaDeAccion(request, bodySchema, "owner_crear_tarea", (body) => ({ title: body.title, dueDate: body.dueDate, type: body.type }));
 }

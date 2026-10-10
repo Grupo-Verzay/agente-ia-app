@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Crown, Loader2, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Crown, Loader2, Check, KeyRound, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import {
+  generarCodigoDelDueno,
   getOwnerModeStatus,
+  quitarVerificacionDelDueno,
   setOwnerModeEnabled,
   saveOwnerPeople,
 } from "@/actions/owner-mode-actions";
@@ -25,6 +27,10 @@ export function OwnerModeToggle({ userId }: Props) {
   const [savingEnabled, setSavingEnabled] = useState(false);
 
   const [people, setPeople] = useState<OwnerPerson[]>([]);
+  const [verified, setVerified] = useState<string[]>([]);
+  // Código recién generado: se enseña UNA vez, junto a su persona.
+  const [code, setCode] = useState<{ phone: string; codigo: string; minutos: number } | null>(null);
+  const [codeBusy, setCodeBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -46,6 +52,7 @@ export function OwnerModeToggle({ userId }: Props) {
     if (result.success) {
       setEnabled(result.enabled);
       setPeople(result.people);
+      setVerified(result.verified);
       // Compacto por defecto: el botón "Agregar persona" abre el formulario y
       // se cierra al guardar/cancelar.
       setShowAddForm(false);
@@ -129,6 +136,29 @@ export function OwnerModeToggle({ userId }: Props) {
     await persist(next, "Persona eliminada");
   };
 
+  const handleCode = async (phone: string) => {
+    setCodeBusy(phone);
+    const result = await generarCodigoDelDueno(userId, phone);
+    if (result.success && result.codigo) {
+      setCode({ phone, codigo: result.codigo, minutos: result.minutos ?? 15 });
+    } else {
+      toast.error(result.message);
+    }
+    setCodeBusy(null);
+  };
+
+  const handleUnverify = async (phone: string) => {
+    setCodeBusy(phone);
+    const result = await quitarVerificacionDelDueno(userId, phone);
+    if (result.success) {
+      toast.success(result.message);
+      setVerified((v) => v.filter((x) => x !== phone));
+    } else {
+      toast.error(result.message);
+    }
+    setCodeBusy(null);
+  };
+
   const canAddMore = people.length < MAX_OWNERS;
 
   return (
@@ -150,7 +180,9 @@ export function OwnerModeToggle({ userId }: Props) {
       </div>
 
       <p className="mt-2 text-xs text-muted-foreground shrink-0">
-        Los mensajes de este número se toman como órdenes de la IA.
+        Los mensajes de este número se toman como órdenes de la IA. Para que pueda
+        hacer cambios (no solo consultar), cada persona verifica su número una vez
+        con un código. Todo cambio se confirma antes de hacerse.
       </p>
 
       {/* Lista con scroll interno: crece hasta un tope y luego hace scroll */}
@@ -190,8 +222,34 @@ export function OwnerModeToggle({ userId }: Props) {
                   <p className="text-sm font-medium truncate">{p.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{p.phone}</p>
                   {p.role && <p className="text-[11px] text-primary/80 truncate">{p.role}</p>}
+                  {verified.includes(p.phone) ? (
+                    <p className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                      <ShieldCheck className="w-3 h-3" /> Verificado
+                      <button
+                        type="button"
+                        className="ml-1 underline text-muted-foreground hover:text-destructive"
+                        onClick={() => handleUnverify(p.phone)}
+                        disabled={codeBusy === p.phone}
+                      >
+                        quitar
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">Sin verificar: solo consultas</p>
+                  )}
+                  {code?.phone === p.phone && (
+                    <div className="mt-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5">
+                      <p className="font-mono text-base font-semibold tracking-[0.3em]">{code.codigo}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Envíalo por WhatsApp desde este número. Vale {code.minutos} minutos y no se vuelve a mostrar.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-primary" onClick={() => handleCode(p.phone)} disabled={codeBusy === p.phone} title="Generar código de verificación">
+                    {codeBusy === p.phone ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
+                  </Button>
                   <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-primary" onClick={() => startEdit(idx)} title="Editar">
                     <Pencil className="w-3 h-3" />
                   </Button>

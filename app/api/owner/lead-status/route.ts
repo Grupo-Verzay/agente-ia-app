@@ -1,50 +1,21 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { moveOwnerLeadStatus } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeAccion } from "@/lib/rutas-del-dueno.server";
 
 /**
- * POST /api/owner/lead-status — cambia el estado de lead (kanban) de un contacto
- * del dueño.
+ * POST /api/owner/lead-status — cambiar el estado (kanban) de un lead.
  *
- * Acción que toca a un tercero (dispara notificación/automatizaciones de etapa):
- * requiere `confirmed: true`. Sin confirmación → 428.
- *
+ * NO ejecuta: PREPARA la acción y devuelve (202) el texto exacto que la persona
+ * tiene que confirmar. Se ejecuta con su «sí» en `/api/owner/turn`.
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone, sessionId, status, confirmed }
  */
 const bodySchema = ownerBaseSchema.extend({
   sessionId: z.number().int().positive().optional(),
   phone: z.string().trim().min(1).optional(),
   status: z.enum(["FRIO", "TIBIO", "CALIENTE", "FINALIZADO", "DESCARTADO"]),
-  confirmed: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, bodySchema);
-  if (!guard.ok) return guard.response;
-
-  if (guard.body.confirmed !== true) {
-    return NextResponse.json(
-      { success: false, message: "Esta acción requiere confirmación (confirmed: true).", requiresConfirmation: true },
-      { status: 428 },
-    );
-  }
-
-  try {
-    const result = await moveOwnerLeadStatus({
-      ownerId: guard.owner.ownerId,
-      sessionId: guard.body.sessionId,
-      phone: guard.body.phone,
-      status: guard.body.status,
-    });
-    if (!result.ok) {
-      return NextResponse.json({ success: false, message: result.message }, { status: result.status });
-    }
-    return NextResponse.json({ success: true, message: "Estado del lead actualizado.", ...result.data }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/lead-status]", error);
-    return NextResponse.json({ success: false, message: "No se pudo actualizar el estado." }, { status: 500 });
-  }
+  return rutaDeAccion(request, bodySchema, "owner_mover_lead", (body) => ({ sessionId: body.sessionId, phone: body.phone, status: body.status }));
 }

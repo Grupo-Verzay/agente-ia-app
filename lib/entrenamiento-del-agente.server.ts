@@ -621,6 +621,41 @@ export async function restoreRevision(input: {
     }
 }
 
+/**
+ * Restaura una revisión y la PUBLICA: es lo que el agente lee.
+ *
+ * `restoreRevision` solo copia las secciones al borrador; `promptText` —lo que
+ * el backend usa para contestar— se quedaba con la versión de antes hasta que
+ * alguien pulsara «Guardar». El panel decía «Versión 3 restaurada» y el agente
+ * seguía hablando con la 5. El Modo Dueño ya hacía restaurar + publicar; ahora
+ * los dos caminos pasan por aquí.
+ */
+export async function restaurarYPublicar(input: {
+    promptId: string;
+    revisionNumber: number;
+    publishedBy: string;
+    note?: string;
+    revalidate?: string;
+}) {
+    const restaurada = await restoreRevision({ promptId: input.promptId, revisionNumber: input.revisionNumber });
+    if (!restaurada.ok) return restaurada;
+
+    const actual = await db.agentPrompt.findUnique({ where: { id: input.promptId }, select: { version: true } });
+    if (!actual) return { ok: false as const, error: "Prompt no encontrado tras restaurar" };
+
+    const publicada = await publishPrompt({
+        promptId: input.promptId,
+        version: actual.version,
+        publishedBy: input.publishedBy,
+        note: input.note ?? `Restaurada la versión ${input.revisionNumber}`,
+        revalidate: input.revalidate,
+    });
+    if (!publicada.ok) {
+        return { ok: false as const, error: publicada.error ?? "No se pudo publicar la versión restaurada" };
+    }
+    return { ok: true as const };
+}
+
 export async function patchKeywordsSection(input: {
     promptId: string;
     version: number;

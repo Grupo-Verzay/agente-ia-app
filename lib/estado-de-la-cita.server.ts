@@ -4,7 +4,7 @@ import type { AppointmentStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { dispararLasAutomatizacionesDeCita } from "@/lib/automatizaciones-de-cita.server";
 import { laLineaDeLaNotificacionDeCita } from "@/lib/agenda-de-la-familia";
-import { writeAuditLog } from "@/actions/audit-log-actions";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import { deleteCalendarEvent } from "@/actions/google-calendar-actions";
 
 /**

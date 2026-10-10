@@ -1,23 +1,17 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
+import { ownerBaseSchema } from "@/lib/owner-command-auth";
+import { rutaDeConsulta } from "@/lib/rutas-del-dueno.server";
 import { getOwnerSummary } from "@/lib/owner-commands";
-import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
 
 /**
- * POST /api/owner/summary — resumen de solo lectura del día del dueño
- * (tareas pendientes, tareas que vencen hoy, citas de hoy). No modifica nada.
+ * POST /api/owner/summary — resumen del día (tareas y citas).
+ *
+ * Consulta: pasa por el motor (plan del módulo + bitácora).
  * Auth: Authorization: Bearer <OWNER_COMMANDS_KEY>
- * Body: { userId, ownerPhone }
  */
-export async function POST(request: Request) {
-  const guard = await guardOwnerRequest(request, ownerBaseSchema);
-  if (!guard.ok) return guard.response;
+const bodySchema = ownerBaseSchema;
 
-  try {
-    const summary = await getOwnerSummary(guard.owner.ownerId);
-    return NextResponse.json({ success: true, summary }, { status: 200 });
-  } catch (error) {
-    console.error("[POST /api/owner/summary]", error);
-    return NextResponse.json({ success: false, message: "No se pudo generar el resumen." }, { status: 500 });
-  }
+export async function POST(request: Request) {
+  return rutaDeConsulta(request, bodySchema, "owner_resumen_dia", async (quien, body) => ({ summary: await getOwnerSummary(quien.cuentaId) }));
 }

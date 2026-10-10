@@ -3,7 +3,8 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-import { getAuditActorId, writeAuditLog } from "@/actions/audit-log-actions";
+import { getAuditActorId } from "@/actions/audit-log-actions";
+import { writeAuditLog } from "@/lib/registro-de-cambios.server";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
 import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import { db } from "@/lib/db";

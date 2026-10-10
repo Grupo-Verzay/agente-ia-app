@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { parseOwnerPeople } from "@/lib/owner-contacts";
+import { elNumeroEsDelDueno } from "@/lib/identidad-del-dueno";
+import { laPersonaDelNumero } from "@/lib/identidad-del-dueno.server";
+import type { QuienOrdena } from "@/lib/motor-del-dueno.server";
 
 /**
  * Autenticación e identidad para el "Modo Dueño por WhatsApp".
@@ -15,11 +17,12 @@ import { parseOwnerPeople } from "@/lib/owner-contacts";
  *
  *   1. Secreto compartido (Bearer / x-owner-commands-secret) — solo el backend
  *      puede invocar estos endpoints. Calca el patrón de CRON_SECRET.
- *   2. Identidad del dueño — verifica que el número que dio la orden
- *      (ownerPhone) coincide con el número personal del dueño de la cuenta
- *      (User.notificationNumber). Defensa en profundidad: aunque el backend
- *      decida entrar en "modo dueño", esta app revalida la identidad antes de
- *      ejecutar nada.
+ *   2. Identidad — el número que dio la orden (ownerPhone) tiene que ser el de
+ *      una de las personas autorizadas de la cuenta (`ownerModePhone`, o
+ *      `notificationNumber` si no hay lista), con `elNumeroEsDelDueno`.
+ *      Defensa en profundidad: aunque el backend decida entrar en "modo
+ *      dueño", esta app revalida la identidad antes de ejecutar nada. El
+ *      segundo factor (código del panel) lo exige el motor para preparar.
  */
 
 const KEY_HEADER = "x-owner-commands-secret";
@@ -36,23 +39,20 @@ export function isOwnerCommandAuthorized(request: Request): boolean {
 }
 
 /**
- * Compara dos números de teléfono de forma tolerante: normaliza a solo dígitos
- * y, si no son idénticos, compara por sufijo (últimos dígitos) para absorber
- * diferencias de prefijo de país (ej. "573001234567" vs "3001234567").
+ * ¿Este número es el de la persona guardada? Antes comparaba solo los últimos
+ * diez dígitos y dejaba entrar al mismo número de OTRO país; ahora decide
+ * `elNumeroEsDelDueno` (la misma regla que el motor, copiada byte a byte).
  */
 export function phonesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
-  const da = (a ?? "").replace(/\D/g, "");
-  const dbn = (b ?? "").replace(/\D/g, "");
-  if (da.length < 7 || dbn.length < 7) return false;
-  if (da === dbn) return true;
-  const suffixLen = Math.min(da.length, dbn.length, 10);
-  return da.slice(-suffixLen) === dbn.slice(-suffixLen);
+  return elNumeroEsDelDueno(a, b);
 }
 
 export type OwnerIdentity = {
   ownerId: string;
   name: string | null;
   role: string;
+  /** El teléfono de la PERSONA autorizada tal como está guardado. */
+  personPhone: string;
 };
 
 export type ResolveOwnerResult =
@@ -89,11 +89,8 @@ export async function resolveOwnerCommand(params: {
 
   // Lista de personas autorizadas (dueño/socio/admin). Si está vacía, cae al
   // número de notificación del titular.
-  const people = parseOwnerPeople(account.ownerModePhone);
-  const match = people.find((p) => phonesMatch(params.ownerPhone, p.phone));
-  const fallbackOk = people.length === 0 && phonesMatch(params.ownerPhone, account.notificationNumber);
-
-  if (!match && !fallbackOk) {
+  const persona = laPersonaDelNumero(account, params.ownerPhone);
+  if (!persona) {
     return {
       ok: false,
       reason: "El número no está autorizado para administrar esta cuenta.",
@@ -102,7 +99,7 @@ export async function resolveOwnerCommand(params: {
 
   return {
     ok: true,
-    owner: { ownerId: account.id, name: match?.name ?? account.name, role: account.role },
+    owner: { ownerId: account.id, name: persona.name ?? account.name, role: account.role, personPhone: persona.phone },
   };
 }
 
@@ -110,10 +107,14 @@ export async function resolveOwnerCommand(params: {
 export const ownerBaseSchema = z.object({
   userId: z.string().min(1),
   ownerPhone: z.string().min(7),
+  /** whatsapp_texto | whatsapp_audio | … — para la bitácora. */
+  canal: z.string().trim().min(1).max(40).optional(),
+  /** El texto exacto de la orden (o la transcripción de la nota de voz). */
+  pedido: z.string().max(8000).optional(),
 });
 
 export type GuardResult<TBody> =
-  | { ok: true; owner: OwnerIdentity; body: TBody }
+  | { ok: true; owner: OwnerIdentity; quien: QuienOrdena; body: TBody }
   | { ok: false; response: NextResponse };
 
 /**
@@ -152,11 +153,22 @@ export async function guardOwnerRequest<T extends z.ZodTypeAny>(
     return fail("Parámetros inválidos.", 422, { issues: parsed.error.flatten() });
   }
 
-  const body = parsed.data as z.infer<T> & { userId: string; ownerPhone: string };
+  const body = parsed.data as z.infer<T> & { userId: string; ownerPhone: string; canal?: string; pedido?: string };
   const auth = await resolveOwnerCommand({ userId: body.userId, ownerPhone: body.ownerPhone });
   if (!auth.ok) {
     return fail(auth.reason, 403);
   }
 
-  return { ok: true, owner: auth.owner, body: parsed.data };
+  return {
+    ok: true,
+    owner: auth.owner,
+    quien: {
+      cuentaId: auth.owner.ownerId,
+      personaTelefono: auth.owner.personPhone,
+      personaNombre: auth.owner.name,
+      canal: body.canal ?? "whatsapp_texto",
+      pedido: body.pedido ?? null,
+    },
+    body: parsed.data,
+  };
 }

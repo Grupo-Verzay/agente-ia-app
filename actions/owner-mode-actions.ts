@@ -1,8 +1,15 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { currentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { assertCanAccessTargetUser } from "@/actions/billing/helpers/app-access-guard";
+import { soloDigitos } from "@/lib/identidad-del-dueno";
+import {
+  generarCodigoDeVerificacion,
+  lasVerificaciones,
+  MINUTOS_DEL_CODIGO,
+  revocarVerificacion,
+} from "@/lib/identidad-del-dueno.server";
 import { parseOwnerPeople, serializeOwnerPeople, type OwnerPerson } from "@/lib/owner-contacts";
 
 /**
@@ -16,38 +23,49 @@ import { parseOwnerPeople, serializeOwnerPeople, type OwnerPerson } from "@/lib/
  * logueado como el titular (o un admin), lo que funciona como segundo factor.
  */
 
+/**
+ * Quién puede tocar el Modo Dueño de una cuenta: la puerta de siempre
+ * (`assertCanAccessTargetUser`), que solo baja. Antes bastaba con ser admin,
+ * super_admin o reseller para cambiar el de CUALQUIER cuenta, incluidas las que
+ * no le cuelgan.
+ */
 async function assertCanManage(targetUserId: string): Promise<void> {
-  const me = await currentUser();
-  if (!me) throw new Error("No autorizado.");
-  const isAdminLike = me.role === "admin" || me.role === "super_admin" || me.role === "reseller";
-  if (me.id !== targetUserId && !isAdminLike) {
-    throw new Error("No autorizado.");
-  }
+  await assertCanAccessTargetUser(targetUserId);
 }
+
+/** Lo mismo que el panel: como mucho cinco personas. Ahora también en el servidor. */
+const MAXIMO_DE_PERSONAS = 5;
 
 export type OwnerModeStatus = {
   success: boolean;
   enabled: boolean;
   people: OwnerPerson[];
+  /** Números (como están guardados) que ya pasaron el código de verificación. */
+  verified: string[];
   notificationNumber?: string;
 };
 
 export async function getOwnerModeStatus(userId: string): Promise<OwnerModeStatus> {
-  if (!userId) return { success: false, enabled: false, people: [] };
+  if (!userId) return { success: false, enabled: false, people: [], verified: [] };
   try {
     await assertCanManage(userId);
     const user = await db.user.findUnique({
       where: { id: userId },
       select: { ownerModeEnabled: true, ownerModePhone: true, notificationNumber: true },
     });
+    const verificados = await lasVerificaciones(userId).catch((e) => {
+      console.warn("[owner-mode] no se pudieron leer las verificaciones", e);
+      return new Map<string, Date>();
+    });
     return {
       success: true,
       enabled: !!user?.ownerModeEnabled,
       people: parseOwnerPeople(user?.ownerModePhone),
+      verified: Array.from(verificados.keys()),
       notificationNumber: user?.notificationNumber ?? "",
     };
   } catch {
-    return { success: false, enabled: false, people: [] };
+    return { success: false, enabled: false, people: [], verified: [] };
   }
 }
 
@@ -83,11 +101,15 @@ export async function saveOwnerPeople(
     return { success: false, message: "No autorizado.", people: [] };
   }
 
+  if (people.length > MAXIMO_DE_PERSONAS) {
+    return { success: false, message: `Como mucho ${MAXIMO_DE_PERSONAS} personas.`, people: [] };
+  }
+
   // Validación básica de cada persona.
   for (const p of people) {
     const digits = (p.phone ?? "").replace(/\D/g, "");
-    if (digits.length < 7) {
-      return { success: false, message: "Cada persona necesita un número válido (mínimo 7 dígitos).", people: [] };
+    if (digits.length < 8) {
+      return { success: false, message: "Cada persona necesita un número completo, con código de país.", people: [] };
     }
     if (!(p.name ?? "").trim()) {
       return { success: false, message: "Cada persona necesita un nombre.", people: [] };
@@ -103,5 +125,56 @@ export async function saveOwnerPeople(
     return { success: true, message: "Guardado.", people: saved };
   } catch {
     return { success: false, message: "Error al guardar.", people: [] };
+  }
+}
+
+/**
+ * Genera el código de verificación de UNA persona de la lista. Se ve una sola
+ * vez en el panel; la persona lo manda por WhatsApp y su número queda
+ * verificado (sin eso, el Modo Dueño solo consulta).
+ */
+export async function generarCodigoDelDueno(
+  userId: string,
+  phone: string,
+): Promise<{ success: boolean; message: string; codigo?: string; minutos?: number }> {
+  if (!userId) return { success: false, message: "userId requerido." };
+  try {
+    await assertCanManage(userId);
+  } catch {
+    return { success: false, message: "No autorizado." };
+  }
+  const user = await db.user.findUnique({ where: { id: userId }, select: { ownerModePhone: true, notificationNumber: true } });
+  const personas = parseOwnerPeople(user?.ownerModePhone);
+  const tel = soloDigitos(phone);
+  const esDeLaLista = personas.length
+    ? personas.some((p) => p.phone === tel)
+    : tel === soloDigitos(user?.notificationNumber);
+  if (!esDeLaLista) return { success: false, message: "Ese número no está en la lista del Modo Dueño." };
+  try {
+    const codigo = await generarCodigoDeVerificacion(userId, tel);
+    return { success: true, message: "Código generado.", codigo, minutos: MINUTOS_DEL_CODIGO };
+  } catch (error) {
+    console.warn("[owner-mode] no se pudo generar el código", error);
+    return { success: false, message: "No se pudo generar el código." };
+  }
+}
+
+/** Quita la verificación de un número: volverá a necesitar un código para hacer cambios. */
+export async function quitarVerificacionDelDueno(
+  userId: string,
+  phone: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!userId) return { success: false, message: "userId requerido." };
+  try {
+    await assertCanManage(userId);
+  } catch {
+    return { success: false, message: "No autorizado." };
+  }
+  try {
+    await revocarVerificacion(userId, phone);
+    return { success: true, message: "Verificación quitada." };
+  } catch (error) {
+    console.warn("[owner-mode] no se pudo quitar la verificación", error);
+    return { success: false, message: "No se pudo quitar la verificación." };
   }
 }

@@ -5,9 +5,10 @@ import { Clock3, Loader2 } from "lucide-react";
 
 import {
   getAuditLogsForEntity,
-  type AuditEntityType,
   type AuditLogItem,
 } from "@/actions/audit-log-actions";
+// Solo el tipo: `import type` se borra al compilar y no arrastra el fichero de servidor.
+import type { AuditEntityType } from "@/lib/registro-de-cambios.server";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
