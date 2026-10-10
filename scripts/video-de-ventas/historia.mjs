@@ -222,7 +222,50 @@ export function elCalendario(ahora = Date.now()) {
  * en ese momento —lo que en producción hacen la IA y sus herramientas— y lo
  * aplica `backend.mjs`, que escribe en la base como lo haría el webhook.
  */
-export function laConversacion(cal = elCalendario()) {
+export function laConversacion(cal = elCalendario(), { plan = null } = {}) {
+    const todas = laConversacionCompleta(cal);
+    return plan ? laConversacionDelPlan(todas, cal, plan) : todas;
+}
+
+/**
+ * La conversación del VIDEO DE UN PLAN (`planes.mjs`): la misma historia, sin
+ * lo que el plan no trae. En el Esencial no hay notas de voz con la voz de la
+ * IA, ni seguimiento, ni llamada, ni paso a un asesor: Laura pide la cita en
+ * el mismo chat, elige un cupo y la IA la agenda. Tampoco sale un precio
+ * (`PALABRAS_PROHIBIDAS`): el vídeo no puede confundir el precio de la clínica
+ * con el del plan.
+ */
+function laConversacionDelPlan(todas, cal, plan) {
+    if (plan !== "esencial") throw new Error(`[video] la historia no tiene conversación para el plan «${plan}»`);
+    const cita = `${elDia(cal.cita)} a las ${laHora(cal.cita)}`;
+    const m = (clave, minutos) => cal[clave] + minutos * 60_000;
+    const fuera = new Set(["M03", "M04", "M09", "M11", "M15", "M16"]);
+    const cambios = {
+        M02: {
+            texto: "¡Hola! Soy Sofía, de Clínica Sonríe 😊 El blanqueamiento se hace en una sola sesión y este mes tiene 30 % de descuento. ¿Te cuento cómo funciona?",
+            efectos: [{ ficha: { servicio: "Blanqueamiento dental" } }, { etapa: "Contactado" }, { etiqueta: "Blanqueamiento" }, { calificacion: "Tibio" }],
+        },
+        M08: {
+            texto: "¡Sí! 🎉 Esa promo sigue vigente todo este mes. ¿Te agendo una valoración? Estos son los cupos de esta semana:",
+            efectos: [{ etapa: "Interesado" }, { etiqueta: "Promo Instagram" }, { calificacion: "Caliente" }, { ficha: { origen: "Instagram" } }],
+        },
+        M10: { en: m("inicio", 6), seguimiento: false },
+        M12: {
+            texto: `¡Listo, Laura! ✅ Te agendé tu valoración el ${cita}, y te enviaré un recordatorio el día antes.`,
+            en: m("inicio", 9),
+        },
+    };
+    const elige = { id: "E01", de: "cliente", tipo: "texto", texto: `El ${elDia(cal.cita).split(" ")[0]} a las ${laHora(cal.cita)} 😊`, en: m("inicio", 9) };
+    const salen = [];
+    for (const x of todas) {
+        if (fuera.has(x.id)) continue;
+        salen.push({ ...x, ...(cambios[x.id] ?? {}) });
+        if (x.id === "M10") salen.push(elige);
+    }
+    return salen;
+}
+
+function laConversacionCompleta(cal) {
     const cita = `${elDia(cal.cita)} a las ${laHora(cal.cita)}`;
     const m = (clave, minutos) => cal[clave] + minutos * 60_000;
     return [
