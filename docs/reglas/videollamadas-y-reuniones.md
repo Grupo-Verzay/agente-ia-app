@@ -2684,3 +2684,56 @@ Lo prueban:
 
 `banco-silencio-y-pantalla.sh` falla ya en `main` (espera `CALMA_DE_LA_RED_MS
 = 600` y el código dice 400): no es de este cambio.
+
+## Videollamada: pedir un humano, el cierre de venta y el reloj fijo de 30 minutos
+
+> **Manda sobre «la llamada tiene límite»** en el techo: `LIMITE_MAXIMO_MIN`
+> pasa de 240 a **30**. Una cuenta puede acortarla (mínimo 5), nunca alargarla;
+> lo guardado de más se lee como 30 (`comoLimiteDeMinutos`).
+
+Lo decide la SALA del cliente (`lib/atencion-de-la-videollamada.ts`, pura), por
+lo mismo que el silencio de Verzy: oye cada frase transcrita y no depende de una
+herramienta nueva en la persona de Tavus (409 `maker_changes`). Verzy además lo
+sabe desde el principio (`elBloqueDeAtencion`, al final del contexto).
+
+| lo que pasa | lo que hace la sala |
+| --- | --- |
+| incomodidad sin decirlo (`laIncomodidad`: una señal fuerte, o dos leves entre sus últimas 4 frases) | alerta SILENCIOSA al equipo; a Verzy no se le dice nada; sin reloj, como mucho una cada 5 min |
+| «quiero hablar con una persona» (`pideUnHumano`) | corta a Verzy y le hace decir «Dame un momento, he notificado a un humano para que ingrese a la reunión»; alerta al equipo; a los 1, 2 y 3 minutos Verzy lo dice con sus palabras (notificado / se demora / reagendar con un asesor sin avatar). Si entra el asesor, Verzy le da la palabra y se acaban los avisos. Si reagenda, el equipo recibe la fecha |
+| intención clara de comprar (`quiereComprar`), en cualquier minuto | contexto a Verzy: enlace de pago, acompañar pago y registro (puede pedir pantalla), videotutoriales y soporte desde la plataforma, y preguntar si sigue o explora solo |
+| «no me interesa», «muy caro», «no es lo que busco» (`esUnCierreNegativo`) | corta a Verzy, dice la despedida cordial (`laDespedidaDelNo`), la cita pasa a **Descartado** (Agenda o Multiagenda, con sus automatizaciones) y se cuelga al terminar la frase |
+| minuto 25 (`elAvisoDeCincoMinutos`) | Verzy avisa y va al cierre (plan y enlace de pago; humano solo si duda). Si ya está pagando/registrándose, pregunta si necesita algo más o agenda soporte |
+| minuto 29 (`AVISO_DE_UN_MINUTO`) | Verzy avisa que queda 1 minuto y, si insiste, da los pasos finales |
+| 15 s antes del 30 | despedida fija (`laDespedidaDelCierre`), WhatsApp de seguimiento al cliente y se cuelga al terminarla; el corte duro del límite sigue en el 30 |
+
+Cinco cosas que hay que mantener:
+
+1. **Los avisos que Verzy dice con sus palabras van por `conversation.respond`
+   con la marca `MARCA_DEL_AVISO_INTERNO`** («[AVISO INTERNO]»). Tavus los
+   apunta como frase del cliente: `laFraseDelCliente` y
+   `laTranscripcionDeTavus` los quitan (ni disparan nada ni llegan al CRM).
+   Las frases exactas (pedir humano, las dos despedidas) van por `echo`.
+2. **Un aviso espera a que nadie hable** (`cuandoHayaSilencio`, con tope): lee
+   `conversation.user.started/stopped_speaking` y los de la réplica.
+3. **Solo la sala del cliente lo lleva** (`!esAsesor`), y con un asesor dentro o
+   al mando («yo sigo desde aquí») las frases no disparan nada: lo que se oye
+   puede ser él. El reloj sigue igual: es fijo.
+4. **Lo vive una ref**: una reconexión no reinicia la espera ni repite un aviso
+   (`tocaElAviso`: uno que pasó hace rato no se da tarde).
+5. **El servidor** (`POST /api/videollamada/atencion`, firma de la cita;
+   `lib/atencion-de-la-videollamada.server.ts`) saca todo de la cita: avisa al
+   número de notificación de la dueña, sus adicionales y el asesor asignado, por
+   la línea de la cuenta, más un empuje al navegador; una vez por conversación de
+   Tavus y tipo (`videollamada_envios`), y si no sale, la marca se suelta.
+
+El aviso de «ya pagó» (`elAvisoDelPago`) dice ahora lo mismo que el cierre:
+registro, videotutoriales y soporte desde la plataforma (antes: «un asesor lo
+contactará»).
+
+Lo prueba `scripts/banco-atencion-de-la-videollamada.sh`: las reglas y la sala
+MONTADA en Chromium con el reloj falso (`page.clock`): los tres minutos de
+espera, el asesor que entra, la alerta silenciosa, comprar en el minuto 2, el NO
+que cuelga tras despedirse, y el 25/29/30 con el seguimiento. `MODO=roto` monta
+la sala de `86f29ee` y afirma que nada de esto pasaba. Contra Tavus y Daily de
+verdad no se puede probar desde este entorno: `conversation.respond` y los
+eventos `conversation.user.*` son los de su documentación.

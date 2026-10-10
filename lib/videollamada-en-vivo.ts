@@ -66,7 +66,11 @@ export function elAvisoDelPago(estado: EstadoDelPago, plan: string | null): stri
         return "El cliente ya creó su cuenta en Verzay durante la llamada, pero todavía no ha pagado. Acompáñalo a terminar el pago sin presionarlo.";
     }
     if (estado === "pagado") {
-        return `¡El cliente acaba de pagar${plan ? ` el plan ${plan}` : ""}! Felicítalo, agradécele la confianza y explícale el siguiente paso: un asesor lo contactará por WhatsApp para dejar todo configurado.`;
+        return (
+            `¡El cliente acaba de pagar${plan ? ` el plan ${plan}` : ""}! Felicítalo y agradécele la confianza. ` +
+            "Guíalo a terminar el registro de su cuenta; con la cuenta activa, oriéntalo a los videotutoriales y a agendar una reunión con el equipo de soporte e implementación desde dentro de la plataforma, ya con su sesión iniciada. " +
+            "Pregúntale si quiere que lo sigas ayudando en algo puntual ahora o si prefiere explorar por su cuenta y agendar el soporte cuando lo necesite."
+        );
     }
     return null;
 }
