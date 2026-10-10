@@ -135,9 +135,9 @@ export async function laHoraDeLaPosicion(db, sessionId, ms) {
     await db.$executeRaw`UPDATE "embudo_posiciones" SET "actualizadoEn" = ${new Date(ms)} WHERE "sessionId" = ${sessionId}`;
 }
 
-export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {} }) {
+export function elBackend({ db, embudos, ctx, base, segundos, avisar = () => {}, plan = null }) {
     const cal = ctx.calendario;
-    const mensajes = laConversacion(cal);
+    const mensajes = laConversacion(cal, { plan });
     let sesionId = null;
     let seguimientoId = null;
     let recordatorioId = null;

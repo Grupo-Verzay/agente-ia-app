@@ -544,3 +544,44 @@ dos saltos de línea y «👉 {enlace}».
 
 Lo prueba `scripts/banco-saludo-de-propuestas.sh`; `MODO=roto` lee `62386d4` y
 afirma que no existía.
+
+## El video comercial de cada PLAN: la misma historia, solo con lo que el plan trae, y sin precios
+
+El video de arriba en «Ver todo lo que incluye» de un plan era la presentación
+genérica de la marca: no decía qué traía ESE plan, y eso abre malentendidos
+después de la venta. Cada plan tiene ahora el suyo (piloto: **Esencial**,
+`public/videos-de-planes/esencial.mp4`, ~2 min), con la fórmula de
+`scripts/video-de-ventas/planes.mjs`, en este orden:
+
+1. **Caso de uso**: la historia de Clínica Sonríe en las tres pantallas, con el
+   panel de VERDAD. La graba el mismo `grabar-video-de-ventas.mjs` con
+   `PLAN=<id>`: solo las escenas del plan (`escenas`) y la conversación del
+   plan (`laConversacion(cal, { plan })`). En el Esencial no hay notas de voz
+   de la IA, ni Sheets, ni seguimiento, ni llamada, ni asesor: Laura elige el
+   cupo en el mismo chat y la IA la agenda.
+2. **Interfaz** y 3. **Configuración**: trozos de los videotutoriales
+   publicados (`public/guia/<módulo>/demostracion.webm`), en una ventana con la
+   dirección de la plataforma y su frase nueva. `desdeMs` es el arranque de la
+   frase de la guía que enseña lo mismo (`scripts/voz-de-la-guia/<módulo>.json`,
+   `empiezanEnMs`); contarlas mal saca otra pestaña (pasó con Servicios).
+4. **Cierre**: Verzay lo construye y lo implementa; nada que montar solo.
+
+Lo monta `montar-video-del-plan.mjs`: tarjetas y tramos de guía son páginas con
+el estilo del estudio grabadas con `grabadora-de-la-guia.mjs`; encima, el avatar
+de Verzay (`public/logo-agente.png`) con la onda de su voz, música sintetizada
+que se aparta cuando habla, y voz Cedar en tono de anuncio (`VOZ_DE_VENTAS`).
+
+Tres cosas que hay que mantener:
+
+1. **Ningún video de plan dice un precio ni «gratis»**: los precios viven en la
+   landing y cambian. `loProhibidoDelPlan` revisa todo lo que se dice y se lee,
+   y el montaje no arranca si encuentra algo. La conversación del plan tampoco
+   da el precio del tratamiento.
+2. **No se promete de más**: un plan solo enseña sus módulos. Si cambia lo que
+   trae un plan, se cambia su entrada en `planes.mjs` y se regenera.
+3. **Se publica fuera de `/planes/`** (esa es la ruta de la página del plan):
+   en el panel de Planes se pega `/videos-de-planes/<plan>.mp4`.
+
+Se genera con `npm run build && scripts/generar-video-del-plan.sh esencial`
+(frases nuevas antes: `node scripts/sintetizar-en-el-contenedor.mjs
+scripts/video-de-ventas/narracion-del-plan.mjs`) y después se vuelve a construir.

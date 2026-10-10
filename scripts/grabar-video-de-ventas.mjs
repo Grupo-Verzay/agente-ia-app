@@ -20,6 +20,11 @@
  * Con `ENSAYO=1` todo queda en el directorio de trabajo, con una captura por
  * escena, y `public/demo/` no se toca.
  *
+ * Con `PLAN=<id>` (`video-de-ventas/planes.mjs`) graba el CASO DE USO del
+ * vídeo de ese plan: sin el arranque de los cinco negocios ni la marca, solo
+ * las escenas que el plan trae y con la conversación del plan. Lo deja en el
+ * directorio de trabajo (`caso-<id>.mp4`): lo publica `montar-video-del-plan.mjs`.
+ *
  * Lo que es recreación y lo que no, dicho sin rodeos: el celular y WhatsApp Web
  * son dibujos fieles de lo que la historia dice; las respuestas de la IA son las
  * del guion (`historia.mjs`); el panel es la App de verdad leyendo la base.
@@ -57,6 +62,7 @@ import {
 } from "./video-de-ventas/historia.mjs";
 import { generarLosMedios } from "./video-de-ventas/medios.mjs";
 import { CACHE_DE_VENTAS, LA_VOZ_EN_LA_LLAMADA, NARRACION, VOZ_DE_LA_CLIENTA, VOZ_DE_SOFIA, VOZ_DE_VENTAS } from "./video-de-ventas/narracion.mjs";
+import { elPlanDelVideo } from "./video-de-ventas/planes.mjs";
 import { sembrarLaClinica } from "./video-de-ventas/sembrar.mjs";
 import { servirElTiempoReal } from "./video-de-ventas/tiempo-real.mjs";
 
@@ -68,12 +74,22 @@ const RAIZ = path.resolve(import.meta.dirname, "..");
 const BASE = process.env.BASE ?? "http://localhost:3940";
 const TRABAJO = process.env.TRABAJO ?? "/tmp/video-de-ventas";
 const ENSAYO = process.env.ENSAYO === "1";
-const SALIDA = ENSAYO ? TRABAJO : path.join(RAIZ, "public", "demo");
+/** El plan cuyo caso de uso se graba (`PLAN=esencial`); sin él, el vídeo de ventas entero. */
+const PLAN = process.env.PLAN ? elPlanDelVideo(process.env.PLAN) : null;
+const SALIDA = ENSAYO || PLAN ? TRABAJO : path.join(RAIZ, "public", "demo");
 const MEDIOS_DIR = path.join(TRABAJO, "medios");
-const CAPTURAS = path.join(TRABAJO, "ensayo");
+const CAPTURAS = path.join(TRABAJO, PLAN ? `ensayo-${PLAN.id}` : "ensayo");
 
 /** El vídeo que se publica, su portada y lo que el banco mide de él. */
 export const ARCHIVOS_DEL_VIDEO = Object.freeze({ video: "verzay-demo.mp4", portada: "verzay-demo.jpg", datos: "verzay-demo.json" });
+/** El caso de uso de un plan, que luego monta `montar-video-del-plan.mjs`. */
+const ARCHIVOS = PLAN ? { video: `caso-${PLAN.id}.mp4`, portada: `caso-${PLAN.id}.jpg`, datos: `caso-${PLAN.id}.json` } : ARCHIVOS_DEL_VIDEO;
+/** Qué escenas se graban: todas, o las del plan. */
+const seGraba = (escena) => !PLAN || PLAN.escenas.includes(escena);
+/** Lo que dice el narrador: el del vídeo de ventas, o el del plan. */
+const LA_NARRACION = PLAN ? PLAN.narracion : NARRACION;
+/** Los rótulos de arriba, numerados en el orden de ESTE vídeo. */
+const LAS_CAPACIDADES = PLAN ? PLAN.capacidades : CAPACIDADES;
 
 /** Entre una frase y la siguiente, lo que respira una persona hablando (el de las guías). */
 const RESPIRO_ENTRE_FRASES_MS = 250;
@@ -118,6 +134,7 @@ const back = elBackend({
     ctx: sembrado,
     base: BASE,
     segundos: medios.segundos,
+    plan: PLAN?.id ?? null,
     avisar: (nombre, datos) => {
         const n = rt?.emitir(nombre, datos) ?? 0;
         if (!n) {
@@ -136,19 +153,20 @@ const porId = Object.fromEntries(back.mensajes.map((m) => [m.id, m]));
 /* ------------------------------------------------------------------ */
 
 const voz = Object.fromEntries(
-    Object.entries(NARRACION).map(([id, n]) => [id, { texto: n.texto, rotulo: n.texto, audio: acortarLasPausas(leerWav(wavDeLaCache(n.texto, CACHE_DE_VENTAS, VOZ_DE_VENTAS))) }]),
+    Object.entries(LA_NARRACION).map(([id, n]) => [id, { texto: n.texto, rotulo: n.texto, audio: acortarLasPausas(leerWav(wavDeLaCache(n.texto, CACHE_DE_VENTAS, VOZ_DE_VENTAS))) }]),
 );
 const NOTAS = {
     clienta: leerWav(wavDeLaCache(NOTAS_DE_VOZ.clienta.texto, CACHE_DE_VENTAS, VOZ_DE_LA_CLIENTA)),
     ia: leerWav(wavDeLaCache(NOTAS_DE_VOZ.ia.texto, CACHE_DE_VENTAS, VOZ_DE_SOFIA)),
 };
-const AVISO = elAvisoDeMensaje(voz.gancho.audio.frecuencia);
+const FRECUENCIA = Object.values(voz)[0].audio.frecuencia;
+const AVISO = elAvisoDeMensaje(FRECUENCIA);
 /**
  * La LLAMADA con IA: el tono de llamada saliente y las tres líneas, cada una
  * con su voz y pasada «por teléfono». Lo que dura la conversación es lo que la
  * plataforma anota en la burbuja de la llamada (`segundos.llamada`).
  */
-const TONO = elTonoDeLlamada(voz.gancho.audio.frecuencia);
+const TONO = elTonoDeLlamada(FRECUENCIA);
 const RESPIRO_EN_LA_LLAMADA_MS = 350;
 const EN_LA_LLAMADA = LA_LLAMADA.map((l) => ({
     ...l,
@@ -521,7 +539,7 @@ const ESPERA_DEL_PRIMER_MENSAJE_MS = 2_600;
 const PORTADA_MS = 500;
 /** La imagen de portada (la de la página y la de la vista previa al compartir) es un fotograma de la portada. */
 const PORTADA_JPG_MS = 250;
-const hastaElPrimerMensaje = PORTADA_MS + 150 + voz.gancho.audio.ms + voz.promesa.audio.ms + 900 + ESPERA_DEL_PRIMER_MENSAJE_MS;
+const hastaElPrimerMensaje = PORTADA_MS + 150 + (PLAN ? 0 : voz.gancho.audio.ms + voz.promesa.audio.ms) + 900 + ESPERA_DEL_PRIMER_MENSAJE_MS;
 {
     // Se miden dos vueltas seguidas de la lista (sin grabar) y se arranca para
     // que el primer mensaje caiga en la mitad de la ventana de una vuelta.
@@ -582,15 +600,23 @@ const acabar = async (respiro = 0) => {
     await est("subtitulo", "");
 };
 const capacidad = async (escena2) => {
-    const i = CAPACIDADES.findIndex((c) => c.escena === escena2);
-    await est("capacidad", i + 1, CAPACIDADES[i].titulo, CAPACIDADES[i].detalle);
+    const i = LAS_CAPACIDADES.findIndex((c) => c.escena === escena2);
+    await est("capacidad", i + 1, LAS_CAPACIDADES[i].titulo, LAS_CAPACIDADES[i].detalle);
 };
+/** Lo que el banco busca en los fotogramas; el caso de uso de un plan no lo tiene. */
+let cierreDelMontajeMs = null;
+let cajasDelMontajeMs = null;
+let cajasDelMontaje = null;
+let marcaMs = null;
+let lineasMs = null;
 
 // 0. La portada: lo primero que se graba, y por eso la miniatura que enseña
 // WhatsApp al compartir el archivo. Corta, para que la voz no empiece tarde.
 await espera(p, PORTADA_MS);
 
-// 1. El gancho: cinco negocios a la vez, y debajo, cualquier otro.
+// 1. El gancho: cinco negocios a la vez, y debajo, cualquier otro. El vídeo de
+// un plan no lo lleva: lo abre su propia tarjeta en el montaje.
+if (!PLAN) {
 await est("plano", PLANOS.montaje);
 await est("montaje");
 await espera(p, 150);
@@ -598,14 +624,14 @@ await decir("gancho");
 // El cierre del arranque sale con la frase que lo dice, y nunca antes del
 // último mensaje de la última tarjeta (el estudio espera si hace falta).
 await alDecir("y cualquier negocio");
-const cierreDelMontajeMs = Date.now() - t0 + (await est("yCualquierNegocio"));
+cierreDelMontajeMs = Date.now() - t0 + (await est("yCualquierNegocio"));
 await alDecir("responde al instante");
 await captura("montaje");
 // Dónde quedaron, en el cuadro, la portada del video de Cursos y el mapa del
 // viaje, y cuándo: el banco mira ahí en los fotogramas del vídeo publicado
 // que se ven como una imagen (no un recuadro negro con un punto).
-const cajasDelMontajeMs = Date.now() - t0;
-const cajasDelMontaje = await p.evaluate(() =>
+cajasDelMontajeMs = Date.now() - t0;
+cajasDelMontaje = await p.evaluate(() =>
     Object.fromEntries(
         [
             ["video", '.mini[data-negocio="cursos"] .bur.vid .marco'],
@@ -621,11 +647,12 @@ const cajasDelMontaje = await p.evaluate(() =>
 // respiro ni fundido largo, y al callar la promesa se pasa a las tres
 // pantallas: ningún segundo con la pantalla quieta.
 await callar(0);
-const marcaMs = Date.now() - t0;
+marcaMs = Date.now() - t0;
 await est("plano", PLANOS.marca);
 await decir("promesa");
 await espera(p, 700);
 await captura("marca");
+}
 
 // 3. Tres pantallas y el primer mensaje.
 await callar(0);
@@ -670,15 +697,16 @@ await espera(p, 1200);
     const seccion = await esperarEn("app", ENCONTRAR.seccionDeLaFicha, SECCION_DE_LA_FICHA, { que: "la sección de la ficha" });
     if (!seccion.abierta) await pulsarEn(await enElCuadro("app", ENCONTRAR.seccionDeLaFicha, SECCION_DE_LA_FICHA), { ms: 500, antes: () => clicEn("app", "[data-ficha-de-contacto] button", SECCION_DE_LA_FICHA) });
 }
-await alDecir("La IA le da");
+await alDecir(PLAN ? "El agente" : "La IA le da");
 await llega("M02");
 await est("cursor.esconder");
-await alDecir("su ficha", 100);
+await alDecir(PLAN ? "sus datos" : "su ficha", 100);
 await esperarEn("app", ENCONTRAR.campoDeLaFicha, ["Servicio de interés", "Blanqueamiento"], { que: "el servicio en la ficha" });
 await anillos([{ c: await enElCuadro("app", ENCONTRAR.campoDeLaFicha, ["Servicio de interés"]), texto: "Se llenó solo" }]);
 await captura("texto");
 await acabar(700);
 
+if (seGraba("voz")) {
 // 5. Voz: la nota de la clienta y la respuesta con su propia voz.
 await anillos([]);
 await capacidad("voz");
@@ -712,6 +740,9 @@ await espera(p, 1400);
 await espera(p, Math.max(0, nota2 - 1400) + 250);
 await captura("voz");
 
+}
+
+if (seGraba("sheets")) {
 // 5b. Google Sheets: los datos de Laura, también en la hoja de la clínica.
 await anillos([]);
 await capacidad("sheets");
@@ -728,22 +759,25 @@ await anillos([{ c: await p.evaluate(() => {
 await captura("sheets");
 await acabar(700);
 
+}
+
 // 6. Archivos: PDF, video e imagen.
 await anillos([]);
 await capacidad("medios");
 await est("plano", PLANOS.telWeb);
 await espera(p, 400);
 await decir("medios");
-await alDecir("la lista de precios", 500);
+await alDecir(PLAN ? "un PDF" : "la lista de precios", 500);
 await llega("M05");
 await alDecir("un video", 300);
 await llega("M06");
 await est("web.reproducirVideo", "M06", 4_200);
-await alDecir("entiende la imagen", 700);
+await alDecir(PLAN ? "recibe la imagen" : "entiende la imagen", 700);
 await llega("M07");
 await captura("medios");
 await acabar(900);
 
+if (!PLAN) {
 // 7. Caliente: calificación, etiquetas y etapa, solas.
 await capacidad("caliente");
 await est("plano", PLANOS.panel);
@@ -800,9 +834,22 @@ await est("llamada", null);
 await llega("M11");
 await espera(p, 900);
 
+}
+
 // 9. La cita: lo que hablaron, agendado en el calendario.
 await capacidad("cita");
-await decir("cita");
+if (PLAN) {
+    // En el plan no hay llamada: Laura elige el cupo en el mismo chat.
+    await est("plano", PLANOS.telPanel);
+    await decir("cita");
+    await llega("M08");
+    await alDecir("le muestra los cupos", 300);
+    await llega("M10");
+    await alDecir("ella elige", 300);
+    await llega("E01");
+} else {
+    await decir("cita");
+}
 await alDecir("y la cita", 300);
 await llega("M12");
 // La agenda se entera al volver a montarse (como al entrar a Agenda).
@@ -845,6 +892,7 @@ await espera(p, 1600);
 await captura("recordatorio");
 await acabar(500);
 
+if (!PLAN) {
 // 10b. Laura pide hablar con alguien: la conversación pasa a una asesora.
 await anillos([]);
 await capacidad("asesor");
@@ -903,7 +951,7 @@ await p.evaluate(([id, ruta]) => {
 }, ["embudo", `/embudos?asesor=${sembrado.asesor}`]);
 await capacidad("multiagente");
 await est("plano", PLANOS.lineas);
-const lineasMs = Date.now() - t0;
+lineasMs = Date.now() - t0;
 await est("lineas");
 await decir("multiagente");
 await espera(p, 1600);
@@ -953,6 +1001,13 @@ await est("subtitulo", "");
 await captura("cierre");
 await espera(p, 900);
 
+} else {
+    // El caso de uso de un plan acaba en su última escena; el montaje sigue.
+    await anillos([]);
+    await est("capacidad", 0, "");
+    await espera(p, 600);
+}
+
 const totalMs = Date.now() - t0;
 const grabado = await grabadora.parar();
 if (fallosDelEstudio.length && !ENSAYO) throw new Error(`[video] el estudio no pudo pintar: ${fallosDelEstudio.join(" | ")}`);
@@ -972,7 +1027,7 @@ const { wav, colocados } = mezclarLaBanda(todo, totalMs);
 const banda = path.join(TRABAJO, "banda.wav");
 writeFileSync(banda, wav);
 
-const destino = path.join(SALIDA, ARCHIVOS_DEL_VIDEO.video);
+const destino = path.join(SALIDA, ARCHIVOS.video);
 execFileSync(
     "ffmpeg",
     [
@@ -985,13 +1040,14 @@ execFileSync(
     ],
     { stdio: "inherit" },
 );
-execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", (PORTADA_JPG_MS / 1000).toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS_DEL_VIDEO.portada)]);
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", (PORTADA_JPG_MS / 1000).toFixed(2), "-i", destino, "-frames:v", "1", "-q:v", "3", path.join(SALIDA, ARCHIVOS.portada)]);
 
-const frases = Object.fromEntries(Object.entries(NARRACION).map(([id, n]) => [id, llaveDeLaFrase(n.texto, VOZ_DE_VENTAS)]));
+const frases = Object.fromEntries(Object.entries(LA_NARRACION).map(([id, n]) => [id, llaveDeLaFrase(n.texto, VOZ_DE_VENTAS)]));
 writeFileSync(
-    path.join(SALIDA, ARCHIVOS_DEL_VIDEO.datos),
+    path.join(SALIDA, ARCHIVOS.datos),
     JSON.stringify(
         {
+            plan: PLAN?.id ?? null,
             voz: VOZ_DE_VENTAS.voz,
             modelo: VOZ_DE_VENTAS.modelo,
             frases,

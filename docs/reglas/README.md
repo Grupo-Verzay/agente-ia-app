@@ -242,7 +242,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - La nota rápida: un papel por PERSONA, que se guarda solo
 - Mis formularios: el formulario público es PÚBLICO, y las reglas viven en un sitio
 
-## [Páginas públicas, propuestas y /demo](paginas-publicas-y-propuestas.md) — 6 reglas, 34 KB
+## [Páginas públicas, propuestas y /demo](paginas-publicas-y-propuestas.md) — 7 reglas, 37 KB
 
 - Propuestas comerciales: el enlace sale POR LA LÍNEA de la propuesta, y el contacto no se publica
 - Las tres públicas llevan UN pie: el mismo texto, la raya al ancho del contenido y el aire de entre bloques
@@ -250,6 +250,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - El vídeo de ventas (`/demo`): el panel es la App de VERDAD, y lo demás lo dice
 - La propuesta pública: el precio dos veces, la cuadrícula sin huecos, sin la guía del Agente IA, y el video se compacta
 - Propuestas: el saludo de envío por WhatsApp es de la CUENTA, y el modal se llama «Configuración»
+- El video comercial de cada PLAN: la misma historia, solo con lo que el plan trae, y sin precios
 
 ## [Canales, líneas, proveedores (Evolution/Waha/Meta) y Correo](canales-lineas-y-correo.md) — 15 reglas, 84 KB
 

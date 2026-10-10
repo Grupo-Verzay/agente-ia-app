@@ -1,0 +1,172 @@
+{
+  "plan": "esencial",
+  "voz": "cedar",
+  "modelo": "gpt-4o-mini-tts",
+  "duracionMs": 125854,
+  "frases": {
+    "apertura": "7eb6fffaa376049d7f63ab38",
+    "interfaz": "1016027f36c49dd098b5d030",
+    "chats": "8f21373468b7c9677a3193cf",
+    "eventos": "2163447d31bc122f700adb40",
+    "crm": "e06667c6576e6eba7f056378",
+    "agenda": "df4a09d1ef000e39a5a10430",
+    "configuracion": "79054fe1f8c6436c466168f5",
+    "perfil": "3a0842cf9e3d088a55a2c040",
+    "disponibilidad": "5798af131a590585d2bf652c",
+    "servicios": "8d39d5575a55a76a7204b0ab",
+    "recordatorios": "d76b1a092955f579c7247576",
+    "implementacion": "0fe13389eaf011bfdef7b3f0",
+    "cierre": "7fa7ab17f38fa1654110b814"
+  },
+  "tramos": [
+    {
+      "id": "apertura",
+      "tipo": "tarjeta",
+      "texto": "Este es el plan Esencial de Verzay. Te mostramos qué incluye, cómo se ve y cómo se configura, empezando por un ejemplo práctico.",
+      "inicioMs": 0,
+      "vozMs": [
+        450,
+        9550
+      ],
+      "finMs": 10250
+    },
+    {
+      "id": "caso",
+      "tipo": "caso",
+      "inicioMs": 10250,
+      "finMs": 52830
+    },
+    {
+      "id": "interfaz",
+      "tipo": "tarjeta",
+      "texto": "Ahora, así se ve tu plataforma.",
+      "inicioMs": 52830,
+      "vozMs": [
+        53280,
+        55750
+      ],
+      "finMs": 56450
+    },
+    {
+      "id": "chats",
+      "tipo": "guia",
+      "texto": "En Chats tienes todas las conversaciones de WhatsApp en una sola bandeja, y entras a responder cuando quieras.",
+      "inicioMs": 56450,
+      "vozMs": [
+        56800,
+        63200
+      ],
+      "finMs": 63650
+    },
+    {
+      "id": "eventos",
+      "tipo": "guia",
+      "texto": "Desde cada conversación creas una cita o un recordatorio, sin salir del chat.",
+      "inicioMs": 63650,
+      "vozMs": [
+        64000,
+        68050
+      ],
+      "finMs": 68500
+    },
+    {
+      "id": "crm",
+      "tipo": "guia",
+      "texto": "En Leads, tu CRM, queda cada contacto con los datos que el agente capturó.",
+      "inicioMs": 68500,
+      "vozMs": [
+        68850,
+        73680
+      ],
+      "finMs": 74130
+    },
+    {
+      "id": "agenda",
+      "tipo": "guia",
+      "texto": "Y en Agenda ves todas tus citas por día o por semana, con su estado.",
+      "inicioMs": 74130,
+      "vozMs": [
+        74480,
+        79220
+      ],
+      "finMs": 79670
+    },
+    {
+      "id": "configuracion",
+      "tipo": "tarjeta",
+      "texto": "¿Y cómo se configura?",
+      "inicioMs": 79670,
+      "vozMs": [
+        80120,
+        81610
+      ],
+      "finMs": 82310
+    },
+    {
+      "id": "perfil",
+      "tipo": "guia",
+      "texto": "En Agente IA le cuentas quién es tu negocio: su nombre, sus horarios y cómo contactarlo.",
+      "inicioMs": 82310,
+      "vozMs": [
+        82660,
+        89180
+      ],
+      "finMs": 89630
+    },
+    {
+      "id": "disponibilidad",
+      "tipo": "guia",
+      "texto": "En Agenda marcas los horarios en que atiendes cada día.",
+      "inicioMs": 89630,
+      "vozMs": [
+        89980,
+        93850
+      ],
+      "finMs": 94300
+    },
+    {
+      "id": "servicios",
+      "tipo": "guia",
+      "texto": "Guardas tus servicios, con el mensaje que recibe el cliente al agendar.",
+      "inicioMs": 94300,
+      "vozMs": [
+        94650,
+        99450
+      ],
+      "finMs": 99900
+    },
+    {
+      "id": "recordatorios",
+      "tipo": "guia",
+      "texto": "Y decides qué recordatorio le llega a tu cliente, y cuánto antes de la cita.",
+      "inicioMs": 99900,
+      "vozMs": [
+        100250,
+        105510
+      ],
+      "finMs": 105960
+    },
+    {
+      "id": "implementacion",
+      "tipo": "tarjeta",
+      "texto": "Y lo mejor: no tienes que montarlo solo. El equipo de Verzay construye e implementa todo por ti, y te lo entrega listo para atender a tus clientes.",
+      "inicioMs": 105960,
+      "vozMs": [
+        106410,
+        115970
+      ],
+      "finMs": 116670
+    },
+    {
+      "id": "cierre",
+      "tipo": "tarjeta",
+      "texto": "Verzay, plan Esencial: responde, envía archivos, guarda tus clientes, agenda y recuerda por ti.",
+      "inicioMs": 116670,
+      "vozMs": [
+        117120,
+        124090
+      ],
+      "finMs": 125690
+    }
+  ]
+}
