@@ -639,7 +639,8 @@ antes de «Guardar» (`app/(root)/ia/_components/claves/BotonDeClaves.tsx`). En
   Mensajería en `user_ai_configs` (proveedor por defecto), Voz en `User`
   (`ttsProvider`, `elevenLabs*`), Llamadas en la clave de OpenAI de
   `user_ai_configs` (la que pide el servidor de llamadas, `no_openai_key`),
-  Videollamadas en `videollamada_ajustes.propio*` (Tavus) y WhatsApp API,
+  Videollamadas en `videollamada_ajustes.propio*` (Tavus, OBLIGATORIO: no hay
+  avatar de respaldo, ver `videollamadas-y-reuniones.md`) y WhatsApp API,
   Telegram, Facebook e Instagram en el token de su fila de `Instancias`. Una
   clave guardada donde el motor no lee sería un fallo mudo. Separar la IA de
   cada canal de chat exige que el backend la lea primero.

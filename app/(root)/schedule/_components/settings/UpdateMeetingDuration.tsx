@@ -14,6 +14,7 @@ import {
     LIMITE_DE_FABRICA_MIN,
     LIMITE_MAXIMO_MIN,
     LIMITE_MINIMO_MIN,
+    FALTA_EL_AVATAR_PROPIO,
     MODOS_DE_REUNION,
     NOMBRE_DEL_MODO,
     comoLimiteDeMinutos,
@@ -54,7 +55,8 @@ export const UpdateMeetingDuration = ({
     const [loading, setLoading] = useState(false);
 
     // El modo de reunión: el enlace fijo de siempre o la videollamada con IA.
-    // El avatar es uno, el de la plataforma (Verzy): aquí solo se elige el modo.
+    // El avatar es el de la CUENTA (su clave y su persona de Tavus, en Agente IA ›
+    // Videollamadas › Claves): aquí solo se elige el modo. Sin avatar no hay modo IA.
     const [modo, setModo] = useState<ModoDeReunion>("enlace");
     const [disponible, setDisponible] = useState(true);
     const [guardado, setGuardado] = useState<ModoDeReunion>("enlace");
@@ -143,7 +145,7 @@ export const UpdateMeetingDuration = ({
         const durationError = validateDuration(durationMinutes.toString());
         if (durationError) return toast.error(durationError);
 
-        if (modo === "tavus" && !disponible) return toast.error("La videollamada con IA no está disponible en este momento.");
+        if (modo === "tavus" && !disponible) return toast.error(FALTA_EL_AVATAR_PROPIO);
         const urlError = validateMeetingUrl(url);
         if (urlError) return toast.error(urlError);
 
@@ -240,12 +242,12 @@ export const UpdateMeetingDuration = ({
                     <div className="space-y-1.5" data-ajustes-de-tavus>
                         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                             <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                            Te atiende Verzy, el asistente con video de la plataforma
+                            Te atiende tu avatar de Tavus
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {disponible
                                 ? "Cada cita recibe su propio enlace. La sala se abre cuando el cliente la abre."
-                                : "La videollamada con IA no está disponible en este momento."}
+                                : FALTA_EL_AVATAR_PROPIO}
                         </p>
                         <label
                             htmlFor="limiteDeLaVideollamada"

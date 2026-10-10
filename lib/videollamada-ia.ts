@@ -138,10 +138,9 @@ export function laDuracionMaxima(ahora: Date, fin: Date): number {
 /* ── Los ajustes ───────────────────────────────────────────────────────── */
 
 /**
- * El avatar de la plataforma es el Pal «Verzy» de Verzay, con la clave de
- * Tavus de la casa: sale del entorno (`TAVUS_API_KEY`, `TAVUS_PERSONA_ID`) y
- * nunca viaja al navegador. Una cuenta PUEDE tener además su propio avatar
- * (clave y persona suyas, `elAvatarQueUsa`); sin él usa el de la casa.
+ * El nombre con el que se presenta el asistente con video. El AVATAR (clave y
+ * persona de Tavus) es SIEMPRE el de la cuenta: no hay avatar de la casa ni
+ * respaldo del entorno (`elAvatarQueUsa`).
  */
 export const NOMBRE_DEL_AVATAR = "Verzy";
 
@@ -157,27 +156,34 @@ export function comoClaveDeTavus(valor: unknown): string | null {
     return /^[A-Za-z0-9_\-.]{16,200}$/.test(limpio) ? limpio : null;
 }
 
-/** El avatar de la casa leído del entorno, o `null` si falta algo o no tiene forma. */
-export function elAvatarDelEntorno(
-    entorno: { TAVUS_API_KEY?: string; TAVUS_PERSONA_ID?: string },
-): { clave: string; personaId: string } | null {
-    const clave = comoClaveDeTavus(entorno.TAVUS_API_KEY);
-    const personaId = comoPersonaId(entorno.TAVUS_PERSONA_ID);
-    return clave && personaId ? { clave, personaId } : null;
-}
-
 export type Avatar = { clave: string; personaId: string };
 
 /**
  * Qué avatar usa una cuenta: el SUYO si tiene clave y persona válidas, y si
- * no, el de la casa. Medio avatar propio (clave sin persona) no cuenta: se
- * cae al de la casa en vez de mezclar la clave de uno con la persona de otro.
+ * no, NINGUNO. No hay avatar de la casa: una cuenta sin su clave y su persona
+ * de Tavus no tiene videollamada con IA, en vez de gastar la cuenta de otro.
+ * Medio avatar (clave sin persona) tampoco cuenta.
  */
-export function elAvatarQueUsa(propio: { clave?: unknown; personaId?: unknown } | null | undefined, casa: Avatar | null): Avatar | null {
+export function elAvatarQueUsa(propio: { clave?: unknown; personaId?: unknown } | null | undefined): Avatar | null {
     const clave = comoClaveDeTavus(propio?.clave);
     const personaId = comoPersonaId(propio?.personaId);
-    return clave && personaId ? { clave, personaId } : casa;
+    return clave && personaId ? { clave, personaId } : null;
 }
+
+/**
+ * El modo que VALE de verdad: la videollamada con IA solo si la cuenta tiene su
+ * avatar; si no, el enlace fijo. Así una cuenta que estaba en modo IA con el
+ * avatar de la casa (que ya no existe) no reparte enlaces que no abren: sus
+ * citas llevan su enlace fijo hasta que ponga su clave, y entonces vuelven
+ * solas a la videollamada con IA (el modo guardado no se toca).
+ */
+export function elModoQueVale(ajustes: { modo: ModoDeReunion; disponible: boolean } | null | undefined): ModoDeReunion {
+    return ajustes?.modo === "tavus" && ajustes.disponible ? "tavus" : "enlace";
+}
+
+/** Lo que se le dice a quien elige la videollamada con IA sin tener su avatar. */
+export const FALTA_EL_AVATAR_PROPIO =
+    "Configura tu clave y tu avatar de Tavus en Agente IA › Videollamadas › Claves para usar la videollamada con IA.";
 
 /* ── El límite de duración de cada videollamada ───────────────────────── */
 
@@ -217,7 +223,7 @@ export type AjustesParaGuardar = { modo: ModoDeReunion; limiteMinutos: number };
 
 /**
  * Qué se guarda: el modo y nada más. El modo `tavus` solo se puede encender si
- * la plataforma tiene su avatar configurado; apagarlo se puede siempre.
+ * la CUENTA tiene su avatar de Tavus configurado; apagarlo se puede siempre.
  */
 export function losAjustesQueSeGuardan(
     pedido: { modo?: unknown; limiteMinutos?: unknown },
@@ -225,7 +231,7 @@ export function losAjustesQueSeGuardan(
 ): { ok: true; ajustes: AjustesParaGuardar } | { ok: false; motivo: string } {
     const modo = comoModoDeReunion(pedido.modo);
     if (modo === "tavus" && !hayAvatar) {
-        return { ok: false, motivo: "La videollamada con IA no está disponible en este momento." };
+        return { ok: false, motivo: FALTA_EL_AVATAR_PROPIO };
     }
     return { ok: true, ajustes: { modo, limiteMinutos: comoLimiteDeMinutos(pedido.limiteMinutos) } };
 }

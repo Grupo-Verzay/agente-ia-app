@@ -18,6 +18,7 @@ import {
     elContextoParaTavus,
     elEnlaceDeLaVideollamada,
     elEnlaceDelNombre,
+    elModoQueVale,
     elNombreDelProspecto,
     laDuracionConLimite,
     LIMITE_DE_FABRICA_MIN,
@@ -107,11 +108,16 @@ export function elOrigenPublico(): string {
 
 /**
  * El enlace de reunión de ESA cita: el de la videollamada con IA si la cuenta
- * está en ese modo, o el enlace fijo de siempre. `null` si no hay ninguno.
+ * está en ese modo Y tiene su avatar de Tavus (`elModoQueVale`), o el enlace
+ * fijo de siempre. `null` si no hay ninguno. Sin avatar propio no se reparte
+ * un enlace de videollamada que no abriría.
  */
 export async function elEnlaceDeReunionDeLaCita(cuentaId: string, citaId: string | null): Promise<string | null> {
     const ajustes = await leerLosAjustes(cuentaId).catch(() => null);
-    if (ajustes?.modo === "tavus" && citaId) {
+    if (ajustes?.modo === "tavus" && !ajustes.disponible) {
+        console.warn("[videollamada] la cuenta está en modo IA sin su avatar de Tavus; la cita lleva el enlace fijo", { cuenta: cuentaId, cita: citaId });
+    }
+    if (elModoQueVale(ajustes) === "tavus" && citaId) {
         const origen = elOrigenPublico();
         if (origen) return elEnlaceDeLaVideollamada(origen, await laLlaveDelEnlace(citaId));
     }
@@ -392,7 +398,7 @@ export async function abrirLaVideollamada(citaId: string, ahora: Date = new Date
     const ajustes = await leerLosAjustes(cita.userId).catch(() => null);
     const tavus = await elAvatarDeLaCuenta(cita.userId);
     if (ajustes?.modo !== "tavus" || !tavus) {
-        if (!tavus) console.error("[videollamada] la cuenta no tiene avatar propio y falta TAVUS_API_KEY o TAVUS_PERSONA_ID en el entorno", { cita: id });
+        if (!tavus) console.error("[videollamada] la cuenta no tiene su clave y su avatar de Tavus: no hay videollamada con IA", { cita: id, cuenta: cita.userId });
         return { estado: "sin_configurar" };
     }
 

@@ -1917,15 +1917,18 @@ sin tocar) y **Videollamada con IA de Verzay**, que manda al cliente
 
 Cinco cosas que hay que mantener:
 
-1. **El avatar de la plataforma es Verzy** (`NOMBRE_DEL_AVATAR`): su clave y
-   su persona_id salen del ENTORNO (`TAVUS_API_KEY`, `TAVUS_PERSONA_ID`, en el
-   stack de Portainer; `elAvatarDelEntorno`), nunca del navegador. **Una cuenta
-   puede tener el SUYO** (`propioPersonaId` + `propioClaveSellada`, sellada con
-   `sellar`; se pone con `guardarElAvatarPropio`, solo servidor, sin pantalla
-   todavía). Quién decide es `elAvatarDeLaCuenta` (`elAvatarQueUsa`, pura): el
-   propio si está completo, si no el de la casa; lo usan abrir la sesión y la
-   disponibilidad. Sin ninguno el modo Tavus no se guarda y dice «no
-   disponible»; las columnas viejas `personaId`/`claveSellada` no se leen.
+1. **El avatar es SIEMPRE el de la cuenta; no hay avatar de la casa.** Cada
+   cuenta pone su clave y su persona_id de Tavus en Agente IA › Videollamadas ›
+   Claves (`propioPersonaId` + `propioClaveSellada`, sellada con `sellar`;
+   `guardarElAvatarPropio`). `elAvatarDeLaCuenta` (`elAvatarQueUsa`, pura)
+   devuelve el suyo o `null`: **no hay respaldo** y `TAVUS_API_KEY` /
+   `TAVUS_PERSONA_ID` del entorno ya no se leen (antes eran el avatar «de la
+   casa» y una cuenta sin el suyo gastaba la cuenta de Tavus de Verzay). Sin
+   avatar el modo Tavus no se guarda (`FALTA_EL_AVATAR_PROPIO`), la sala dice
+   «no disponible», y una cuenta que ya estaba en modo IA reparte su enlace
+   fijo (`elModoQueVale`, también la capacidad de la multiagenda) hasta que
+   ponga su clave; el modo guardado no se toca. «Verzy» es solo el nombre con
+   que se presenta. Las columnas viejas `personaId`/`claveSellada` no se leen.
 2. **La sesión de Tavus se crea al ABRIR el enlace**, nunca al agendar
    (`queHacerAlAbrir`): abre 15 min antes, vive hasta el FIN de la franja
    (también tras marcarla «No asistió») y dos pestañas reutilizan la misma

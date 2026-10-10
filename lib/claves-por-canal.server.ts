@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { comoLaVeElNavegador } from "@/lib/clave-de-ia-para-el-navegador";
-import { elAvatarDeVerzay, elAvatarPropio } from "@/lib/videollamada-ia-db";
+import { elAvatarPropio } from "@/lib/videollamada-ia-db";
 import {
     elEstadoDeLaLinea,
     elEstadoDeLaMensajeria,
@@ -94,7 +94,6 @@ export async function elEstadoDeLasClaves(cuentaId: string, canal: string): Prom
                 });
                 return elEstadoDelAvatar({
                     propio: propio?.clave ? { personaId: propio.personaId, clave: comoLaVeElNavegador(propio.clave) } : null,
-                    hayDeLaCasa: Boolean(elAvatarDeVerzay()),
                 });
             }
             default: {
