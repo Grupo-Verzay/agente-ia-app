@@ -6,6 +6,8 @@ import { laZonaDeLaCuenta } from "@/lib/zona-de-la-cuenta";
 import { laLlaveDelRecordatorio, losRecordatoriosDeLaCita } from "@/lib/recordatorios-de-la-cita";
 import { lasCredencialesDeLaLinea } from "@/lib/recordatorios-de-la-cita.server";
 import { elIdNodoDelRecordatorio, losNumerosDelCliente, losQueTodaviaNoPasan } from "@/lib/reagendar-cita";
+import { losSeguimientosDelCiclo } from "@/lib/ciclo-de-la-cita.server";
+import { olvidarElCiclo } from "@/lib/ciclo-de-la-cita-db";
 
 /**
  * Rehace los recordatorios de una cita a partir de su hora ACTUAL: borra los
@@ -105,24 +107,41 @@ export async function reprogramarLosRecordatoriosDeLaCita(
           })
         : [];
 
+    const datos = {
+        nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
+        inicio: cita.startTime,
+        zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
+        duracionMinutos: cita.user?.meetingDuration || 60,
+        servicio: cita.service?.name ?? "",
+        enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id),
+    };
+
+    // Con el ciclo automático encendido van SUS cuatro recordatorios en vez de
+    // las plantillas (la misma decisión que al agendar), y su historia
+    // —respuesta, llamada, prórroga— empieza de cero con la nueva hora.
+    const delCiclo = vivos ? await losSeguimientosDelCiclo(cita.userId, { citaId: cita.id, ...datos }, ahora) : null;
+    if (delCiclo) {
+        await olvidarElCiclo(cita.id).catch((error) =>
+            console.warn("[reagendar] no se pudo reiniciar el ciclo de la cita", { appointmentId, error: String(error) }),
+        );
+    }
+
     // La MISMA regla que al agendar: una sola función decide qué recordatorios
     // lleva una cita y qué dicen, con la hora en la zona de la cuenta.
-    const calculados = losRecordatoriosDeLaCita(
-        plantillas,
-        {
-            nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
-            inicio: cita.startTime,
-            zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
-            duracionMinutos: cita.user?.meetingDuration || 60,
-            servicio: cita.service?.name ?? "",
-            enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id),
-        },
-        ahora,
-    );
+    const calculados = delCiclo ? [] : losRecordatoriosDeLaCita(plantillas, datos, ahora);
     const programados = losQueTodaviaNoPasan(calculados, ahora);
+    const filas = delCiclo
+        ? delCiclo
+        : programados.map((r) => ({
+              idNodo: elIdNodoDelRecordatorio(r.plantillaId),
+              idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
+              tipo: "text",
+              time: r.cuando,
+              mensaje: r.mensaje,
+          }));
 
     // La línea y la clave salen de la base, como al agendar (la misma función).
-    const { serverurl, apikey } = programados.length
+    const { serverurl, apikey } = filas.length
         ? await lasCredencialesDeLaLinea(cita.userId, linea)
         : { serverurl: "", apikey: "" };
 
@@ -146,16 +165,16 @@ export async function reprogramarLosRecordatoriosDeLaCita(
             },
         }),
         db.seguimiento.createMany({
-            data: programados.map((r) => ({
-                idNodo: elIdNodoDelRecordatorio(r.plantillaId),
-                idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
+            data: filas.map((r) => ({
+                idNodo: r.idNodo,
+                idempotencyKey: r.idempotencyKey,
                 serverurl,
                 instancia: linea,
                 apikey,
                 remoteJid,
                 mensaje: r.mensaje,
-                tipo: "text",
-                time: r.cuando,
+                tipo: r.tipo,
+                time: r.time,
             })),
         }),
     ]);
@@ -172,7 +191,7 @@ export async function reprogramarLosRecordatoriosDeLaCita(
         borrados: borrados.count,
         creados: creados.count,
         motivo:
-            vivos && plantillas.length === 0
+            vivos && !delCiclo && plantillas.length === 0
                 ? "La cuenta no tiene recordatorios configurados en Agenda › Recordatorios."
                 : undefined,
     };

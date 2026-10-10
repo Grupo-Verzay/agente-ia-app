@@ -18,10 +18,10 @@ import {
 import { laCuentaDeLaAccion } from '@/lib/cuenta-de-la-accion';
 import { lasCuentasQueConsultaElCrm } from '@/lib/cuentas-del-crm';
 import { lasCitasPorEstado } from '@/lib/citas-por-estado.server';
-import { laLineaDeLaNotificacionDeCita } from '@/lib/agenda-de-la-familia';
 import { comoFranjaNueva, elEstadoAlReagendar, laDuracionDeLaCita } from '@/lib/reagendar-cita';
 import { reprogramarLosRecordatoriosDeLaCita } from '@/lib/reagendar-cita.server';
 import { dispararLasAutomatizacionesDeCita } from '@/lib/automatizaciones-de-cita.server';
+import { avisarAlClienteDelEstado, cambiarElEstadoDeLaCita } from '@/lib/estado-de-la-cita.server';
 
 /**
  * Este fichero no tenía **ni una** llamada a `currentUser()`: el `userId` —y en
@@ -367,82 +367,11 @@ export async function sendAppointmentStatusNotification(
     if (status === 'FINALIZADO' || status === 'DESCARTADO') {
         return { success: true, message: 'Este estado no se notifica.' };
     }
-    try {
-        const appt = await db.appointment.findUnique({
-            where: { id: appointmentId },
-            include: {
-                session: true,
-                service: true,
-                user: {
-                    select: {
-                        apiKey: { select: { url: true, key: true } },
-                        instancias: {
-                            orderBy: { id: 'asc' },
-                            select: { instanceName: true, instanceType: true },
-                        },
-                    },
-                },
-            },
-        });
-        if (!appt) return { success: false, message: 'La cita ya no existe.' };
-        if (!(await laCuentaDeLaAccion(appt.userId))) return { success: false, message: 'No autorizado.' };
-
-        const { esLineaDeWhatsappQr } = await import('@/lib/linea-de-whatsapp');
-        const instanceName = laLineaDeLaNotificacionDeCita({
-            lineaDeLaConversacion: appt.session?.instanceId,
-            lineasDeLaDuena: (appt.user?.instancias ?? []).map((i) => ({
-                instanceName: i.instanceName,
-                esQr: esLineaDeWhatsappQr(i.instanceType),
-            })),
-        });
-        if (!instanceName) {
-            console.warn('[agenda] la cuenta dueña de la cita no tiene línea por la que avisar', {
-                cita: appointmentId,
-                cuenta: appt.userId,
-            });
-            return { success: false, message: 'La cuenta de esta cita no tiene una línea de WhatsApp conectada.' };
-        }
-
-        const { buildStatusOwnerMessage } = await import('@/app/(root)/schedule/helpers/buildStatusOwnerMessage');
-        const { enviarConHistorial: sendMessageWithHistoryAction } = await import('@/lib/envio-con-historial.server');
-
-        const message = buildStatusOwnerMessage({
-            appointment: appt as unknown as import('@/app/(root)/schedule/helpers/normalizeAppointmentsToEvents').AppointmentWithSession,
-            newStatus: status,
-            userId: appt.userId,
-        });
-
-        // La clave de Evolution es la de la DUEÑA. En Waha y Meta no hace falta:
-        // `sendMessageWithHistoryAction` resuelve el proveedor por la línea.
-        const apiKeyUrl = appt.user?.apiKey?.url;
-        const apiKeyValue = appt.user?.apiKey?.key;
-        const result = await sendMessageWithHistoryAction({
-            instanceName,
-            url: apiKeyUrl ? `https://${apiKeyUrl}/message/sendText/${instanceName}` : undefined,
-            apikey: apiKeyValue ?? undefined,
-            remoteJid: appt.session.remoteJid,
-            message,
-            historyType: 'notification',
-            additionalKwargs: { source: 'AgendaStatusChange', appointmentId, nextStatus: status },
-        });
-
-        if (!result.success) {
-            console.warn('[agenda] no salió el aviso de cambio de estado', {
-                cita: appointmentId,
-                cuenta: appt.userId,
-                linea: instanceName,
-                motivo: result.message,
-            });
-            return { success: false, message: result.message || 'No se envió la notificación.', instanceName };
-        }
-        return { success: true, message: 'Notificación enviada.', instanceName };
-    } catch (error) {
-        console.error('[agenda] fallo al avisar del cambio de estado', {
-            cita: appointmentId,
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return { success: false, message: 'Ocurrió un error al notificar la cita.' };
-    }
+    const suya = await db.appointment.findUnique({ where: { id: appointmentId }, select: { userId: true } });
+    if (!suya) return { success: false, message: 'La cita ya no existe.' };
+    if (!(await laCuentaDeLaAccion(suya.userId))) return { success: false, message: 'No autorizado.' };
+    // El aviso es el MISMO que manda el ciclo automático (`lib/estado-de-la-cita.server.ts`).
+    return avisarAlClienteDelEstado(appointmentId, status);
 }
 
 /** Las automatizaciones de un estado: la MISMA función que Multiagenda. */
@@ -457,76 +386,16 @@ export async function updateAppointmentStatus(
             return { success: false, message: 'No autorizado.' };
         }
 
-        const updated = await db.appointment.update({
-            where: { id },
-            data: { status },
-            include: { session: true },
-        });
-
-        void triggerApptAutomations(updated.sessionId, status);
-
-        // Al cancelar, quitar el evento de Google Calendar (y limpiar el eventId).
-        if (status === 'CANCELADA' && (updated as any).googleEventId) {
-            const eventId = (updated as any).googleEventId as string;
-            void deleteCalendarEvent(updated.userId, eventId)
-                .then(() => db.appointment.update({ where: { id }, data: { googleEventId: null } as any }))
-                .catch(() => {});
-        }
-
-        await writeAuditLog({
-            userId: updated.userId,
-            actorId: await getAuditActorId(),
-            entityType: 'appointment',
-            entityId: id,
-            action: 'status_changed',
-            summary: `Cambio la cita a ${status}`,
-            metadata: {
-                status,
-                sessionId: updated.sessionId,
-            },
-        });
-
-        // Al cancelar: borrar seguimientos de la cita (appt-confirm-*, appt-reminder-*)
-        // y los legacy reminder-* que correspondan a plantillas isSchedule=true de este usuario.
-        if (status === 'CANCELADA') {
-            const instancia = updated.session?.instanceId;
-            const remoteJid = updated.session?.remoteJid;
-            if (instancia && remoteJid) {
-                // Formato nuevo: appt-reminder-{id} — identificación directa sin ambigüedad
-                // Formato legacy: reminder-{id} — buscar cuáles pertenecen a esta cita
-                // mediante reverse-lookup: extraer IDs de los seguimientos existentes
-                // y verificar que su Reminders padre tenga isSchedule=true para este usuario.
-                const legacyReminderSeguimientos = await db.seguimiento.findMany({
-                    where: { instancia, remoteJid, idNodo: { startsWith: 'reminder-' } },
-                    select: { idNodo: true },
-                });
-                const candidateIds = legacyReminderSeguimientos
-                    .map((s) => s.idNodo?.replace(/^reminder-/, '') ?? '')
-                    .filter(Boolean);
-                const validLegacyIds = candidateIds.length > 0
-                    ? (await db.reminders.findMany({
-                        where: { id: { in: candidateIds }, userId: updated.userId, isSchedule: true },
-                        select: { id: true },
-                      })).map((r) => `reminder-${r.id}`)
-                    : [];
-
-                const orFilter = [
-                    { idNodo: null },
-                    { idNodo: "" },                                // registros viejos con idNodo vacío
-                    { idNodo: { startsWith: 'appt-confirm-' } },
-                    { idNodo: { startsWith: 'appt-reminder-' } },
-                    ...(validLegacyIds.length > 0 ? [{ idNodo: { in: validLegacyIds } }] : []),
-                ];
-                await db.seguimiento.deleteMany({
-                    where: { instancia, remoteJid, OR: orFilter },
-                });
-            }
-        }
+        // Lo que conlleva el cambio (automatizaciones, Google Calendar,
+        // auditoría, limpiar recordatorios) es UNA función: la misma que usa el
+        // ciclo automático de la cita, que no tiene sesión.
+        const r = await cambiarElEstadoDeLaCita({ citaId: id, estado: status, actorId: await getAuditActorId() });
+        if (!r.cambiada) return { success: false, message: r.motivo };
 
         return {
             success: true,
             message: 'Estado actualizado correctamente.',
-            data: updated,
+            data: r.cita,
         };
     } catch (error) {
         console.error('Error al actualizar estado de la cita:', error);

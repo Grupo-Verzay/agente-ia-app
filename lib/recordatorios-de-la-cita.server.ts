@@ -1,5 +1,6 @@
 import "server-only";
 import { elEnlaceDeReunionDeLaCita } from "@/lib/videollamada-ia.server";
+import { losSeguimientosDelCiclo, type SeguimientoDelCiclo } from "@/lib/ciclo-de-la-cita.server";
 
 /**
  * Programa los recordatorios de UNA cita. Es el único sitio que lo hace, y lo
@@ -77,6 +78,19 @@ export async function programarLosRecordatoriosDeLaCita(
             return { programados: 0, nuevos: 0, motivo: "La cita no tiene línea o número." };
         }
 
+        // Con el ciclo automático encendido, sus cuatro recordatorios (3 h, 1 h
+        // con «Sí»/«No», 30 min y el enlace a la hora) SUSTITUYEN a las
+        // plantillas: con los dos, al cliente le llegaría cada aviso dos veces.
+        const enlaceDeReunion = await elEnlaceDeReunionDeLaCita(cita.userId, cita.id);
+        const zona = laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone));
+        const nombreDelCliente = (cita.clientName || cita.session?.pushName || "").trim();
+        const delCiclo = await losSeguimientosDelCiclo(
+            cita.userId,
+            { citaId: cita.id, nombreDelCliente, inicio: cita.startTime, zona, servicio: cita.service?.name ?? "", enlaceDeReunion },
+            ahora,
+        );
+        if (delCiclo) return escribirLosSeguimientos(cita.id, cita.userId, linea, remoteJid, delCiclo);
+
         const plantillas = await db.reminders.findMany({
             // `isCampaign` admite nulo (las plantillas viejas) y `false` a secas
             // lo dejaría fuera: se nombran las dos, igual que al reagendar.
@@ -88,57 +102,83 @@ export async function programarLosRecordatoriosDeLaCita(
         const programados = losRecordatoriosDeLaCita(
             plantillas,
             {
-                nombreDelCliente: (cita.clientName || cita.session?.pushName || "").trim(),
+                nombreDelCliente,
                 inicio: cita.startTime,
                 // La zona de la CUENTA; la de la cita solo si la cuenta no tiene.
-                zona: laZonaDeLaCuenta(cita.user?.timezone, laZonaDeLaCuenta(cita.timezone)),
+                zona,
                 duracionMinutos: cita.user?.meetingDuration || 60,
                 servicio: cita.service?.name ?? "",
-                enlaceDeReunion: await elEnlaceDeReunionDeLaCita(cita.userId, cita.id),
+                enlaceDeReunion,
             },
             ahora,
         );
         if (!programados.length) return { programados: 0, nuevos: 0 };
 
-        const { serverurl, apikey } = await lasCredencialesDeLaLinea(cita.userId, linea);
-
-        let nuevos = 0;
-        let hechos = 0;
-        for (const r of programados) {
-            const llave = laLlaveDelRecordatorio(cita.id, r.plantillaId);
-            try {
-                const ya = await db.seguimiento.findUnique({ where: { idempotencyKey: llave }, select: { id: true } });
-                if (ya) {
-                    hechos++;
-                    continue;
-                }
-                await db.seguimiento.create({
-                    data: {
-                        idNodo: elNodoDelRecordatorio(r.plantillaId),
-                        idempotencyKey: llave,
-                        serverurl,
-                        instancia: linea,
-                        apikey,
-                        remoteJid,
-                        mensaje: r.mensaje,
-                        tipo: "text",
-                        time: r.cuando,
-                    },
-                });
-                nuevos++;
-                hechos++;
-            } catch (error) {
-                // P2002: otra llamada lo escribió entre la lectura y el insert. Ya está.
-                if ((error as { code?: string })?.code === "P2002") {
-                    hechos++;
-                    continue;
-                }
-                console.error("[recordatorios-de-la-cita] no se pudo programar un recordatorio", { citaId, plantilla: r.plantillaId, error });
-            }
-        }
-        return { programados: hechos, nuevos };
+        return escribirLosSeguimientos(
+            cita.id,
+            cita.userId,
+            linea,
+            remoteJid,
+            programados.map((r) => ({
+                idNodo: elNodoDelRecordatorio(r.plantillaId),
+                idempotencyKey: laLlaveDelRecordatorio(cita.id, r.plantillaId),
+                tipo: "text",
+                time: r.cuando,
+                mensaje: r.mensaje,
+            })),
+        );
     } catch (error) {
         console.error("[recordatorios-de-la-cita] no se pudieron programar los recordatorios", { citaId, error });
         return { programados: 0, nuevos: 0, motivo: "No se pudieron programar los recordatorios." };
     }
+}
+
+/**
+ * Escribe los seguimientos de una cita, uno a uno y sin duplicar: la llave
+ * (`idempotencyKey`) es única, así que una segunda llamada los reconoce.
+ */
+async function escribirLosSeguimientos(
+    citaId: string,
+    cuenta: string,
+    linea: string,
+    remoteJid: string,
+    filas: SeguimientoDelCiclo[],
+): Promise<ResultadoDeLosRecordatorios> {
+    if (!filas.length) return { programados: 0, nuevos: 0 };
+    const { serverurl, apikey } = await lasCredencialesDeLaLinea(cuenta, linea);
+
+    let nuevos = 0;
+    let hechos = 0;
+    for (const r of filas) {
+        try {
+            const ya = await db.seguimiento.findUnique({ where: { idempotencyKey: r.idempotencyKey }, select: { id: true } });
+            if (ya) {
+                hechos++;
+                continue;
+            }
+            await db.seguimiento.create({
+                data: {
+                    idNodo: r.idNodo,
+                    idempotencyKey: r.idempotencyKey,
+                    serverurl,
+                    instancia: linea,
+                    apikey,
+                    remoteJid,
+                    mensaje: r.mensaje,
+                    tipo: r.tipo,
+                    time: r.time,
+                },
+            });
+            nuevos++;
+            hechos++;
+        } catch (error) {
+            // P2002: otra llamada lo escribió entre la lectura y el insert. Ya está.
+            if ((error as { code?: string })?.code === "P2002") {
+                hechos++;
+                continue;
+            }
+            console.error("[recordatorios-de-la-cita] no se pudo programar un recordatorio", { citaId, llave: r.idempotencyKey, error });
+        }
+    }
+    return { programados: hechos, nuevos };
 }

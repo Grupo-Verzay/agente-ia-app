@@ -1936,6 +1936,11 @@ Cinco cosas que hay que mantener:
    asistió» y reagendar por WhatsApp; minuto 5 → «No asistió» y el enlace por
    WhatsApp. Los 3 y 5 minutos están en los dos repositorios y tienen que decir
    lo mismo.
+   > **Sin efecto (2026-10-10):** ese reloj nunca llegó a `api-webhook`. La
+   > espera la lleva ahora el ciclo automático de la cita (minuto 5 llamada,
+   > minuto 10 No asistida), detrás de su interruptor: ver «Agenda: el ciclo
+   > automático de la cita pone SOLO los estados objetivos» en
+   > `crm-embudos-agenda-equipo.md`.
 4. **La transcripción entra al CRM como una llamada de voz**
    (`lib/videollamada-ia-aviso.server.ts`): `messageType: 'call'` con
    `raw.call.isVideo`, transcript y resumen cobrado a la cuenta.

@@ -607,7 +607,8 @@ export default function SalaDeLaVideollamada({
             refrescar();
             conversacionRef.current = elIdDeLaConversacion(conexion.url);
             // Entrar de verdad es esto, no abrir la página: se apunta aquí.
-            void fetch(`/api/videollamada/sala?${consulta}`, { method: "PUT" }).catch((e) =>
+            // `quien=asesor`: un asesor que entra no es el prospecto, y no pone la cita en Atendida.
+            void fetch(`/api/videollamada/sala?${consulta}${esAsesor ? "&quien=asesor" : ""}`, { method: "PUT" }).catch((e) =>
                 console.warn("[videollamada] no se pudo apuntar la entrada", e),
             );
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);

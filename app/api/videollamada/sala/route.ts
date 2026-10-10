@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { abrirLaVideollamada, esLaFirmaDeLaCita, marcarLaEntradaReal, terminarLaConversacion } from "@/lib/videollamada-ia.server";
+import { alEntrarElCliente } from "@/lib/ciclo-de-la-cita.server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,13 @@ export async function PUT(req: Request) {
     }
     try {
         await marcarLaEntradaReal(citaId);
+        // El ciclo automático de la cita: entró el PROSPECTO → Atendida. Un
+        // asesor que entra a mirar no es el prospecto (`quien=asesor`).
+        if (url.searchParams.get("quien") !== "asesor") {
+            void alEntrarElCliente(citaId).catch((error) =>
+                console.warn("[ciclo-de-la-cita] no se pudo revisar la cita al entrar", { cita: citaId, error: String(error) }),
+            );
+        }
         return NextResponse.json({ ok: true });
     } catch (error) {
         console.error("[videollamada] no se pudo apuntar la entrada", {
