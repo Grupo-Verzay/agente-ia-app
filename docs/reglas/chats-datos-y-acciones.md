@@ -1484,3 +1484,53 @@ Waha) lo enviaba y no dejaba la marca.
 
 Lo prueba `scripts/banco-flujo-manual-en-la-fila.sh`, contra Postgres y con la
 acción de verdad; `MODO=roto` contra `f0ad78b` afirma que la marca no aparecía.
+
+## Chats: una nota interna puede llevar archivos, y se ven al abrirla
+
+Al dejar una nota interna o mencionar a un asesor se puede adjuntar imagen,
+video, audio o documento (hasta 4), igual que en «Crear recordatorio». El
+archivo queda guardado CON la nota y, al abrirla después, sale en la burbuja
+con su visor y su descarga. Antes la nota era solo texto: el clip de la caja
+dejaba elegir un archivo y la nota lo ignoraba.
+
+> **El archivo sube ANTES al bucket (`/api/upload`, carpeta `notas-internas`) y
+> la acción recibe solo su dirección.** `lib/subir-adjuntos-de-la-nota.ts` sube
+> de uno en uno, dice qué falló y suelta del bucket lo ya subido si algo falla
+> (un archivo sin nota es espacio que nadie sabe de dónde salió).
+
+Cinco cosas que hay que mantener:
+
+1. **La dirección se vuelve a comprobar en el servidor**
+   (`comoSeGuardanLosAdjuntosDeLaNota`, pura): de NUESTRO bucket, con la forma
+   exacta que escribe `/api/upload`, en la carpeta `notas-internas`, y de una
+   cuenta que se alcanza (`laCuentaDeLaAccion`). Si no, la burbuja pintaría un
+   `<img>` o un `<video>` apuntando a donde dijera quien escribe. **Un archivo
+   que no vale rechaza la nota entera**: guardarla sin él se leería como
+   «adjunté y no está». Pasarse de 4 también es rechazo, no recorte.
+2. **Los archivos viven en `adjuntos_de_notas`, tabla NUESTRA sin clave
+   foránea**, como `acceso_por_mencion`: `internal_notes` es del BACKEND y el
+   esquema lo migra él. Se crea al guardar el primero, por `asegurarTabla`
+   (`lib/ddl-sin-bloquear.ts`: catálogo primero, plazo de candado), y **leer las
+   notas NO la crea** (una cuenta que nunca adjuntó no hace DDL al abrir un
+   chat; sin la tabla, `42P01` = «ninguna nota tiene archivo»).
+3. **Nota y archivos van en UNA transacción**; borrar la nota borra sus filas en
+   la misma y luego suelta los archivos del bucket (si el bucket falla, se dice
+   y la nota se borra igual). Sin clave foránea, una fila huérfana —nota borrada
+   por cascada al borrar el chat— no se ve nunca: se lee por id de nota.
+4. **Una nota puede ser SOLO un archivo.** El texto vacío está permitido solo con
+   archivo; la fila de la bandeja dice «🔒 📎 Archivo adjunto» y el aviso de
+   mención dice qué archivo es (`elTextoDeLaNotaParaElAviso`), nunca llega en
+   blanco. En la caja, adjuntar NO borra lo escrito (al cliente sí: es el pie).
+5. **Dentro de una nota, nada sale al cliente.** «Video» solo se ofrece en modo
+   nota (al cliente seguía apagado y se queda así; al dejar la nota se quita de
+   la caja y se dice), y una grabación se ADJUNTA a la nota (botón ámbar), no se
+   manda por WhatsApp. La burbuja usa el mismo visor que un mensaje
+   (`MediaRenderer`) y, debajo de cada archivo, su nombre, peso y enlace de
+   descarga a la vista.
+
+Lo prueba `scripts/banco-adjuntos-en-notas.sh`: la regla, la subida y un barrido;
+las acciones contra Postgres (guardar, abrir después, rechazos, transacción,
+puerta entre cuentas, borrar); y la burbuja y la caja REALES en Chromium sobre
+el CSS del build. `MODO=roto` corre el código de `fb40429` y afirma que la nota
+ignoraba los archivos, que sin texto se rechazaba, que la burbuja no los
+enseñaba y que la caja no ofrecía video ni adjuntaba la grabación.

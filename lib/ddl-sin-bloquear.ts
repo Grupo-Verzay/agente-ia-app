@@ -35,6 +35,15 @@ export async function columnaExiste(tabla: string, columna: string): Promise<boo
   return filas.length > 0;
 }
 
+export async function tablaExiste(tabla: string): Promise<boolean> {
+  const filas = await db.$queryRaw<{ ok: number }[]>`
+    SELECT 1 AS ok FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_name = ${tabla}
+    LIMIT 1
+  `;
+  return filas.length > 0;
+}
+
 export async function indiceExiste(nombre: string): Promise<boolean> {
   const filas = await db.$queryRaw<{ ok: number }[]>`
     SELECT 1 AS ok FROM pg_indexes
@@ -62,4 +71,19 @@ export async function asegurarColumna(tabla: string, columna: string, sql: strin
 export async function asegurarIndice(nombre: string, sql: string): Promise<void> {
   if (await indiceExiste(nombre)) return;
   await ddlSinBloquear(sql);
+}
+
+/**
+ * `CREATE TABLE` solo si la tabla no está. Con dos réplicas arrancando a la vez
+ * las dos pueden creerla ausente: el que llega segundo recibe «ya existe»
+ * (`42P07`, o `23505` en el catálogo) y eso es éxito, no fallo.
+ */
+export async function asegurarTabla(tabla: string, sql: string): Promise<void> {
+  if (await tablaExiste(tabla)) return;
+  try {
+    await ddlSinBloquear(sql);
+  } catch (error) {
+    if (await tablaExiste(tabla)) return;
+    throw error;
+  }
 }

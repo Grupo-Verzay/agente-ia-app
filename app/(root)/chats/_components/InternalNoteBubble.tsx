@@ -1,7 +1,13 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { Lock, Trash2 } from "lucide-react";
+import { Download, Lock, Trash2 } from "lucide-react";
+import { MediaRenderer } from "./MediaRenderer";
+import {
+  comoMediaDeLaBurbuja,
+  type AdjuntoDeLaNota,
+} from "@/lib/adjuntos-de-la-nota";
+import { comoSeLeeElNombre, comoSeLeeElTamano } from "@/lib/adjuntos-del-equipo";
 
 type InternalNoteBubbleProps = {
   content: string;
@@ -10,6 +16,8 @@ type InternalNoteBubbleProps = {
   timestamp: string;
   isOwn: boolean;
   mentionNames?: string[];
+  /** Los archivos que lleva la nota: se ven en la burbuja y se pueden descargar. */
+  adjuntos?: AdjuntoDeLaNota[];
   onDelete?: () => void;
 };
 
@@ -52,9 +60,11 @@ export function InternalNoteBubble({
   timestamp,
   isOwn,
   mentionNames,
+  adjuntos,
   onDelete,
 }: InternalNoteBubbleProps) {
   const displayName = authorName?.trim() || authorEmail;
+  const archivos = adjuntos ?? [];
 
   return (
     <div className="flex justify-center my-1 px-4">
@@ -87,9 +97,42 @@ export function InternalNoteBubble({
           </div>
         </div>
         {/* Content */}
-        <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap break-words leading-snug">
-          {renderWithMentions(content, mentionNames)}
-        </p>
+        {content.trim() && (
+          <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap break-words leading-snug">
+            {renderWithMentions(content, mentionNames)}
+          </p>
+        )}
+        {/* Los archivos de la nota: el MISMO visor que un mensaje (foto con
+            zoom, video, audio, tarjeta de documento) y, debajo de cada uno, su
+            nombre y la descarga — a la vista, no escondida dentro del visor. */}
+        {archivos.length > 0 && (
+          <div
+            data-nota-adjuntos=""
+            className={`flex flex-col gap-2 ${content.trim() ? "mt-2" : ""}`}
+          >
+            {archivos.map((a, i) => {
+              const tamano = comoSeLeeElTamano(a.tamano);
+              return (
+                <div key={`${a.url}-${i}`} data-nota-adjunto={a.tipo} className="flex flex-col gap-1">
+                  <MediaRenderer media={comoMediaDeLaBurbuja(a)} />
+                  <a
+                    href={a.url}
+                    download={a.nombre}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-nota-descargar=""
+                    className="flex w-fit max-w-full items-center gap-1 text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400"
+                    title={`Descargar ${a.nombre}`}
+                  >
+                    <Download className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{comoSeLeeElNombre(a.nombre)}</span>
+                    {tamano && <span className="shrink-0 font-normal text-amber-600/70 dark:text-amber-500">· {tamano}</span>}
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
