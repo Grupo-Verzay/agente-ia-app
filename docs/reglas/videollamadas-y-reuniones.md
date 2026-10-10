@@ -2565,3 +2565,31 @@ que probaba (el botón) ya no existe.
 **Lo que no se pudo ejercer aquí**: un teléfono de verdad y MinIO de verdad.
 Si un teléfono no graba, mirar en el log del servidor si llegó `a=empezar` y
 algún `cual=voz`.
+
+## Videollamada: al CRM va la grabación que dura más DE VERDAD, no la que estuvo más rato abierta
+
+Una videollamada de 3:40 se oía entera recién colgada y, al volver al
+detalle, solo traía 36 s. De varias grabaciones de una cita al CRM va «la más
+larga» (`copiarLaGrabacionAlCrm`), y «larga» eran los `segundos` que mandaba
+el navegador: el **reloj** desde que empezó a grabar hasta que cerró. Una
+sala que se vuelve a abrir —el teléfono recarga la pestaña al volver al
+navegador, o se pulsa otra vez el enlace; con la conversación `finalizada`
+`queHacerAlAbrir` crea otra— graba otra vez, y en segundo plano el teléfono la
+congela: 36 s grabados en varios minutos de reloj. Esa ganaba y tapaba a la
+buena en el CRM.
+
+1. **Manda lo que mide `ffmpeg`** del fichero que sale (`laDuracionDelFichero`:
+   `-c copy -f null` con `-progress`, recorre los paquetes sin decodificar).
+2. **Sin medida** (una sala de antes, o `ffmpeg` que no lee), el reloj del
+   navegador **sin pasar de lo que cabe en los trozos** subidos, uno cada
+   `TROZO_CADA_MS` (`losSegundosDeLaGrabacion`, pura). Lo mismo para el
+   barrido de las huérfanas.
+3. Se dice en el log cuando una grabación dura bastante menos que su reloj.
+
+Lo prueba `scripts/banco-grabacion-la-mas-larga.sh`: la regla pura y dos
+grabaciones de la misma cita contra Postgres y el `ffmpeg` de verdad (8 s con
+8 s de reloj; 3 s con 300 s de reloj): la buena sigue en el CRM y cada una
+apunta lo que dura. `MODO=roto` compila la ruta y el cierre de `0442bbb` y
+afirma que la de 3 s tapaba a la de 8 s. Dos pruebas de
+`grabacion-de-videollamada-db.test.mjs` daban por bueno el reloj (600 s y
+3600 s con un solo trozo): ahora piden los trozos que esa duración necesita.

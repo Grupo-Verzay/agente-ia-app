@@ -10,7 +10,7 @@ import { pipeline } from "stream/promises";
 import { minioClient } from "@/lib/minio";
 import { TAMANO_DE_PARTE, llaveDeLaGrabacion, llaveDeLaParte, sePuedeMandarLaParte } from "@/lib/grabacion-de-reunion";
 import { juntarLasPartes } from "@/lib/grabacion-de-reunion.server";
-import { HORAS_SIN_CERRAR, elTipoDelFichero, lasOrdenesDeLaMezcla, llaveDelTrozo, type CualTrozo } from "@/lib/grabacion-de-videollamada";
+import { HORAS_SIN_CERRAR, elTipoDelFichero, lasOrdenesDeLaMezcla, llaveDelTrozo, losSegundosDeLaGrabacion, type CualTrozo } from "@/lib/grabacion-de-videollamada";
 import type { ExtensionDeGrabacion } from "@/lib/grabacion-de-reunion";
 import {
     cerrarLaGrabacionDeLaSala,
@@ -171,6 +171,33 @@ function correrFfmpeg(ordenes: string[]): Promise<void> {
 }
 
 /**
+ * Lo que dura un fichero, leído por `ffmpeg` SIN decodificar (`-c copy`: solo
+ * recorre los paquetes, va en un instante). `null` si no se pudo leer.
+ */
+export function laDuracionDelFichero(archivo: string): Promise<number | null> {
+    return new Promise((listo) => {
+        const proceso = spawn(elFfmpeg(), ["-hide_banner", "-nostats", "-progress", "pipe:1", "-i", archivo, "-map", "0", "-c", "copy", "-f", "null", "-"], {
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        let salida = "";
+        proceso.stdout?.on("data", (d) => {
+            salida += String(d);
+            if (salida.length > 20_000) salida = salida.slice(-10_000);
+        });
+        const plazo = setTimeout(() => proceso.kill("SIGKILL"), 60_000);
+        proceso.on("error", () => {
+            clearTimeout(plazo);
+            listo(null);
+        });
+        proceso.on("close", (codigo) => {
+            clearTimeout(plazo);
+            const us = Array.from(salida.matchAll(/out_time_(?:us|ms)=(\d+)/g)).pop()?.[1];
+            listo(codigo === 0 && us ? Number(us) / 1_000_000 : null);
+        });
+    });
+}
+
+/**
  * Bajar los trozos de una pista a UN fichero del disco, en orden, sin
  * tenerlos en memoria. Un trozo perdido se salta y se dice.
  */
@@ -225,7 +252,7 @@ export async function juntarConLasVoces(fila: {
     cuentaId: string;
     formato: ExtensionDeGrabacion;
     trozosVideo: number;
-}): Promise<{ audioUrl: string | null; videoUrl: string | null }> {
+}): Promise<{ audioUrl: string | null; videoUrl: string | null; segundos: number | null }> {
     const voces = (await lasVocesDeLaGrabacion(fila.id)).filter((v) => v.trozos > 0);
     const base = { cuentaId: fila.cuentaId, grabacionId: fila.id, formato: fila.formato };
     const dir = await mkdtemp(join(tmpdir(), "videollamada-"));
@@ -253,14 +280,15 @@ export async function juntarConLasVoces(fila: {
 
         if (!bajadas.length) {
             // Sin ninguna voz: el video solo, como venga.
-            if (!conVideo || !video) return { audioUrl: null, videoUrl: null };
+            if (!conVideo || !video) return { audioUrl: null, videoUrl: null, segundos: null };
+            const segundos = await laDuracionDelFichero(video.archivo);
             const videoUrl = await subirElFichero({
                 archivo: video.archivo,
                 llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "video", modulo: "videollamadas", extension: fila.formato }),
                 tipo: elTipoDelFichero(fila.formato, "video"),
             });
             await borrar();
-            return { audioUrl: null, videoUrl };
+            return { audioUrl: null, videoUrl, segundos };
         }
 
         const salidaAudio = join(dir, `audio.${fila.formato}`);
@@ -282,6 +310,7 @@ export async function juntarConLasVoces(fila: {
                 error: error instanceof Error ? error.message : String(error),
             });
             const larga = [...bajadas].sort((a, b) => b.bytes - a.bytes)[0];
+            const segundos = await laDuracionDelFichero(conVideo && video ? video.archivo : larga.archivo);
             const audioUrl = await subirElFichero({
                 archivo: larga.archivo,
                 llave: llaveDeLaGrabacion({ cuentaId: fila.cuentaId, grabacionId: fila.id, cual: "audio", modulo: "videollamadas", extension: fila.formato }),
@@ -295,7 +324,7 @@ export async function juntarConLasVoces(fila: {
                   })
                 : null;
             await borrar();
-            return { audioUrl, videoUrl };
+            return { audioUrl, videoUrl, segundos };
         }
 
         const audioUrl = await subirElFichero({
@@ -310,9 +339,10 @@ export async function juntarConLasVoces(fila: {
                   tipo: elTipoDelFichero(fila.formato, "video"),
               })
             : null;
+        const segundos = await laDuracionDelFichero(salidaVideo ?? salidaAudio);
         await borrar();
-        console.info("[videollamada] voces mezcladas", { grabacion: fila.id, voces: bajadas.length, conVideo });
-        return { audioUrl, videoUrl };
+        console.info("[videollamada] voces mezcladas", { grabacion: fila.id, voces: bajadas.length, conVideo, segundos });
+        return { audioUrl, videoUrl, segundos };
     } finally {
         await rm(dir, { recursive: true, force: true }).catch(() => {});
     }
@@ -352,10 +382,12 @@ export async function cerrarYJuntarLaGrabacionDeLaSala(input: {
     // audio; las de antes, la mezcla (`audio`) y el video con ella.
     let audioUrl: string | null = null;
     let videoUrl: string | null = null;
-    const conVoces = (await lasVocesDeLaGrabacion(fila.id).catch(() => [])).some((v) => v.trozos > 0);
+    let medidos: number | null = null;
+    const voces = await lasVocesDeLaGrabacion(fila.id).catch(() => []);
+    const conVoces = voces.some((v) => v.trozos > 0);
     if (conVoces) {
         try {
-            ({ audioUrl, videoUrl } = await juntarConLasVoces(fila));
+            ({ audioUrl, videoUrl, segundos: medidos } = await juntarConLasVoces(fila));
         } catch (error) {
             console.warn("[videollamada] no se pudo juntar la grabación con sus voces", {
                 grabacion: fila.id,
@@ -369,10 +401,19 @@ export async function cerrarYJuntarLaGrabacionDeLaSala(input: {
     }
 
     const salio = Boolean(audioUrl || videoUrl);
+    // Lo que dura DE VERDAD (no el reloj del navegador): decide cuál va al CRM.
+    const segundos = losSegundosDeLaGrabacion({
+        delCliente: input.segundos,
+        trozos: Math.max(fila.trozosVideo, fila.trozosAudio, ...voces.map((v) => v.trozos)),
+        medidos,
+    });
+    if (segundos < Math.floor(input.segundos) - 15) {
+        console.info("[videollamada] la grabación dura menos que su reloj", { grabacion: fila.id, cita: fila.citaId, reloj: input.segundos, segundos });
+    }
     await cerrarLaGrabacionDeLaSala({
         id: fila.id,
         estado: salio ? "lista" : "fallida",
-        segundos: Math.max(0, Math.floor(input.segundos)),
+        segundos,
         audioUrl,
         videoUrl,
     });

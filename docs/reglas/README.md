@@ -111,7 +111,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Chat de equipo: limpiar un historial, un puesto que cambia de ocupante, y el orden de los directos
 - Chat de equipo: se vuelve al canal donde se estaba
 
-## [Videollamadas, salas y Reuniones](videollamadas-y-reuniones.md) — 22 reglas, 154 KB
+## [Videollamadas, salas y Reuniones](videollamadas-y-reuniones.md) — 23 reglas, 156 KB
 
 - Videollamada y SALAS: la misma llamada, más gente y más pistas
 - Reuniones: un módulo de la CUENTA, y la sala se soltó del canal
@@ -135,6 +135,7 @@ Los aprendizajes nuevos se añaden aquí (en el tema que toque), nunca en un `CL
 - Videollamada: graba también el ASESOR cuando está solo con Verzy, y en el chat sale con la cámara
 - Videollamada: la grabación no espera al primer clic (el audio parado no graba ni el video)
 - Videollamada: cada voz se graba SUELTA y el servidor la mezcla (sin toque, también en el teléfono)
+- Videollamada: al CRM va la grabación que dura más DE VERDAD, no la que estuvo más rato abierta
 
 ## [Llamadas de voz, llamadas con IA y CRM › Llamadas](llamadas.md) — 19 reglas, 121 KB
 

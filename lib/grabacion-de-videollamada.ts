@@ -193,6 +193,27 @@ export const TOPE_DE_TROZOS = 2_160;
  */
 export const TOPE_DE_GRABACIONES_POR_CITA = 20;
 
+/**
+ * Cuánto dura DE VERDAD una grabación: es lo que decide cuál va al CRM (de
+ * varias de la misma cita gana la más larga, `copiarLaGrabacionAlCrm`).
+ *
+ * Antes valía lo que decía el navegador: el reloj desde que empezó hasta que
+ * cerró. Pero una sala que se reabre (el teléfono recarga la pestaña al
+ * volver al navegador, o se pulsa otra vez el enlace) graba otra vez, y en
+ * segundo plano el teléfono la congela: 36 s grabados en cinco minutos de
+ * reloj. Esa «ganaba» a la llamada entera de 3:40 y la tapaba en el CRM.
+ *
+ * Ahora manda lo que mide `ffmpeg` del fichero; si no se pudo medir, el reloj
+ * del navegador sin pasar de lo que cabe en los trozos subidos (uno cada
+ * `TROZO_CADA_MS`).
+ */
+export function losSegundosDeLaGrabacion(input: { delCliente: number; trozos: number; medidos: number | null }): number {
+    if (input.medidos !== null && Number.isFinite(input.medidos) && input.medidos >= 0) return Math.round(input.medidos);
+    const cliente = Math.max(0, Math.floor(Number(input.delCliente) || 0));
+    const caben = Math.max(0, Math.floor(input.trozos)) * (TROZO_CADA_MS / 1000);
+    return Math.min(cliente, caben);
+}
+
 /** Las horas tras las que una grabación sin cerrar se da por huérfana y se junta. */
 export const HORAS_SIN_CERRAR = 2;
 
