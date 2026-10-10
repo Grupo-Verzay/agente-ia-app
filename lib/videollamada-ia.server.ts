@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import { nombreDeLaCuenta } from "@/lib/nombre-de-la-cuenta";
 import { elBloqueDeLaPantalla, elBloqueDelEnvio, elBloqueDelGuion } from "@/lib/pantalla-del-avatar";
+import { elBloqueDeAtencion } from "@/lib/atencion-de-la-videollamada";
 import { leerElGuionDeVideollamada } from "@/lib/guion-videollamada-db";
 import { elGuionQueSeUsa, type GuionDeVideollamada } from "@/lib/guion-videollamada";
 import { laPersonaParaLaConversacion } from "@/lib/persona-de-tavus.server";
@@ -19,6 +20,7 @@ import {
     elEnlaceDeLaVideollamada,
     elEnlaceDelNombre,
     elNombreDelProspecto,
+    comoLimiteDeMinutos,
     laDuracionConLimite,
     LIMITE_DE_FABRICA_MIN,
     pareceUnEnlaceConNombre,
@@ -207,6 +209,7 @@ async function elContexto(
     yaHablado?: string | null,
     guion?: GuionDeVideollamada | null,
     entrenamiento?: string | null,
+    limiteMinutos: number = LIMITE_DE_FABRICA_MIN,
 ): Promise<string> {
     const nombre = elNombreDelProspecto(cita);
     let conversacion = "";
@@ -236,7 +239,15 @@ async function elContexto(
     const anterior = elBloqueDeLoYaHablado(yaHablado);
     // Con la fecha de hoy en la zona del negocio: agendar «el jueves a las 3» la necesita.
     const ahora = laFechaDeHoyParaElGuion(new Date(), zona);
-    return [contexto, elBloqueDeLaPantalla(), elBloqueDelEnvio(), elBloqueDelGuion(ahora, guion, entrenamiento), anterior]
+    // El humano, el cierre y el reloj mandan sobre el guion: van detrás de él.
+    return [
+        contexto,
+        elBloqueDeLaPantalla(),
+        elBloqueDelEnvio(),
+        elBloqueDelGuion(ahora, guion, entrenamiento),
+        elBloqueDeAtencion(comoLimiteDeMinutos(limiteMinutos)),
+        anterior,
+    ]
         .filter(Boolean)
         .join("\n\n");
 }
@@ -316,7 +327,7 @@ async function crearLaConversacion(
     const cuerpo: Record<string, unknown> = {
         persona_id: personaId,
         conversation_name: `Cita ${cita.id}`,
-        conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita)),
+        conversational_context: await elContexto(cita, yaHablado, guion, await elEntrenamientoDeLaCita(cita), limiteMinutos),
         properties: {
             max_call_duration: laDuracionConLimite(ahora, cita.endTime, limiteMinutos),
             participant_absent_timeout: 300,

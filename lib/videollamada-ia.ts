@@ -181,10 +181,15 @@ export function elAvatarQueUsa(propio: { clave?: unknown; personaId?: unknown } 
 
 /* ── El límite de duración de cada videollamada ───────────────────────── */
 
-/** Cuánto dura como mucho una videollamada si la cuenta no lo cambia. */
+/**
+ * Cuánto dura como mucho una videollamada si la cuenta no lo cambia. Treinta
+ * es también el TECHO: la reunión con el avatar no pasa de 30 minutos, esté
+ * en la etapa que esté (`lib/atencion-de-la-videollamada.ts`). Una cuenta que
+ * guardó más se lee como 30. Una cuenta sí puede acortarla.
+ */
 export const LIMITE_DE_FABRICA_MIN = 30;
 export const LIMITE_MINIMO_MIN = 5;
-export const LIMITE_MAXIMO_MIN = 240;
+export const LIMITE_MAXIMO_MIN = 30;
 
 /**
  * El límite en minutos de una videollamada: un entero entre el mínimo y el
@@ -262,8 +267,16 @@ export function elContextoParaTavus(input: {
 export type FraseDeLaTranscripcion = { role?: unknown; content?: unknown };
 
 /**
+ * Con qué empieza lo que la SALA le pide decir a Verzy (`conversation.respond`
+ * del reloj y de la espera del humano). Tavus lo apunta como frase del
+ * cliente: no es suya, y ni la sala ni la transcripción la cuentan.
+ */
+export const MARCA_DEL_AVISO_INTERNO = "[AVISO INTERNO]";
+
+/**
  * La transcripción que manda Tavus, en el texto que se guarda: una línea por
- * turno, «Asistente:» o «Cliente:». Se quita el mensaje de sistema.
+ * turno, «Asistente:» o «Cliente:». Se quitan el mensaje de sistema y los
+ * avisos internos de la sala (`MARCA_DEL_AVISO_INTERNO`).
  */
 export function laTranscripcionDeTavus(frases: unknown): string {
     if (!Array.isArray(frases)) return "";
@@ -271,7 +284,7 @@ export function laTranscripcionDeTavus(frases: unknown): string {
         .map((f) => {
             const rol = String(f?.role ?? "");
             const texto = String(f?.content ?? "").replace(/\s+/g, " ").trim();
-            if (!texto || rol === "system") return "";
+            if (!texto || rol === "system" || texto.startsWith(MARCA_DEL_AVISO_INTERNO)) return "";
             return `${rol === "user" ? "Cliente" : "Asistente"}: ${texto}`;
         })
         .filter(Boolean)

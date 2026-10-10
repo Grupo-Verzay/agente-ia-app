@@ -34,6 +34,31 @@ import {
 } from "@/lib/fin-de-la-videollamada";
 import { elAbajoDeLoGrande, AJUSTE_DE_LA_PANTALLA, ESLOGAN_DE_LA_PORTADA, laDisposicion, LOGO_DE_LA_PORTADA, NOMBRE_DE_LA_PORTADA, TEXTO_DE_LA_PORTADA, TOPE_DE_LA_PRESENTACION_MS } from "@/lib/disposicion-de-la-videollamada";
 import { elCierreDeLaSala, LIMITE_DE_FABRICA_MIN } from "@/lib/videollamada-ia";
+import {
+    alPedirUnHumano,
+    AL_ENTRAR_EL_ASESOR,
+    AL_QUERER_COMPRAR,
+    AVISO_DE_UN_MINUTO,
+    comoAvisoInterno,
+    CONTEXTO_AL_PEDIR_UN_HUMANO,
+    CONTEXTO_DEL_CIERRE,
+    CONTEXTO_DEL_NO,
+    elAvisoDeCincoMinutos,
+    elAvisoDeLaEspera,
+    ENTRE_ALERTAS_DE_INCOMODIDAD_MS,
+    FRASES_QUE_SE_MIRAN,
+    laDespedidaDelCierre,
+    laDespedidaDelNo,
+    laFraseDelCliente,
+    loQueDijoElCliente,
+    losMomentosDelReloj,
+    PASOS_DE_LA_ESPERA,
+    siElClienteEstaHablando,
+    tocaElAviso,
+    type MomentoDelReloj,
+    type PasoDeLaEspera,
+    type TipoDeAtencion,
+} from "@/lib/atencion-de-la-videollamada";
 import { laSalaGraba } from "@/lib/grabacion-de-videollamada";
 
 /** Si el video de la pantalla se corta, cuánto se espera para reabrirlo (sube con cada intento). */
@@ -189,6 +214,9 @@ function elIdDeLaConversacion(url: string): string | null {
     }
 }
 
+/** Lo más que se espera a que nadie hable antes de que Verzy diga un aviso. */
+export const ESPERA_DEL_SILENCIO_MS = 20_000;
+
 const AL_VOLVER =
     "El cliente se reconectó a la videollamada después de un corte. Continúa exactamente donde iban, sin volver a saludar ni presentarte, y retoma el último tema.";
 
@@ -320,6 +348,71 @@ export default function SalaDeLaVideollamada({
         console.info(si ? "[videollamada] Verzy se calla: tomó la palabra un asesor" : "[videollamada] Verzy vuelve a hablar");
     };
 
+    // El humano, el cierre y el reloj (`lib/atencion-de-la-videollamada.ts`).
+    // Vive en una ref: una reconexión no reinicia la espera del asesor ni
+    // repite un aviso ya dado. Lo lleva SOLO la sala del cliente: con un
+    // asesor dentro, cada aviso saldría dos veces.
+    const atencion = useRef({
+        recientes: [] as string[],
+        humanoPedidoEn: null as number | null,
+        asesorLlego: false,
+        pasosDados: new Set<PasoDeLaEspera>(),
+        ofrecioReagendar: false,
+        quiereComprar: false,
+        enProcesoDePago: false,
+        ultimaIncomodidad: 0,
+        avisosDados: new Set<MomentoDelReloj>(),
+        cerrando: null as string | null,
+    });
+    const verzyHablandoRef = useRef(false);
+    const clienteHablandoRef = useRef(false);
+    const pedirAtencion = (tipo: TipoDeAtencion, extra: { frase?: string; cuando?: string } = {}) => {
+        fetch(`/api/videollamada/atencion?${consulta}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ tipo, ...extra }),
+            keepalive: true,
+        })
+            .then((r) => r.json())
+            .then((r) => {
+                if (!r?.ok) console.warn("[videollamada] el servidor no atendió el pedido", { tipo, motivo: r?.motivo });
+            })
+            .catch((e) => console.warn("[videollamada] no se pudo pedir la atención", { tipo, e }));
+    };
+    // Verzy dice un aviso CON SUS PALABRAS (`conversation.respond`): va con la
+    // marca, para que ni la sala ni la transcripción lo tomen por el cliente.
+    const decirleAVerzy = (texto: string) => {
+        const llamada = llamadaRef.current;
+        const conversacion = conversacionRef.current;
+        if (!llamada || !conversacion) return;
+        try {
+            llamada.sendAppMessage({
+                message_type: "conversation",
+                event_type: "conversation.respond",
+                conversation_id: conversacion,
+                properties: { text: comoAvisoInterno(texto) },
+            }, "*");
+        } catch (e) {
+            console.warn("[videollamada] no se pudo darle el aviso a Verzy", e);
+        }
+    };
+    // Verzy dice ESTA frase tal cual (`conversation.echo`).
+    const hacerleDecir = (texto: string) => {
+        const llamada = llamadaRef.current;
+        const conversacion = conversacionRef.current;
+        if (!llamada || !conversacion) return;
+        try {
+            llamada.sendAppMessage({
+                message_type: "conversation",
+                event_type: "conversation.echo",
+                conversation_id: conversacion,
+                properties: { text: texto },
+            }, "*");
+        } catch (e) {
+            console.warn("[videollamada] no se pudo hacer hablar a Verzy", e);
+        }
+    };
+
     const agendar = (orden: OrdenDeAgendar) => {
         fetch(`/api/videollamada/agendar?${consulta}`, {
             method: "POST",
@@ -328,6 +421,10 @@ export default function SalaDeLaVideollamada({
         })
             .then((r) => r.json())
             .then((r) => {
+                if (r?.ok && atencion.current.ofrecioReagendar) {
+                    // Quedó en hablar con un asesor, sin avatar: el equipo lo sabe ya.
+                    pedirAtencion("reagendada", { cuando: orden.fechaHora });
+                }
                 if (!r?.ok) {
                     console.warn("[videollamada] no se agendó el seguimiento", { orden, motivo: r?.motivo });
                     contarleAVerzy(`No se pudo agendar el ${orden.tipo} (${r?.motivo ?? "sin respuesta"}). Díselo al cliente con naturalidad y propón otra fecha.`);
@@ -345,6 +442,7 @@ export default function SalaDeLaVideollamada({
                 .then((r) => r.json())
                 .then((r) => {
                     const aviso = r?.ok && typeof r.aviso === "string" ? r.aviso : null;
+                    if (r?.estado === "registrado" || r?.estado === "pagado") atencion.current.enProcesoDePago = true;
                     if (aviso && aviso !== ultimo) {
                         ultimo = aviso;
                         contarleAVerzy(aviso);
@@ -582,10 +680,128 @@ export default function SalaDeLaVideollamada({
         // El límite de duración: se cuelga sola al llegar, contando desde que empezó de verdad.
         const cierre = elCierreDeLaSala(empezoEn ?? inicioRef.current, new Date(), limiteMinutos);
         const limite = window.setTimeout(() => colgar("limite"), Math.max(0, cierre.getTime() - Date.now()));
+
+        // ── El humano, el cierre y el reloj ──────────────────────────────
+        const relojes = new Set<number>();
+        const enUnRato = (fn: () => void, ms: number) => {
+            const id = window.setTimeout(() => {
+                relojes.delete(id);
+                fn();
+            }, Math.max(0, ms));
+            relojes.add(id);
+        };
+        const atiende = !esAsesor;
+        const hayAsesorDentro = () => {
+            try {
+                return Object.values(llamada.participants()).some((p) => !p.local && esAsesorDeLaSala(p));
+            } catch {
+                return false;
+            }
+        };
+        // Un aviso se dice cuando nadie habla, para no pisar a nadie (con tope).
+        const cuandoHayaSilencio = (fn: () => void, tope: number = ESPERA_DEL_SILENCIO_MS) => {
+            const hasta = Date.now() + tope;
+            const mirar = () => {
+                if (colgada) return;
+                if ((!verzyHablandoRef.current && !clienteHablandoRef.current) || Date.now() >= hasta) fn();
+                else enUnRato(mirar, 250);
+            };
+            mirar();
+        };
+        // Despedirse y colgar: Verzy dice la despedida tal cual y, cuando
+        // acaba de decirla, se cuelga. Nunca un corte sin despedida.
+        let despedidaDichaEn: number | null = null;
+        let porqueDelCierre = "";
+        const despedirseYColgar = (texto: string, contexto: string, porque: string, tope: number) => {
+            if (atencion.current.cerrando || colgada) return;
+            atencion.current.cerrando = porque;
+            porqueDelCierre = porque;
+            console.info("[videollamada] Verzy se despide y se cuelga", { porque });
+            cuandoHayaSilencio(() => {
+                if (colgada) return;
+                cortarAVerzy();
+                hacerleDecir(texto);
+                contarleAVerzy(contexto);
+                despedidaDichaEn = Date.now();
+                enUnRato(() => colgar(`${porque}-tope`), TOPE_DE_LA_DESPEDIDA_MS);
+            }, tope);
+        };
+        const programarLaEspera = () => {
+            const a = atencion.current;
+            if (a.humanoPedidoEn === null || a.asesorLlego) return;
+            for (const paso of PASOS_DE_LA_ESPERA) {
+                if (a.pasosDados.has(paso)) continue;
+                enUnRato(() => {
+                    if (a.asesorLlego || a.pasosDados.has(paso) || a.cerrando) return;
+                    if (hayAsesorDentro()) return;
+                    a.pasosDados.add(paso);
+                    if (paso === 3) a.ofrecioReagendar = true;
+                    console.info("[videollamada] el asesor no ha entrado", { minuto: paso });
+                    cuandoHayaSilencio(() => decirleAVerzy(elAvisoDeLaEspera(paso)));
+                }, a.humanoPedidoEn + paso * 60_000 - Date.now());
+            }
+        };
+        const atenderLaFrase = (frase: string) => {
+            const a = atencion.current;
+            const que = loQueDijoElCliente(frase, a.recientes);
+            a.recientes = [...a.recientes, frase].slice(-FRASES_QUE_SE_MIRAN);
+            if (que === "cierre-negativo") {
+                // Al momento: lo que Verzy iba a contestar (insistir) se corta.
+                pedirAtencion("descartado", { frase });
+                despedirseYColgar(laDespedidaDelNo(nombre), CONTEXTO_DEL_NO, "cierre-negativo", 0);
+            } else if (que === "pide-humano") {
+                if (a.humanoPedidoEn !== null) return;
+                a.humanoPedidoEn = Date.now();
+                console.info("[videollamada] el cliente pidió hablar con una persona");
+                pedirAtencion("humano", { frase });
+                cortarAVerzy();
+                hacerleDecir(alPedirUnHumano(nombre));
+                contarleAVerzy(CONTEXTO_AL_PEDIR_UN_HUMANO);
+                programarLaEspera();
+            } else if (que === "quiere-comprar") {
+                if (a.quiereComprar) return;
+                a.quiereComprar = true;
+                a.enProcesoDePago = true;
+                console.info("[videollamada] el cliente quiere comprar: se pasa al cierre");
+                contarleAVerzy(AL_QUERER_COMPRAR);
+            } else if (que === "incomodidad") {
+                if (Date.now() - a.ultimaIncomodidad < ENTRE_ALERTAS_DE_INCOMODIDAD_MS) return;
+                a.ultimaIncomodidad = Date.now();
+                // Silenciosa: Verzy no se entera ni cambia nada.
+                pedirAtencion("incomodidad", { frase });
+            }
+        };
+        if (atiende) {
+            // El reloj: a los 25, a los 29 y la despedida antes del 30, contados
+            // desde que EMPEZÓ. Fijo, esté en la etapa que esté.
+            for (const m of losMomentosDelReloj(new Date(empezoEn ?? inicioRef.current), cierre)) {
+                enUnRato(() => {
+                    const a = atencion.current;
+                    if (!tocaElAviso(m, new Date(), a.avisosDados) || a.cerrando) return;
+                    a.avisosDados.add(m.momento);
+                    console.info("[videollamada] aviso del reloj", { momento: m.momento });
+                    if (m.momento === "despedida") {
+                        pedirAtencion("seguimiento");
+                        if (silenciadoRef.current) return; // con el asesor al mando, el corte del límite basta
+                        despedirseYColgar(laDespedidaDelCierre(nombre), CONTEXTO_DEL_CIERRE, "limite", 4_000);
+                        return;
+                    }
+                    if (silenciadoRef.current) return;
+                    const texto = m.momento === "quedan-5" ? elAvisoDeCincoMinutos(a.enProcesoDePago) : AVISO_DE_UN_MINUTO;
+                    cuandoHayaSilencio(() => decirleAVerzy(texto));
+                }, m.en.getTime() - Date.now());
+            }
+        }
         for (const ev of ["participant-joined", "participant-updated", "participant-left", "track-started", "track-stopped"] as const) {
             llamada.on(ev, refrescar);
         }
         llamada.on("participant-joined", (ev) => {
+            const a = atencion.current;
+            if (atiende && ev?.participant && !ev.participant.local && esAsesorDeLaSala(ev.participant) && a.humanoPedidoEn !== null && !a.asesorLlego) {
+                a.asesorLlego = true;
+                console.info("[videollamada] entró el asesor que pidió el cliente");
+                contarleAVerzy(AL_ENTRAR_EL_ASESOR);
+            }
             if (!ev?.participant?.local && !esHumano(ev.participant) && verzySalio !== null) {
                 window.clearTimeout(verzySalio);
                 verzySalio = null;
@@ -612,6 +828,8 @@ export default function SalaDeLaVideollamada({
             );
             if (conexion.reentrada) contarleAVerzy(AL_VOLVER);
             else saludarTrasElMargen(llamada);
+            // Tras un corte, la espera del asesor sigue donde iba.
+            if (atiende) programarLaEspera();
             if (finDeLaPresentacion === null) {
                 finDeLaPresentacion = window.setTimeout(() => setPresentacionAcabo(true), TOPE_DE_LA_PRESENTACION_MS);
             }
@@ -627,12 +845,26 @@ export default function SalaDeLaVideollamada({
             const silencio = loQueHaceConElSilencio(ev?.data, silenciadoRef.current);
             if (silencio) silenciarAVerzy(silencio === "silenciar");
             if (silenciadoRef.current && siVerzyEstaHablando(ev?.data) === true) cortarAVerzy();
+            const habla = siVerzyEstaHablando(ev?.data);
+            if (habla !== null) verzyHablandoRef.current = habla;
+            const cliente = siElClienteEstaHablando(ev?.data);
+            if (cliente !== null) clienteHablandoRef.current = cliente;
+            // La despedida que puso la sala: se cuelga cuando Verzy la termina.
+            if (despedidaDichaEn !== null && habla === false && Date.now() - despedidaDichaEn > 1_000) {
+                colgarTrasLaDespedida(porqueDelCierre);
+            }
+            // Lo que dijo el cliente, cuando nadie del equipo está al mando:
+            // con un asesor dentro, lo que se oye también puede ser él.
+            const frase = laFraseDelCliente(ev?.data);
+            if (frase && atiende && !silenciadoRef.current && !atencion.current.cerrando && !hayAsesorDentro()) {
+                atenderLaFrase(frase);
+            }
             const fin = loQueTerminaLaLlamada(ev?.data);
             if (fin?.tipo === "fin") {
                 colgar("fin-de-tavus");
                 return;
             }
-            if (fin?.tipo === "despedida" && tope === null) {
+            if (fin?.tipo === "despedida" && tope === null && !atencion.current.cerrando) {
                 if (fin.quien === "cliente") contarleAVerzy(AL_DESPEDIRSE_EL_CLIENTE);
                 tope = window.setTimeout(() => colgar(`despedida-${fin.quien}-tope`), TOPE_DE_LA_DESPEDIDA_MS);
             }
@@ -658,6 +890,7 @@ export default function SalaDeLaVideollamada({
             }
             const envio = laOrdenDeEnvio(ev?.data);
             if (envio) {
+                if (envio.que === "pago") atencion.current.enProcesoDePago = true;
                 mandarPorWhatsapp(envio);
                 return;
             }
@@ -690,6 +923,7 @@ export default function SalaDeLaVideollamada({
             if (verzySalio !== null) window.clearTimeout(verzySalio);
             if (finDeLaPresentacion !== null) window.clearTimeout(finDeLaPresentacion);
             window.clearTimeout(limite);
+            relojes.forEach((id) => window.clearTimeout(id));
             llamadaRef.current = null;
             void llamada.destroy();
         };
